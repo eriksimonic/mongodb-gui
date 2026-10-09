@@ -1,14 +1,21 @@
-import { contextBridge, ipcRenderer } from 'electron';
-import type { MongoGuiApi } from '@mongo-gui/ui';
+import { contextBridge, ipcRenderer, type IpcRendererEvent } from 'electron';
+import type { PreloadBridge, RpcResult } from '@mongo-gui/core';
+import { RPC_EVENT_CHANNEL, RPC_INVOKE_CHANNEL } from '@mongo-gui/core/channels';
 
-async function ping(): Promise<string> {
-  const result: unknown = await ipcRenderer.invoke('app:ping');
-  if (typeof result !== 'string') {
-    throw new Error('app:ping returned a non-string value');
-  }
-  return result;
-}
+// The only object the renderer can reach. It carries no ipcRenderer reference.
+const bridge: PreloadBridge = {
+  invoke(method: string, input: unknown): Promise<RpcResult> {
+    return ipcRenderer.invoke(RPC_INVOKE_CHANNEL, method, input);
+  },
+  onEvent(listener: (event: unknown) => void): () => void {
+    const handler = (_event: IpcRendererEvent, payload: unknown): void => {
+      listener(payload);
+    };
+    ipcRenderer.on(RPC_EVENT_CHANNEL, handler);
+    return () => {
+      ipcRenderer.removeListener(RPC_EVENT_CHANNEL, handler);
+    };
+  },
+};
 
-const api: MongoGuiApi = { ping };
-
-contextBridge.exposeInMainWorld('mongoGui', api);
+contextBridge.exposeInMainWorld('mongoGui', bridge);

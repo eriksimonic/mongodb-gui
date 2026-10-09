@@ -11,6 +11,8 @@ export * from './profiler/normalise';
 export * from './profiler/shape';
 export * from './profiler/types';
 export * from './redact';
+export * from './rpc/bridge';
+export * from './rpc/channels';
 export * from './rpc/client';
 export * from './rpc/contract';
 export * from './rpc/define';

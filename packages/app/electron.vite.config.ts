@@ -4,15 +4,23 @@ import { join } from 'node:path';
 
 const appRoot = import.meta.dirname;
 
+// Workspace packages ship TypeScript source, which Electron cannot require at run time, so
+// the bundle includes them. Their npm dependencies (zod, mongodb) are bundled with them.
+const bundledWorkspacePackages = [
+  '@mongo-gui/core',
+  '@mongo-gui/mongo-adapter',
+  '@mongo-gui/storage',
+];
+
 export default defineConfig({
   main: {
-    plugins: [externalizeDepsPlugin()],
+    plugins: [externalizeDepsPlugin({ exclude: bundledWorkspacePackages })],
     build: {
       outDir: join(appRoot, 'out/main'),
     },
   },
   preload: {
-    plugins: [externalizeDepsPlugin()],
+    plugins: [externalizeDepsPlugin({ exclude: bundledWorkspacePackages })],
     build: {
       outDir: join(appRoot, 'out/preload'),
       // Sandboxed preload scripts must be CommonJS. The package is type module,
