@@ -288,6 +288,89 @@ describe('Vault idle lock', () => {
     expect(vi.getTimerCount()).toBe(0);
   });
 
+  it('setIdleLockMs shortens a running timer and re-arms it against the idle time', () => {
+    vi.useFakeTimers();
+    let clock = 0;
+    const vault = newVault(newDir(), { idleLockMs: 1000, now: () => clock });
+    vault.initialise(PASSWORD);
+
+    clock = 300;
+    vault.setIdleLockMs(500);
+    clock = 500;
+    vi.advanceTimersByTime(200);
+    expect(vault.status()).toEqual({ state: 'locked' });
+  });
+
+  it('setIdleLockMs lengthens the timeout without locking early', () => {
+    vi.useFakeTimers();
+    let clock = 0;
+    const vault = newVault(newDir(), { idleLockMs: 1000, now: () => clock });
+    vault.initialise(PASSWORD);
+
+    clock = 900;
+    vault.setIdleLockMs(5000);
+    clock = 1000;
+    vi.advanceTimersByTime(1000);
+    expect(vault.status()).toEqual({ state: 'unlocked' });
+
+    clock = 5000;
+    vi.advanceTimersByTime(4000);
+    expect(vault.status()).toEqual({ state: 'locked' });
+  });
+
+  it('setIdleLockMs locks at once when the vault is already idle past the new timeout', () => {
+    vi.useFakeTimers();
+    let clock = 0;
+    const onLocked = vi.fn();
+    const vault = newVault(newDir(), { idleLockMs: 10_000, now: () => clock, onLocked });
+    vault.initialise(PASSWORD);
+
+    clock = 2000;
+    vault.setIdleLockMs(500);
+    vi.advanceTimersByTime(1);
+    expect(vault.status()).toEqual({ state: 'locked' });
+    expect(onLocked).toHaveBeenCalledTimes(1);
+  });
+
+  it('setIdleLockMs clamps a timeout below 1 ms to 1 ms', () => {
+    vi.useFakeTimers();
+    let clock = 0;
+    const vault = newVault(newDir(), { idleLockMs: 1000, now: () => clock });
+    vault.initialise(PASSWORD);
+    vault.setIdleLockMs(0);
+    clock = 1;
+    vi.advanceTimersByTime(1);
+    expect(vault.status()).toEqual({ state: 'locked' });
+  });
+
+  it('setIdleLockMs clamps an out-of-range timeout without throwing or looping', () => {
+    vi.useFakeTimers();
+    const vault = newVault(newDir(), { idleLockMs: 1000, now: () => 0 });
+    vault.initialise(PASSWORD);
+
+    expect(() => vault.setIdleLockMs(1e15)).not.toThrow();
+    expect(() => vault.setIdleLockMs(Number.POSITIVE_INFINITY)).not.toThrow();
+    // One pending timer, armed at the largest delay setTimeout accepts.
+    expect(vi.getTimerCount()).toBe(1);
+    vi.advanceTimersByTime(60_000);
+    expect(vault.status()).toEqual({ state: 'unlocked' });
+  });
+
+  it('setIdleLockMs still rejects NaN', () => {
+    const vault = newVault(newDir(), { idleLockMs: 1000 });
+    vault.initialise(PASSWORD);
+    expect(() => vault.setIdleLockMs(Number.NaN)).toThrow(AppErrorException);
+  });
+
+  it('setIdleLockMs arms no timer while locked', () => {
+    vi.useFakeTimers();
+    const vault = newVault(newDir(), { idleLockMs: 1000 });
+    vault.initialise(PASSWORD);
+    vault.lock();
+    vault.setIdleLockMs(500);
+    expect(vi.getTimerCount()).toBe(0);
+  });
+
   it('does nothing when touched while locked', () => {
     vi.useFakeTimers();
     const vault = newVault(newDir(), { idleLockMs: 1000 });
