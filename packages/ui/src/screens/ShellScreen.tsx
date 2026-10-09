@@ -19,6 +19,7 @@ import { SettingsModal } from '../components/settings/SettingsModal';
 import { UpdateBanner } from '../components/updates/UpdateBanner';
 import type { PanelRequest } from '../state/app-store';
 import { useAppStore } from '../state/app-store-context';
+import { catalogKey } from '../state/node-ids';
 import { PanelOpenerContext, type OpenPanel } from '../state/panel-opener';
 import {
   ConnectionsPanel,
@@ -120,13 +121,18 @@ function panelId(request: PanelRequest): string {
 }
 
 /** Focuses the panel for the request, or adds it. One panel exists per collection and kind. */
-function openCollectionPanel(api: DockviewApi, request: PanelRequest): void {
+function openCollectionPanel(
+  api: DockviewApi,
+  request: PanelRequest,
+  open: Map<string, PanelRequest>,
+): void {
   const id = panelId(request);
   const existing = api.getPanel(id);
   if (existing !== undefined) {
     existing.api.setActive();
     return;
   }
+  open.set(id, request);
   // Collection panels open as tabs of the centre group. The active group could be the tree's, and a
   // dockview group hides the tree's content while another of its tabs is active.
   api.addPanel({
@@ -178,6 +184,10 @@ export function ShellScreen() {
   const clearPanelRequest = useAppStore((state) => state.clearPanelRequest);
   const dockApi = useRef<DockviewApi | undefined>(undefined);
   const [dock, setDock] = useState<DockviewApi | undefined>(undefined);
+  const collections = useAppStore((state) => state.collections);
+  // The collection panels this shell opened, by panel id. A rename or drop closes the ones whose
+  // collection is gone.
+  const collectionPanels = useRef(new Map<string, PanelRequest>());
   const openPanel = useCallback<OpenPanel>((request) => {
     if (dockApi.current !== undefined) {
       openConnectionPanel(dockApi.current, request);
@@ -189,9 +199,30 @@ export function ShellScreen() {
     if (dock === undefined || panelRequest === undefined) {
       return;
     }
-    openCollectionPanel(dock, panelRequest);
+    openCollectionPanel(dock, panelRequest, collectionPanels.current);
     clearPanelRequest();
   }, [dock, panelRequest, clearPanelRequest]);
+
+  // Closes a collection panel once its database lists loaded without the collection.
+  useEffect(() => {
+    if (dock === undefined) {
+      return;
+    }
+    for (const [id, request] of collectionPanels.current) {
+      const loaded = collections[catalogKey(request.connectionId, request.database)];
+      if (
+        loaded?.state !== 'ready' ||
+        loaded.data.some((item) => item.name === request.collection)
+      ) {
+        continue;
+      }
+      const panel = dock.getPanel(id);
+      if (panel !== undefined) {
+        dock.removePanel(panel);
+      }
+      collectionPanels.current.delete(id);
+    }
+  }, [dock, collections]);
 
   return (
     <PanelOpenerContext.Provider value={openPanel}>
@@ -253,6 +284,7 @@ export function ShellScreen() {
                 setDock(event.api);
                 handleDockReady(event);
                 event.api.onDidRemovePanel((panel) => {
+                  collectionPanels.current.delete(panel.id);
                   stopSamplerWhenUnused(event.api, panel.id, stopMonitor);
                 });
               }}

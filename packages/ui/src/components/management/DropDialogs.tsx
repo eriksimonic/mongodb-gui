@@ -1,5 +1,5 @@
 import { Text } from '@mantine/core';
-import { toAppError } from '@mongo-gui/core';
+import { errorText } from '../notify-error';
 import { useEffect, useState } from 'react';
 import { useUiApi } from '../../api/ui-api';
 import { DestructiveDialog } from './DestructiveDialog';
@@ -83,7 +83,7 @@ export function ClearCollectionDialog({
       },
       (failure: unknown) => {
         if (active) {
-          setLoadError(toAppError(failure).message);
+          setLoadError(errorText(failure));
         }
       },
     );
@@ -97,6 +97,8 @@ export function ClearCollectionDialog({
       loadError
     ) : count === undefined ? (
       'Counting documents'
+    ) : count === 0 ? (
+      `${database}.${collection} is already empty.`
     ) : (
       <Text component="span" size="sm">
         Delete all {count} documents in {database}.{collection}. Indexes and validation rules stay.
@@ -109,7 +111,7 @@ export function ClearCollectionDialog({
       title={`Clear ${collection}`}
       description={description}
       confirmLabel="Clear collection"
-      confirmDisabled={count === undefined}
+      confirmDisabled={count === undefined || count === 0}
       onConfirm={() => rpc.management.clearCollection({ connectionId, database, name: collection })}
       onClose={onClose}
     />

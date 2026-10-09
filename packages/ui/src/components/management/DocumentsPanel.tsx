@@ -10,7 +10,7 @@ import {
   TextInput,
 } from '@mantine/core';
 import { IconCopy, IconPencil, IconPlus, IconTrash } from '@tabler/icons-react';
-import { toAppError } from '@mongo-gui/core';
+import { errorText } from '../notify-error';
 import { useEffect, useState } from 'react';
 import { useUiApi } from '../../api/ui-api';
 import { useAppStore } from '../../state/app-store-context';
@@ -64,7 +64,7 @@ export function DocumentsPanel({ connectionId, database, collection }: Collectio
       },
       (failure: unknown) => {
         if (active) {
-          setLoadError(toAppError(failure).message);
+          setLoadError(errorText(failure));
         }
       },
     );
@@ -104,7 +104,7 @@ export function DocumentsPanel({ connectionId, database, collection }: Collectio
       });
       setMatchCount(count);
     } catch (failure) {
-      setFilterError(toAppError(failure).message);
+      setFilterError(errorText(failure));
     }
   }
 

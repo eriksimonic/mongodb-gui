@@ -99,6 +99,19 @@ describe('buildIndexRequest', () => {
     expect(result).toEqual({ ok: false, message: 'Each field can appear once in the key' });
   });
 
+  it('refuses a TTL on a compound key, because the server only allows one field', () => {
+    const result = buildIndexRequest(
+      draftWith({
+        fields: [
+          { field: 'status', order: '1' },
+          { field: 'createdAt', order: '-1' },
+        ],
+        ttlSeconds: '3600',
+      }),
+    );
+    expect(result).toEqual({ ok: false, message: 'TTL needs a single-field index' });
+  });
+
   it('refuses a TTL that is not a whole number of seconds', () => {
     const result = buildIndexRequest(
       draftWith({ fields: [{ field: 'a', order: '1' }], ttlSeconds: '1.5' }),

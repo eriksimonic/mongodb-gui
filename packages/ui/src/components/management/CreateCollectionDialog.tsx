@@ -12,7 +12,8 @@ import {
   Text,
   TextInput,
 } from '@mantine/core';
-import { toAppError, type ValidationAction, type ValidationLevel } from '@mongo-gui/core';
+import { type ValidationAction, type ValidationLevel } from '@mongo-gui/core';
+import { errorText } from '../notify-error';
 import { useState } from 'react';
 import { useUiApi } from '../../api/ui-api';
 import { JsonEditor } from '../../editor/JsonEditor';
@@ -75,7 +76,7 @@ export function CreateCollectionDialog({
       await rpc.management.createCollection({ connectionId, database, ...request.value });
       onClose();
     } catch (failure) {
-      setError(toAppError(failure).message);
+      setError(errorText(failure));
     } finally {
       setBusy(false);
     }
@@ -83,143 +84,150 @@ export function CreateCollectionDialog({
 
   return (
     <Modal opened onClose={onClose} title={`New collection in ${database}`} centered size="lg">
-      <Stack gap="sm">
-        <TextInput
-          label="Collection name"
-          value={draft.name}
-          onChange={(event) => update({ name: event.currentTarget.value })}
-          error={nameProblem}
-          autoFocus
-          autoComplete="off"
-        />
+      <form
+        onSubmit={(event) => {
+          event.preventDefault();
+          void submit();
+        }}
+      >
+        <Stack gap="sm">
+          <TextInput
+            label="Collection name"
+            value={draft.name}
+            onChange={(event) => update({ name: event.currentTarget.value })}
+            error={nameProblem}
+            autoFocus
+            autoComplete="off"
+          />
 
-        <Switch
-          label="Capped collection"
-          description="A fixed size. The oldest documents are overwritten when it is full."
-          checked={draft.capped}
-          onChange={(event) => update({ capped: event.currentTarget.checked, timeseries: false })}
-        />
-        {draft.capped ? (
-          <Group grow align="flex-start">
-            <NumberInput
-              label="Size in bytes"
-              min={1}
-              allowDecimal={false}
-              value={draft.cappedSizeBytes}
-              onChange={(value) => update({ cappedSizeBytes: String(value) })}
-            />
-            <NumberInput
-              label="Maximum documents"
-              min={1}
-              allowDecimal={false}
-              value={draft.cappedMaxDocuments}
-              onChange={(value) => update({ cappedMaxDocuments: String(value) })}
-            />
-          </Group>
-        ) : null}
-
-        <Switch
-          label="Time series collection"
-          checked={draft.timeseries}
-          onChange={(event) => update({ timeseries: event.currentTarget.checked, capped: false })}
-        />
-        {draft.timeseries ? (
-          <Group grow align="flex-start">
-            <TextInput
-              label="Time field"
-              value={draft.timeField}
-              onChange={(event) => update({ timeField: event.currentTarget.value })}
-            />
-            <TextInput
-              label="Meta field"
-              value={draft.metaField}
-              onChange={(event) => update({ metaField: event.currentTarget.value })}
-            />
-            <Select
-              label="Granularity"
-              data={GRANULARITY_OPTIONS}
-              value={draft.granularity === '' ? null : draft.granularity}
-              onChange={(value) => update({ granularity: parseGranularity(value) })}
-              clearable
-            />
-            <NumberInput
-              label="Expire after seconds"
-              min={1}
-              allowDecimal={false}
-              value={draft.expireAfterSeconds}
-              onChange={(value) => update({ expireAfterSeconds: String(value) })}
-            />
-          </Group>
-        ) : null}
-
-        <Checkbox
-          label="Clustered by _id"
-          checked={draft.clustered}
-          onChange={(event) => update({ clustered: event.currentTarget.checked })}
-        />
-
-        <Accordion variant="contained" multiple>
-          <Accordion.Item value="collation">
-            <Accordion.Control>Collation (EJSON)</Accordion.Control>
-            <Accordion.Panel>
-              <JsonEditor
-                label="Collation as EJSON"
-                height={120}
-                value={draft.collationEjson}
-                onChange={(value) => update({ collationEjson: value })}
+          <Switch
+            label="Capped collection"
+            description="A fixed size. The oldest documents are overwritten when it is full."
+            checked={draft.capped}
+            onChange={(event) => update({ capped: event.currentTarget.checked, timeseries: false })}
+          />
+          {draft.capped ? (
+            <Group grow align="flex-start">
+              <NumberInput
+                label="Size in bytes"
+                min={1}
+                allowDecimal={false}
+                value={draft.cappedSizeBytes}
+                onChange={(value) => update({ cappedSizeBytes: String(value) })}
               />
-            </Accordion.Panel>
-          </Accordion.Item>
-          <Accordion.Item value="validator">
-            <Accordion.Control>Validator (EJSON)</Accordion.Control>
-            <Accordion.Panel>
-              <Stack gap="xs">
-                <JsonEditor
-                  label="Validator as EJSON"
-                  height={180}
-                  value={draft.validatorEjson}
-                  onChange={(value) => update({ validatorEjson: value })}
-                />
-                <Group grow align="flex-start">
-                  <Select
-                    label="Validation level"
-                    data={LEVEL_OPTIONS}
-                    value={draft.validationLevel}
-                    onChange={(value) => update({ validationLevel: parseLevel(value) })}
-                    allowDeselect={false}
-                  />
-                  <Select
-                    label="Validation action"
-                    data={ACTION_OPTIONS}
-                    value={draft.validationAction}
-                    onChange={(value) => update({ validationAction: parseAction(value) })}
-                    allowDeselect={false}
-                  />
-                </Group>
-              </Stack>
-            </Accordion.Panel>
-          </Accordion.Item>
-        </Accordion>
+              <NumberInput
+                label="Maximum documents"
+                min={1}
+                allowDecimal={false}
+                value={draft.cappedMaxDocuments}
+                onChange={(value) => update({ cappedMaxDocuments: String(value) })}
+              />
+            </Group>
+          ) : null}
 
-        {error === undefined ? null : (
-          <Alert color="red" variant="light">
-            {error}
-          </Alert>
-        )}
-        {request.ok || nameProblem !== undefined || draft.name === '' ? null : (
-          <Text size="xs" c="red">
-            {request.message}
-          </Text>
-        )}
-        <Group justify="flex-end">
-          <Button variant="default" onClick={onClose}>
-            Cancel
-          </Button>
-          <Button disabled={!request.ok} loading={busy} onClick={() => void submit()}>
-            Create collection
-          </Button>
-        </Group>
-      </Stack>
+          <Switch
+            label="Time series collection"
+            checked={draft.timeseries}
+            onChange={(event) => update({ timeseries: event.currentTarget.checked, capped: false })}
+          />
+          {draft.timeseries ? (
+            <Group grow align="flex-start">
+              <TextInput
+                label="Time field"
+                value={draft.timeField}
+                onChange={(event) => update({ timeField: event.currentTarget.value })}
+              />
+              <TextInput
+                label="Meta field"
+                value={draft.metaField}
+                onChange={(event) => update({ metaField: event.currentTarget.value })}
+              />
+              <Select
+                label="Granularity"
+                data={GRANULARITY_OPTIONS}
+                value={draft.granularity === '' ? null : draft.granularity}
+                onChange={(value) => update({ granularity: parseGranularity(value) })}
+                clearable
+              />
+              <NumberInput
+                label="Expire after seconds"
+                min={1}
+                allowDecimal={false}
+                value={draft.expireAfterSeconds}
+                onChange={(value) => update({ expireAfterSeconds: String(value) })}
+              />
+            </Group>
+          ) : null}
+
+          <Checkbox
+            label="Clustered by _id"
+            checked={draft.clustered}
+            onChange={(event) => update({ clustered: event.currentTarget.checked })}
+          />
+
+          <Accordion variant="contained" multiple>
+            <Accordion.Item value="collation">
+              <Accordion.Control>Collation (EJSON)</Accordion.Control>
+              <Accordion.Panel>
+                <JsonEditor
+                  label="Collation as EJSON"
+                  height={120}
+                  value={draft.collationEjson}
+                  onChange={(value) => update({ collationEjson: value })}
+                />
+              </Accordion.Panel>
+            </Accordion.Item>
+            <Accordion.Item value="validator">
+              <Accordion.Control>Validator (EJSON)</Accordion.Control>
+              <Accordion.Panel>
+                <Stack gap="xs">
+                  <JsonEditor
+                    label="Validator as EJSON"
+                    height={180}
+                    value={draft.validatorEjson}
+                    onChange={(value) => update({ validatorEjson: value })}
+                  />
+                  <Group grow align="flex-start">
+                    <Select
+                      label="Validation level"
+                      data={LEVEL_OPTIONS}
+                      value={draft.validationLevel}
+                      onChange={(value) => update({ validationLevel: parseLevel(value) })}
+                      allowDeselect={false}
+                    />
+                    <Select
+                      label="Validation action"
+                      data={ACTION_OPTIONS}
+                      value={draft.validationAction}
+                      onChange={(value) => update({ validationAction: parseAction(value) })}
+                      allowDeselect={false}
+                    />
+                  </Group>
+                </Stack>
+              </Accordion.Panel>
+            </Accordion.Item>
+          </Accordion>
+
+          {error === undefined ? null : (
+            <Alert color="red" variant="light">
+              {error}
+            </Alert>
+          )}
+          {request.ok || nameProblem !== undefined || draft.name === '' ? null : (
+            <Text size="xs" c="red">
+              {request.message}
+            </Text>
+          )}
+          <Group justify="flex-end">
+            <Button variant="default" onClick={onClose}>
+              Cancel
+            </Button>
+            <Button disabled={!request.ok} loading={busy} type="submit">
+              Create collection
+            </Button>
+          </Group>
+        </Stack>
+      </form>
     </Modal>
   );
 }

@@ -1,5 +1,5 @@
 import { Alert, Button, Checkbox, Group, Modal, Stack, Text, TextInput } from '@mantine/core';
-import { toAppError } from '@mongo-gui/core';
+import { errorText } from '../notify-error';
 import { useState } from 'react';
 import { useUiApi } from '../../api/ui-api';
 import { collectionNameError } from '../../management/input-rules';
@@ -43,7 +43,7 @@ export function RenameCollectionDialog({
       });
       onClose();
     } catch (failure) {
-      setError(toAppError(failure).message);
+      setError(errorText(failure));
     } finally {
       setBusy(false);
     }
@@ -51,39 +51,46 @@ export function RenameCollectionDialog({
 
   return (
     <Modal opened onClose={onClose} title={`Rename ${collection}`} centered size="sm">
-      <Stack gap="sm">
-        <TextInput
-          label="New name"
-          value={newName}
-          onChange={(event) => setNewName(event.currentTarget.value)}
-          error={trimmed === '' ? undefined : problem}
-          autoFocus
-          autoComplete="off"
-        />
-        <Checkbox
-          label="Drop the target collection if it exists"
-          checked={dropTarget}
-          onChange={(event) => setDropTarget(event.currentTarget.checked)}
-        />
-        {dropTarget ? (
-          <Text size="sm" c="red">
-            A collection that already has the new name is deleted with its documents and indexes.
-          </Text>
-        ) : null}
-        {error === undefined ? null : (
-          <Alert color="red" variant="light">
-            {error}
-          </Alert>
-        )}
-        <Group justify="flex-end">
-          <Button variant="default" onClick={onClose}>
-            Cancel
-          </Button>
-          <Button disabled={!valid} loading={busy} onClick={() => void submit()}>
-            Rename
-          </Button>
-        </Group>
-      </Stack>
+      <form
+        onSubmit={(event) => {
+          event.preventDefault();
+          void submit();
+        }}
+      >
+        <Stack gap="sm">
+          <TextInput
+            label="New name"
+            value={newName}
+            onChange={(event) => setNewName(event.currentTarget.value)}
+            error={trimmed === '' ? undefined : problem}
+            autoFocus
+            autoComplete="off"
+          />
+          <Checkbox
+            label="Drop the target collection if it exists"
+            checked={dropTarget}
+            onChange={(event) => setDropTarget(event.currentTarget.checked)}
+          />
+          {dropTarget ? (
+            <Text size="sm" c="red">
+              A collection that already has the new name is deleted with its documents and indexes.
+            </Text>
+          ) : null}
+          {error === undefined ? null : (
+            <Alert color="red" variant="light">
+              {error}
+            </Alert>
+          )}
+          <Group justify="flex-end">
+            <Button variant="default" onClick={onClose}>
+              Cancel
+            </Button>
+            <Button disabled={!valid} loading={busy} type="submit">
+              Rename
+            </Button>
+          </Group>
+        </Stack>
+      </form>
     </Modal>
   );
 }

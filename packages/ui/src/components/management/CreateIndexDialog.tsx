@@ -15,7 +15,7 @@ import {
   TextInput,
 } from '@mantine/core';
 import { IconPlus, IconTrash } from '@tabler/icons-react';
-import { toAppError } from '@mongo-gui/core';
+import { errorText } from '../notify-error';
 import { useEffect, useState } from 'react';
 import { useUiApi } from '../../api/ui-api';
 import { JsonEditor } from '../../editor/JsonEditor';
@@ -120,7 +120,7 @@ export function CreateIndexDialog({
       });
       onClose();
     } catch (failure) {
-      setError(toAppError(failure).message);
+      setError(errorText(failure));
     } finally {
       setBusy(false);
     }
@@ -136,172 +136,179 @@ export function CreateIndexDialog({
       centered
       size="xl"
     >
-      <Stack gap="sm">
-        <Text size="sm" fw={500}>
-          Key fields
-        </Text>
-        {draft.fields.map((item, index) => (
-          <Group key={index} gap="xs" wrap="nowrap" align="flex-end">
-            <Autocomplete
-              aria-label={`Field ${index + 1}`}
-              placeholder="Field name"
-              data={suggestions}
-              value={item.field}
-              onChange={(value) => setField(index, { field: value })}
-              style={{ flex: 1 }}
+      <form
+        onSubmit={(event) => {
+          event.preventDefault();
+          void submit();
+        }}
+      >
+        <Stack gap="sm">
+          <Text size="sm" fw={500}>
+            Key fields
+          </Text>
+          {draft.fields.map((item, index) => (
+            <Group key={index} gap="xs" wrap="nowrap" align="flex-end">
+              <Autocomplete
+                aria-label={`Field ${index + 1}`}
+                placeholder="Field name"
+                data={suggestions}
+                value={item.field}
+                onChange={(value) => setField(index, { field: value })}
+                style={{ flex: 1 }}
+                autoComplete="off"
+              />
+              <Select
+                aria-label={`Order of field ${index + 1}`}
+                data={ORDER_DATA}
+                value={item.order}
+                onChange={(value) => {
+                  if (isIndexOrder(value)) {
+                    setField(index, { order: value });
+                  }
+                }}
+                allowDeselect={false}
+                w={180}
+              />
+              <ActionIcon
+                aria-label="Remove field"
+                variant="subtle"
+                color="red"
+                disabled={draft.fields.length === 1}
+                onClick={() =>
+                  update({ fields: draft.fields.filter((_, position) => position !== index) })
+                }
+              >
+                <IconTrash size={14} />
+              </ActionIcon>
+            </Group>
+          ))}
+          <Group>
+            <Button
+              variant="light"
+              leftSection={<IconPlus size={14} />}
+              onClick={() => update({ fields: [...draft.fields, { field: '', order: '1' }] })}
+            >
+              Add field
+            </Button>
+            <Text size="xs" c="dimmed">
+              Name: {keyFields.length === 0 ? '-' : previewName || '-'}
+            </Text>
+          </Group>
+
+          <Group grow align="flex-start">
+            <TextInput
+              label="Index name"
+              placeholder="Generated from the keys when empty"
+              value={draft.name}
+              onChange={(event) => update({ name: event.currentTarget.value })}
               autoComplete="off"
             />
-            <Select
-              aria-label={`Order of field ${index + 1}`}
-              data={ORDER_DATA}
-              value={item.order}
-              onChange={(value) => {
-                if (isIndexOrder(value)) {
-                  setField(index, { order: value });
-                }
-              }}
-              allowDeselect={false}
-              w={180}
-            />
-            <ActionIcon
-              aria-label="Remove field"
-              variant="subtle"
-              color="red"
-              disabled={draft.fields.length === 1}
-              onClick={() =>
-                update({ fields: draft.fields.filter((_, position) => position !== index) })
-              }
-            >
-              <IconTrash size={14} />
-            </ActionIcon>
-          </Group>
-        ))}
-        <Group>
-          <Button
-            variant="light"
-            leftSection={<IconPlus size={14} />}
-            onClick={() => update({ fields: [...draft.fields, { field: '', order: '1' }] })}
-          >
-            Add field
-          </Button>
-          <Text size="xs" c="dimmed">
-            Name: {keyFields.length === 0 ? '-' : previewName || '-'}
-          </Text>
-        </Group>
-
-        <Group grow align="flex-start">
-          <TextInput
-            label="Index name"
-            placeholder="Generated from the keys when empty"
-            value={draft.name}
-            onChange={(event) => update({ name: event.currentTarget.value })}
-            autoComplete="off"
-          />
-          <NumberInput
-            label="Expire after seconds (TTL)"
-            min={0}
-            allowDecimal={false}
-            value={draft.ttlSeconds}
-            onChange={(value) => update({ ttlSeconds: String(value) })}
-          />
-        </Group>
-        <Group>
-          <Checkbox
-            label="Unique"
-            checked={draft.unique}
-            onChange={(event) => update({ unique: event.currentTarget.checked })}
-          />
-          <Checkbox
-            label="Sparse"
-            checked={draft.sparse}
-            onChange={(event) => update({ sparse: event.currentTarget.checked })}
-          />
-          <Checkbox
-            label="Hidden"
-            checked={draft.hidden}
-            onChange={(event) => update({ hidden: event.currentTarget.checked })}
-          />
-        </Group>
-
-        {hasTextKey(draft) ? (
-          <Group grow align="flex-start">
-            <Textarea
-              label="Text weights"
-              description="One field: weight per line"
-              value={draft.weights}
-              onChange={(event) => update({ weights: event.currentTarget.value })}
-              autosize
-              minRows={2}
-            />
-            <TextInput
-              label="Default language"
-              placeholder="english"
-              value={draft.defaultLanguage}
-              onChange={(event) => update({ defaultLanguage: event.currentTarget.value })}
+            <NumberInput
+              label="Expire after seconds (TTL)"
+              min={0}
+              allowDecimal={false}
+              value={draft.ttlSeconds}
+              onChange={(value) => update({ ttlSeconds: String(value) })}
             />
           </Group>
-        ) : null}
+          <Group>
+            <Checkbox
+              label="Unique"
+              checked={draft.unique}
+              onChange={(event) => update({ unique: event.currentTarget.checked })}
+            />
+            <Checkbox
+              label="Sparse"
+              checked={draft.sparse}
+              onChange={(event) => update({ sparse: event.currentTarget.checked })}
+            />
+            <Checkbox
+              label="Hidden"
+              checked={draft.hidden}
+              onChange={(event) => update({ hidden: event.currentTarget.checked })}
+            />
+          </Group>
 
-        <Accordion variant="contained" multiple>
-          <Accordion.Item value="partial">
-            <Accordion.Control>Partial filter (EJSON)</Accordion.Control>
-            <Accordion.Panel>
-              <JsonEditor
-                label="Partial filter expression as EJSON"
-                height={110}
-                value={draft.partialEjson}
-                onChange={(value) => update({ partialEjson: value })}
+          {hasTextKey(draft) ? (
+            <Group grow align="flex-start">
+              <Textarea
+                label="Text weights"
+                description="One field: weight per line"
+                value={draft.weights}
+                onChange={(event) => update({ weights: event.currentTarget.value })}
+                autosize
+                minRows={2}
               />
-            </Accordion.Panel>
-          </Accordion.Item>
-          <Accordion.Item value="collation">
-            <Accordion.Control>Collation (EJSON)</Accordion.Control>
-            <Accordion.Panel>
-              <JsonEditor
-                label="Collation as EJSON"
-                height={110}
-                value={draft.collationEjson}
-                onChange={(value) => update({ collationEjson: value })}
+              <TextInput
+                label="Default language"
+                placeholder="english"
+                value={draft.defaultLanguage}
+                onChange={(event) => update({ defaultLanguage: event.currentTarget.value })}
               />
-            </Accordion.Panel>
-          </Accordion.Item>
-          <Accordion.Item value="wildcard">
-            <Accordion.Control>Wildcard projection (EJSON)</Accordion.Control>
-            <Accordion.Panel>
-              <JsonEditor
-                label="Wildcard projection as EJSON"
-                height={110}
-                value={draft.wildcardEjson}
-                onChange={(value) => update({ wildcardEjson: value })}
-              />
-            </Accordion.Panel>
-          </Accordion.Item>
-        </Accordion>
+            </Group>
+          ) : null}
 
-        <Text size="sm" fw={500}>
-          Command preview
-        </Text>
-        <JsonEditor label="createIndexes command preview" readOnly height={200} value={preview} />
+          <Accordion variant="contained" multiple>
+            <Accordion.Item value="partial">
+              <Accordion.Control>Partial filter (EJSON)</Accordion.Control>
+              <Accordion.Panel>
+                <JsonEditor
+                  label="Partial filter expression as EJSON"
+                  height={110}
+                  value={draft.partialEjson}
+                  onChange={(value) => update({ partialEjson: value })}
+                />
+              </Accordion.Panel>
+            </Accordion.Item>
+            <Accordion.Item value="collation">
+              <Accordion.Control>Collation (EJSON)</Accordion.Control>
+              <Accordion.Panel>
+                <JsonEditor
+                  label="Collation as EJSON"
+                  height={110}
+                  value={draft.collationEjson}
+                  onChange={(value) => update({ collationEjson: value })}
+                />
+              </Accordion.Panel>
+            </Accordion.Item>
+            <Accordion.Item value="wildcard">
+              <Accordion.Control>Wildcard projection (EJSON)</Accordion.Control>
+              <Accordion.Panel>
+                <JsonEditor
+                  label="Wildcard projection as EJSON"
+                  height={110}
+                  value={draft.wildcardEjson}
+                  onChange={(value) => update({ wildcardEjson: value })}
+                />
+              </Accordion.Panel>
+            </Accordion.Item>
+          </Accordion>
 
-        {request.ok || keyFields.length === 0 ? null : (
-          <Text size="xs" c="red">
-            {request.message}
+          <Text size="sm" fw={500}>
+            Command preview
           </Text>
-        )}
-        {error === undefined ? null : (
-          <Alert color="red" variant="light">
-            {error}
-          </Alert>
-        )}
-        <Group justify="flex-end">
-          <Button variant="default" onClick={onClose}>
-            Cancel
-          </Button>
-          <Button disabled={!request.ok} loading={busy} onClick={() => void submit()}>
-            Create index
-          </Button>
-        </Group>
-      </Stack>
+          <JsonEditor label="createIndexes command preview" readOnly height={200} value={preview} />
+
+          {request.ok || keyFields.length === 0 ? null : (
+            <Text size="xs" c="red">
+              {request.message}
+            </Text>
+          )}
+          {error === undefined ? null : (
+            <Alert color="red" variant="light">
+              {error}
+            </Alert>
+          )}
+          <Group justify="flex-end">
+            <Button variant="default" onClick={onClose}>
+              Cancel
+            </Button>
+            <Button disabled={!request.ok} loading={busy} type="submit">
+              Create index
+            </Button>
+          </Group>
+        </Stack>
+      </form>
     </Modal>
   );
 }

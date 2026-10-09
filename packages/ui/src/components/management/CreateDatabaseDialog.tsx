@@ -1,5 +1,5 @@
 import { Alert, Button, Group, Modal, Stack, Text, TextInput } from '@mantine/core';
-import { toAppError } from '@mongo-gui/core';
+import { errorText } from '../notify-error';
 import { useState } from 'react';
 import { useUiApi } from '../../api/ui-api';
 import { collectionNameError, databaseNameError } from '../../management/input-rules';
@@ -34,7 +34,7 @@ export function CreateDatabaseDialog({ connectionId, onClose }: CreateDatabaseDi
       });
       onClose();
     } catch (failure) {
-      setError(toAppError(failure).message);
+      setError(errorText(failure));
     } finally {
       setBusy(false);
     }
@@ -42,40 +42,47 @@ export function CreateDatabaseDialog({ connectionId, onClose }: CreateDatabaseDi
 
   return (
     <Modal opened onClose={onClose} title="New database" centered size="sm">
-      <Stack gap="sm">
-        <Text size="sm" c="dimmed">
-          MongoDB creates a database when it first holds a collection, so the first collection is
-          created with it.
-        </Text>
-        <TextInput
-          label="Database name"
-          value={database}
-          onChange={(event) => setDatabase(event.currentTarget.value)}
-          error={database === '' ? undefined : databaseProblem}
-          autoFocus
-          autoComplete="off"
-        />
-        <TextInput
-          label="Initial collection name"
-          value={collection}
-          onChange={(event) => setCollection(event.currentTarget.value)}
-          error={collection === '' ? undefined : collectionProblem}
-          autoComplete="off"
-        />
-        {error === undefined ? null : (
-          <Alert color="red" variant="light">
-            {error}
-          </Alert>
-        )}
-        <Group justify="flex-end">
-          <Button variant="default" onClick={onClose}>
-            Cancel
-          </Button>
-          <Button disabled={!valid} loading={busy} onClick={() => void submit()}>
-            Create database
-          </Button>
-        </Group>
-      </Stack>
+      <form
+        onSubmit={(event) => {
+          event.preventDefault();
+          void submit();
+        }}
+      >
+        <Stack gap="sm">
+          <Text size="sm" c="dimmed">
+            MongoDB creates a database when it first holds a collection, so the first collection is
+            created with it.
+          </Text>
+          <TextInput
+            label="Database name"
+            value={database}
+            onChange={(event) => setDatabase(event.currentTarget.value)}
+            error={database === '' ? undefined : databaseProblem}
+            autoFocus
+            autoComplete="off"
+          />
+          <TextInput
+            label="Initial collection name"
+            value={collection}
+            onChange={(event) => setCollection(event.currentTarget.value)}
+            error={collection === '' ? undefined : collectionProblem}
+            autoComplete="off"
+          />
+          {error === undefined ? null : (
+            <Alert color="red" variant="light">
+              {error}
+            </Alert>
+          )}
+          <Group justify="flex-end">
+            <Button variant="default" onClick={onClose}>
+              Cancel
+            </Button>
+            <Button disabled={!valid} loading={busy} type="submit">
+              Create database
+            </Button>
+          </Group>
+        </Stack>
+      </form>
     </Modal>
   );
 }

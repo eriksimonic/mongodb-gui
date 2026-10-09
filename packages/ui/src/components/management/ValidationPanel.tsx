@@ -1,3 +1,4 @@
+import { errorText } from '../notify-error';
 import {
   Alert,
   Button,
@@ -12,7 +13,6 @@ import {
 } from '@mantine/core';
 import {
   MAX_VALIDATION_SAMPLE_SIZE,
-  toAppError,
   type ValidationAction,
   type ValidationCheckResult,
   type ValidationLevel,
@@ -83,7 +83,7 @@ export function ValidationPanel({ connectionId, database, collection }: Collecti
       },
       (failure: unknown) => {
         if (active) {
-          setStored({ draft: undefined, error: toAppError(failure).message });
+          setStored({ draft: undefined, error: errorText(failure) });
         }
       },
     );
@@ -114,6 +114,8 @@ export function ValidationPanel({ connectionId, database, collection }: Collecti
   function update(patch: Partial<Draft>) {
     setDraft((current) => (current === undefined ? current : { ...current, ...patch }));
     setCheck(undefined);
+    // A message describes the last save or check. Once the draft changes, it no longer applies.
+    setMessage(undefined);
   }
 
   function save() {

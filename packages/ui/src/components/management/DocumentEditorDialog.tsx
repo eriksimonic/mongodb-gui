@@ -1,5 +1,5 @@
 import { Alert, Button, Group, Modal, Stack, Text } from '@mantine/core';
-import { toAppError } from '@mongo-gui/core';
+import { errorText } from '../notify-error';
 import { useState } from 'react';
 import { useUiApi } from '../../api/ui-api';
 import { JsonEditor } from '../../editor/JsonEditor';
@@ -79,7 +79,7 @@ export function DocumentEditorDialog({
       }
       onClose();
     } catch (failure) {
-      setError(toAppError(failure).message);
+      setError(errorText(failure));
     } finally {
       setBusy(false);
     }
@@ -87,35 +87,42 @@ export function DocumentEditorDialog({
 
   return (
     <Modal opened onClose={onClose} title={`${TITLES[mode]} in ${collection}`} centered size="lg">
-      <Stack gap="sm">
-        <Text size="xs" c="dimmed">
-          {mode === 'duplicate'
-            ? 'The _id is removed, so the server makes a new one.'
-            : 'Values use EJSON, so ObjectId, dates and Long values keep their types.'}
-        </Text>
-        <JsonEditor
-          label="Document as EJSON"
-          height={360}
-          value={text}
-          onChange={(value) => {
-            setText(value);
-            setError(undefined);
-          }}
-        />
-        {error === undefined ? null : (
-          <Alert color="red" variant="light">
-            {error}
-          </Alert>
-        )}
-        <Group justify="flex-end">
-          <Button variant="default" onClick={onClose}>
-            Cancel
-          </Button>
-          <Button loading={busy} onClick={() => void save()}>
-            {SAVE_LABELS[mode]}
-          </Button>
-        </Group>
-      </Stack>
+      <form
+        onSubmit={(event) => {
+          event.preventDefault();
+          void save();
+        }}
+      >
+        <Stack gap="sm">
+          <Text size="xs" c="dimmed">
+            {mode === 'duplicate'
+              ? 'The _id is removed, so the server makes a new one.'
+              : 'Values use EJSON, so ObjectId, dates and Long values keep their types.'}
+          </Text>
+          <JsonEditor
+            label="Document as EJSON"
+            height={360}
+            value={text}
+            onChange={(value) => {
+              setText(value);
+              setError(undefined);
+            }}
+          />
+          {error === undefined ? null : (
+            <Alert color="red" variant="light">
+              {error}
+            </Alert>
+          )}
+          <Group justify="flex-end">
+            <Button variant="default" onClick={onClose}>
+              Cancel
+            </Button>
+            <Button loading={busy} type="submit">
+              {SAVE_LABELS[mode]}
+            </Button>
+          </Group>
+        </Stack>
+      </form>
     </Modal>
   );
 }

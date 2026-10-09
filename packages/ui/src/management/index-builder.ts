@@ -131,6 +131,9 @@ export function buildIndexRequest(draft: IndexDraft): IndexRequest {
     if (!Number.isInteger(seconds) || seconds < 0) {
       return { ok: false, message: 'The expiry must be a whole number of seconds, zero or more' };
     }
+    if (fields.length > 1) {
+      return { ok: false, message: 'TTL needs a single-field index' };
+    }
     options.expireAfterSeconds = seconds;
   }
 

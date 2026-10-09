@@ -1,6 +1,7 @@
 import { Badge, Button, Group, Loader, Progress, Stack, Table, Text, Alert } from '@mantine/core';
 import { IconArrowDown, IconArrowUp, IconPlus } from '@tabler/icons-react';
-import { toAppError, type IndexBuildProgress, type IndexInfo } from '@mongo-gui/core';
+import { type IndexBuildProgress, type IndexInfo } from '@mongo-gui/core';
+import { errorText } from '../notify-error';
 import { useEffect, useState } from 'react';
 import { useUiApi } from '../../api/ui-api';
 import { useAppStore } from '../../state/app-store-context';
@@ -107,7 +108,7 @@ export function IndexesPanel({ connectionId, database, collection }: CollectionP
       },
       (failure: unknown) => {
         if (active) {
-          setLoadError(toAppError(failure).message);
+          setLoadError(errorText(failure));
         }
       },
     );

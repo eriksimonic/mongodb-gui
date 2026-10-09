@@ -1,3 +1,4 @@
+import { useComputedColorScheme } from '@mantine/core';
 import Editor from '@monaco-editor/react';
 import './monaco-setup';
 import type { JsonEditorProps } from './JsonEditor';
@@ -10,11 +11,13 @@ export function MonacoJsonEditor({
   readOnly = false,
   height = 200,
 }: JsonEditorProps) {
+  // Follows the app's colour scheme. The dark theme is the default, as in the rest of the app.
+  const scheme = useComputedColorScheme('dark');
   return (
     <Editor
       height={height}
       language="json"
-      theme="vs-dark"
+      theme={scheme === 'dark' ? 'vs-dark' : 'vs'}
       value={value}
       onChange={(next) => onChange?.(next ?? '')}
       options={{

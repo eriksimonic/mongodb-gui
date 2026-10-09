@@ -1,5 +1,5 @@
 import { Alert, Button, Group, Modal, Stack, Text, TextInput } from '@mantine/core';
-import { toAppError } from '@mongo-gui/core';
+import { errorText } from '../notify-error';
 import { useState, type ReactNode } from 'react';
 
 export interface DestructiveDialogProps {
@@ -40,7 +40,7 @@ export function DestructiveDialog({
       await onConfirm();
       onClose();
     } catch (failure) {
-      setError(toAppError(failure).message);
+      setError(errorText(failure));
     } finally {
       setBusy(false);
     }
