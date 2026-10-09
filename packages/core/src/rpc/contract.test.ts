@@ -12,6 +12,7 @@ describe('rpcContract', () => {
         'databases',
         'favourites',
         'history',
+        'monitor',
         'settings',
         'vault',
       ].sort(),

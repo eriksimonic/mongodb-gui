@@ -8,6 +8,16 @@ export function catalogKey(connectionId: string, database: string): string {
   return `${connectionId}/${database}`;
 }
 
+/** Node id of the Monitoring child under a connection. */
+export function monitorNodeId(connectionId: string): string {
+  return `mon:${connectionId}`;
+}
+
+/** Node id of the Operations child under a connection. */
+export function operationsNodeId(connectionId: string): string {
+  return `ops:${connectionId}`;
+}
+
 /** Node id of a database in the tree and in `AppData.expanded`. */
 export function databaseNodeId(connectionId: string, database: string): string {
   return `db:${catalogKey(connectionId, database)}`;
