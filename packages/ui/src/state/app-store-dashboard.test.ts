@@ -3,7 +3,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { localConnectionId } from '../api/mock-fixtures';
 import { createMockUiApi } from '../api/mock-rpc-client';
 import type { UiApi } from '../api/ui-api';
-import { DASHBOARD_SAVE_DELAY_MS } from './dashboard-state';
+import { DASHBOARD_SAVE_DELAY_MS, RESET_NOTICE } from './dashboard-state';
 import { createAppStore, type AppStore } from './app-store';
 
 const KEY = dashboardLayoutKey(localConnectionId);
@@ -139,5 +139,68 @@ describe('dashboard store', () => {
       .getState()
       .dashboards[localConnectionId]?.layout.panels.map((item) => item.id);
     expect(ids?.[0]).toBe('replication-lag');
+  });
+
+  it('replays an edit made while the saved layout is still loading on top of that layout', async () => {
+    const api = createMockUiApi({ preset: 'unlocked' });
+    const stored = {
+      version: 1,
+      panels: [
+        { id: 'memory', w: 2, h: 2 },
+        { id: 'queues', w: 1, h: 1 },
+      ],
+    } as const;
+    let resolveRead: (result: { value: unknown }) => void = () => undefined;
+    vi.spyOn(api.rpc.layout, 'get').mockReturnValueOnce(
+      new Promise((resolve) => {
+        resolveRead = resolve;
+      }),
+    );
+    const store = await unlockedStore(api);
+
+    const loading = store.getState().loadDashboard(localConnectionId);
+    store.getState().removeDashboardPanel(localConnectionId, 'connections');
+    resolveRead({ value: stored });
+    await loading;
+
+    const view = store.getState().dashboards[localConnectionId];
+    expect(view?.loaded).toBe(true);
+    expect(view?.layout).toEqual(stored);
+    expect(view?.notice).toBeUndefined();
+  });
+
+  it('resets a stored layout that fails the schema, warns without the value, and says so', async () => {
+    const api = createMockUiApi({ preset: 'unlocked' });
+    const secret = 'panel-id-that-must-not-be-logged';
+    vi.spyOn(api.rpc.layout, 'get').mockResolvedValue({
+      value: { version: 1, panels: [{ id: secret, w: 4, h: 1 }] },
+    });
+    const warn = vi.spyOn(console, 'warn').mockImplementation(() => undefined);
+    const store = await unlockedStore(api);
+
+    await store.getState().loadDashboard(localConnectionId);
+
+    const view = store.getState().dashboards[localConnectionId];
+    expect(view?.layout).toEqual(defaultDashboardLayout());
+    expect(view?.notice).toBe(RESET_NOTICE);
+    expect(warn).toHaveBeenCalledTimes(1);
+    const message = String(warn.mock.calls[0]?.[0]);
+    expect(message).toContain(KEY);
+    expect(message).toContain('panels.0.w');
+    expect(message).not.toContain(secret);
+    warn.mockRestore();
+  });
+
+  it('clears the reset notice on the next change', async () => {
+    const api = createMockUiApi({ preset: 'unlocked' });
+    vi.spyOn(api.rpc.layout, 'get').mockResolvedValue({ value: { version: 9 } });
+    const warn = vi.spyOn(console, 'warn').mockImplementation(() => undefined);
+    const store = await unlockedStore(api);
+    await store.getState().loadDashboard(localConnectionId);
+
+    store.getState().removeDashboardPanel(localConnectionId, 'queues');
+
+    expect(store.getState().dashboards[localConnectionId]?.notice).toBeUndefined();
+    warn.mockRestore();
   });
 });

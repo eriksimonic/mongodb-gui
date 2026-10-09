@@ -29,6 +29,18 @@ import {
 import { FavouriteInputSchema, FavouriteSchema, HistoryEntrySchema } from '../schemas/history';
 import { VaultStatusSchema } from '../schemas/vault';
 import {
+  ShellCancelInputSchema,
+  ShellCompleteInputSchema,
+  ShellCompletionsSchema,
+  ShellConnectionInputSchema,
+  ShellEvaluateInputSchema,
+  ShellEvaluationSchema,
+  ShellNextInputSchema,
+  ShellSampleSchemaInputSchema,
+  ShellSchemaSampleSchema,
+  ShellStateSchema,
+} from '../shell/rpc-schemas';
+import {
   CheckValidationInputSchema,
   ClearCollectionInputSchema,
   CountDocumentsInputSchema,
@@ -71,6 +83,24 @@ import {
   DockerStatusSchema,
 } from '../docker/types';
 import { UpdateStateSchema } from '../updates/types';
+import {
+  DialogResultSchema,
+  OpenDialogInputSchema,
+  PreviewImportInputSchema,
+  SaveDialogInputSchema,
+  ShowItemInFolderInputSchema,
+  StartExportInputSchema,
+  StartImportInputSchema,
+  StartTransferOutputSchema,
+  TransferIdInputSchema,
+  TransferListOutputSchema,
+} from '../transfer/calls';
+import { ImportPreviewSchema, TransferProgressSchema } from '../transfer/types';
+import {
+  ExplainResultSchema,
+  ExplainRunCommandInputSchema,
+  ExplainRunInputSchema,
+} from '../explain/rpc-schemas';
 import { defineCall, type RpcContract } from './define';
 import { LAYOUT_VALUE_LIMIT_BYTES, layoutValueBytes } from '../monitor/dashboard-layout';
 
@@ -135,8 +165,8 @@ const externalUrl = z
 
 /** Layout keys name one saved setting, such as `layout:dashboard:<connection id>`. */
 const layoutKey = z.string().min(1).max(200);
-// Layout values have no core schema. The store checks their size, and the router checks the shape
-// of the dashboard layout when it reads one back.
+// Layout values have no core schema. The contract checks only their size. The UI parses the
+// dashboard layout with parseDashboardLayout when it reads one back.
 const layoutValue = z
   .unknown()
   .refine(
@@ -175,6 +205,21 @@ export const rpcContract = {
     list: defineCall(databaseParam, z.array(CollectionInfoSchema)),
     stats: defineCall(collectionParam, CollectionStatsSchema),
     indexes: defineCall(collectionParam, z.array(IndexInfoSchema)),
+  },
+  shell: {
+    evaluate: defineCall(ShellEvaluateInputSchema, ShellEvaluationSchema),
+    next: defineCall(ShellNextInputSchema, ShellEvaluationSchema),
+    cancel: defineCall(ShellCancelInputSchema, z.void()),
+    complete: defineCall(ShellCompleteInputSchema, ShellCompletionsSchema),
+    sampleSchema: defineCall(ShellSampleSchemaInputSchema, ShellSchemaSampleSchema),
+    restart: defineCall(ShellConnectionInputSchema, z.void()),
+    state: defineCall(ShellConnectionInputSchema, ShellStateSchema),
+  },
+  // Explain runs the statement's single collection query with explain on the connection's
+  // runtime (run) or the connection's driver (runCommand). Nothing is written by explain.
+  explain: {
+    run: defineCall(ExplainRunInputSchema, ExplainResultSchema),
+    runCommand: defineCall(ExplainRunCommandInputSchema, ExplainResultSchema),
   },
   // Every input carries connectionId plus the adapter input. Mutating calls emit catalog:changed.
   management: {
@@ -284,6 +329,14 @@ export const rpcContract = {
     /** Starts or stops the 10 second poll that pushes `docker:containers` events. */
     watch: defineCall(z.object({ enabled: z.boolean() }), z.void()),
   },
+  transfer: {
+    previewImport: defineCall(PreviewImportInputSchema, ImportPreviewSchema),
+    startImport: defineCall(StartImportInputSchema, StartTransferOutputSchema),
+    startExport: defineCall(StartExportInputSchema, StartTransferOutputSchema),
+    cancel: defineCall(TransferIdInputSchema, z.void()),
+    status: defineCall(TransferIdInputSchema, TransferProgressSchema),
+    list: defineCall(z.void(), TransferListOutputSchema),
+  },
   updates: {
     state: defineCall(z.void(), UpdateStateSchema),
     check: defineCall(z.void(), UpdateStateSchema),
@@ -293,6 +346,11 @@ export const rpcContract = {
   },
   app: {
     openExternal: defineCall(z.object({ url: externalUrl }), z.void()),
+    /** Shows the native open dialog. The renderer gets only the path the user picked. */
+    showOpenDialog: defineCall(OpenDialogInputSchema, DialogResultSchema),
+    showSaveDialog: defineCall(SaveDialogInputSchema, DialogResultSchema),
+    /** Reveals a file this session exported. Other paths are refused by the router. */
+    showItemInFolder: defineCall(ShowItemInFolderInputSchema, z.void()),
   },
   layout: {
     get: defineCall(z.object({ key: layoutKey }), z.object({ value: z.unknown().nullable() })),

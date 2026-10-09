@@ -33,6 +33,31 @@ const HEADROOM = 1.1;
 // Area fills take the series colour at this alpha. Two hex digits, appended to a #rrggbb colour.
 const AREA_FILL_ALPHA = '33';
 
+const KIBI = 1024;
+/** Byte axis steps: 1, 2, 4 ... 512 times each power of 1024, so every step is a whole number of bytes. */
+const BYTE_INCREMENTS: readonly number[] = Array.from({ length: 5 }, (_, power) =>
+  Array.from({ length: 10 }, (_, step) => KIBI ** power * 2 ** step),
+)
+  .flat()
+  .sort((a, b) => a - b);
+/** Count axis steps: 1, 2 and 5 times each power of ten. Every step is an integer. */
+const COUNT_INCREMENTS: readonly number[] = Array.from({ length: 10 }, (_, power) =>
+  [1, 2, 5].map((mantissa) => mantissa * 10 ** power),
+).flat();
+
+/** The axis steps for a unit. Other units let uPlot choose its own. */
+function axisIncrements(unit: SeriesUnit): number[] | undefined {
+  switch (unit) {
+    case 'bytes':
+    case 'bytes-per-second':
+      return [...BYTE_INCREMENTS];
+    case 'count':
+      return [...COUNT_INCREMENTS];
+    default:
+      return undefined;
+  }
+}
+
 interface BuildInput {
   readonly width: number;
   readonly height: number;
@@ -168,6 +193,8 @@ function buildOptions({
 }: BuildInput): uPlot.Options {
   let tooltip: HTMLDivElement | undefined;
   const filled = mode !== 'lines';
+  const stacked = mode === 'stacked';
+  const increments = axisIncrements(yUnit);
   return {
     width,
     height,
@@ -213,20 +240,32 @@ function buildOptions({
         grid: { show: true, stroke: CHART_INK.gridline, width: 1 },
         ticks: { show: false },
         border: { show: false },
+        ...(increments === undefined ? {} : { incrs: increments }),
         values: (_plot, values) => values.map((value) => formatAxisValue(value, yUnit)),
       },
     ],
     series: [
       {},
-      ...series.map((item) => ({
+      ...series.map((item, index) => ({
         label: item.label,
         stroke: item.color,
         width: 2,
-        ...ifDefined(filled, () => ({ fill: `${item.color}${AREA_FILL_ALPHA}` })),
+        // A stack fills its bottom series to zero. Each higher series fills through its band below.
+        ...ifDefined(filled && (!stacked || index === 0), () => ({
+          fill: `${item.color}${AREA_FILL_ALPHA}`,
+        })),
         points: { show: false },
         spanGaps: false,
       })),
     ],
+    ...ifDefined(stacked, () => ({
+      // uPlot series 0 is the x axis, so series i of the stack is uPlot series i + 1. The band
+      // for series i fills between series i and the series below it.
+      bands: series.slice(1).map((item, index) => ({
+        series: [index + 2, index + 1] as [number, number],
+        fill: `${item.color}${AREA_FILL_ALPHA}`,
+      })),
+    })),
     hooks: {
       init: [
         (plot) => {

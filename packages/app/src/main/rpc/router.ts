@@ -1,10 +1,14 @@
-import { mkdirSync } from 'node:fs';
-import { join } from 'node:path';
+import { existsSync, mkdirSync, statSync } from 'node:fs';
+import { dirname, join } from 'node:path';
+import { randomUUID } from 'node:crypto';
 import {
   AppErrorException,
   ConnectionProfileSummarySchema,
+  DEFAULT_BATCH_SIZE,
   appError,
   groupByShape,
+  normaliseExplain,
+  rewriteForExplain,
   redactUri,
   rpcContract,
   toAppError,
@@ -12,6 +16,12 @@ import {
   type CallInput,
   type ConnectionProfile,
   type ConnectionProfileInput,
+  type DialogResult,
+  type OpenDialogInput,
+  type SaveDialogInput,
+  type ExplainResult,
+  type ExplainRunCommandInput,
+  type ExplainRunInput,
   type ProfileCollectionInfo,
   type ProfileEntry,
   type ProfileFilter,
@@ -25,6 +35,10 @@ import {
 } from '@mongo-gui/core';
 import {
   ConnectionManager,
+  explainableCommand,
+  parseCommandEjson,
+  runExplainCommand,
+  wrapWriteCommand,
   checkDocumentsAgainstValidator,
   clearCollection,
   collectionStats,
@@ -48,6 +62,7 @@ import {
   listIndexes,
   listProfileEntries,
   mapDriverError,
+  previewImport,
   renameCollection,
   replaceDocument,
   sampleDocuments,
@@ -80,6 +95,8 @@ import {
 import { createDockerRuntime, type DockerRuntime } from '../docker/runtime';
 import { log, type Logger } from '../log';
 import { redactText } from '../redact';
+import type { ForkFunction } from '../shell/child';
+import { RuntimeSupervisor } from '../shell/supervisor';
 import {
   createUpdater,
   noopUpdaterBackend,
@@ -91,6 +108,14 @@ import {
   defaultSamplerFactory,
   type SamplerFactory,
 } from './monitor-service';
+import { createTransferService, type TransferAdapter } from './transfer-service';
+
+/** Native file dialogs and the shell reveal. The main window's dialogs live in index.ts. */
+export interface NativeDialogs {
+  showOpenDialog(input: OpenDialogInput): Promise<DialogResult>;
+  showSaveDialog(input: SaveDialogInput): Promise<DialogResult>;
+  showItemInFolder(path: string): void;
+}
 
 /** The subset of ConnectionManager that the router uses. The real class satisfies it. */
 export type ConnectionRegistry = Pick<
@@ -116,6 +141,20 @@ export interface LockEvents {
   subscribe(listener: () => void): () => void;
 }
 
+/** The subset of RuntimeSupervisor that the router uses. The real class satisfies it. */
+export type ShellRegistry = Pick<
+  RuntimeSupervisor,
+  | 'evaluate'
+  | 'next'
+  | 'cancel'
+  | 'complete'
+  | 'sampleSchema'
+  | 'restart'
+  | 'state'
+  | 'stop'
+  | 'stopAll'
+  | 'onEvent'
+>;
 /** The updater plus a subscription for its state changes. */
 export interface UpdatesService extends Updater {
   subscribe(listener: (state: UpdateState) => void): () => void;
@@ -138,6 +177,8 @@ export interface RouterDeps {
   readonly createSampler?: SamplerFactory;
   /** Receives failures as method, code and message. Inputs and raw driver text stay out. */
   readonly log?: Logger;
+  /** One runtime process per connection. Without it every shell call fails with INTERNAL. */
+  readonly shell?: ShellRegistry;
   /** The profiler reads and writes. Defaults to the adapter functions; tests pass a fake. */
   readonly profiler?: ProfilerPort;
   /** Local Docker discovery and forwarders. Calls to the docker namespace fail without it. */
@@ -146,6 +187,10 @@ export interface RouterDeps {
   readonly updates?: UpdatesService;
   /** Opens a link in the user's browser. The caller checks the link before it gets here. */
   readonly openExternal?: (url: string) => Promise<void>;
+  /** File dialogs for import and export. Calls to them fail with INTERNAL without it. */
+  readonly dialogs?: NativeDialogs;
+  /** The transfer functions. Tests inject a fake. Defaults to the adapter. */
+  readonly transferAdapter?: TransferAdapter;
 }
 
 /** The driver client type, named without importing the driver into the main process. */
@@ -202,6 +247,14 @@ export interface AppServicesOptions {
   readonly userDataDir: string;
   readonly kdf?: KdfParams;
   readonly failureDelayMs?: number;
+  /**
+   * How the shell runtime processes start. The app passes the built bundle and a utility process
+   * fork. Without it the shell refuses to start.
+   */
+  readonly shell?: {
+    readonly entryPath: string;
+    readonly fork: ForkFunction;
+  };
   /** Engine socket for docker support. Tests point it at a missing socket to stay off the host engine. */
   readonly dockerSocketPath?: string;
   readonly updates?: UpdatesRuntime;
@@ -493,6 +546,21 @@ export function createRouter(deps: RouterDeps): Router {
     }
   }
 
+  // Paths the user picked in a save dialog this session. An export may replace only these.
+  const savePaths = new Set<string>();
+
+  const dialogs = (): NativeDialogs => {
+    if (deps.dialogs === undefined) {
+      throw new AppErrorException(appError('INTERNAL', 'File dialogs are not available.'));
+    }
+    return deps.dialogs;
+  };
+
+  /** Checks that a connection profile exists. A locked vault reports VAULT_LOCKED from the store. */
+  const requireConnectionProfile = (connectionId: string): void => {
+    repos().connections.get(connectionId);
+  };
+
   const operations = new Map<string, Operation>([
     entry('vault.status', rpcContract.vault.status, () => deps.vault.status()),
     entry('vault.initialise', rpcContract.vault.initialise, (input) => {
@@ -585,6 +653,30 @@ export function createRouter(deps: RouterDeps): Router {
       ),
     ),
 
+    entry('shell.evaluate', rpcContract.shell.evaluate, (input) =>
+      shellCall(input.connectionId, (shell) => shell.evaluate(input)),
+    ),
+    entry('shell.next', rpcContract.shell.next, (input) =>
+      shellCall(input.connectionId, (shell) => shell.next(input)),
+    ),
+    entry('shell.cancel', rpcContract.shell.cancel, async (input) => {
+      // Nothing runs on a connection that is not open, so cancel needs no connection check.
+      await deps.shell?.cancel(input.connectionId, input.requestId);
+    }),
+    entry('shell.complete', rpcContract.shell.complete, (input) =>
+      shellCall(input.connectionId, (shell) => shell.complete(input)),
+    ),
+    entry('shell.sampleSchema', rpcContract.shell.sampleSchema, (input) =>
+      shellCall(input.connectionId, (shell) => shell.sampleSchema(input)),
+    ),
+    entry('shell.restart', rpcContract.shell.restart, (input) =>
+      shellCall(input.connectionId, (shell) => shell.restart(input.connectionId)),
+    ),
+    entry('shell.state', rpcContract.shell.state, (input) => ({
+      state: deps.shell?.state(input.connectionId) ?? 'stopped',
+    })),
+    entry('explain.run', rpcContract.explain.run, (input) => explainStatement(input)),
+    entry('explain.runCommand', rpcContract.explain.runCommand, (input) => explainCommand(input)),
     ...managementOperations(),
 
     entry('monitor.start', rpcContract.monitor.start, (input) =>
@@ -694,6 +786,30 @@ export function createRouter(deps: RouterDeps): Router {
     entry('docker.watch', rpcContract.docker.watch, (input) => {
       docker().watch(input.enabled, deps.onEvent);
     }),
+    entry('transfer.previewImport', rpcContract.transfer.previewImport, async (input) => {
+      const { connectionId, ...request } = input;
+      requireConnectionProfile(connectionId);
+      return previewImport(request);
+    }),
+    entry('transfer.startImport', rpcContract.transfer.startImport, (input) => {
+      const { connectionId, ...request } = input;
+      requireConnectionProfile(connectionId);
+      return { transferId: transfers.startImport(connectionId, request) };
+    }),
+    entry('transfer.startExport', rpcContract.transfer.startExport, (input) => {
+      const { connectionId, ...request } = input;
+      requireConnectionProfile(connectionId);
+      refuseMissingFolder(request.path);
+      refuseUnpickedFile(request.path, savePaths);
+      return { transferId: transfers.startExport(connectionId, request) };
+    }),
+    entry('transfer.cancel', rpcContract.transfer.cancel, (input) => {
+      transfers.cancel(input.transferId);
+    }),
+    entry('transfer.status', rpcContract.transfer.status, (input) =>
+      transfers.status(input.transferId),
+    ),
+    entry('transfer.list', rpcContract.transfer.list, () => transfers.list()),
     entry('updates.state', rpcContract.updates.state, () => updatesService().state()),
     entry('updates.check', rpcContract.updates.check, () => updatesService().check()),
     entry('updates.download', rpcContract.updates.download, () => updatesService().download()),
@@ -710,7 +826,32 @@ export function createRouter(deps: RouterDeps): Router {
       }
       await deps.openExternal(new URL(input.url).href);
     }),
+    entry('app.showOpenDialog', rpcContract.app.showOpenDialog, (input) =>
+      dialogs().showOpenDialog(input),
+    ),
+    entry('app.showSaveDialog', rpcContract.app.showSaveDialog, async (input) => {
+      const picked = await dialogs().showSaveDialog(input);
+      if (picked.path !== undefined) {
+        savePaths.add(picked.path);
+      }
+      return picked;
+    }),
+    entry('app.showItemInFolder', rpcContract.app.showItemInFolder, (input) => {
+      // Only a file this session exported is revealed, so the renderer cannot open arbitrary paths.
+      if (!transfers.wroteFile(input.path)) {
+        throw new AppErrorException(
+          appError('VALIDATION', 'Only a file exported in this session can be shown.'),
+        );
+      }
+      dialogs().showItemInFolder(input.path);
+    }),
   ]);
+
+  const transfers = createTransferService({
+    ...(deps.transferAdapter === undefined ? {} : { adapter: deps.transferAdapter }),
+    getClient: (connectionId) => deps.connections.getClient(connectionId),
+    emit: deps.onEvent,
+  });
 
   const monitor = createMonitorService({
     getClient: (connectionId) => deps.connections.getClient(connectionId),
@@ -722,12 +863,29 @@ export function createRouter(deps: RouterDeps): Router {
   rendererResets.add(() => {
     monitor.stopAll();
   });
+  // Transfers belong to the page that started them, so a reload or a closed window ends them.
+  rendererResets.add(() => {
+    transfers.cancelAll();
+  });
+
+  // A reload or a closed window ends the runtime processes too. The next page starts them again.
+  rendererResets.add(() => {
+    void deps.shell?.stopAll();
+  });
 
   deps.connections.onStatusChange((connectionId, status) => {
     if (status.state !== 'connected') {
       stopTails((active) => active.connectionId === connectionId);
     }
     deps.onEvent({ type: 'connection:status', connectionId, status });
+    // A transfer reads or writes through the client of its connection, so it ends with the connection.
+    if (status.state !== 'connected') {
+      transfers.cancelConnection(connectionId);
+    }
+    // A runtime serves only an open connection, so any other state ends its process.
+    if (status.state !== 'connected') {
+      void deps.shell?.stop(connectionId);
+    }
     // A docker connection that errors (for example, the socket closed) gives its forwarder back.
     // A disconnect is not handled here, because a superseded attempt also reports disconnected
     // while the next attempt may be using the same forwarder.
@@ -742,11 +900,16 @@ export function createRouter(deps: RouterDeps): Router {
   deps.lockEvents?.subscribe(() => {
     stopTails(() => true);
     monitor.stopAll();
+    transfers.cancelAll();
     void deps.connections.disconnectAll();
+    void deps.shell?.stopAll();
     deps.docker?.suspend();
     void deps.docker?.cleanupAll();
     deps.updates?.refreshSchedule();
     deps.onEvent({ type: 'vault:locked' });
+  });
+  deps.shell?.onEvent((event) => {
+    deps.onEvent(event);
   });
   deps.updates?.subscribe((state) => {
     deps.onEvent({ type: 'updates:state', state });
@@ -793,6 +956,78 @@ export function createRouter(deps: RouterDeps): Router {
       }
     },
   };
+
+  /**
+   * Explains the single collection query in a statement. The rewritten statement runs on the
+   * connection's runtime, and the server returns the plan without running the query.
+   */
+  async function explainStatement(input: ExplainRunInput): Promise<ExplainResult> {
+    const rewrite = rewriteForExplain(input.code, input.verbosity);
+    if (!rewrite.ok) {
+      throw new AppErrorException(appError('VALIDATION', rewrite.message));
+    }
+    const requestId = randomUUID();
+    const evaluation = await shellCall(input.connectionId, (shell) =>
+      shell.evaluate({
+        connectionId: input.connectionId,
+        requestId,
+        database: input.database,
+        code: rewrite.code,
+        batchSize: DEFAULT_BATCH_SIZE,
+      }),
+    );
+    if (evaluation.error !== undefined) {
+      throw new AppErrorException(evaluation.error);
+    }
+    if (evaluation.result === undefined) {
+      throw new AppErrorException(appError('INTERNAL', 'The explain returned no result.'));
+    }
+    return explainResult(requestId, evaluation.result.printableEjson, evaluation.elapsedMs);
+  }
+
+  /** Explains a captured command, such as a profiler entry, through the connection's driver. */
+  async function explainCommand(input: ExplainRunCommandInput): Promise<ExplainResult> {
+    if (deps.connections.status(input.connectionId).state !== 'connected') {
+      throw new AppErrorException(appError('NOT_CONNECTED', 'Connect to the server first.'));
+    }
+    const parsed = parseCommandEjson(input.commandEjson);
+    const command =
+      parsed !== undefined && input.profileOp !== undefined && input.collection !== undefined
+        ? wrapWriteCommand(parsed, input.profileOp, input.collection)
+        : parsed;
+    if (command === undefined || explainableCommand(command) === undefined) {
+      throw new AppErrorException(appError('VALIDATION', 'This command cannot be explained.'));
+    }
+    const result = await driverCall(() =>
+      runExplainCommand(deps.connections.getClient(input.connectionId), {
+        database: input.database,
+        command,
+        verbosity: input.verbosity,
+      }),
+    );
+    if (result === undefined) {
+      throw new AppErrorException(appError('VALIDATION', 'This command cannot be explained.'));
+    }
+    return explainResult(randomUUID(), JSON.stringify(result.raw), result.elapsedMs);
+  }
+
+  /**
+   * Runs a shell call for an open connection. A connection that is not open is refused before
+   * any runtime process starts.
+   */
+  async function shellCall<T>(
+    connectionId: string,
+    action: (shell: ShellRegistry) => Promise<T>,
+  ): Promise<T> {
+    const shell = deps.shell;
+    if (shell === undefined) {
+      throw new AppErrorException(appError('INTERNAL', 'The shell is not available.'));
+    }
+    if (deps.connections.status(connectionId).state !== 'connected') {
+      throw new AppErrorException(appError('NOT_CONNECTED', 'Connect to the server first.'));
+    }
+    return action(shell);
+  }
 
   /** Pushes an idle timeout (in minutes) from settings into the vault. */
   function applyIdleLock(minutes: number): void {
@@ -866,6 +1101,12 @@ export function createAppServices(options: AppServicesOptions): AppServices {
   };
   let handles = openStore();
   const connections = new ConnectionManager();
+  const shell = new RuntimeSupervisor({
+    entryPath: options.shell?.entryPath ?? '',
+    fork: options.shell?.fork ?? refuseFork,
+    profileOf: (connectionId) => handles.repos.connections.get(connectionId),
+    isConnected: (connectionId) => connections.status(connectionId).state === 'connected',
+  });
   const socketPath = options.dockerSocketPath ?? defaultDockerSocket(process.env, process.platform);
   const engine = createDockerEngineClient({ socketPath });
   const docker = createDockerRuntime({
@@ -884,6 +1125,7 @@ export function createAppServices(options: AppServicesOptions): AppServices {
     store: handles.store,
     repos: handles.repos,
     connections,
+    shell,
     docker,
     log,
     reopenStore: () => {
@@ -900,6 +1142,7 @@ export function createAppServices(options: AppServicesOptions): AppServices {
     },
     updates,
     async dispose() {
+      shell.dispose();
       updates.stop();
       await connections.disconnectAll();
       await docker.dispose();
@@ -960,6 +1203,9 @@ export function createRepos(store: EncryptedStore): RouterRepos {
   };
 }
 
+const refuseFork: ForkFunction = () => {
+  throw new Error('no shell runtime is configured');
+};
 function tailKey(connectionId: string, database: string): string {
   return `${connectionId}\u0000${database}`;
 }
@@ -975,6 +1221,26 @@ function canonicalEntry(entry: ProfileEntry): ProfileEntry {
     ...(entry.command === undefined ? {} : { command: toCanonicalEjson(entry.command) }),
     ...(entry.locks === undefined ? {} : { locks: toCanonicalEjson(entry.locks) }),
     ...(entry.storage === undefined ? {} : { storage: toCanonicalEjson(entry.storage) }),
+  };
+}
+
+/**
+ * Builds the explain result from a server explain document. The text is canonical EJSON, which
+ * the normaliser reads. The raw text is pretty printed for the raw tab.
+ */
+function explainResult(requestId: string, printable: string, elapsedMs: number): ExplainResult {
+  let raw: unknown;
+  try {
+    raw = JSON.parse(printable);
+  } catch {
+    throw new AppErrorException(appError('INTERNAL', 'The explain output is not JSON.'));
+  }
+  return {
+    requestId,
+    tree: normaliseExplain(raw),
+    rawEjson: JSON.stringify(raw, null, 2),
+    // Whole milliseconds, so the header and the result do not show sub-millisecond noise.
+    elapsedMs: Math.round(elapsedMs),
   };
 }
 
@@ -1021,6 +1287,34 @@ function toSummary(profile: ConnectionProfile): unknown {
     ...profile,
     uriRedacted: redactUri(profile.uri),
   });
+}
+
+/** Refuses an export whose folder is missing, before any file is created. */
+function refuseMissingFolder(path: string): void {
+  const folder = dirname(path);
+  if (!isDirectory(folder)) {
+    throw new AppErrorException(appError('VALIDATION', 'The folder does not exist.', folder));
+  }
+}
+
+/**
+ * An export never replaces a file the user did not pick in a save dialog this session. A file the
+ * user did pick is replaced only when the export succeeds.
+ */
+function refuseUnpickedFile(path: string, picked: ReadonlySet<string>): void {
+  if (existsSync(path) && !picked.has(path)) {
+    throw new AppErrorException(
+      appError('VALIDATION', 'The file exists. Choose it with Save as to replace it.'),
+    );
+  }
+}
+
+function isDirectory(path: string): boolean {
+  try {
+    return statSync(path).isDirectory();
+  } catch {
+    return false;
+  }
 }
 
 function failure(error: AppError): RpcResult {

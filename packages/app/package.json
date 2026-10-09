@@ -23,10 +23,11 @@
     ".": "./src/index.ts"
   },
   "scripts": {
-    "dev": "electron-vite dev",
-    "build": "electron-vite build",
-    "dist": "electron-vite build && electron-builder --publish never",
-    "dist:publish": "electron-vite build && electron-builder --publish always"
+    "dev": "pnpm run build:shell-runtime && electron-vite dev",
+    "build": "electron-vite build && pnpm run build:shell-runtime",
+    "build:shell-runtime": "vite build -c vite.shell-runtime.config.ts",
+    "dist": "pnpm run build && electron-builder --publish never",
+    "dist:publish": "pnpm run build && electron-builder --publish always"
   },
   "devDependencies": {
     "@mongo-gui/core": "workspace:*",

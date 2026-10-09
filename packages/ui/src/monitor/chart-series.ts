@@ -1,16 +1,27 @@
+import type { PanelSpec } from '@mongo-gui/core';
 import { seriesColor } from './palette';
-import type { SeriesLine } from './series';
+import { MEMBER_KEY_SEPARATOR, type SeriesLine } from './series';
 import type { ChartSeries } from './chart-types';
 
-/** Gives each line a colour by its position in the card. Callers keep the order stable. */
-export function chartSeries(lines: readonly SeriesLine[]): ChartSeries[] {
-  return lines.map((line, index) => ({
+/**
+ * Gives each line the colour of its series in the catalogue entry, so a series keeps its colour
+ * when another series is absent. Replica lag lines take the colour of the lag series they belong to.
+ */
+export function chartSeries(lines: readonly SeriesLine[], panel: PanelSpec): ChartSeries[] {
+  return lines.map((line) => ({
     key: line.key,
     label: line.label,
     unit: line.unit,
-    color: seriesColor(index),
+    color: seriesColor(catalogueIndex(line.key, panel)),
     values: line.values,
   }));
+}
+
+function catalogueIndex(key: string, panel: PanelSpec): number {
+  const index = panel.series.findIndex(
+    (spec) => key === spec.id || key.startsWith(`${spec.id}${MEMBER_KEY_SEPARATOR}`),
+  );
+  return Math.max(0, index);
 }
 
 /**

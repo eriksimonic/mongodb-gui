@@ -322,6 +322,12 @@ export function MonitorDashboard({ connectionId }: MonitorDashboardProps) {
         </Alert>
       )}
 
+      {dashboard.notice === undefined ? null : (
+        <Text size="sm" c="dimmed" data-testid="dashboard-notice">
+          {dashboard.notice}
+        </Text>
+      )}
+
       <div className="mg-dashboard-frame" data-stale={connected ? 'false' : 'true'}>
         <Stack gap="sm">
           <SimpleGrid cols={{ base: 2, sm: 3, lg: tiles.length }} spacing="xs">
@@ -330,11 +336,7 @@ export function MonitorDashboard({ connectionId }: MonitorDashboardProps) {
             ))}
           </SimpleGrid>
 
-          {windowed.length === 0 ? (
-            <Text size="sm" c="dimmed">
-              Waiting for the first sample. Sampling runs every {formatInterval(intervalMs)}.
-            </Text>
-          ) : panels.length === 0 ? (
+          {panels.length === 0 ? (
             <Paper withBorder p="lg" radius="sm" data-testid="dashboard-empty">
               <Stack gap="sm" align="flex-start">
                 <Text size="sm">
@@ -350,11 +352,18 @@ export function MonitorDashboard({ connectionId }: MonitorDashboardProps) {
                 </Group>
               </Stack>
             </Paper>
+          ) : windowed.length === 0 ? (
+            <Text size="sm" c="dimmed">
+              Waiting for the first sample. Sampling runs every {formatInterval(intervalMs)}.
+            </Text>
           ) : (
             <div className="mg-panel-grid" data-testid="panel-grid">
-              {panels.map(({ placed, spec }) => {
+              {panels.map(({ placed, spec }, index) => {
                 const tall = placed.h === 2;
                 const title = spec.title;
+                // Moves go past the panels this server hides, which draw nothing, so the neighbours are the visible ones.
+                const previous = index > 0 ? panels[index - 1] : undefined;
+                const following = panels[index + 1];
                 const menu = (
                   <PanelMenu
                     title={title}
@@ -366,6 +375,16 @@ export function MonitorDashboard({ connectionId }: MonitorDashboardProps) {
                       resizeDashboardPanel(connectionId, placed.id, { h: next ? 2 : 1 })
                     }
                     onAbout={() => setAboutId(placed.id)}
+                    onMoveLeft={
+                      previous === undefined
+                        ? undefined
+                        : () => moveDashboardPanel(connectionId, placed.id, previous.placed.id)
+                    }
+                    onMoveRight={
+                      following === undefined
+                        ? undefined
+                        : () => moveDashboardPanel(connectionId, placed.id, following.placed.id)
+                    }
                   />
                 );
                 const firstUnit = spec.series[0]?.unit;
@@ -461,7 +480,7 @@ function PanelChartBody({
   tall,
   yUnit,
 }: PanelChartBodyProps) {
-  const series = useMemo(() => chartSeries(panelLines(timeline, spec)), [timeline, spec]);
+  const series = useMemo(() => chartSeries(panelLines(timeline, spec), spec), [timeline, spec]);
   return (
     <ChartBody
       label={`${spec.title}, ${unitCaption(yUnit)}`}

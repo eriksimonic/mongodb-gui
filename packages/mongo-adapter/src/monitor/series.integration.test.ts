@@ -105,9 +105,9 @@ describe.each(MONGO_IMAGES)('catalogue series on %s', (image) => {
       }
       if (image.startsWith('mongo:8.0')) {
         expect(ids.size).toBeGreaterThanOrEqual(MIN_SERIES_ON_8_0);
-        // The checkpoint count moved under wiredTiger.checkpoint on 8.0.
+        // The checkpoint count and duration moved under wiredTiger.checkpoint on 8.0.
         expect(ids.has('wt-checkpoints')).toBe(true);
-        expect(ids.has('wt-checkpoint-ms')).toBe(false);
+        expect(ids.has('wt-checkpoint-ms')).toBe(true);
       }
     },
     SUITE_TIMEOUT_MS,

@@ -247,7 +247,7 @@ export const PANEL_CATALOG: readonly PanelSpec[] = [
     category: 'wiredtiger',
     chart: 'stat',
     requires: 'wiredTiger',
-    description: 'Duration of the most recent checkpoint, which newer servers do not report.',
+    description: 'Duration of the most recent WiredTiger checkpoint.',
     series: [gauge('wt-checkpoint-ms', ['wiredTiger', 'checkpointMs'], 'ms', 'Most recent')],
   },
   {
@@ -291,7 +291,8 @@ export const PANEL_CATALOG: readonly PanelSpec[] = [
     title: 'Physical network bytes',
     category: 'io-and-network',
     chart: 'lines',
-    description: 'Bytes on the wire per second, after TLS framing, where the server reports them.',
+    description:
+      'Bytes on the wire per second where the server reports them, which differ from logical bytes when wire compression is on.',
     series: [
       counter('net-physical-in', ['network', 'physicalBytesIn'], 'bytes-per-second', 'Physical in'),
       counter(

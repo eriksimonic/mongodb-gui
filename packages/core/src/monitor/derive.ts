@@ -131,11 +131,7 @@ function valueOfPath(snapshot: RawServerSnapshot, path: readonly string[]): numb
     return checkpointCount(status);
   }
   if (first === 'wiredTiger' && second === 'checkpointMs') {
-    return numberAt(status, [
-      'wiredTiger',
-      'transaction',
-      'transaction checkpoint most recent time (msecs)',
-    ]);
+    return checkpointMs(status);
   }
   if (first === 'wiredTiger' && second === 'fillPercent') {
     return cacheFillPercent(status);
@@ -180,6 +176,17 @@ function checkpointCount(status: unknown): number | undefined {
   return (
     numberAt(status, ['wiredTiger', 'transaction', 'transaction checkpoints']) ??
     numberAt(status, ['wiredTiger', 'checkpoint', 'total succeed number of checkpoints'])
+  );
+}
+
+// The duration of the most recent checkpoint moved with the count. 8.0 reports it under wiredTiger.checkpoint.
+function checkpointMs(status: unknown): number | undefined {
+  return (
+    numberAt(status, [
+      'wiredTiger',
+      'transaction',
+      'transaction checkpoint most recent time (msecs)',
+    ]) ?? numberAt(status, ['wiredTiger', 'checkpoint', 'most recent time (msecs)'])
   );
 }
 

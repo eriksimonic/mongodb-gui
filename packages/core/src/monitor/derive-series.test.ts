@@ -174,6 +174,12 @@ describe('deriveSeries', () => {
     eightZero.wiredTiger['checkpoint'] = { 'total succeed number of checkpoints': 9 };
     const values = deriveSeries(undefined, snapshot(T0, eightZero));
     expect(values['wt-checkpoint-ms']).toBeUndefined();
+    const withDuration = clone(eightZero);
+    withDuration.wiredTiger['checkpoint'] = {
+      'total succeed number of checkpoints': 9,
+      'most recent time (msecs)': 52,
+    };
+    expect(deriveSeries(undefined, snapshot(T0, withDuration))['wt-checkpoint-ms']).toBe(52);
     const withPrevious = deriveSeries(snapshot(T0, eightZero), snapshot(T0 + 1000, eightZero));
     expect(withPrevious['wt-checkpoints']).toBe(0);
   });

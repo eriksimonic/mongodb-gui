@@ -1,0 +1,251 @@
+/* Explain panel. Colours are Mantine tokens so the panel follows the app theme. */
+
+.mg-explain {
+  min-height: 100%;
+  font-size: 13px;
+}
+
+.mg-explain-statement {
+  display: block;
+  width: 100%;
+  padding: 4px 8px;
+  border: 1px solid var(--mantine-color-dark-4);
+  border-radius: var(--mantine-radius-sm);
+  background: var(--mantine-color-dark-7);
+  color: inherit;
+  text-align: left;
+  cursor: pointer;
+}
+
+.mg-explain-statement code {
+  display: block;
+  overflow: hidden;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+  font-family: var(--mantine-font-family-monospace);
+  font-size: 12px;
+}
+
+.mg-explain-statement-open code {
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+  text-overflow: clip;
+}
+
+.mg-explain-summary-bar {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  padding: 6px 8px;
+  border: 1px solid var(--mantine-color-dark-4);
+  border-radius: var(--mantine-radius-sm);
+}
+
+.mg-explain-summary {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 16px;
+  margin: 0;
+}
+
+.mg-explain-summary-item dt {
+  color: var(--mantine-color-dimmed);
+  font-size: 11px;
+}
+
+.mg-explain-summary-item dd {
+  margin: 0;
+  font-weight: 600;
+  font-variant-numeric: tabular-nums;
+}
+
+.mg-explain-warnings {
+  min-width: 0;
+}
+
+.mg-explain-warning {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 6px;
+  width: 100%;
+  padding: 4px 8px;
+  border: 1px solid var(--mantine-color-dark-4);
+  border-left-width: 3px;
+  border-radius: var(--mantine-radius-sm);
+  background: transparent;
+  color: inherit;
+  text-align: left;
+  cursor: pointer;
+}
+
+.mg-explain-warning[data-severity='critical'] {
+  border-left-color: var(--mantine-color-red-6);
+}
+
+.mg-explain-warning[data-severity='warning'] {
+  border-left-color: var(--mantine-color-yellow-6);
+}
+
+.mg-explain-warning[data-severity='info'] {
+  border-left-color: var(--mantine-color-blue-6);
+}
+
+.mg-explain-warning:disabled {
+  cursor: default;
+}
+
+.mg-explain-warning:not(:disabled):hover {
+  background: var(--mantine-color-dark-6);
+}
+
+.mg-explain-warning-message {
+  flex: 1 1 240px;
+}
+
+.mg-explain-warning-stage {
+  color: var(--mantine-color-dimmed);
+  font-size: 12px;
+}
+
+.mg-explain-index-line {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.mg-explain-tree-block {
+  min-width: 0;
+}
+
+.mg-explain-tree {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  border: 1px solid var(--mantine-color-dark-4);
+  border-radius: var(--mantine-radius-sm);
+}
+
+.mg-explain-row {
+  padding-top: 4px;
+  padding-right: 8px;
+  padding-bottom: 4px;
+  border-bottom: 1px solid var(--mantine-color-dark-5);
+  cursor: pointer;
+}
+
+.mg-explain-row:last-child {
+  border-bottom: none;
+}
+
+.mg-explain-row:focus-visible {
+  outline: 2px solid var(--mantine-color-blue-5);
+  outline-offset: -2px;
+}
+
+.mg-explain-row[aria-selected='true'] {
+  background: var(--mantine-color-dark-6);
+}
+
+.mg-explain-hot {
+  box-shadow: inset 3px 0 0 var(--mantine-color-red-6);
+}
+
+.mg-explain-row-body {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  gap: 2px;
+}
+
+.mg-explain-row-head {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 6px;
+}
+
+.mg-explain-chevron,
+.mg-explain-chevron-spacer {
+  display: inline-grid;
+  width: 16px;
+  height: 16px;
+  padding: 0;
+  place-items: center;
+  border: none;
+  background: transparent;
+  color: inherit;
+}
+
+.mg-explain-stage-name {
+  font-family: var(--mantine-font-family-monospace);
+  font-weight: 600;
+}
+
+.mg-explain-metrics {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 12px;
+  color: var(--mantine-color-dimmed);
+  font-size: 12px;
+  font-variant-numeric: tabular-nums;
+}
+
+.mg-explain-metrics strong {
+  color: var(--mantine-color-text);
+  font-weight: 600;
+}
+
+.mg-explain-bar {
+  display: block;
+  height: 6px;
+  overflow: hidden;
+  border-radius: 3px;
+  background: var(--mantine-color-dark-5);
+}
+
+.mg-explain-bar-fill {
+  display: block;
+  height: 100%;
+  background: var(--mantine-color-blue-6);
+}
+
+.mg-explain-bar-hot {
+  background: var(--mantine-color-red-6);
+}
+
+.mg-explain-bounds summary {
+  color: var(--mantine-color-dimmed);
+  font-size: 12px;
+  cursor: pointer;
+}
+
+.mg-explain-bounds pre {
+  margin: 4px 0 0;
+  overflow-x: auto;
+  font-family: var(--mantine-font-family-monospace);
+  font-size: 12px;
+}
+
+.mg-explain-shard {
+  padding-top: 6px;
+  padding-right: 8px;
+  padding-bottom: 2px;
+  color: var(--mantine-color-violet-3);
+  font-size: 12px;
+  font-weight: 600;
+}
+
+.mg-explain-rejected {
+  margin-top: 8px;
+}
+
+.mg-explain-rejected summary {
+  color: var(--mantine-color-dimmed);
+  cursor: pointer;
+}
+
+.mg-explain-tree-static {
+  margin-top: 6px;
+}

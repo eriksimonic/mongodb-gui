@@ -107,6 +107,11 @@ customer data) and favourites from anyone who copies the user's profile director
 reads a backup. Not in scope: an attacker with code running as the logged-in user while
 the app is unlocked.
 
+User code in the runtime process shares that process with the runtime's own state, so a
+script can change what later results show until the process restarts. That is the same
+trust as the user's own script, and the runtime process holds no secrets beyond the URI
+it was given.
+
 ### 3.2 Key hierarchy
 
 ```
@@ -252,6 +257,26 @@ issues.
 - **P3-3 explain ui.** Explain button next to run. Plan tree with per-stage metrics,
   hot stage highlighting, a summary bar (index used, examined, returned, time), a plain
   language explanation generated from the normalised tree, and a raw JSON tab.
+
+- **P3-4 stage coverage.** Added on 2026-10-09 at Erik's request. A stage catalogue in
+  core describes every stage the planner can emit, with a plain-language description, its
+  category (scan, fetch, filter, sort, projection, limit, lookup, group, merge, sharding,
+  text, geo, write, cache, express), which metrics are meaningful for it, and specific
+  advice. Covered at least: COLLSCAN, IXSCAN, FETCH, SORT (in memory and spilling),
+  SORT_MERGE, SORT_KEY_GENERATOR, PROJECTION_SIMPLE/COVERED/DEFAULT, LIMIT, SKIP, OR,
+  AND_SORTED, AND_HASH, SUBPLAN, CACHED_PLAN, IDHACK and the 8.0 EXPRESS stages,
+  COUNT, COUNT_SCAN, DISTINCT_SCAN, TEXT_MATCH, TEXT_OR, GEO_NEAR_2D, GEO_NEAR_2DSPHERE,
+  SHARDING_FILTER, SHARD_MERGE, SHARD_MERGE_SORT, EQ_LOOKUP and `$lookup` with an inner
+  pipeline shown as a sub-tree, `$unionWith`, `$facet`, `$graphLookup`, `$group`
+  (with spill to disk), `$unwind`, `$match`, `$project`, `$addFields`, `$sort`,
+  `$limit`, `$skip`, `$count`, `$out`/`$merge` (explain only), UPDATE, DELETE,
+  BATCHED_DELETE, and the timeseries unpack stage. Fixtures captured from real servers
+  for each case on 4.4, 6.0 and 8.0 where the stage exists, plus hand-written sharded
+  ones. The panel shows an icon and category per stage, hover descriptions, the
+  metrics that apply, lookup and union sub-trees, and the advice. The raw tab is always
+  present: it shows the exact explain document the server returned, as canonical EJSON
+  with search, folding and copy, and it works even when the normaliser produces an
+  `UNKNOWN` tree, so an unexpected plan shape is still inspectable.
 
 ### Phase 4: collection management
 

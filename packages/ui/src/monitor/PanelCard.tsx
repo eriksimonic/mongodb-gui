@@ -106,6 +106,9 @@ export interface PanelMenuProps {
   readonly onWidth: (width: 1 | 2 | 3) => void;
   readonly onHeight: (tall: boolean) => void;
   readonly onAbout: () => void;
+  /** Undefined when the panel is already first or last, which disables the item. */
+  readonly onMoveLeft?: (() => void) | undefined;
+  readonly onMoveRight?: (() => void) | undefined;
 }
 
 const WIDTH_OPTIONS = [
@@ -122,6 +125,8 @@ export function PanelMenu({
   onWidth,
   onHeight,
   onAbout,
+  onMoveLeft,
+  onMoveRight,
 }: PanelMenuProps) {
   return (
     <Menu position="bottom-end" withinPortal shadow="md" width={200}>
@@ -138,6 +143,12 @@ export function PanelMenu({
       </Menu.Target>
       <Menu.Dropdown>
         <Menu.Item onClick={onAbout}>About this panel</Menu.Item>
+        <Menu.Item onClick={onMoveLeft} disabled={onMoveLeft === undefined}>
+          Move left
+        </Menu.Item>
+        <Menu.Item onClick={onMoveRight} disabled={onMoveRight === undefined}>
+          Move right
+        </Menu.Item>
         <Menu.Divider />
         <Menu.Label>Width</Menu.Label>
         {WIDTH_OPTIONS.map((option) => (

@@ -1,14 +1,16 @@
 import {
+  defaultDashboardLayout,
   dashboardLayoutKey,
   toAppError,
   type AppError,
   type CollectionInfo,
+  type StartExportInput,
+  type StartImportInput,
   type ConnectionProfile,
   type ConnectionProfileInput,
   type ConnectionProfileSummary,
   type ConnectionStatus,
   type ConnectionTestResult,
-  type DashboardLayout,
   type DatabaseInfo,
   type DockerMongoContainerSummary,
   type DockerStatus,
@@ -23,7 +25,9 @@ import {
   addPanel,
   DASHBOARD_SAVE_DELAY_MS,
   EMPTY_DASHBOARD_VIEW,
-  layoutFromStored,
+  RESET_NOTICE,
+  readStoredLayout,
+  type LayoutChange,
   movePanel,
   removePanel,
   resetLayout,
@@ -41,7 +45,15 @@ import {
   EMPTY_MONITOR_VIEW,
   type MonitorView,
 } from './monitor-state';
+import { createExplainActions, type ExplainActions } from '../explain/explain-actions';
+import type { ExplainPanelState } from '../explain/explain-model';
 import { catalogKey, connectionNodeId } from './node-ids';
+import {
+  applyTransferProgress,
+  registerTransfer,
+  transfersFromList,
+  type TransfersState,
+} from './transfer-state';
 
 export type VaultState = VaultStatus['state'];
 
@@ -58,6 +70,25 @@ export interface Selection {
   readonly database?: string | undefined;
   readonly collection?: string | undefined;
 }
+
+/**
+ * The import wizard and the export dialog. An import without a collection creates one from the
+ * name the user types in the wizard.
+ */
+export type TransferDialogState =
+  | { readonly kind: 'closed' }
+  | {
+      readonly kind: 'import';
+      readonly connectionId: string;
+      readonly database: string;
+      readonly collection: string | undefined;
+    }
+  | {
+      readonly kind: 'export';
+      readonly connectionId: string;
+      readonly database: string;
+      readonly collection: string;
+    };
 
 export type DialogState =
   | { readonly kind: 'closed' }
@@ -127,9 +158,16 @@ export interface AppData {
   readonly settingsOpen: boolean;
   /** The updater state, pushed by the backend and read on start. */
   readonly updates: UpdateState;
+  /** Imports and exports this session started, with their latest progress. */
+  readonly transfers: TransfersState;
+  readonly transferDialog: TransferDialogState;
+  /** Explain panels by panel id. A panel is removed when its tab closes. */
+  readonly explainPanels: Readonly<Record<string, ExplainPanelState>>;
+  /** The explain panel the shell should show. `serial` moves on each request, so a repeat counts. */
+  readonly explainFocus: { readonly id: string; readonly serial: number } | undefined;
 }
 
-export interface AppActions {
+export interface AppActions extends ExplainActions {
   refreshVault(): Promise<void>;
   initialise(password: string): Promise<void>;
   unlock(password: string): Promise<void>;
@@ -191,6 +229,13 @@ export interface AppActions {
   installUpdate(): Promise<void>;
   dismissUpdate(version: string): Promise<void>;
   applyEvent(event: RpcEvent): void;
+  setTransferDialog(dialog: TransferDialogState): void;
+  /** Starts an import and records it. Resolves with the transfer id. */
+  startTransferImport(input: StartImportInput): Promise<string>;
+  startTransferExport(input: StartExportInput): Promise<string>;
+  cancelTransfer(transferId: string): Promise<void>;
+  /** Replaces the transfers with the list the backend holds, for example after a reload. */
+  refreshTransfers(): Promise<void>;
 }
 
 export type AppState = AppData & AppActions;
@@ -212,6 +257,10 @@ const SESSION_RESET: Pick<
   | 'managementDialog'
   | 'panelRequest'
   | 'settingsOpen'
+  | 'transfers'
+  | 'transferDialog'
+  | 'explainPanels'
+  | 'explainFocus'
 > = {
   connections: { state: 'loading' },
   statuses: {},
@@ -227,6 +276,10 @@ const SESSION_RESET: Pick<
   managementDialog: undefined,
   panelRequest: undefined,
   settingsOpen: false,
+  transfers: {},
+  transferDialog: { kind: 'closed' },
+  explainPanels: {},
+  explainFocus: undefined,
 };
 
 /** Replaced by the first state the backend reports. */
@@ -296,6 +349,8 @@ export function createAppStore(api: UiApi, initial: Partial<AppData> = {}): AppS
   // Pending saves and in-flight reads per connection. Like the generations, they stay out of state.
   const dashboardSaves = new Map<string, ReturnType<typeof setTimeout>>();
   const dashboardReads = new Set<string>();
+  // Changes made before the saved layout was read. They replay on top of it once it loads.
+  const pendingDashboardChanges = new Map<string, LayoutChange[]>();
 
   return createStore<AppState>()((set, get) => {
     function clearSession(): void {
@@ -337,19 +392,24 @@ export function createAppStore(api: UiApi, initial: Partial<AppData> = {}): AppS
       }));
     }
 
-    /** Applies a layout change. The change saves after a quiet period, but only once the saved layout is read. */
-    function changeDashboard(
-      connectionId: string,
-      change: (layout: DashboardLayout) => DashboardLayout,
-    ): void {
+    /**
+     * Applies a layout change to what the user sees now. Once the saved layout is read, the change
+     * saves after a quiet period. Before that, the change waits and replays on the saved layout.
+     */
+    function changeDashboard(connectionId: string, change: LayoutChange): void {
       const view = get().dashboards[connectionId] ?? EMPTY_DASHBOARD_VIEW;
       const layout = change(view.layout);
       if (layout === view.layout) {
         return;
       }
-      updateDashboardView(connectionId, (current) => ({ ...current, layout }));
+      updateDashboardView(connectionId, (current) => ({ ...current, layout, notice: undefined }));
       if (view.loaded) {
         scheduleDashboardSave(connectionId);
+      } else {
+        pendingDashboardChanges.set(connectionId, [
+          ...(pendingDashboardChanges.get(connectionId) ?? []),
+          change,
+        ]);
       }
     }
 
@@ -386,6 +446,7 @@ export function createAppStore(api: UiApi, initial: Partial<AppData> = {}): AppS
     return {
       ...INITIAL_DATA,
       ...initial,
+      ...createExplainActions(rpc, set, get),
 
       async refreshVault() {
         try {
@@ -528,15 +589,27 @@ export function createAppStore(api: UiApi, initial: Partial<AppData> = {}): AppS
         }
         dashboardReads.add(connectionId);
         try {
-          const { value } = await rpc.layout.get({ key: dashboardLayoutKey(connectionId) });
-          // Edits made before the read finished are kept on top of the stored layout.
+          const key = dashboardLayoutKey(connectionId);
+          const { value } = await rpc.layout.get({ key });
+          const stored = readStoredLayout(value);
+          if (stored.state === 'invalid') {
+            console.warn(`Dashboard layout ${key} is not valid and was reset: ${stored.summary}`);
+          }
+          // Edits made before the read finished replay on top of the stored layout, in order.
+          const replay = pendingDashboardChanges.get(connectionId) ?? [];
+          pendingDashboardChanges.delete(connectionId);
+          const base = stored.state === 'valid' ? stored.layout : defaultDashboardLayout();
+          const layout = replay.reduce((current, change) => change(current), base);
           updateDashboardView(connectionId, (view) => ({
             ...view,
-            layout:
-              view.layout === EMPTY_DASHBOARD_VIEW.layout ? layoutFromStored(value) : view.layout,
+            layout,
             loaded: true,
             error: undefined,
+            notice: stored.state === 'invalid' ? RESET_NOTICE : undefined,
           }));
+          if (replay.length > 0) {
+            scheduleDashboardSave(connectionId);
+          }
         } catch (error) {
           updateDashboardView(connectionId, (view) => ({ ...view, error: toAppError(error) }));
         } finally {
@@ -751,6 +824,47 @@ export function createAppStore(api: UiApi, initial: Partial<AppData> = {}): AppS
         set({ updates: await rpc.updates.dismiss({ version }) });
       },
 
+      setTransferDialog(dialog) {
+        set({ transferDialog: dialog });
+      },
+
+      async startTransferImport(input) {
+        const { transferId } = await rpc.transfer.startImport(input);
+        set((state) => ({
+          transfers: registerTransfer(state.transfers, {
+            transferId,
+            kind: 'import',
+            database: input.database,
+            collection: input.collection,
+            path: input.path,
+          }),
+        }));
+        return transferId;
+      },
+
+      async startTransferExport(input) {
+        const { transferId } = await rpc.transfer.startExport(input);
+        set((state) => ({
+          transfers: registerTransfer(state.transfers, {
+            transferId,
+            kind: 'export',
+            database: input.database,
+            collection: input.collection,
+            path: input.path,
+          }),
+        }));
+        return transferId;
+      },
+
+      async cancelTransfer(transferId) {
+        await rpc.transfer.cancel({ transferId });
+      },
+
+      async refreshTransfers() {
+        const list = await rpc.transfer.list();
+        set({ transfers: transfersFromList(list) });
+      },
+
       applyEvent(event) {
         if (event.type === 'updates:state') {
           set({ updates: event.state });
@@ -759,6 +873,15 @@ export function createAppStore(api: UiApi, initial: Partial<AppData> = {}): AppS
         if (event.type === 'vault:locked') {
           clearSession();
           set({ vault: 'locked' });
+          return;
+        }
+        if (event.type === 'transfer:progress') {
+          // Events after the vault locked belong to transfers that the lock has already cancelled.
+          if (get().vault === 'unlocked') {
+            set((state) => ({
+              transfers: applyTransferProgress(state.transfers, event),
+            }));
+          }
           return;
         }
         if (event.type === 'catalog:changed') {

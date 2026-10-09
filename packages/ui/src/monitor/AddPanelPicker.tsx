@@ -89,7 +89,7 @@ function PickerRow({ panel, added, capabilities, onAdd }: PickerRowProps) {
             </Text>
             {added ? (
               <Badge size="xs" variant="light">
-                On the dashboard
+                {unmet === undefined ? 'On the dashboard' : 'Saved, hidden on this server'}
               </Badge>
             ) : null}
           </Group>

@@ -215,6 +215,44 @@ export function userCommand(command: unknown): unknown {
   );
 }
 
+/** What the explain of a profiler entry runs. Undefined when the entry cannot be explained. */
+export interface ExplainTarget {
+  readonly command: unknown;
+  // Set for an update or remove, whose profiled command is a bare statement.
+  readonly profileOp?: 'update' | 'remove';
+  readonly collection?: string;
+}
+
+/**
+ * The command to explain for a profiler entry. A getMore explains the find that opened its cursor,
+ * and an entry without that command cannot be explained. An update or remove names its collection
+ * from the namespace, so the router can wrap the statement.
+ */
+export function explainTarget(entry: ProfileEntry, command: unknown): ExplainTarget | undefined {
+  if (entry.op === 'update' || entry.op === 'remove') {
+    const collection = collectionOfNamespace(entry.ns);
+    return collection === undefined ? undefined : { command, profileOp: entry.op, collection };
+  }
+  if (typeof command === 'object' && command !== null && !Array.isArray(command)) {
+    const record = command as Record<string, unknown>;
+    if ('getMore' in record) {
+      const original = record['originatingCommand'];
+      return typeof original === 'object' && original !== null && !Array.isArray(original)
+        ? { command: original }
+        : undefined;
+    }
+  }
+  return { command };
+}
+
+// The collection of a namespace such as shop.orders. The database name has no dot, so the split
+// is at the first one.
+function collectionOfNamespace(ns: string): string | undefined {
+  const dot = ns.indexOf('.');
+  const collection = dot === -1 ? '' : ns.slice(dot + 1);
+  return collection === '' ? undefined : collection;
+}
+
 /** The command as mongosh source, so a pasted command keeps the server's types. */
 export function formatCommand(command: unknown, indent = 2): string {
   const text = JSON.stringify(command);

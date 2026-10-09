@@ -16,7 +16,7 @@ const GAP_FACTOR = 2.5;
 // A chart draws at most this many lines. Replica lag past the cap folds into "Other".
 const MAX_LINES = 8;
 const OTHER_LABEL = 'Other';
-const MEMBER_KEY_SEPARATOR = '@';
+export const MEMBER_KEY_SEPARATOR = '@';
 
 export const RANGE_MS: Readonly<Record<MonitorRange, number>> = {
   '5m': 5 * MS_PER_MINUTE,

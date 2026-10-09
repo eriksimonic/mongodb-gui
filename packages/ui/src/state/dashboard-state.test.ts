@@ -8,7 +8,7 @@ import { describe, expect, it } from 'vitest';
 import {
   addPanel,
   defaultWidthFor,
-  layoutFromStored,
+  readStoredLayout,
   movePanel,
   removePanel,
   resetLayout,
@@ -108,17 +108,31 @@ describe('resetLayout', () => {
   });
 });
 
-describe('layoutFromStored', () => {
+describe('readStoredLayout', () => {
   it('reads a valid stored layout', () => {
-    expect(layoutFromStored(TWO_PANELS)).toEqual(TWO_PANELS);
+    expect(readStoredLayout(TWO_PANELS)).toEqual({ state: 'valid', layout: TWO_PANELS });
   });
 
-  it('falls back to the default for a missing or invalid value', () => {
-    expect(layoutFromStored(null)).toEqual(defaultDashboardLayout());
-    expect(layoutFromStored({ version: 2, panels: [] })).toEqual(defaultDashboardLayout());
-    expect(layoutFromStored({ version: 1, panels: [{ id: 'a', w: 4, h: 1 }] })).toEqual(
-      defaultDashboardLayout(),
+  it('treats a null or missing value as nothing stored, not as an error', () => {
+    expect(readStoredLayout(null)).toEqual({ state: 'missing' });
+    expect(readStoredLayout(undefined)).toEqual({ state: 'missing' });
+  });
+
+  it('rejects a wrong version and an out-of-range width', () => {
+    expect(readStoredLayout({ version: 2, panels: [] }).state).toBe('invalid');
+    expect(readStoredLayout({ version: 1, panels: [{ id: 'a', w: 4, h: 1 }] }).state).toBe(
+      'invalid',
     );
+  });
+
+  it('summarises the failing paths without the stored value', () => {
+    const secret = 'sensitive-panel-id-value';
+    const stored = readStoredLayout({ version: 1, panels: [{ id: secret, w: 4, h: 1 }] });
+    expect(stored.state).toBe('invalid');
+    if (stored.state === 'invalid') {
+      expect(stored.summary).toContain('panels.0.w');
+      expect(stored.summary).not.toContain(secret);
+    }
   });
 
   it('rejects a layout that places a panel twice', () => {
@@ -129,7 +143,7 @@ describe('layoutFromStored', () => {
         { id: 'network', w: 2, h: 1 },
       ],
     };
-    expect(layoutFromStored(duplicated)).toEqual(defaultDashboardLayout());
+    expect(readStoredLayout(duplicated).state).toBe('invalid');
   });
 });
 

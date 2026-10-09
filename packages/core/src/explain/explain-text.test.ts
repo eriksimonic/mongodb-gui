@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { explainInWords, indexKeyFor } from './explain-text';
+import { explainInWords, indexKeyFor, suggestedIndexKeys } from './explain-text';
 import { normaliseExplain } from './normalise';
 import type { PlanStage, PlanTree, PlanWarning, PlanWarningCode } from './plan-tree';
 
@@ -406,6 +406,53 @@ describe('explainInWords write and count sentences', () => {
     expect(words[0]).toBe(
       'The planner chose the index status_1 and examined 668 keys and counted 0 documents.',
     );
+  });
+});
+
+describe('suggestedIndexKeys', () => {
+  const sortWarning: PlanWarning = { code: 'IN_MEMORY_SORT', severity: 'warning', message: 'sort' };
+
+  it('returns the filter equality field followed by the sort key', () => {
+    const keys = suggestedIndexKeys(
+      tree({
+        filter: { status: { $eq: 'paid' } },
+        winning: stage('SORT', { sortPattern: { total: 1 } }),
+        warnings: [sortWarning],
+      }),
+    );
+    expect(keys).toEqual([
+      ['status', 1],
+      ['total', 1],
+    ]);
+  });
+
+  it('returns the keys for a collection scan from the filter fields', () => {
+    const keys = suggestedIndexKeys(
+      tree({
+        winning: stage('COLLSCAN', { docsExamined: 2000, filter: { customerId: 7 } }),
+        summary: { indexesUsed: [], inMemorySort: false, collectionScan: true },
+        warnings: [warning('COLLSCAN')],
+      }),
+    );
+    expect(keys).toEqual([['customerId', 1]]);
+  });
+
+  it('returns nothing when the sort follows a stage that changes the documents', () => {
+    const keys = suggestedIndexKeys(
+      tree({
+        command: 'aggregate',
+        winning: stage('$sort', {
+          sortPattern: { spent: -1 },
+          children: [stage('$group', { children: [stage('$cursor')] })],
+        }),
+        warnings: [sortWarning],
+      }),
+    );
+    expect(keys).toBeUndefined();
+  });
+
+  it('returns nothing when no warning advises an index', () => {
+    expect(suggestedIndexKeys(tree({ warnings: [warning('MULTIKEY_INDEX')] }))).toBeUndefined();
   });
 });
 

@@ -1,7 +1,7 @@
 import {
+  DashboardLayoutSchema,
   defaultDashboardLayout,
   findPanel,
-  parseDashboardLayout,
   unmetRequirement,
   type AppError,
   type DashboardLayout,
@@ -20,13 +20,23 @@ export interface DashboardView {
   readonly loaded: boolean;
   /** The last failed read or write. A later successful save clears it. */
   readonly error: AppError | undefined;
+  /** Set when the stored layout was invalid and the default is shown instead. The next change clears it. */
+  readonly notice: string | undefined;
 }
+
+/** The one-line notice shown after a stored layout was reset. */
+export const RESET_NOTICE =
+  'The saved layout was not valid, so the dashboard was reset to the default.';
 
 export const EMPTY_DASHBOARD_VIEW: DashboardView = {
   layout: defaultDashboardLayout(),
   loaded: false,
   error: undefined,
+  notice: undefined,
 };
+
+/** A pure change to a layout. The store keeps these until the saved layout is read. */
+export type LayoutChange = (layout: DashboardLayout) => DashboardLayout;
 
 export type DashboardWidth = DashboardPanel['w'];
 export type DashboardHeight = DashboardPanel['h'];
@@ -90,9 +100,28 @@ export function resetLayout(): DashboardLayout {
   return defaultDashboardLayout();
 }
 
-/** The layout a stored value gives, or the default when the value is missing or invalid. */
-export function layoutFromStored(value: unknown): DashboardLayout {
-  return parseDashboardLayout(value) ?? defaultDashboardLayout();
+export type StoredLayout =
+  | { readonly state: 'missing' }
+  | { readonly state: 'valid'; readonly layout: DashboardLayout }
+  /** `summary` names the failing paths and rules. It never contains the stored value. */
+  | { readonly state: 'invalid'; readonly summary: string };
+
+const MAX_ISSUES_IN_SUMMARY = 5;
+
+/** Checks a stored value against the layout schema. A null or missing value is not an error. */
+export function readStoredLayout(value: unknown): StoredLayout {
+  if (value === null || value === undefined) {
+    return { state: 'missing' };
+  }
+  const parsed = DashboardLayoutSchema.safeParse(value);
+  if (parsed.success) {
+    return { state: 'valid', layout: parsed.data };
+  }
+  const summary = parsed.error.issues
+    .slice(0, MAX_ISSUES_IN_SUMMARY)
+    .map((issue) => `${issue.path.join('.') || '(root)'} ${issue.code}`)
+    .join('; ');
+  return { state: 'invalid', summary };
 }
 
 /** A placed panel with its catalogue entry. Panels whose requirement the connection lacks are left out. */

@@ -11,11 +11,29 @@ export {
   type ListCollectionsOptions,
 } from './catalog';
 export { toCanonicalEjson } from './ejson';
+export {
+  explainableCommand,
+  parseCommandEjson,
+  runExplainCommand,
+  type ExplainCommandResult,
+  wrapWriteCommand,
+} from './explain/run-explain';
 export { mapDriverError } from './errors';
 export { exportCollection } from './transfer/export';
+export { dropBucket, listBuckets } from './gridfs/buckets';
+export {
+  deleteFiles,
+  downloadFile,
+  getFile,
+  listFiles,
+  renameFile,
+  uploadFile,
+} from './gridfs/files';
 export { importFile, previewImport } from './transfer/import';
 export { readServerInfo, type ServerInfo } from './server-info';
+export * from './diagnostics/index';
 export * from './management/index';
+export * from './security/index';
 export { killOperation, listOperations, type ListOperationsOptions } from './monitor/operations';
 export {
   Sampler,
@@ -32,3 +50,4 @@ export {
   type ProfileCollectionInfo,
   type ProfileTail,
 } from './profiler/profiler';
+export * from './sharding/index';

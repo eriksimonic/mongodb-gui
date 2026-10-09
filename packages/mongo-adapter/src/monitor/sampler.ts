@@ -26,15 +26,34 @@ export interface SamplerOptions {
 
 type Database = ReturnType<MongoClient['db']>;
 
-// Only the sections the catalogue reads are requested. Nested exclusions are not possible, so
-// `metrics` comes back whole and `metrics.commands` is dropped in withoutCommandMetrics. tcmalloc is
-// large and no series reads it, so it stays excluded.
+// Default serverStatus sections that no catalogue series or headline field reads.
+const DEFAULT_SECTIONS_NOT_READ = [
+  'catalogStats',
+  'electionMetrics',
+  'flowControl',
+  'opLatencies',
+  'opReadConcernCounters',
+  'oplogTruncation',
+  'scramCache',
+  'shardingStatistics',
+  'trafficRecording',
+  'transportSecurity',
+  'twoPhaseCommitCoordinator',
+] as const;
+
+// Only the sections the catalogue reads are requested. serverStatus returns its default sections
+// unless they are excluded, so the default sections that nothing reads are set to 0. Nested
+// exclusions are not possible, so `metrics` comes back whole and `metrics.commands` is dropped in
+// withoutCommandMetrics. tcmalloc is large and no series reads it, so it stays excluded.
 const SERVER_STATUS_COMMAND: Record<string, number> = serverStatusCommand(serverStatusSections());
 const REPL_SET_STATUS_COMMAND = { replSetGetStatus: 1 };
 
-/** serverStatus command that includes the given top-level sections and excludes tcmalloc. */
+/** serverStatus command that includes the given top-level sections and excludes the rest. */
 function serverStatusCommand(sections: readonly string[]): Record<string, number> {
   const command: Record<string, number> = { serverStatus: 1, tcmalloc: 0 };
+  for (const section of DEFAULT_SECTIONS_NOT_READ) {
+    command[section] = 0;
+  }
   for (const section of sections) {
     command[section] = 1;
   }
