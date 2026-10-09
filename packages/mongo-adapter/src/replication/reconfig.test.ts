@@ -22,12 +22,19 @@ function voter(id: number, overrides: MemberOverrides = {}): ReplicaSetMemberCon
     buildIndexes: true,
     secondaryDelaySecs: 0,
     tags: {},
+    extraEjson: '{}',
     ...overrides,
   };
 }
 
 function configOf(members: ReplicaSetMemberConfig[], version = 3): ReplicaSetConfig {
-  return { id: 'rs0', version, members, settingsEjson: '{"heartbeatIntervalMillis":2000}' };
+  return {
+    id: 'rs0',
+    version,
+    members,
+    settingsEjson: '{"heartbeatIntervalMillis":2000}',
+    extraEjson: '{}',
+  };
 }
 
 interface StateOverride {
@@ -137,7 +144,7 @@ describe('planReconfig: shared behaviour', () => {
       healthyThree,
     );
     expect(plan.refused).toBe('The change leaves the configuration as it is.');
-    expect(plan.changes).toEqual(['Raise the configuration version from 3 to 4.']);
+    expect(plan.changes).toEqual([]);
   });
 
   it('joins every refusal into one reason', () => {
@@ -164,6 +171,7 @@ describe('planReconfig: add', () => {
       buildIndexes: true,
       secondaryDelaySecs: 0,
       tags: {},
+      extraEjson: '{}',
     });
     expect(plan.changes[0]).toBe(
       'Add mongo3:27017 as member 3: priority 1, votes 1, hidden false, arbiter false, delay 0 seconds.',
@@ -184,14 +192,14 @@ describe('planReconfig: add', () => {
         host: 'mongo3:27017',
         priority: 2,
         votes: 1,
-        buildIndexes: false,
+        buildIndexes: true,
         tags: { dc: 'west' },
       }),
       healthyThree,
     );
     expect(plan.next.members.find((member) => member.id === 3)).toMatchObject({
       priority: 2,
-      buildIndexes: false,
+      buildIndexes: true,
       tags: { dc: 'west' },
     });
   });
@@ -373,8 +381,9 @@ describe('planReconfig: add', () => {
     );
   });
 
-  it('refuses a voting member when a voter is unreachable and the new majority is out of reach', () => {
-    const status = statusFor(threeVoters, { 2: UNREACHABLE });
+  it('refuses a voting member when two voters are unreachable and the new majority is out of reach', () => {
+    // One healthy voter plus the added voter makes two reachable of four, and four needs three.
+    const status = statusFor(threeVoters, { 1: UNREACHABLE, 2: UNREACHABLE });
     const plan = planWith(configOf(threeVoters), add({ host: 'mongo3:27017' }), status);
     expect(plan.refused).toBe(
       'Only 2 of 4 voting members would be reachable, and a majority needs 3. This change would leave the set without a majority.',
@@ -387,11 +396,50 @@ describe('planReconfig: add', () => {
     expect(plan.refused).toBeUndefined();
   });
 
-  it('does not count the added member as reachable', () => {
-    // Two of three voters are healthy, so a new voter gives four voters and needs three reachable.
+  it('counts the added voter as reachable, so one unreachable voter does not block the add', () => {
+    // Two of three voters are healthy. With the added voter that is three of four, which is a
+    // majority. The server runs the same check, so the planner does not refuse it first.
     const status = statusFor(threeVoters, { 1: UNREACHABLE });
     const plan = planWith(configOf(threeVoters), add({ host: 'mongo3:27017' }), status);
-    expect(plan.refused).toContain('Only 2 of 4 voting members');
+    expect(plan.refused).toBeUndefined();
+  });
+
+  it('adds a single voter to a one-member set', () => {
+    const members = [voter(0)];
+    const plan = planWith(configOf(members), add({ host: 'mongo1:27017' }), statusFor(members));
+    expect(plan.refused).toBeUndefined();
+    expect(plan.next.members.map((member) => member.id)).toEqual([0, 1]);
+  });
+
+  it('gives a buildIndexes false member priority 0 by default', () => {
+    const plan = planWith(
+      configOf(threeVoters),
+      add({ host: 'mongo3:27017', buildIndexes: false }),
+      healthyThree,
+    );
+    expect(plan.refused).toBeUndefined();
+    expect(plan.next.members.find((member) => member.id === 3)).toMatchObject({
+      buildIndexes: false,
+      priority: 0,
+    });
+  });
+
+  it('refuses a buildIndexes false member with priority above 0, with the server reason', () => {
+    const plan = planWith(
+      configOf(threeVoters),
+      add({ host: 'mongo3:27017', buildIndexes: false, priority: 1 }),
+      healthyThree,
+    );
+    expect(plan.refused).toBe('mongo3:27017 has buildIndexes false, so its priority must be 0.');
+  });
+
+  it('refuses an arbiter with no votes', () => {
+    const plan = planWith(
+      configOf(threeVoters),
+      add({ host: 'arbiter:27017', arbiterOnly: true, votes: 0 }),
+      healthyThree,
+    );
+    expect(plan.refused).toBe('arbiter:27017 is an arbiter, so it must have 1 vote.');
   });
 });
 
@@ -466,7 +514,7 @@ describe('planReconfig: remove', () => {
     const members = [voter(0), voter(1)];
     const plan = planWith(configOf(members), { kind: 'remove', memberId: 1 }, statusFor(members));
     expect(plan.refused).toBeUndefined();
-    expect(plan.warnings[0]).toContain('The set has 1 voting members, down from 2.');
+    expect(plan.warnings[0]).toContain('The set has 1 voting member, down from 2.');
   });
 });
 
@@ -661,13 +709,62 @@ describe('planReconfig: update', () => {
     expect(plan.changes).toContain('Set tags of mongo1:27017 from {} to {"dc":"east"}.');
   });
 
-  it('reports a build indexes change', () => {
+  it('refuses changing buildIndexes of an existing member', () => {
     const plan = planWith(
       configOf(threeVoters),
       { kind: 'update', memberId: 1, patch: { buildIndexes: false } },
       healthyThree,
     );
-    expect(plan.changes).toContain('Set build indexes of mongo1:27017 from true to false.');
+    expect(plan.refused).toBe(
+      'Member mongo1:27017 cannot change buildIndexes. Remove it and add the new member instead.',
+    );
+    expect(plan.changes).toEqual([]);
+  });
+
+  it('refuses changing arbiterOnly of an existing member', () => {
+    const plan = planWith(
+      configOf(threeVoters),
+      { kind: 'update', memberId: 1, patch: { arbiterOnly: true, priority: 0 } },
+      healthyThree,
+    );
+    expect(plan.refused).toBe(
+      'Member mongo1:27017 cannot change between an arbiter and a data member. Remove it and add the new member instead.',
+    );
+  });
+
+  it('refuses buildIndexes false with priority above 0 on an update', () => {
+    const plan = planWith(
+      configOf(threeVoters),
+      { kind: 'update', memberId: 1, patch: { priority: 2, secondaryDelaySecs: 0 } },
+      healthyThree,
+    );
+    expect(plan.refused).toBeUndefined();
+    const members = [voter(0), voter(1, { buildIndexes: false, priority: 0 }), voter(2)];
+    const refused = planWith(
+      configOf(members),
+      { kind: 'update', memberId: 1, patch: { priority: 2 } },
+      statusFor(members),
+    );
+    expect(refused.refused).toBe('mongo1:27017 has buildIndexes false, so its priority must be 0.');
+  });
+
+  it('keeps the unmodelled member and top-level fields on an update', () => {
+    const members = [
+      voter(0),
+      voter(1, { extraEjson: '{"horizons":{"external":"b.example:27017"}}' }),
+      voter(2),
+    ];
+    const config = { ...configOf(members), extraEjson: '{"configsvr":true}' };
+    const plan = planWith(
+      config,
+      { kind: 'update', memberId: 1, patch: { priority: 2 } },
+      statusFor(members),
+    );
+    expect(plan.refused).toBeUndefined();
+    expect(plan.next.extraEjson).toBe('{"configsvr":true}');
+    expect(plan.next.members.find((member) => member.id === 1)?.extraEjson).toBe(
+      '{"horizons":{"external":"b.example:27017"}}',
+    );
   });
 
   it('refuses a patch that makes an arbiter hidden', () => {
@@ -714,7 +811,7 @@ describe('planReconfig: member counts and the reachable majority', () => {
     const plan = planWith(configOf(members), { kind: 'remove', memberId: 4 }, statusFor(members));
     expect(plan.refused).toBeUndefined();
     expect(plan.warnings[0]).toBe(
-      'The set has 4 voting members, down from 5. It tolerates 1 failed voting members, down from 2.',
+      'The set has 4 voting members, down from 5. It tolerates 1 failed voting member, down from 2.',
     );
   });
 

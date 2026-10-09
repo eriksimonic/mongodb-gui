@@ -3,6 +3,7 @@ import {
   AppErrorException,
   normaliseReplicaSetConfig,
   normaliseReplicaSetStatus,
+  type EjsonSerialiser,
   type ReplicaSetConfig,
   type ReplicaSetStatus,
 } from '@mongo-gui/core';
@@ -13,6 +14,9 @@ const OPLOG_DATABASE = 'local';
 const OPLOG_COLLECTION = 'oplog.rs';
 const ASCENDING = 1;
 const DESCENDING = -1;
+
+// Driver values such as ObjectId become their canonical EJSON form, which core keeps as a string.
+const serialise: EjsonSerialiser = (value) => BSON.EJSON.stringify(value, { relaxed: false });
 
 export async function isReplicaSet(client: MongoClient): Promise<boolean> {
   try {
@@ -35,11 +39,10 @@ export async function getReplicaSetStatus(client: MongoClient): Promise<ReplicaS
       readOplogEdge(client, DESCENDING),
       readOplogStats(client),
     ]);
-    const settingsEjson = settingsEjsonOf(config);
     return normaliseReplicaSetStatus({
       status,
       config,
-      settingsEjson,
+      serialise,
       oplogFirst,
       oplogLast,
       oplogStats,
@@ -52,22 +55,10 @@ export async function getReplicaSetStatus(client: MongoClient): Promise<ReplicaS
 export async function getReplicaSetConfig(client: MongoClient): Promise<ReplicaSetConfig> {
   try {
     const reply: unknown = await client.db('admin').command({ replSetGetConfig: 1 });
-    return normaliseReplicaSetConfig(reply, settingsEjsonOf(reply));
+    return normaliseReplicaSetConfig(reply, serialise);
   } catch (error) {
     throw new AppErrorException(mapDriverError(error));
   }
-}
-
-// The settings document holds driver values such as ObjectId, so it is serialised as canonical
-// EJSON. Core keeps the string and the planner passes it back unchanged.
-function settingsEjsonOf(reply: unknown): string {
-  const config =
-    typeof reply === 'object' && reply !== null && 'config' in reply ? reply.config : undefined;
-  const settings =
-    typeof config === 'object' && config !== null && 'settings' in config
-      ? config.settings
-      : undefined;
-  return BSON.EJSON.stringify(settings ?? {}, { relaxed: false });
 }
 
 // A failed oplog read leaves the window out of the status rather than failing the whole read.

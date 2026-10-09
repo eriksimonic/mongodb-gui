@@ -7,6 +7,8 @@ import {
 } from './normalise';
 import { ReplicaSetStatusSchema } from './types';
 
+const serialise = (value: unknown): string => JSON.stringify(value);
+
 const PRIMARY_OPTIME = new Date('2026-10-09T10:00:10.000Z');
 const SECONDARY_OPTIME = new Date('2026-10-09T10:00:07.500Z');
 
@@ -17,6 +19,7 @@ function rawConfig(overrides: Record<string, unknown> = {}) {
       version: 4,
       term: 2,
       protocolVersion: 1n,
+      settings: { heartbeatIntervalMillis: 2000 },
       members: [
         { _id: 0, host: 'mongo0:27017', priority: 2, votes: 1, tags: { dc: 'east' } },
         { _id: 1, host: 'mongo1:27017', priority: 1, votes: 1 },
@@ -48,7 +51,7 @@ function rawStatus(members: unknown[]) {
 
 describe('normaliseReplicaSetConfig', () => {
   it('maps each member and keeps the settings', () => {
-    const config = normaliseReplicaSetConfig(rawConfig(), '{"heartbeatIntervalMillis":2000}');
+    const config = normaliseReplicaSetConfig(rawConfig(), serialise);
     expect(config.id).toBe('rs0');
     expect(config.version).toBe(4);
     expect(config.term).toBe(2);
@@ -65,6 +68,7 @@ describe('normaliseReplicaSetConfig', () => {
         buildIndexes: true,
         secondaryDelaySecs: 0,
         tags: { dc: 'east' },
+        extraEjson: '{}',
       },
       {
         id: 1,
@@ -76,6 +80,7 @@ describe('normaliseReplicaSetConfig', () => {
         buildIndexes: true,
         secondaryDelaySecs: 0,
         tags: {},
+        extraEjson: '{}',
       },
       {
         id: 2,
@@ -87,6 +92,7 @@ describe('normaliseReplicaSetConfig', () => {
         buildIndexes: true,
         secondaryDelaySecs: 30,
         tags: {},
+        extraEjson: '{}',
       },
     ]);
   });
@@ -95,26 +101,39 @@ describe('normaliseReplicaSetConfig', () => {
     const reply = rawConfig({
       members: [{ _id: 0, host: 'a:1', secondaryDelaySecs: 5, slaveDelay: 9 }],
     });
-    expect(normaliseReplicaSetConfig(reply).members[0]?.secondaryDelaySecs).toBe(5);
+    expect(normaliseReplicaSetConfig(reply, serialise).members[0]?.secondaryDelaySecs).toBe(5);
   });
 
   it('drops tag values that are not strings', () => {
     const reply = rawConfig({
       members: [{ _id: 0, host: 'a:1', tags: { dc: 'east', rack: 3 } }],
     });
-    expect(normaliseReplicaSetConfig(reply).members[0]?.tags).toEqual({ dc: 'east' });
+    expect(normaliseReplicaSetConfig(reply, serialise).members[0]?.tags).toEqual({ dc: 'east' });
   });
 
-  it('keeps the settings string it is given and defaults to an empty document', () => {
-    const settingsEjson = '{"replicaSetId":{"$oid":"64b7f0c2a1b2c3d4e5f60708"}}';
-    expect(normaliseReplicaSetConfig(rawConfig(), settingsEjson).settingsEjson).toBe(settingsEjson);
-    expect(normaliseReplicaSetConfig(rawConfig()).settingsEjson).toBe('{}');
+  it('serialises the settings and the unmodelled fields with the given serialiser', () => {
+    const config = normaliseReplicaSetConfig(rawConfig({ configsvr: true }), serialise);
+    expect(config.settingsEjson).toBe('{"heartbeatIntervalMillis":2000}');
+    expect(config.extraEjson).toBe('{"configsvr":true}');
+  });
+
+  it('keeps member fields the planner does not model as EJSON', () => {
+    const reply = rawConfig({
+      members: [{ _id: 0, host: 'a:1', horizons: { external: 'a.example:27017' } }],
+    });
+    const config = normaliseReplicaSetConfig(reply, serialise);
+    expect(config.members[0]?.extraEjson).toBe('{"horizons":{"external":"a.example:27017"}}');
+  });
+
+  it('defaults the settings to an empty document when the config has none', () => {
+    const reply = rawConfig({ settings: undefined });
+    expect(normaliseReplicaSetConfig(reply, serialise).settingsEjson).toBe('{}');
   });
 
   it('throws a COMMAND_FAILED error for a reply without a config', () => {
-    expect(() => normaliseReplicaSetConfig({ ok: 1 })).toThrow(AppErrorException);
+    expect(() => normaliseReplicaSetConfig({ ok: 1 }, serialise)).toThrow(AppErrorException);
     try {
-      normaliseReplicaSetConfig({ ok: 1 });
+      normaliseReplicaSetConfig({ ok: 1 }, serialise);
     } catch (error) {
       expect(error).toBeInstanceOf(AppErrorException);
       expect((error as AppErrorException).error.code).toBe('COMMAND_FAILED');
@@ -141,6 +160,7 @@ describe('normaliseReplicaSetStatus', () => {
         }),
       ]),
       config: rawConfig(),
+      serialise,
     });
     expect(ReplicaSetStatusSchema.safeParse(status).success).toBe(true);
     expect(status.setName).toBe('rs0');
@@ -182,6 +202,7 @@ describe('normaliseReplicaSetStatus', () => {
         rawMember({ _id: 2, name: 'mongo2:27017', state: 2, stateStr: 'SECONDARY', self: false }),
       ]),
       config: rawConfig(),
+      serialise,
     });
     expect(status.members[0]).toMatchObject({
       id: 2,
@@ -198,6 +219,7 @@ describe('normaliseReplicaSetStatus', () => {
         rawMember({ _id: 9, name: 'ghost:27017', state: 2, stateStr: 'SECONDARY', self: false }),
       ]),
       config: rawConfig(),
+      serialise,
     });
     expect(status.members[0]).toMatchObject({ id: 9, priority: 0, votes: 0, buildIndexes: true });
   });
@@ -225,15 +247,35 @@ describe('normaliseReplicaSetStatus', () => {
         }),
       ]),
       config: rawConfig(),
+      serialise,
     });
     expect(status.members[1]).not.toHaveProperty('lagSeconds');
     expect(status.members[2]).not.toHaveProperty('lagSeconds');
+  });
+
+  it('omits the optime of a member that reports epoch zero', () => {
+    const status = normaliseReplicaSetStatus({
+      status: rawStatus([
+        rawMember({
+          _id: 2,
+          name: 'mongo2:27017',
+          state: 2,
+          stateStr: 'SECONDARY',
+          self: false,
+          optimeDate: new Date(0),
+        }),
+      ]),
+      config: rawConfig(),
+      serialise,
+    });
+    expect(status.members[0]).not.toHaveProperty('optimeDate');
   });
 
   it('uses the state number when stateStr is missing', () => {
     const status = normaliseReplicaSetStatus({
       status: rawStatus([rawMember({ stateStr: undefined, state: 1 })]),
       config: rawConfig(),
+      serialise,
     });
     expect(status.members[0]?.state).toBe('1');
   });
@@ -242,6 +284,7 @@ describe('normaliseReplicaSetStatus', () => {
     const status = normaliseReplicaSetStatus({
       status: rawStatus([rawMember({})]),
       config: rawConfig(),
+      serialise,
       oplogFirst: { ts: { t: 1_700_000_000, i: 1 } },
       oplogLast: { ts: { t: 1_700_003_600, i: 7 } },
       oplogStats: { maxSize: 1024 * 1024 * 512, size: 1024 * 1024 * 40 },
@@ -259,6 +302,7 @@ describe('normaliseReplicaSetStatus', () => {
     const status = normaliseReplicaSetStatus({
       status: rawStatus([rawMember({})]),
       config: rawConfig(),
+      serialise,
       oplogFirst: { ts: { high: 0xb0000000 | 0, low: 1 } },
       oplogLast: { ts: { high: 0xb0000000 | 0, low: 9 } },
     });
@@ -270,12 +314,14 @@ describe('normaliseReplicaSetStatus', () => {
     const inverted = normaliseReplicaSetStatus({
       status: rawStatus([rawMember({})]),
       config: rawConfig(),
+      serialise,
       oplogFirst: { ts: { t: 200 } },
       oplogLast: { ts: { t: 100 } },
     });
     const missing = normaliseReplicaSetStatus({
       status: rawStatus([rawMember({})]),
       config: rawConfig(),
+      serialise,
       oplogFirst: { ts: { t: 100 } },
     });
     expect(inverted.oplog).toBeUndefined();
@@ -287,6 +333,7 @@ describe('normaliseReplicaSetStatus', () => {
     const status = normaliseReplicaSetStatus({
       status: { ...rawStatus([rawMember({})]), electionCandidateMetrics: metrics },
       config: rawConfig(),
+      serialise,
     });
     expect(status.electionCandidateMetrics).toEqual(metrics);
   });
@@ -295,6 +342,7 @@ describe('normaliseReplicaSetStatus', () => {
     const status = normaliseReplicaSetStatus({
       status: rawStatus([rawMember({ state: 2, stateStr: 'SECONDARY', self: true })]),
       config: rawConfig(),
+      serialise,
     });
     expect(status.primary).toBeUndefined();
   });

@@ -9,6 +9,9 @@ import {
   type ReplicaSetStatus,
 } from './types';
 
+// Turns a driver value into canonical EJSON. The adapter supplies it, so core never imports bson.
+export type EjsonSerialiser = (value: unknown) => string;
+
 // Raw replies as the driver returns them. Core narrows them with unknown-based helpers.
 export interface RawReplicaSetReplies {
   // The reply of replSetGetStatus.
@@ -20,13 +23,37 @@ export interface RawReplicaSetReplies {
   readonly oplogLast?: unknown;
   // The reply of collStats for local.oplog.rs.
   readonly oplogStats?: unknown;
-  // Canonical EJSON of the configuration settings, serialised by the adapter.
-  readonly settingsEjson?: string;
+  readonly serialise: EjsonSerialiser;
 }
 
 const BYTES_PER_MB = 1024 * 1024;
 const DEFAULT_PRIORITY = 1;
 const DEFAULT_VOTES = 1;
+const EMPTY_EJSON = '{}';
+
+// Fields the planner models. Any other top-level or member field is kept as EJSON, so a reconfig
+// sends it back unchanged.
+const CONFIG_FIELDS: readonly string[] = [
+  '_id',
+  'version',
+  'term',
+  'protocolVersion',
+  'writeConcernMajorityJournalDefault',
+  'members',
+  'settings',
+];
+const MEMBER_FIELDS: readonly string[] = [
+  '_id',
+  'host',
+  'priority',
+  'votes',
+  'hidden',
+  'arbiterOnly',
+  'buildIndexes',
+  'secondaryDelaySecs',
+  'slaveDelay',
+  'tags',
+];
 
 // Members missing from the configuration get no votes and no priority. The status alone cannot
 // say what they are allowed to do, so the conservative reading is taken.
@@ -38,12 +65,16 @@ const UNKNOWN_MEMBER_CONFIG: Omit<ReplicaSetMemberConfig, 'id' | 'host'> = {
   buildIndexes: true,
   secondaryDelaySecs: 0,
   tags: {},
+  extraEjson: EMPTY_EJSON,
 };
 
-export function normaliseReplicaSetConfig(reply: unknown, settingsEjson = '{}'): ReplicaSetConfig {
+export function normaliseReplicaSetConfig(
+  reply: unknown,
+  serialise: EjsonSerialiser,
+): ReplicaSetConfig {
   const config = readObject(reply, 'config');
   const members = readArray(config, 'members').flatMap((member) => {
-    const normalised = normaliseMemberConfig(member);
+    const normalised = normaliseMemberConfig(member, serialise);
     return normalised === undefined ? [] : [normalised];
   });
   const parsed = ReplicaSetConfigSchema.safeParse({
@@ -56,7 +87,8 @@ export function normaliseReplicaSetConfig(reply: unknown, settingsEjson = '{}'):
       readBoolean(config, 'writeConcernMajorityJournalDefault'),
     ),
     members,
-    settingsEjson,
+    settingsEjson: serialise(readField(config, 'settings') ?? {}),
+    extraEjson: serialise(unknownFields(config, CONFIG_FIELDS)),
   });
   if (!parsed.success) {
     throw unexpectedReply('configuration');
@@ -66,7 +98,7 @@ export function normaliseReplicaSetConfig(reply: unknown, settingsEjson = '{}'):
 
 export function normaliseReplicaSetStatus(replies: RawReplicaSetReplies): ReplicaSetStatus {
   const { status } = replies;
-  const config = normaliseReplicaSetConfig(replies.config, replies.settingsEjson);
+  const config = normaliseReplicaSetConfig(replies.config, replies.serialise);
   const configById = new Map(config.members.map((member) => [member.id, member]));
   const rawMembers = readArray(status, 'members');
   const primaryOptime = primaryOptimeMs(rawMembers);
@@ -116,7 +148,10 @@ export function memberLagSeconds(
   return Math.max(0, primaryOptimeMs - member.optimeMs) / 1000;
 }
 
-function normaliseMemberConfig(raw: unknown): ReplicaSetMemberConfig | undefined {
+function normaliseMemberConfig(
+  raw: unknown,
+  serialise: EjsonSerialiser,
+): ReplicaSetMemberConfig | undefined {
   const id = readNumber(raw, '_id');
   const host = readString(raw, 'host');
   if (id === undefined || host === undefined) {
@@ -133,6 +168,7 @@ function normaliseMemberConfig(raw: unknown): ReplicaSetMemberConfig | undefined
     buildIndexes: readBoolean(raw, 'buildIndexes') ?? true,
     secondaryDelaySecs: delay,
     tags: readTags(raw),
+    extraEjson: serialise(unknownFields(raw, MEMBER_FIELDS)),
   };
 }
 
@@ -154,7 +190,8 @@ function normaliseMember(
   const config = configById.get(id) ?? { ...UNKNOWN_MEMBER_CONFIG, id, host: name };
   const syncSourceHost = readString(raw, 'syncSourceHost');
   const electionDate = readDate(raw, 'electionDate');
-  const optimeDate = optimeMs === undefined ? undefined : new Date(optimeMs);
+  // An optime at epoch zero means the member never reported one, so it is not shown.
+  const optimeDate = optimeMs === undefined || optimeMs <= 0 ? undefined : new Date(optimeMs);
   const lastHeartbeatMessage = readString(raw, 'lastHeartbeatMessage');
   return {
     id,
@@ -225,6 +262,14 @@ function unexpectedReply(what: string): AppErrorException {
   return new AppErrorException(
     appError('COMMAND_FAILED', `The server returned a replica set ${what} this client cannot read`),
   );
+}
+
+// The fields of a source object that the planner does not model.
+function unknownFields(source: unknown, known: readonly string[]): Record<string, unknown> {
+  if (!isPlainObject(source)) {
+    return {};
+  }
+  return Object.fromEntries(Object.entries(source).filter(([key]) => !known.includes(key)));
 }
 
 function isPlainObject(value: unknown): value is Record<string, unknown> {

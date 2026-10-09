@@ -17,7 +17,7 @@ import {
   type ReplicaSetStatus,
 } from '@mongo-gui/core';
 import { parseInput } from '../management/errors';
-import { readNumber } from '../documents';
+import { readBoolean, readNumber } from '../documents';
 import { mapDriverError } from '../errors';
 import { getReplicaSetConfig, getReplicaSetStatus } from './status';
 
@@ -31,6 +31,11 @@ const MAX_MEMBER_ID = 255;
 const HEALTHY = 1;
 // Wire version 13 is MongoDB 5.0. Earlier servers accept only the slaveDelay name.
 const WIRE_VERSION_WITH_SECONDARY_DELAY = 13;
+// The server applies a reconfiguration on the primary before the set commits it. The wait lets a
+// caller that reads the config next see the new one on every member.
+const COMMIT_TIMEOUT_MS = 30_000;
+const COMMIT_POLL_MS = 500;
+const EMPTY_EJSON = '{}';
 const CHANGED_FIELDS: readonly { key: keyof ReplicaSetMemberConfig; label: string }[] = [
   { key: 'priority', label: 'priority' },
   { key: 'votes', label: 'votes' },
@@ -59,7 +64,7 @@ export function planReconfig(
   if (notes.changes.length === 0 && notes.refusals.length === 0) {
     notes.refusals.push('The change leaves the configuration as it is.');
   }
-  validateSet(members, status, notes);
+  validateSet(current.members, members, status, notes);
   reportVotingLoss(current.members, members, notes);
   const next: ReplicaSetConfig = {
     ...current,
@@ -71,7 +76,7 @@ export function planReconfig(
   return {
     current,
     next,
-    changes: notes.changes,
+    changes: refused === undefined ? notes.changes : [],
     warnings: notes.warnings,
     ...(refused === undefined ? {} : { refused }),
   };
@@ -102,6 +107,7 @@ export async function applyReconfig(
       replSetReconfig: toServerConfig(plan.next, delayField),
       ...(options.force === true ? { force: true } : {}),
     });
+    await waitForCommitment(client);
   } catch (error) {
     throw error instanceof AppErrorException ? error : new AppErrorException(mapDriverError(error));
   }
@@ -164,12 +170,14 @@ function addChange(
     return [...members];
   }
   const votes = input.votes ?? 1;
+  const buildIndexes = input.buildIndexes ?? true;
   const hidden = input.hidden ?? false;
   const arbiterOnly = input.arbiterOnly ?? false;
   const secondaryDelaySecs = input.secondaryDelaySecs ?? 0;
   // Members that cannot be electable or that serve no votes take priority 0 unless the caller
   // sets it, and the rules below check the explicit values.
-  const defaultPriority = votes === 0 || hidden || arbiterOnly || secondaryDelaySecs > 0 ? 0 : 1;
+  const defaultPriority =
+    votes === 0 || hidden || arbiterOnly || secondaryDelaySecs > 0 || !buildIndexes ? 0 : 1;
   const candidate: ReplicaSetMemberConfig = {
     id,
     host: input.host,
@@ -177,9 +185,10 @@ function addChange(
     votes,
     hidden,
     arbiterOnly,
-    buildIndexes: input.buildIndexes ?? true,
+    buildIndexes,
     secondaryDelaySecs,
     tags: input.tags ?? {},
+    extraEjson: EMPTY_EJSON,
   };
   const checked = checkMember(candidate, notes);
   if (secondaryDelaySecs > 0) {
@@ -239,6 +248,18 @@ function updateChange(
   if (patch.host !== undefined && patch.host !== target.host) {
     notes.refusals.push(
       `Member ${target.id} keeps its host ${target.host}. Remove it and add the new member instead.`,
+    );
+    return [...members];
+  }
+  if (patch.arbiterOnly !== undefined && patch.arbiterOnly !== target.arbiterOnly) {
+    notes.refusals.push(
+      `Member ${target.host} cannot change between an arbiter and a data member. Remove it and add the new member instead.`,
+    );
+    return [...members];
+  }
+  if (patch.buildIndexes !== undefined && patch.buildIndexes !== target.buildIndexes) {
+    notes.refusals.push(
+      `Member ${target.host} cannot change buildIndexes. Remove it and add the new member instead.`,
     );
     return [...members];
   }
@@ -316,6 +337,12 @@ function checkMember(member: ReplicaSetMemberConfig, notes: Notes): ReplicaSetMe
   if (corrected.secondaryDelaySecs > 0 && corrected.priority > 0) {
     notes.refusals.push(`${host} is delayed, so its priority must be 0.`);
   }
+  if (corrected.arbiterOnly && corrected.votes === 0) {
+    notes.refusals.push(`${host} is an arbiter, so it must have 1 vote.`);
+  }
+  if (!corrected.buildIndexes && corrected.priority > 0) {
+    notes.refusals.push(`${host} has buildIndexes false, so its priority must be 0.`);
+  }
   if (corrected.arbiterOnly) {
     if (corrected.hidden) {
       notes.refusals.push(`${host} is an arbiter, and an arbiter cannot be hidden.`);
@@ -333,7 +360,10 @@ function checkMember(member: ReplicaSetMemberConfig, notes: Notes): ReplicaSetMe
 // Set-level rules: the member count, the voting count, and a reachable majority of voters after
 // the change. A member that is not healthy in the status does not count as reachable. A member
 // added by the change is not in the status yet, so it does not count either.
+// A member that the change adds counts as reachable. The server runs its own quorum check on the
+// new configuration, so the planner only refuses a change the server would certainly reject.
 function validateSet(
+  before: readonly ReplicaSetMemberConfig[],
   members: readonly ReplicaSetMemberConfig[],
   status: ReplicaSetStatus,
   notes: Notes,
@@ -357,11 +387,14 @@ function validateSet(
     notes.refusals.push('At least one member must vote.');
     return;
   }
-  const reachable = voting.filter((member) => isHealthy(member.id, status)).length;
+  const existing = new Set(before.map((member) => member.id));
+  const reachable = voting.filter(
+    (member) => !existing.has(member.id) || isHealthy(member.id, status),
+  ).length;
   const majority = Math.floor(voting.length / 2) + 1;
   if (reachable < majority) {
     notes.refusals.push(
-      `Only ${reachable} of ${voting.length} voting members would be reachable, and a majority needs ${majority}. This change would leave the set without a majority.`,
+      `Only ${reachable} of ${voting.length} ${plural(voting.length, 'voting member')} would be reachable, and a majority needs ${majority}. This change would leave the set without a majority.`,
     );
   }
 }
@@ -377,8 +410,12 @@ function reportVotingLoss(
     return;
   }
   notes.warnings.push(
-    `The set has ${votingAfter} voting members, down from ${votingBefore}. It tolerates ${faultTolerance(votingAfter)} failed voting members, down from ${faultTolerance(votingBefore)}.`,
+    `The set has ${votingAfter} ${plural(votingAfter, 'voting member')}, down from ${votingBefore}. It tolerates ${faultTolerance(votingAfter)} failed ${plural(faultTolerance(votingAfter), 'voting member')}, down from ${faultTolerance(votingBefore)}.`,
   );
+}
+
+function plural(count: number, noun: string): string {
+  return count === 1 ? noun : `${noun}s`;
 }
 
 function faultTolerance(voting: number): number {
@@ -426,9 +463,11 @@ function toServerConfig(
   delayField: 'secondaryDelaySecs' | 'slaveDelay',
 ): Record<string, unknown> {
   const document: Record<string, unknown> = {
+    ...BSON.EJSON.parse(config.extraEjson, { relaxed: false }),
     _id: config.id,
     version: config.version,
     members: config.members.map((member) => ({
+      ...BSON.EJSON.parse(member.extraEjson, { relaxed: false }),
       _id: member.id,
       host: member.host,
       priority: member.priority,
@@ -454,4 +493,28 @@ function toServerConfig(
     document['settings'] = settings;
   }
   return document;
+}
+
+// Polls until the server reports the new configuration as committed, or the timeout passes.
+async function waitForCommitment(client: MongoClient): Promise<void> {
+  const deadline = Date.now() + COMMIT_TIMEOUT_MS;
+  while (Date.now() < deadline) {
+    try {
+      const reply: unknown = await client
+        .db('admin')
+        .command({ replSetGetConfig: 1, commitmentStatus: true });
+      if (readBoolean(reply, 'commitmentStatus') === true) {
+        return;
+      }
+    } catch {
+      // The member is busy or reconnecting. The next poll tries again.
+    }
+    await new Promise((resolve) => setTimeout(resolve, COMMIT_POLL_MS));
+  }
+  throw new AppErrorException(
+    appError(
+      'COMMAND_FAILED',
+      `The new configuration was not committed within ${COMMIT_TIMEOUT_MS / 1000} seconds`,
+    ),
+  );
 }

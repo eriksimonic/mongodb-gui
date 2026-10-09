@@ -22,6 +22,14 @@ const TEST_TIMEOUT_MS = 90_000;
 const NEW_MEMBER_TIMEOUT_MS = 60_000;
 const STEP_DOWN_TIMEOUT_MS = 30_000;
 
+// Puts the server's detail into the failure message, so a failed run shows the cause.
+function rethrowWithDetail(error: unknown): never {
+  if (error instanceof AppErrorException) {
+    throw new Error(`${error.message} (${error.error.detail ?? 'no detail'})`);
+  }
+  throw error;
+}
+
 // Reads the member states straight from the server, so the set-up does not depend on the adapter.
 async function rawStates(uri: string): Promise<string[]> {
   return withClient(uri, async (client) => {
@@ -84,10 +92,15 @@ describe.each(IMAGES)('replica set administration on %s', (image) => {
   }, SUITE_TIMEOUT_MS);
 
   afterAll(async () => {
-    await Promise.all([setClient, standaloneClient, singleClient].map((client) => client?.close()));
-    await set?.stop();
-    await standalone?.container.stop();
-    await single?.container.stop();
+    try {
+      await Promise.all(
+        [setClient, standaloneClient, singleClient].map((client) => client?.close()),
+      );
+    } finally {
+      await set?.stop();
+      await standalone?.container.stop();
+      await single?.container.stop();
+    }
   }, SUITE_TIMEOUT_MS);
 
   it(
@@ -159,7 +172,7 @@ describe.each(IMAGES)('replica set administration on %s', (image) => {
     async () => {
       addedNode = await set.addNode('added');
       const node = addedNode;
-      const plan = await addMember(setClient, { host: node.host });
+      const plan = await addMember(setClient, { host: node.host }).catch(rethrowWithDetail);
       expect(plan.refused).toBeUndefined();
       addedId = plan.next.members.find((member) => member.host === node.host)?.id;
       expect(addedId).toBe(3);

@@ -20,6 +20,8 @@ const DEFAULT_PRIORITY = 1;
 // Steps the primary down and waits for another member to take over. Returns the new primary's
 // name as the set reports it. The server closes client connections on a step-down, so a dropped
 // connection on the step-down command itself counts as success.
+// The client must connect directly to the primary, because replSetStepDown acts only on the node
+// that receives it. Through a set URI the command can reach a secondary and fail.
 export async function stepDown(client: MongoClient, input: unknown): Promise<string> {
   const request = parseInput<StepDownOutput>(StepDownInputSchema, input);
   const admin = client.db('admin');
@@ -41,6 +43,9 @@ export async function stepDown(client: MongoClient, input: unknown): Promise<str
   return awaitNewPrimary(client, previous);
 }
 
+// Freezes the member the client is connected to, for the given seconds. A value of 0 unfreezes it.
+// The client must connect directly to that member. Through a set URI the driver may send the
+// command to another member, and replSetFreeze acts only on the node that receives it.
 export async function freeze(client: MongoClient, seconds: number): Promise<void> {
   const parsed = parseInput<FreezeInput>(FreezeInputSchema, { seconds });
   try {
