@@ -22,6 +22,10 @@ release.
 | ------------------------------------------------------------------------------------------------ | ----------------------------------------------------------------------------- |
 | ![Connection tree with databases and collections expanded](docs/screenshots/connection-tree.png) | ![New connection dialog in form mode](docs/screenshots/connection-dialog.png) |
 
+| Indexes with the create index dialog                                             | Validation with a Monaco validator                                                | Documents                                                                    |
+| -------------------------------------------------------------------------------- | --------------------------------------------------------------------------------- | ---------------------------------------------------------------------------- |
+| ![Indexes panel with the create index dialog open](docs/screenshots/indexes.png) | ![Validation panel with a JSON schema validator](docs/screenshots/validation.png) | ![Documents panel with one sampled document](docs/screenshots/documents.png) |
+
 | Profiler                                                                               | Top query shapes                                                        |
 | -------------------------------------------------------------------------------------- | ----------------------------------------------------------------------- |
 | ![Profiler panel with slow queries and the detail pane](docs/screenshots/profiler.png) | ![Profiler top query shapes view](docs/screenshots/profiler-shapes.png) |

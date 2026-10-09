@@ -25,14 +25,35 @@ import {
 } from '@mongo-gui/core';
 import {
   ConnectionManager,
+  checkDocumentsAgainstValidator,
+  clearCollection,
   collectionStats,
+  countDocuments,
+  createCollection,
+  createDatabase,
+  createIndex,
   databaseStats,
+  deleteByFilter,
+  deleteDocuments,
+  dropCollection,
+  dropDatabase,
+  dropIndex,
+  findDocumentById,
+  getValidation,
+  insertDocument,
   getProfilingLevel,
   listCollections,
   listDatabases,
+  listIndexBuilds,
   listIndexes,
   listProfileEntries,
   mapDriverError,
+  renameCollection,
+  replaceDocument,
+  sampleDocuments,
+  setIndexHidden,
+  setValidation,
+  updateDocumentFields,
   profileCollectionInfo,
   setProfilingLevel,
   tailProfileEntries,
@@ -197,6 +218,17 @@ interface Operation {
   run(input: unknown): Promise<unknown>;
 }
 
+/** The client a connection holds. The router takes it from the registry for each call. */
+type ClientOf = ReturnType<ConnectionRegistry['getClient']>;
+
+/** Every management input names the connection it runs against. */
+interface ConnectionScoped {
+  readonly connectionId: string;
+}
+
+/** The part of the catalog a mutation touched. Sent with catalog:changed. */
+type CatalogScope = Omit<Extract<RpcEvent, { type: 'catalog:changed' }>, 'type' | 'connectionId'>;
+
 const KEYRING_DIR_MODE = 0o700;
 const MS_PER_MINUTE = 60_000;
 const STORE_FILE_NAME = 'store.sqlite';
@@ -274,6 +306,157 @@ export function createRouter(deps: RouterDeps): Router {
     active.store.deleteFile();
     active = deps.reopenStore();
   };
+
+  /**
+   * A management call that changes the server. It runs against the connection's client and,
+   * after success, tells the UI which database or collection changed.
+   */
+  function managed<C extends RpcCall>(
+    method: string,
+    call: C,
+    run: (client: ClientOf, input: CallInput<C>) => Promise<unknown>,
+    scope: (input: CallInput<C>) => CatalogScope,
+  ): [string, Operation] {
+    return entry(method, call, async (input) => {
+      const { connectionId } = input as ConnectionScoped;
+      const value = await driverCall(() => run(deps.connections.getClient(connectionId), input));
+      deps.onEvent({ type: 'catalog:changed', connectionId, ...scope(input) });
+      return value;
+    });
+  }
+
+  /** A management call that only reads. It reports no change. */
+  function readOnly<C extends RpcCall>(
+    method: string,
+    call: C,
+    run: (client: ClientOf, input: CallInput<C>) => Promise<unknown>,
+  ): [string, Operation] {
+    return entry(method, call, (input) =>
+      driverCall(() =>
+        run(deps.connections.getClient((input as ConnectionScoped).connectionId), input),
+      ),
+    );
+  }
+
+  function managementOperations(): [string, Operation][] {
+    const m = rpcContract.management;
+    return [
+      managed(
+        'management.createCollection',
+        m.createCollection,
+        (client, input) => createCollection(client, input),
+        (input) => ({ database: input.database, collection: input.name }),
+      ),
+      managed(
+        'management.renameCollection',
+        m.renameCollection,
+        (client, input) => renameCollection(client, input),
+        (input) => ({ database: input.database, collection: input.name }),
+      ),
+      managed(
+        'management.dropCollection',
+        m.dropCollection,
+        (client, input) => dropCollection(client, input),
+        (input) => ({ database: input.database, collection: input.name }),
+      ),
+      managed(
+        'management.clearCollection',
+        m.clearCollection,
+        (client, input) => clearCollection(client, input),
+        (input) => ({ database: input.database, collection: input.name }),
+      ),
+      managed(
+        'management.createDatabase',
+        m.createDatabase,
+        (client, input) => createDatabase(client, input),
+        (input) => ({ database: input.database }),
+      ),
+      managed(
+        'management.dropDatabase',
+        m.dropDatabase,
+        (client, input) => dropDatabase(client, input),
+        (input) => ({ database: input.database }),
+      ),
+      managed(
+        'management.createIndex',
+        m.createIndex,
+        (client, input) => createIndex(client, input),
+        (input) => ({ database: input.database, collection: input.collection }),
+      ),
+      managed(
+        'management.dropIndex',
+        m.dropIndex,
+        (client, input) => dropIndex(client, input),
+        (input) => ({ database: input.database, collection: input.collection }),
+      ),
+      managed(
+        'management.setIndexHidden',
+        m.setIndexHidden,
+        (client, input) => setIndexHidden(client, input),
+        (input) => ({ database: input.database, collection: input.collection }),
+      ),
+      readOnly('management.listIndexBuilds', m.listIndexBuilds, (client, input) =>
+        listIndexBuilds(client, input.database),
+      ),
+      readOnly('management.getValidation', m.getValidation, (client, input) =>
+        getValidation(client, input.database, input.collection),
+      ),
+      managed(
+        'management.setValidation',
+        m.setValidation,
+        (client, input) => setValidation(client, input),
+        (input) => ({ database: input.database, collection: input.collection }),
+      ),
+      readOnly('management.checkValidation', m.checkValidation, (client, input) =>
+        checkDocumentsAgainstValidator(
+          client,
+          input.database,
+          input.collection,
+          input.sampleSize,
+          input.validatorEjson,
+        ),
+      ),
+      managed(
+        'management.insertDocument',
+        m.insertDocument,
+        (client, input) => insertDocument(client, input),
+        (input) => ({ database: input.database, collection: input.collection }),
+      ),
+      managed(
+        'management.replaceDocument',
+        m.replaceDocument,
+        (client, input) => replaceDocument(client, input),
+        (input) => ({ database: input.database, collection: input.collection }),
+      ),
+      managed(
+        'management.updateDocumentFields',
+        m.updateDocumentFields,
+        (client, input) => updateDocumentFields(client, input),
+        (input) => ({ database: input.database, collection: input.collection }),
+      ),
+      managed(
+        'management.deleteDocuments',
+        m.deleteDocuments,
+        (client, input) => deleteDocuments(client, input),
+        (input) => ({ database: input.database, collection: input.collection }),
+      ),
+      managed(
+        'management.deleteByFilter',
+        m.deleteByFilter,
+        (client, input) => deleteByFilter(client, input),
+        (input) => ({ database: input.database, collection: input.collection }),
+      ),
+      readOnly('management.countDocuments', m.countDocuments, (client, input) =>
+        countDocuments(client, input),
+      ),
+      readOnly('management.findDocumentById', m.findDocumentById, (client, input) =>
+        findDocumentById(client, input),
+      ),
+      readOnly('management.sampleDocuments', m.sampleDocuments, (client, input) =>
+        sampleDocuments(client, input),
+      ),
+    ];
+  }
 
   const docker = (): DockerRuntime => {
     if (deps.docker === undefined) {
@@ -401,6 +584,8 @@ export function createRouter(deps: RouterDeps): Router {
         ),
       ),
     ),
+
+    ...managementOperations(),
 
     entry('monitor.start', rpcContract.monitor.start, (input) =>
       monitor.start(input.connectionId, input.intervalMs),

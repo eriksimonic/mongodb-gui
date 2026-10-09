@@ -46,6 +46,8 @@ export default defineConfig({
     },
     build: {
       outDir: join(appRoot, 'out/renderer'),
+      // esbuild minifies the renderer. Monaco and the language workers are most of its size.
+      minify: 'esbuild',
     },
   },
 });
