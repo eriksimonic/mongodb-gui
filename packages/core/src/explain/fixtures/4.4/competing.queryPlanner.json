@@ -1,0 +1,115 @@
+{
+  "queryPlanner": {
+    "plannerVersion": {
+      "$numberInt": "1"
+    },
+    "namespace": "fixtures.orders",
+    "indexFilterSet": false,
+    "parsedQuery": {
+      "$and": [
+        {
+          "customerId": {
+            "$eq": {
+              "$numberInt": "7"
+            }
+          }
+        },
+        {
+          "status": {
+            "$eq": "paid"
+          }
+        }
+      ]
+    },
+    "queryHash": "2BDC1CB3",
+    "planCacheKey": "05F8E49C",
+    "winningPlan": {
+      "stage": "FETCH",
+      "filter": {
+        "status": {
+          "$eq": "paid"
+        }
+      },
+      "inputStage": {
+        "stage": "IXSCAN",
+        "keyPattern": {
+          "customerId": {
+            "$numberInt": "1"
+          },
+          "createdAt": {
+            "$numberInt": "-1"
+          }
+        },
+        "indexName": "customerId_1_createdAt_-1",
+        "isMultiKey": false,
+        "multiKeyPaths": {
+          "customerId": [],
+          "createdAt": []
+        },
+        "isUnique": false,
+        "isSparse": false,
+        "isPartial": false,
+        "indexVersion": {
+          "$numberInt": "2"
+        },
+        "direction": "forward",
+        "indexBounds": {
+          "customerId": [
+            "[7, 7]"
+          ],
+          "createdAt": [
+            "[MaxKey, MinKey]"
+          ]
+        }
+      }
+    },
+    "rejectedPlans": [
+      {
+        "stage": "FETCH",
+        "filter": {
+          "customerId": {
+            "$eq": {
+              "$numberInt": "7"
+            }
+          }
+        },
+        "inputStage": {
+          "stage": "IXSCAN",
+          "keyPattern": {
+            "status": {
+              "$numberInt": "1"
+            }
+          },
+          "indexName": "status_1",
+          "isMultiKey": false,
+          "multiKeyPaths": {
+            "status": []
+          },
+          "isUnique": false,
+          "isSparse": false,
+          "isPartial": false,
+          "indexVersion": {
+            "$numberInt": "2"
+          },
+          "direction": "forward",
+          "indexBounds": {
+            "status": [
+              "[\"paid\", \"paid\"]"
+            ]
+          }
+        }
+      }
+    ]
+  },
+  "serverInfo": {
+    "host": "a124add29127",
+    "port": {
+      "$numberInt": "27017"
+    },
+    "version": "4.4.30",
+    "gitVersion": "4d7fa6a6260d25c5caa971dce10561690cb79dea"
+  },
+  "ok": {
+    "$numberDouble": "1.0"
+  }
+}

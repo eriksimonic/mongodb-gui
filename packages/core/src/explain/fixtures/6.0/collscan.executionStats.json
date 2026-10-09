@@ -1,0 +1,135 @@
+{
+  "explainVersion": "1",
+  "queryPlanner": {
+    "namespace": "fixtures.orders",
+    "indexFilterSet": false,
+    "parsedQuery": {
+      "total": {
+        "$gt": {
+          "$numberInt": "5"
+        }
+      }
+    },
+    "queryHash": "3790AA3E",
+    "planCacheKey": "3790AA3E",
+    "maxIndexedOrSolutionsReached": false,
+    "maxIndexedAndSolutionsReached": false,
+    "maxScansToExplodeReached": false,
+    "winningPlan": {
+      "stage": "COLLSCAN",
+      "filter": {
+        "total": {
+          "$gt": {
+            "$numberInt": "5"
+          }
+        }
+      },
+      "direction": "forward"
+    },
+    "rejectedPlans": []
+  },
+  "executionStats": {
+    "executionSuccess": true,
+    "nReturned": {
+      "$numberInt": "1990"
+    },
+    "executionTimeMillis": {
+      "$numberInt": "0"
+    },
+    "totalKeysExamined": {
+      "$numberInt": "0"
+    },
+    "totalDocsExamined": {
+      "$numberInt": "2000"
+    },
+    "executionStages": {
+      "stage": "COLLSCAN",
+      "filter": {
+        "total": {
+          "$gt": {
+            "$numberInt": "5"
+          }
+        }
+      },
+      "nReturned": {
+        "$numberInt": "1990"
+      },
+      "executionTimeMillisEstimate": {
+        "$numberInt": "0"
+      },
+      "works": {
+        "$numberInt": "2001"
+      },
+      "advanced": {
+        "$numberInt": "1990"
+      },
+      "needTime": {
+        "$numberInt": "10"
+      },
+      "needYield": {
+        "$numberInt": "0"
+      },
+      "saveState": {
+        "$numberInt": "2"
+      },
+      "restoreState": {
+        "$numberInt": "2"
+      },
+      "isEOF": {
+        "$numberInt": "1"
+      },
+      "direction": "forward",
+      "docsExamined": {
+        "$numberInt": "2000"
+      }
+    }
+  },
+  "command": {
+    "find": "orders",
+    "filter": {
+      "total": {
+        "$gt": {
+          "$numberInt": "5"
+        }
+      }
+    },
+    "$db": "fixtures"
+  },
+  "serverInfo": {
+    "host": "34329e6dff8d",
+    "port": {
+      "$numberInt": "27017"
+    },
+    "version": "6.0.28",
+    "gitVersion": "ef888a6df901622004aeb4b7362e007b8c4299da"
+  },
+  "serverParameters": {
+    "internalQueryFacetBufferSizeBytes": {
+      "$numberInt": "104857600"
+    },
+    "internalQueryFacetMaxOutputDocSizeBytes": {
+      "$numberInt": "104857600"
+    },
+    "internalLookupStageIntermediateDocumentMaxSizeBytes": {
+      "$numberInt": "104857600"
+    },
+    "internalDocumentSourceGroupMaxMemoryBytes": {
+      "$numberInt": "104857600"
+    },
+    "internalQueryMaxBlockingSortMemoryUsageBytes": {
+      "$numberInt": "104857600"
+    },
+    "internalQueryProhibitBlockingMergeOnMongoS": {
+      "$numberInt": "0"
+    },
+    "internalQueryMaxAddToSetBytes": {
+      "$numberInt": "104857600"
+    },
+    "internalDocumentSourceSetWindowFieldsMaxMemoryBytes": {
+      "$numberInt": "104857600"
+    }
+  },
+  "ok": {
+    "$numberDouble": "1.0"
+  }
+}
