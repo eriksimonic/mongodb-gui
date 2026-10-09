@@ -43,7 +43,6 @@ const BUILD_DOCUMENT_COUNT = 200_000;
 const BUILD_POLL_LIMIT_MS = 5_000;
 const BUILD_POLL_INTERVAL_MS = 50;
 const SECRET_TEXT = 'hunter2-secret';
-
 const NAME_SCHEMA = {
   $jsonSchema: {
     bsonType: 'object',
@@ -51,6 +50,7 @@ const NAME_SCHEMA = {
     properties: { name: { bsonType: 'string' } },
   },
 };
+const NAME_SCHEMA_EJSON = JSON.stringify(NAME_SCHEMA);
 
 function uniqueDatabase(): string {
   return `mgmt_${randomUUID().replace(/-/g, '').slice(0, 16)}`;
@@ -120,12 +120,12 @@ describe.each(MONGO_IMAGES)('management on %s', (image) => {
       await createCollection(client, {
         database,
         name: 'people',
-        validator: NAME_SCHEMA,
+        validatorEjson: NAME_SCHEMA_EJSON,
         validationLevel: 'moderate',
         validationAction: 'warn',
       });
       expect(await getValidation(client, database, 'people')).toEqual({
-        validator: NAME_SCHEMA,
+        validatorEjson: NAME_SCHEMA_EJSON,
         validationLevel: 'moderate',
         validationAction: 'warn',
       });
@@ -271,9 +271,25 @@ describe.each(MONGO_IMAGES)('management on %s', (image) => {
         database,
         collection: 'orders',
         keys: { total: 1 },
-        options: { name: 'paid_total', partialFilterExpression: filter },
+        options: { name: 'paid_total', partialFilterExpressionEjson: JSON.stringify(filter) },
       });
       expect(index.partialFilterExpression).toEqual(filter);
+    });
+
+    it('keeps BSON types in a partial filter expression', async () => {
+      const database = uniqueDatabase();
+      const index = await createIndex(client, {
+        database,
+        collection: 'orders',
+        keys: { total: 1 },
+        options: {
+          name: 'recent_total',
+          partialFilterExpressionEjson: '{"placedAt": {"$gte": {"$date": "2020-01-01T00:00:00Z"}}}',
+        },
+      });
+      expect(index.partialFilterExpression?.placedAt).toEqual(
+        expect.objectContaining({ $gte: new Date('2020-01-01T00:00:00Z') }),
+      );
     });
 
     it('creates a text index', async () => {
@@ -307,7 +323,7 @@ describe.each(MONGO_IMAGES)('management on %s', (image) => {
         database,
         collection: 'attributes',
         keys: { '$**': 1 },
-        options: { name: 'attrs_wildcard', wildcardProjection: projection },
+        options: { name: 'attrs_wildcard', wildcardProjectionEjson: JSON.stringify(projection) },
       });
       expect(index.wildcardProjection).toEqual(projection);
       const listed = (await listIndexes(client, database, 'attributes')).find(
@@ -349,6 +365,22 @@ describe.each(MONGO_IMAGES)('management on %s', (image) => {
         dropIndex(client, { database, collection: 'orders', name: '_id_' }),
       );
       expect(error.code).toBe('VALIDATION');
+    });
+
+    it('refuses the * name and keeps the other indexes', async () => {
+      const database = uniqueDatabase();
+      await createIndex(client, {
+        database,
+        collection: 'orders',
+        keys: { sku: 1 },
+        options: { name: 'sku_1' },
+      });
+      const error = await captureError(() =>
+        dropIndex(client, { database, collection: 'orders', name: '*' }),
+      );
+      expect(error.code).toBe('VALIDATION');
+      const names = (await listIndexes(client, database, 'orders')).map((index) => index.name);
+      expect(names).toEqual(expect.arrayContaining(['_id_', 'sku_1']));
     });
 
     it('hides and unhides an index', async () => {
@@ -398,17 +430,26 @@ describe.each(MONGO_IMAGES)('management on %s', (image) => {
           settled = true;
         });
 
+        // Keeps polling until the build settles so later phases get sampled too. Every snapshot
+        // must hold one row for the index, with a phase name and a valid percentage when present.
         let outcome: 'observed' | 'empty' = 'empty';
         const deadline = Date.now() + BUILD_POLL_LIMIT_MS;
-        while (outcome === 'empty' && !settled && Date.now() < deadline) {
+        while (!settled && Date.now() < deadline) {
           const builds = await listIndexBuilds(client, database);
           if (builds.length > 0) {
             outcome = 'observed';
-            expect(builds[0]).toMatchObject({ collection: 'large', indexName: 's_1_n_1' });
-            expect(typeof builds[0]?.phase).toBe('string');
-          } else {
-            await sleep(BUILD_POLL_INTERVAL_MS);
+            expect(builds.map((build) => build.indexName)).toEqual(['s_1_n_1']);
+            for (const build of builds) {
+              expect(build.collection).toBe('large');
+              expect(build.phase).not.toMatch(/^Index Build/);
+              expect(build.phase.length).toBeGreaterThan(0);
+              if (build.progressPercent !== undefined) {
+                expect(build.progressPercent).toBeGreaterThanOrEqual(0);
+                expect(build.progressPercent).toBeLessThanOrEqual(100);
+              }
+            }
           }
+          await sleep(BUILD_POLL_INTERVAL_MS);
         }
         await build;
         expect(['observed', 'empty']).toContain(outcome);
@@ -418,11 +459,16 @@ describe.each(MONGO_IMAGES)('management on %s', (image) => {
   });
 
   describe('validation', () => {
+    it('rejects an invalid collection name before it reaches the server', async () => {
+      const error = await captureError(() => getValidation(client, uniqueDatabase(), ''));
+      expect(error.code).toBe('VALIDATION');
+    });
+
     it('returns defaults for a collection without a validator', async () => {
       const database = uniqueDatabase();
       await client.db(database).collection<Fixture>('plain').insertOne({ a: 1 });
       expect(await getValidation(client, database, 'plain')).toEqual({
-        validator: {},
+        validatorEjson: '{}',
         validationLevel: 'strict',
         validationAction: 'error',
       });
@@ -434,10 +480,14 @@ describe.each(MONGO_IMAGES)('management on %s', (image) => {
       await setValidation(client, {
         database,
         collection: 'people',
-        rules: { validator: NAME_SCHEMA, validationLevel: 'strict', validationAction: 'error' },
+        rules: {
+          validatorEjson: NAME_SCHEMA_EJSON,
+          validationLevel: 'strict',
+          validationAction: 'error',
+        },
       });
       expect(await getValidation(client, database, 'people')).toEqual({
-        validator: NAME_SCHEMA,
+        validatorEjson: NAME_SCHEMA_EJSON,
         validationLevel: 'strict',
         validationAction: 'error',
       });
@@ -445,10 +495,10 @@ describe.each(MONGO_IMAGES)('management on %s', (image) => {
       await setValidation(client, {
         database,
         collection: 'people',
-        rules: { validator: {}, validationLevel: 'off', validationAction: 'warn' },
+        rules: { validatorEjson: '{}', validationLevel: 'off', validationAction: 'warn' },
       });
       expect(await getValidation(client, database, 'people')).toEqual({
-        validator: {},
+        validatorEjson: '{}',
         validationLevel: 'off',
         validationAction: 'warn',
       });
@@ -468,17 +518,43 @@ describe.each(MONGO_IMAGES)('management on %s', (image) => {
       await setValidation(client, {
         database,
         collection: 'people',
-        rules: { validator: NAME_SCHEMA, validationLevel: 'strict', validationAction: 'error' },
+        rules: {
+          validatorEjson: NAME_SCHEMA_EJSON,
+          validationLevel: 'strict',
+          validationAction: 'error',
+        },
       });
 
       const result = await checkDocumentsAgainstValidator(client, database, 'people', 100);
       expect(result.ok).toBe(false);
-      expect(result.errors).toHaveLength(1);
-      const message = result.errors[0]?.message ?? '';
-      expect(message).toContain('2 sampled documents fail the validator');
-      expect(message).toContain('"bad-1"');
-      expect(message).toContain('"bad-2"');
-      expect(message).not.toContain('"good-1"');
+      expect(result.errors).toEqual([{ message: '2 sampled documents fail the validator.' }]);
+      expect([...result.failingIds].sort()).toEqual(['"bad-1"', '"bad-2"']);
+    });
+
+    it('checks a draft validator without storing it', async () => {
+      const database = uniqueDatabase();
+      await client
+        .db(database)
+        .collection<Fixture>('people')
+        .insertMany([
+          { _id: 'ok-1', name: 'ada' },
+          { _id: 'bad-3', name: 2 },
+        ]);
+
+      const result = await checkDocumentsAgainstValidator(
+        client,
+        database,
+        'people',
+        100,
+        NAME_SCHEMA_EJSON,
+      );
+      expect(result.ok).toBe(false);
+      expect(result.failingIds).toEqual(['"bad-3"']);
+      expect(await getValidation(client, database, 'people')).toEqual({
+        validatorEjson: '{}',
+        validationLevel: 'strict',
+        validationAction: 'error',
+      });
     });
 
     it('reports ok when every sampled document passes', async () => {
@@ -487,11 +563,16 @@ describe.each(MONGO_IMAGES)('management on %s', (image) => {
       await setValidation(client, {
         database,
         collection: 'people',
-        rules: { validator: NAME_SCHEMA, validationLevel: 'strict', validationAction: 'error' },
+        rules: {
+          validatorEjson: NAME_SCHEMA_EJSON,
+          validationLevel: 'strict',
+          validationAction: 'error',
+        },
       });
       expect(await checkDocumentsAgainstValidator(client, database, 'people', 10)).toEqual({
         ok: true,
         errors: [],
+        failingIds: [],
       });
     });
 
@@ -501,6 +582,7 @@ describe.each(MONGO_IMAGES)('management on %s', (image) => {
       expect(await checkDocumentsAgainstValidator(client, database, 'people', 10)).toEqual({
         ok: true,
         errors: [],
+        failingIds: [],
       });
     });
   });
@@ -665,6 +747,62 @@ describe.each(MONGO_IMAGES)('management on %s', (image) => {
       });
       expect(deleted).toBe(3);
       expect(await collection.countDocuments()).toBe(2);
+    });
+
+    it('refuses to delete from the admin, local and config databases', async () => {
+      const byIds = await captureError(() =>
+        deleteDocuments(client, {
+          database: 'config',
+          collection: 'chunks',
+          idsEjson: ['1'],
+        }),
+      );
+      expect(byIds.code).toBe('VALIDATION');
+      const byFilter = await captureError(() =>
+        deleteByFilter(client, {
+          database: 'local',
+          collection: 'startup_log',
+          filterEjson: '{}',
+          expectedCount: 0,
+        }),
+      );
+      expect(byFilter.code).toBe('VALIDATION');
+    });
+
+    it('refuses to delete from system collections', async () => {
+      const database = uniqueDatabase();
+      const byIds = await captureError(() =>
+        deleteDocuments(client, {
+          database: 'admin',
+          collection: 'system.version',
+          idsEjson: ['"featureCompatibilityVersion"'],
+        }),
+      );
+      expect(byIds.code).toBe('VALIDATION');
+      const byFilter = await captureError(() =>
+        deleteByFilter(client, {
+          database,
+          collection: 'system.views',
+          filterEjson: '{}',
+          expectedCount: 0,
+        }),
+      );
+      expect(byFilter.code).toBe('VALIDATION');
+    });
+
+    it('deletes everything with an empty filter when the expected count matches', async () => {
+      const database = uniqueDatabase();
+      const collection = client.db(database).collection<Fixture>('orders');
+      await collection.insertMany([{ a: 1 }, { a: 2 }]);
+      expect(
+        await deleteByFilter(client, {
+          database,
+          collection: 'orders',
+          filterEjson: '{}',
+          expectedCount: 2,
+        }),
+      ).toBe(2);
+      expect(await collection.countDocuments()).toBe(0);
     });
 
     it('rejects invalid EJSON without echoing the document', async () => {

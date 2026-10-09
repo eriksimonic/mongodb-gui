@@ -17,7 +17,13 @@ import {
 } from '@mongo-gui/core';
 import type { PlainObject } from '../documents';
 import { parseEjson, parseEjsonDocument, stringifyEjson } from './ejson';
-import { parseInput, toAppException, validationError } from './errors';
+import {
+  parseInput,
+  refuseReservedDatabase,
+  refuseSystemCollection,
+  toAppException,
+  validationError,
+} from './errors';
 
 const ID_LABEL = 'The _id';
 const DOCUMENT_LABEL = 'The document';
@@ -73,6 +79,8 @@ export async function updateDocumentFields(client: MongoClient, input: unknown):
 
 export async function deleteDocuments(client: MongoClient, input: unknown): Promise<number> {
   const parsed = parseInput<DeleteDocumentsInput>(DeleteDocumentsInputSchema, input);
+  refuseReservedDatabase(parsed.database, 'delete documents in');
+  refuseSystemCollection(parsed.collection, 'delete documents in');
   const ids = parsed.idsEjson.map((text) => parseEjson(text, ID_LABEL));
   if (ids.length === 0) {
     return 0;
@@ -92,6 +100,8 @@ export async function deleteDocuments(client: MongoClient, input: unknown): Prom
 // deleted count differ from expectedCount. The caller gets the real deleted count back.
 export async function deleteByFilter(client: MongoClient, input: unknown): Promise<number> {
   const parsed = parseInput<DeleteByFilterInput>(DeleteByFilterInputSchema, input);
+  refuseReservedDatabase(parsed.database, 'delete documents in');
+  refuseSystemCollection(parsed.collection, 'delete documents in');
   const filter = parseEjsonDocument(parsed.filterEjson, FILTER_LABEL);
   const collection = client.db(parsed.database).collection<PlainObject>(parsed.collection);
   try {

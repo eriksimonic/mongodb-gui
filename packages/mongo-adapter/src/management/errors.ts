@@ -1,6 +1,8 @@
 import { MongoServerError } from 'mongodb';
-import { AppErrorException, appError, type AppError } from '@mongo-gui/core';
+import { AppErrorException, appError, redactUri, type AppError } from '@mongo-gui/core';
 import { mapDriverError } from '../errors';
+
+const EMBEDDED_URI = /mongodb(?:\+srv)?:\/\/\S+/gi;
 
 export const RESERVED_DATABASES: ReadonlySet<string> = new Set(['admin', 'local', 'config']);
 const SYSTEM_PREFIX = 'system.';
@@ -38,10 +40,14 @@ export function parseInput<T>(schema: SafeParser<T>, input: unknown): T {
 
 // Server command errors (duplicate key, namespace not found, bad option) are COMMAND_FAILED.
 // Connection and auth problems keep the codes that mapDriverError assigns.
+// Remove this wrapper once mapDriverError maps non-auth server errors to COMMAND_FAILED itself.
 export function mapManagementError(error: unknown): AppError {
   const mapped = mapDriverError(error);
   if (error instanceof MongoServerError && mapped.code === 'CONNECTION_FAILED') {
-    return appError('COMMAND_FAILED', error.message);
+    return appError(
+      'COMMAND_FAILED',
+      error.message.replace(EMBEDDED_URI, (uri) => redactUri(uri)),
+    );
   }
   return mapped;
 }

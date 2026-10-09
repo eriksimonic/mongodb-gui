@@ -5,6 +5,8 @@ import {
   CreateIndexInputSchema,
   DeleteByFilterInputSchema,
   DropDatabaseInputSchema,
+  DropIndexInputSchema,
+  NamespaceSchema,
   RenameCollectionInputSchema,
   SetValidationInputSchema,
   UpdateDocumentFieldsInputSchema,
@@ -46,7 +48,7 @@ describe('CreateCollectionInputSchema', () => {
     const result = CreateCollectionInputSchema.safeParse({
       ...base,
       capped: { sizeBytes: 65536, maxDocuments: 100 },
-      validator: { $jsonSchema: { bsonType: 'object' } },
+      validatorEjson: '{"$jsonSchema": {"bsonType": "object"}}',
       validationLevel: 'moderate',
       validationAction: 'warn',
     });
@@ -132,7 +134,7 @@ describe('SetValidationInputSchema', () => {
     const result = SetValidationInputSchema.safeParse({
       database: 'shop',
       collection: 'orders',
-      rules: { validator: {}, validationLevel: 'loose', validationAction: 'error' },
+      rules: { validatorEjson: '{}', validationLevel: 'loose', validationAction: 'error' },
     });
     expect(result.success).toBe(false);
   });
@@ -166,5 +168,29 @@ describe('document inputs', () => {
       expectedCount: -1,
     });
     expect(result.success).toBe(false);
+  });
+});
+
+describe('DropIndexInputSchema', () => {
+  const base = { database: 'shop', collection: 'orders' };
+
+  it.each(['_id_', '*'])('refuses to drop %s', (name) => {
+    expect(DropIndexInputSchema.safeParse({ ...base, name }).success).toBe(false);
+  });
+
+  it('accepts a named index', () => {
+    expect(DropIndexInputSchema.safeParse({ ...base, name: 'status_1' }).success).toBe(true);
+  });
+});
+
+describe('NamespaceSchema', () => {
+  it('accepts a database and collection pair', () => {
+    expect(NamespaceSchema.safeParse({ database: 'shop', collection: 'orders' }).success).toBe(
+      true,
+    );
+  });
+
+  it('rejects an empty collection name', () => {
+    expect(NamespaceSchema.safeParse({ database: 'shop', collection: '' }).success).toBe(false);
   });
 });

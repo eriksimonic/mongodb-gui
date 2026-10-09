@@ -15,11 +15,16 @@ export function stringifyEjson(value: unknown): string {
 // V8 parse messages quote the input around the failure, so they can carry document content.
 // Only the position is kept.
 export function parseEjson(text: string, label: string): unknown {
+  let value: unknown;
   try {
-    return EJSON.parse(text, EJSON_OPTIONS);
+    value = EJSON.parse(text, EJSON_OPTIONS);
   } catch (error) {
     throw invalidEjson(label, error);
   }
+  if (containsInvalidDate(value)) {
+    throw new AppErrorException(appError('VALIDATION', `${label} contains an invalid date`));
+  }
+  return value;
 }
 
 export function parseEjsonDocument(text: string, label: string): PlainObject {
@@ -28,6 +33,19 @@ export function parseEjsonDocument(text: string, label: string): PlainObject {
     throw new AppErrorException(appError('VALIDATION', `${label} must be a JSON object`));
   }
   return value;
+}
+
+function containsInvalidDate(value: unknown): boolean {
+  if (value instanceof Date) {
+    return Number.isNaN(value.getTime());
+  }
+  if (Array.isArray(value)) {
+    return value.some(containsInvalidDate);
+  }
+  if (isPlainObject(value)) {
+    return Object.values(value).some(containsInvalidDate);
+  }
+  return false;
 }
 
 function invalidEjson(label: string, error: unknown): AppErrorException {

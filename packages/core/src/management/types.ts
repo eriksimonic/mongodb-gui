@@ -6,6 +6,9 @@ const DATABASE_FORBIDDEN_CHARS = /[/\\. "$]/;
 const SYSTEM_PREFIX = 'system.';
 const NULL_BYTE = '\u0000';
 
+// Index names that a drop must never reach. "*" would make the server drop every index except _id_.
+export const PROTECTED_INDEX_NAMES: readonly string[] = ['_id_', '*'];
+
 // UTF-8 length, counted per code point so the core package needs no DOM or Node types.
 function byteLength(value: string): number {
   let bytes = 0;
@@ -18,7 +21,7 @@ function byteLength(value: string): number {
 
 const PositiveIntSchema = z.number().int().positive();
 
-const DatabaseNameSchema = z
+export const DatabaseNameSchema = z
   .string()
   .min(1)
   .refine((value) => byteLength(value) <= MAX_DATABASE_NAME_BYTES, {
@@ -29,7 +32,7 @@ const DatabaseNameSchema = z
   })
   .refine((value) => !value.includes(NULL_BYTE), { message: 'Names may not contain a null byte' });
 
-const ExistingCollectionNameSchema = z
+export const ExistingCollectionNameSchema = z
   .string()
   .min(1)
   .refine((value) => byteLength(value) <= MAX_COLLECTION_NAME_BYTES, {
@@ -42,6 +45,12 @@ export const CollectionNameSchema = ExistingCollectionNameSchema.refine(
   (value) => !value.startsWith(SYSTEM_PREFIX),
   { message: 'Collection names may not start with system.' },
 );
+
+// Database and collection names for operations that take them as positional arguments.
+export const NamespaceSchema = z.object({
+  database: DatabaseNameSchema,
+  collection: ExistingCollectionNameSchema,
+});
 
 export const ValidationLevelSchema = z.enum(['off', 'strict', 'moderate']);
 export const ValidationActionSchema = z.enum(['error', 'warn']);
@@ -65,8 +74,8 @@ export const CreateCollectionInputSchema = z
       })
       .optional(),
     clusteredIndex: z.boolean().optional(),
-    collation: z.unknown().optional(),
-    validator: z.unknown().optional(),
+    collationEjson: z.string().optional(),
+    validatorEjson: z.string().optional(),
     validationLevel: ValidationLevelSchema.optional(),
     validationAction: ValidationActionSchema.optional(),
   })
@@ -123,27 +132,35 @@ export const CreateIndexInputSchema = z.object({
     sparse: z.boolean().optional(),
     hidden: z.boolean().optional(),
     expireAfterSeconds: z.number().int().nonnegative().optional(),
-    partialFilterExpression: z.unknown().optional(),
-    collation: z.unknown().optional(),
-    wildcardProjection: z.unknown().optional(),
-    background: z.boolean().optional(),
+    partialFilterExpressionEjson: z.string().optional(),
+    collationEjson: z.string().optional(),
+    wildcardProjectionEjson: z.string().optional(),
     weights: z.record(z.string().min(1), z.number().positive()).optional(),
     defaultLanguage: z.string().min(1).optional(),
   }),
 });
 
-export const DropIndexInputSchema = z.object({
+const IndexTargetSchema = z.object({
   database: DatabaseNameSchema,
   collection: ExistingCollectionNameSchema,
-  name: z.string().min(1),
 });
 
-export const SetIndexHiddenInputSchema = DropIndexInputSchema.extend({
+export const DropIndexInputSchema = IndexTargetSchema.extend({
+  name: z
+    .string()
+    .min(1)
+    .refine((name) => !PROTECTED_INDEX_NAMES.includes(name), {
+      message: 'The _id_ and * indexes cannot be dropped',
+    }),
+});
+
+export const SetIndexHiddenInputSchema = IndexTargetSchema.extend({
+  name: z.string().min(1),
   hidden: z.boolean(),
 });
 
 export const ValidationRulesSchema = z.object({
-  validator: z.unknown(),
+  validatorEjson: z.string(),
   validationLevel: ValidationLevelSchema,
   validationAction: ValidationActionSchema,
 });
@@ -162,6 +179,8 @@ export const ValidationCheckResultSchema = z.object({
       message: z.string(),
     }),
   ),
+  // Extended JSON for each failing _id, at most 20.
+  failingIds: z.array(z.string()),
 });
 
 export const IndexBuildProgressSchema = z.object({
@@ -229,3 +248,4 @@ export type UpdateDocumentFieldsInput = z.infer<typeof UpdateDocumentFieldsInput
 export type DeleteDocumentsInput = z.infer<typeof DeleteDocumentsInputSchema>;
 export type DeleteByFilterInput = z.infer<typeof DeleteByFilterInputSchema>;
 export type FindDocumentByIdInput = z.infer<typeof FindDocumentByIdInputSchema>;
+export type NamespaceTarget = z.infer<typeof NamespaceSchema>;

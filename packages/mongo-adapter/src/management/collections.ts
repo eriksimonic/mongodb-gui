@@ -17,6 +17,7 @@ import {
   type RenameCollectionInput,
 } from '@mongo-gui/core';
 import { listCollections } from '../catalog';
+import { parseEjsonDocument } from './ejson';
 import {
   parseInput,
   refuseReservedDatabase,
@@ -125,11 +126,11 @@ function toCreateOptions(input: CreateCollectionInput): Record<string, unknown> 
   if (input.clusteredIndex === true) {
     options.clusteredIndex = { key: { _id: 1 }, unique: true, name: CLUSTERED_INDEX_NAME };
   }
-  if (input.collation !== undefined) {
-    options.collation = input.collation;
+  if (input.collationEjson !== undefined) {
+    options.collation = parseEjsonDocument(input.collationEjson, 'The collation');
   }
-  if (input.validator !== undefined) {
-    options.validator = input.validator;
+  if (input.validatorEjson !== undefined) {
+    options.validator = parseEjsonDocument(input.validatorEjson, 'The validator');
   }
   if (input.validationLevel !== undefined) {
     options.validationLevel = input.validationLevel;
