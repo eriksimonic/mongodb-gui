@@ -22,6 +22,10 @@ release.
 | ------------------------------------------------------------------------------------------------ | ----------------------------------------------------------------------------- |
 | ![Connection tree with databases and collections expanded](docs/screenshots/connection-tree.png) | ![New connection dialog in form mode](docs/screenshots/connection-dialog.png) |
 
+| Monitor dashboard                                                                     | Running operations                                                                         |
+| ------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------ |
+| ![Live monitoring dashboard with stat tiles and charts](docs/screenshots/monitor.png) | ![Running operations with filters and a long aggregation](docs/screenshots/operations.png) |
+
 ## Prerequisites
 
 - Node.js 24 (see `.nvmrc`)

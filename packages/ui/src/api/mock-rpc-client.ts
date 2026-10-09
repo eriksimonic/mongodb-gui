@@ -36,6 +36,7 @@ import {
   type CollectionFixture,
   type DatabaseFixture,
 } from './mock-fixtures';
+import { createMockMonitor } from './mock-monitor';
 import type { UiApi } from './ui-api';
 
 export type MockPreset = 'fresh' | 'unlocked';
@@ -55,6 +56,8 @@ export interface MockUiApiOptions {
   readonly latencyMs?: number;
   /** Scripted update states. Defaults to an idle updater on version 0.1.0. */
   readonly updates?: MockUpdatesOptions;
+  /** Adds replica set members and lag to the monitor samples. Defaults to standalone. */
+  readonly replication?: boolean;
 }
 
 const DEFAULT_UPDATE_STATE: UpdateState = { phase: 'idle', current: '0.1.0', canInstall: true };
@@ -268,6 +271,10 @@ export function createMockUiApi(options: MockUiApiOptions = {}): UiApi {
     emit({ type: 'updates:state', state: next });
     return next;
   }
+  const monitor = createMockMonitor({
+    emit,
+    hasReplication: () => options.replication === true,
+  });
 
   function statusOf(connectionId: string): ConnectionStatus {
     return state.statuses.get(connectionId) ?? { state: 'disconnected' };
@@ -275,6 +282,9 @@ export function createMockUiApi(options: MockUiApiOptions = {}): UiApi {
 
   function setStatus(connectionId: string, status: ConnectionStatus): void {
     state.statuses.set(connectionId, status);
+    if (status.state !== 'connected') {
+      monitor.stopConnection(connectionId);
+    }
     emit({ type: 'connection:status', connectionId, status });
   }
 
@@ -367,6 +377,7 @@ export function createMockUiApi(options: MockUiApiOptions = {}): UiApi {
         requireInitialised();
         if (state.vault === 'unlocked') {
           state.vault = 'locked';
+          monitor.stopAll();
           disconnectAll();
           emit({ type: 'vault:locked' });
         }
@@ -508,6 +519,51 @@ export function createMockUiApi(options: MockUiApiOptions = {}): UiApi {
         state.settings = mergeSettings(state.settings, patch);
         return { ...state.settings };
       }),
+    },
+    monitor: {
+      start: method(rpcContract.monitor.start, latencyMs, ({ connectionId, intervalMs }) => {
+        requireUnlocked();
+        requireConnected(connectionId);
+        return monitor.start(connectionId, intervalMs);
+      }),
+      stop: method(rpcContract.monitor.stop, latencyMs, ({ connectionId }) => {
+        requireUnlocked();
+        monitor.stop(connectionId);
+      }),
+      samples: method(rpcContract.monitor.samples, latencyMs, ({ connectionId, sinceIso }) => {
+        requireUnlocked();
+        return monitor.samples(connectionId, sinceIso);
+      }),
+      operations: method(
+        rpcContract.monitor.operations,
+        latencyMs,
+        ({ connectionId, includeIdle, includeSystem }) => {
+          requireUnlocked();
+          requireConnected(connectionId);
+          return monitor.operations(connectionId, {
+            includeIdle: includeIdle === true,
+            includeSystem: includeSystem === true,
+          });
+        },
+      ),
+      killOperation: method(
+        rpcContract.monitor.killOperation,
+        latencyMs,
+        ({ connectionId, opid }) => {
+          requireUnlocked();
+          requireConnected(connectionId);
+          monitor.killOperation(connectionId, opid);
+        },
+      ),
+      setInterval: method(
+        rpcContract.monitor.setInterval,
+        latencyMs,
+        ({ connectionId, intervalMs }) => {
+          requireUnlocked();
+          requireConnected(connectionId);
+          return monitor.setInterval(connectionId, intervalMs);
+        },
+      ),
     },
     history: {
       list: method(rpcContract.history.list, latencyMs, ({ connectionId, search, limit }) => {

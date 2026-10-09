@@ -45,6 +45,11 @@ import {
   type Updater,
   type UpdaterBackend,
 } from '../updates/updater';
+import {
+  createMonitorService,
+  defaultSamplerFactory,
+  type SamplerFactory,
+} from './monitor-service';
 
 /** The subset of ConnectionManager that the router uses. The real class satisfies it. */
 export type ConnectionRegistry = Pick<
@@ -88,6 +93,8 @@ export interface RouterDeps {
   readonly reopenStore?: () => StoreHandles;
   /** When present, a lock disconnects every connection and emits vault:locked. */
   readonly lockEvents?: LockEvents;
+  /** Builds the sampler for a connection. Defaults to the adapter Sampler. Tests inject a fake. */
+  readonly createSampler?: SamplerFactory;
   /** Receives failures as method, code and message. Inputs and raw driver text stay out. */
   readonly log?: Logger;
   /** The in-app updater. Without it, the updates calls fail with INTERNAL. */
@@ -235,6 +242,28 @@ export function createRouter(deps: RouterDeps): Router {
       ),
     ),
 
+    entry('monitor.start', rpcContract.monitor.start, (input) =>
+      monitor.start(input.connectionId, input.intervalMs),
+    ),
+    entry('monitor.stop', rpcContract.monitor.stop, (input) => {
+      monitor.stop(input.connectionId);
+    }),
+    entry('monitor.samples', rpcContract.monitor.samples, (input) =>
+      monitor.samples(input.connectionId, input.sinceIso),
+    ),
+    entry('monitor.operations', rpcContract.monitor.operations, (input) =>
+      monitor.operations(input.connectionId, {
+        includeIdle: input.includeIdle === true,
+        includeSystem: input.includeSystem === true,
+      }),
+    ),
+    entry('monitor.killOperation', rpcContract.monitor.killOperation, (input) =>
+      monitor.killOperation(input.connectionId, input.opid),
+    ),
+    entry('monitor.setInterval', rpcContract.monitor.setInterval, (input) =>
+      monitor.setInterval(input.connectionId, input.intervalMs),
+    ),
+
     entry('settings.get', rpcContract.settings.get, () => repos().settings.get()),
     entry('settings.update', rpcContract.settings.update, (input) => {
       // The timeout is applied before the value is stored, so a value the vault rejects is never saved.
@@ -279,10 +308,21 @@ export function createRouter(deps: RouterDeps): Router {
     }),
   ]);
 
+  const monitor = createMonitorService({
+    getClient: (connectionId) => deps.connections.getClient(connectionId),
+    createSampler: deps.createSampler ?? defaultSamplerFactory,
+    emit: deps.onEvent,
+  });
+
   deps.connections.onStatusChange((connectionId, status) => {
     deps.onEvent({ type: 'connection:status', connectionId, status });
+    // A sampler holds the client it started with, so any drop ends monitoring for that connection.
+    if (status.state !== 'connected') {
+      monitor.stop(connectionId);
+    }
   });
   deps.lockEvents?.subscribe(() => {
+    monitor.stopAll();
     void deps.connections.disconnectAll();
     deps.updates?.refreshSchedule();
     deps.onEvent({ type: 'vault:locked' });

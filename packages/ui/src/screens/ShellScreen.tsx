@@ -3,9 +3,11 @@ import 'dockview/dist/styles/dockview.css';
 import '../theme/dockview-theme.css';
 import { Box, Button, Flex, Group, Text } from '@mantine/core';
 import { IconDatabase, IconLock, IconPlus, IconServer, IconSettings } from '@tabler/icons-react';
+import { useCallback, useRef } from 'react';
 import {
   DockviewReact,
   themeDark,
+  type DockviewApi,
   type DockviewReadyEvent,
   type DockviewTheme,
 } from 'dockview-react';
@@ -15,12 +17,22 @@ import { runReported } from '../components/notify-error';
 import { SettingsModal } from '../components/settings/SettingsModal';
 import { UpdateBanner } from '../components/updates/UpdateBanner';
 import { useAppStore } from '../state/app-store-context';
-import { ConnectionsPanel, FixedTab, OutputPanel, WelcomePanel } from './ShellPanels';
+import { PanelOpenerContext, type OpenPanel } from '../state/panel-opener';
+import {
+  ConnectionsPanel,
+  FixedTab,
+  MonitorPanel,
+  OperationsPanelView,
+  OutputPanel,
+  WelcomePanel,
+} from './ShellPanels';
 
 const PANEL_COMPONENTS = {
   connections: ConnectionsPanel,
   welcome: WelcomePanel,
   output: OutputPanel,
+  monitor: MonitorPanel,
+  operations: OperationsPanelView,
 };
 
 const TAB_COMPONENTS = { fixed: FixedTab };
@@ -66,81 +78,144 @@ function handleDockReady({ api }: DockviewReadyEvent) {
   api.getPanel('output')?.group.api.setSize({ height: Math.round(height * OUTPUT_SHARE) });
 }
 
+/**
+ * Opens a connection's monitor or operations panel in the centre group. A panel that is already
+ * open is brought to the front, so each connection has at most one of each.
+ */
+function openConnectionPanel(api: DockviewApi, request: Parameters<OpenPanel>[0]): void {
+  const id = `${request.kind}:${request.connectionId}`;
+  const existing = api.getPanel(id);
+  if (existing !== undefined) {
+    existing.api.setActive();
+    return;
+  }
+  const suffix = request.kind === 'monitor' ? 'monitor' : 'operations';
+  const centre = api.getPanel('welcome') === undefined ? undefined : 'welcome';
+  api.addPanel({
+    id,
+    component: request.kind,
+    title: `${request.connectionName} ${suffix}`,
+    params: { connectionId: request.connectionId },
+    ...(centre === undefined
+      ? {}
+      : { position: { referencePanel: centre, direction: 'within' as const } }),
+  });
+}
+
+/**
+ * Stops a connection's sampler when its last monitor panel closes. A reload of the
+ * renderer also removes the panels, but no stop is sent then. The main process stops every sampler
+ * on disconnect and on lock, so nothing keeps sampling after the window is gone.
+ */
+function stopSamplerWhenUnused(
+  api: DockviewApi,
+  removedId: string,
+  stop: (connectionId: string) => Promise<void>,
+): void {
+  // Only monitor panels read samples. An operations panel does not keep the sampler alive.
+  const match = /^monitor:(.+)$/.exec(removedId);
+  if (match === null) {
+    return;
+  }
+  const connectionId = match[1] ?? '';
+  const stillOpen = api.panels.some(
+    (panel) => panel.id !== removedId && panel.id === `monitor:${connectionId}`,
+  );
+  if (!stillOpen) {
+    void runReported(() => stop(connectionId));
+  }
+}
+
 /** The unlocked main window: toolbar, dockable panels, connection dialog and manager. */
 export function ShellScreen() {
   const lock = useAppStore((state) => state.lock);
+  const stopMonitor = useAppStore((state) => state.stopMonitor);
   const dialog = useAppStore((state) => state.dialog);
   const setDialog = useAppStore((state) => state.setDialog);
   const setManagerOpen = useAppStore((state) => state.setManagerOpen);
   const setSettingsOpen = useAppStore((state) => state.setSettingsOpen);
+  const dockApi = useRef<DockviewApi | undefined>(undefined);
+  const openPanel = useCallback<OpenPanel>((request) => {
+    if (dockApi.current !== undefined) {
+      openConnectionPanel(dockApi.current, request);
+    }
+  }, []);
 
   return (
-    <Flex direction="column" h="100vh" style={{ overflow: 'hidden' }}>
-      <Group
-        h={40}
-        px={8}
-        justify="space-between"
-        wrap="nowrap"
-        gap={8}
-        style={{ borderBottom: '1px solid var(--mantine-color-dark-4)', flex: '0 0 auto' }}
-      >
-        <Group gap={8} wrap="nowrap">
-          <IconDatabase size={18} color="var(--mantine-color-blue-5)" aria-hidden="true" />
-          <Text fw={600} size="sm">
-            Mongo GUI
-          </Text>
-          <Button
-            variant="light"
-            leftSection={<IconPlus size={14} />}
-            onClick={() => setDialog({ kind: 'create' })}
-          >
-            New connection
-          </Button>
-          <Button
-            variant="default"
-            leftSection={<IconServer size={14} />}
-            onClick={() => setManagerOpen(true)}
-          >
-            Connections
-          </Button>
-          <UpdateBanner />
+    <PanelOpenerContext.Provider value={openPanel}>
+      <Flex direction="column" h="100vh" style={{ overflow: 'hidden' }}>
+        <Group
+          h={40}
+          px={8}
+          justify="space-between"
+          wrap="nowrap"
+          gap={8}
+          style={{ borderBottom: '1px solid var(--mantine-color-dark-4)', flex: '0 0 auto' }}
+        >
+          <Group gap={8} wrap="nowrap">
+            <IconDatabase size={18} color="var(--mantine-color-blue-5)" aria-hidden="true" />
+            <Text fw={600} size="sm">
+              Mongo GUI
+            </Text>
+            <Button
+              variant="light"
+              leftSection={<IconPlus size={14} />}
+              onClick={() => setDialog({ kind: 'create' })}
+            >
+              New connection
+            </Button>
+            <Button
+              variant="default"
+              leftSection={<IconServer size={14} />}
+              onClick={() => setManagerOpen(true)}
+            >
+              Connections
+            </Button>
+            <UpdateBanner />
+          </Group>
+          <Group gap={8} wrap="nowrap">
+            <Button
+              variant="default"
+              leftSection={<IconSettings size={14} />}
+              onClick={() => setSettingsOpen(true)}
+            >
+              Settings
+            </Button>
+            <Button
+              variant="default"
+              leftSection={<IconLock size={14} />}
+              onClick={() => void runReported(() => lock())}
+            >
+              Lock
+            </Button>
+          </Group>
         </Group>
-        <Group gap={8} wrap="nowrap">
-          <Button
-            variant="default"
-            leftSection={<IconSettings size={14} />}
-            onClick={() => setSettingsOpen(true)}
-          >
-            Settings
-          </Button>
-          <Button
-            variant="default"
-            leftSection={<IconLock size={14} />}
-            onClick={() => void runReported(() => lock())}
-          >
-            Lock
-          </Button>
-        </Group>
-      </Group>
-      <Box style={{ flex: 1, minHeight: 0 }}>
-        <div style={{ height: '100%' }}>
-          <DockviewReact
-            theme={MONGO_THEME}
-            components={PANEL_COMPONENTS}
-            tabComponents={TAB_COMPONENTS}
-            onReady={handleDockReady}
+        <Box style={{ flex: 1, minHeight: 0 }}>
+          <div style={{ height: '100%' }}>
+            <DockviewReact
+              theme={MONGO_THEME}
+              components={PANEL_COMPONENTS}
+              tabComponents={TAB_COMPONENTS}
+              onReady={(event) => {
+                dockApi.current = event.api;
+                handleDockReady(event);
+                event.api.onDidRemovePanel((panel) => {
+                  stopSamplerWhenUnused(event.api, panel.id, stopMonitor);
+                });
+              }}
+            />
+          </div>
+        </Box>
+        {dialog.kind === 'closed' ? null : (
+          <ConnectionDialog
+            key={dialog.kind === 'edit' ? dialog.connectionId : 'create'}
+            connectionId={dialog.kind === 'edit' ? dialog.connectionId : undefined}
+            onClose={() => setDialog({ kind: 'closed' })}
           />
-        </div>
-      </Box>
-      {dialog.kind === 'closed' ? null : (
-        <ConnectionDialog
-          key={dialog.kind === 'edit' ? dialog.connectionId : 'create'}
-          connectionId={dialog.kind === 'edit' ? dialog.connectionId : undefined}
-          onClose={() => setDialog({ kind: 'closed' })}
-        />
-      )}
-      <ConnectionManager />
-      <SettingsModal />
-    </Flex>
+        )}
+        <ConnectionManager />
+        <SettingsModal />
+      </Flex>
+    </PanelOpenerContext.Provider>
   );
 }

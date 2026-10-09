@@ -5,9 +5,16 @@ import type {
   DatabaseInfo,
 } from '@mongo-gui/core';
 import type { Loadable } from '../../state/app-store';
-import { catalogKey, connectionNodeId, databaseNodeId } from '../../state/node-ids';
+import {
+  catalogKey,
+  connectionNodeId,
+  databaseNodeId,
+  monitorNodeId,
+  operationsNodeId,
+} from '../../state/node-ids';
 
-export type TreeRowKind = 'connection' | 'database' | 'collection' | 'message';
+export type TreeRowKind =
+  'connection' | 'database' | 'collection' | 'message' | 'monitor' | 'operations';
 
 /** One visible line of the tree, flattened. Children follow their parent in the list. */
 export interface TreeRow {
@@ -90,16 +97,42 @@ function connectionChildren(
   if (status.state === 'disconnected') {
     return [messageRow(parentKey, connectionId, depth, 'Not connected. Double-click to connect.')];
   }
+  const tools = toolRows(connectionId, parentKey, depth);
   const databases = input.databases[connectionId];
   if (databases === undefined || databases.state === 'loading') {
-    return [messageRow(parentKey, connectionId, depth, 'Loading databases')];
+    return [...tools, messageRow(parentKey, connectionId, depth, 'Loading databases')];
   }
   if (databases.state === 'error') {
-    return [messageRow(parentKey, connectionId, depth, databases.error.message, 'red')];
+    return [...tools, messageRow(parentKey, connectionId, depth, databases.error.message, 'red')];
   }
-  return databases.data.flatMap((database) =>
-    databaseRows(input, connectionId, database.name, parentKey),
-  );
+  return [
+    ...tools,
+    ...databases.data.flatMap((database) =>
+      databaseRows(input, connectionId, database.name, parentKey),
+    ),
+  ];
+}
+
+/** The Monitoring and Operations children that sit above the databases of a connected connection. */
+function toolRows(connectionId: string, parentKey: string, depth: number): TreeRow[] {
+  return [
+    makeRow({
+      key: monitorNodeId(connectionId),
+      kind: 'monitor',
+      depth,
+      label: 'Monitoring',
+      connectionId,
+      parentKey,
+    }),
+    makeRow({
+      key: operationsNodeId(connectionId),
+      kind: 'operations',
+      depth,
+      label: 'Operations',
+      connectionId,
+      parentKey,
+    }),
+  ];
 }
 
 function databaseRows(
