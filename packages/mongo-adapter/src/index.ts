@@ -18,3 +18,12 @@ export {
   type SampleListener,
   type SamplerOptions,
 } from './monitor/sampler';
+export {
+  getProfilingLevel,
+  listProfileEntries,
+  profileCollectionInfo,
+  setProfilingLevel,
+  tailProfileEntries,
+  type ProfileCollectionInfo,
+  type ProfileTail,
+} from './profiler/profiler';
