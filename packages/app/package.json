@@ -1,6 +1,20 @@
 {
   "name": "@mongo-gui/app",
-  "version": "0.0.0",
+  "productName": "Mongo GUI",
+  "desktopName": "mongo-gui.desktop",
+  "version": "0.1.0",
+  "description": "A desktop MongoDB client with a mongosh-compatible editor.",
+  "author": {
+    "name": "Erik Simonic",
+    "email": "erik.simonic@b-s.si"
+  },
+  "license": "MIT",
+  "homepage": "https://github.com/eriksimonic/mongodb-mager",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/eriksimonic/mongodb-mager.git",
+    "directory": "packages/app"
+  },
   "private": true,
   "type": "module",
   "main": "out/main/index.js",
@@ -10,23 +24,24 @@
   },
   "scripts": {
     "dev": "electron-vite dev",
-    "build": "electron-vite build"
+    "build": "electron-vite build",
+    "dist": "electron-vite build && electron-builder --publish never",
+    "dist:publish": "electron-vite build && electron-builder --publish always"
   },
-  "dependencies": {
+  "devDependencies": {
     "@mongo-gui/core": "workspace:*",
     "@mongo-gui/mongo-adapter": "workspace:*",
     "@mongo-gui/shell-runtime": "workspace:*",
     "@mongo-gui/storage": "workspace:*",
     "@mongo-gui/ui": "workspace:*",
-    "react": "^19.3.0",
-    "react-dom": "^19.3.0"
-  },
-  "devDependencies": {
     "@types/react": "^19.3.0",
     "@types/react-dom": "^19.3.0",
     "@vitejs/plugin-react": "^5.2.0",
     "electron": "^44.7.0",
+    "electron-builder": "^26.15.3",
     "electron-vite": "^5.0.0",
+    "react": "^19.3.0",
+    "react-dom": "^19.3.0",
     "vite": "^7.3.7"
   }
 }
