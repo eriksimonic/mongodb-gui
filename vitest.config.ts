@@ -13,6 +13,8 @@ export default defineConfig({
             '**/.claude/**',
             '**/*.integration.test.{ts,tsx}',
           ],
+          // Cleans up rendered trees and drains timers before each jsdom file tears down.
+          setupFiles: ['packages/ui/src/test-support/vitest-setup.ts'],
         },
       },
       {
