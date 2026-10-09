@@ -10,3 +10,4 @@ test-results/
 playwright-report/
 *.tsbuildinfo
 .claude/
+packages/app/release/

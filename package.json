@@ -15,6 +15,7 @@
     "storybook": "pnpm --filter @mongo-gui/ui storybook",
     "build-storybook": "pnpm --filter @mongo-gui/ui build-storybook",
     "build": "pnpm --filter @mongo-gui/app build",
+    "dist": "pnpm --filter @mongo-gui/app dist",
     "lint": "eslint .",
     "typecheck": "tsc -b",
     "test": "vitest run --project unit",

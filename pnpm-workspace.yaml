@@ -7,3 +7,4 @@ allowBuilds:
   ssh2: false
   cpu-features: false
   protobufjs: false
+  electron-winstaller: false
