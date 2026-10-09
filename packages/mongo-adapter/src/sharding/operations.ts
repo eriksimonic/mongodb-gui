@@ -28,6 +28,7 @@ import {
   readNumber,
   readRecord,
   readString,
+  readStringArray,
   type PlainObject,
 } from '../documents';
 import { parseEjsonDocument } from '../management/ejson';
@@ -254,13 +255,13 @@ export async function removeShardStatus(
       const name = readString(doc, '_id');
       return name === undefined ? [] : [name];
     });
-    if (ownedNames.length > 0) {
-      throw validationError(
-        `${parsed.shard} is the primary shard of ${ownedNames.join(', ')}, so it cannot be removed until those databases move`,
-      );
-    }
     const base = { shard: target.id, host: target.host, shardCount: shards.length };
     if (parsed.confirmDraining !== true) {
+      if (ownedNames.length > 0) {
+        throw validationError(
+          `${parsed.shard} is the primary shard of ${ownedNames.join(', ')}. Confirming the drain moves those databases to other shards.`,
+        );
+      }
       return {
         ...base,
         dryRun: true,
@@ -275,11 +276,17 @@ export async function removeShardStatus(
       wouldDrain: false,
       ...definedEntry('state', toRemoveState(readString(reply, 'state'))),
       ...definedEntry('message', readString(reply, 'msg')),
+      databasesToMove: moveList(readStringArray(reply, 'dbsToMove'), ownedNames),
       ...remainingCounts(readRecord(reply, 'remaining')),
     };
   } catch (error) {
     throw toAppException(error);
   }
+}
+
+// The server lists the databases it moves. Before it reports them, the owned names stand in.
+function moveList(reported: string[], owned: string[]): string[] {
+  return reported.length > 0 ? reported : owned;
 }
 
 function remainingCounts(remaining: PlainObject | undefined): RemoveShardCounts {

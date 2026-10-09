@@ -23,7 +23,8 @@ import {
   updateZoneKeyRange,
 } from './operations';
 
-const CLUSTER_IMAGES = ['mongo:8.0.17', 'mongo:6.0'] as const;
+const CLUSTER_IMAGES = ['mongo:8.0.17', 'mongo:6.0', 'mongo:4.4'] as const;
+const PLAIN_DATABASE = 'plain';
 const DATABASE = 'shop';
 const COLLECTION = 'shop.orders';
 const SHARD_ID = 'sh0';
@@ -43,8 +44,8 @@ async function captureError(action: () => Promise<unknown>): Promise<AppError> {
   throw new Error('expected the action to fail with an AppErrorException');
 }
 
-// numInitialChunks: 4 on a single shard. 6.0 keeps the four presplit chunks. 8.0.17 merges the
-// presplit chunks that land on the same shard, so one shard holds one chunk.
+// numInitialChunks: 4 on a single shard. 4.4 and 6.0 keep the four presplit chunks. 8.0.17 merges
+// the presplit chunks that land on the same shard, so one shard holds one chunk.
 function expectedInitialChunks(image: (typeof CLUSTER_IMAGES)[number]): number {
   return image === 'mongo:8.0.17' ? 1 : 4;
 }
@@ -77,9 +78,12 @@ describe.each(CLUSTER_IMAGES)('sharding on %s', (image) => {
   }, CONTAINER_STARTUP_TIMEOUT_MS);
 
   afterAll(async () => {
-    await mongos?.close();
-    await shard?.close();
-    await cluster?.stop();
+    try {
+      await mongos?.close();
+      await shard?.close();
+    } finally {
+      await cluster?.stop();
+    }
   }, CONTAINER_STARTUP_TIMEOUT_MS);
 
   it('recognises mongos and not the shard mongod', async () => {
@@ -121,6 +125,14 @@ describe.each(CLUSTER_IMAGES)('sharding on %s', (image) => {
     },
     STEP_TIMEOUT_MS,
   );
+
+  it('reports a database without sharding as not partitioned on 4.4 only', async () => {
+    await mongos.db(PLAIN_DATABASE).collection('notes').insertOne({ text: 'plain' });
+    const overview = await getShardingOverview(mongos);
+    const plain = overview.databases.find((item) => item.name === PLAIN_DATABASE);
+    expect(plain).toBeDefined();
+    expect(plain?.partitioned).toBe(image === 'mongo:4.4' ? false : true);
+  });
 
   it(
     'reports every inserted document in the shard distribution',

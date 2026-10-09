@@ -7,6 +7,7 @@ import {
   type StartedTestContainer,
 } from 'testcontainers';
 import { readBoolean, readField, readString } from '../documents';
+import { runHello } from '../server-info';
 import { CONTAINER_STARTUP_TIMEOUT_MS } from './mongo-container';
 
 // One config server, one shard and one mongos on a private Docker network. The config server and
@@ -181,8 +182,11 @@ async function addShard(mongosUri: string, shardHost: string): Promise<void> {
 async function waitForPrimary(client: MongoClient): Promise<void> {
   const deadline = Date.now() + PRIMARY_TIMEOUT_MS;
   while (Date.now() < deadline) {
-    const hello: unknown = await client.db('admin').command({ hello: 1 });
-    if (readBoolean(hello, 'isWritablePrimary') === true) {
+    const hello = await runHello(client);
+    if (
+      readBoolean(hello, 'isWritablePrimary') === true ||
+      readBoolean(hello, 'ismaster') === true
+    ) {
       return;
     }
     await sleep(PRIMARY_POLL_MS);
@@ -196,7 +200,7 @@ async function waitForRouter(uri: string): Promise<void> {
     await client.connect();
     const deadline = Date.now() + PRIMARY_TIMEOUT_MS;
     while (Date.now() < deadline) {
-      const hello: unknown = await client.db('admin').command({ hello: 1 });
+      const hello = await runHello(client);
       if (readString(hello, 'msg') === 'isdbgrid') {
         return;
       }
@@ -212,16 +216,17 @@ function connect(uri: string): MongoClient {
   return new MongoClient(uri, { serverSelectionTimeoutMS: 10_000 });
 }
 
+// Every container gets a stop attempt even when another one fails, then the network is removed.
+// CI runs without Ryuk, so this is the only cleanup path there.
 async function stopAll(
   containers: readonly StartedTestContainer[],
   network: StartedNetwork,
 ): Promise<void> {
-  // Stop mongos first, so the config server and the shard do not log errors for a router that
-  // is still reconnecting.
-  for (const container of [...containers].reverse()) {
-    await container.stop();
+  try {
+    await Promise.allSettled([...containers].reverse().map((container) => container.stop()));
+  } finally {
+    await network.stop();
   }
-  await network.stop();
 }
 
 function isAlreadyInitialised(error: unknown): boolean {

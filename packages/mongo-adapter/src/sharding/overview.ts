@@ -1,7 +1,9 @@
 import type { MongoClient } from 'mongodb';
 import { listDatabases } from '../catalog';
+import { runHello } from '../server-info';
 import {
   definedEntry,
+  readArray,
   readBoolean,
   readField,
   readRecord,
@@ -32,9 +34,11 @@ import {
 } from '@mongo-gui/core';
 
 const MONGOS_MESSAGE = 'isdbgrid';
+// The first server version whose config.databases rows always carry partitioned: false.
+const PARTITIONED_FLAG_RETIRED_MAJOR = 6;
 
 export async function isMongos(client: MongoClient): Promise<boolean> {
-  const hello: unknown = await client.db('admin').command({ hello: 1 });
+  const hello = await runHello(client);
   return readString(hello, 'msg') === MONGOS_MESSAGE;
 }
 
@@ -42,20 +46,29 @@ export async function isMongos(client: MongoClient): Promise<boolean> {
 // overview instead of failing.
 export async function getShardingOverview(client: MongoClient): Promise<ShardingOverview> {
   try {
-    const hello: unknown = await client.db('admin').command({ hello: 1 });
+    const hello = await runHello(client);
     if (readString(hello, 'msg') !== MONGOS_MESSAGE) {
       return notSharded();
     }
-    const [shards, databaseDocs, databaseNames, collectionDocs, chunks, balancer, clusterId] =
-      await Promise.all([
-        listShardRows(client),
-        readConfigDocs(client, 'databases', {}),
-        listDatabaseNames(client),
-        readConfigDocs(client, 'collections', { dropped: { $ne: true } }),
-        readChunkCounts(client),
-        readBalancerStatus(client),
-        readClusterId(client),
-      ]);
+    const [
+      shards,
+      databaseDocs,
+      databaseNames,
+      collectionDocs,
+      chunks,
+      balancer,
+      clusterId,
+      major,
+    ] = await Promise.all([
+      listShardRows(client),
+      readConfigDocs(client, 'databases', {}),
+      listDatabaseNames(client),
+      readConfigDocs(client, 'collections', { dropped: { $ne: true } }),
+      readChunkCounts(client),
+      readBalancerStatus(client),
+      readClusterId(client),
+      readMajorVersion(client),
+    ]);
     const collections = await Promise.all(
       collectionDocs.map((doc) => toShardedCollection(client, doc, chunks)),
     );
@@ -63,7 +76,10 @@ export async function getShardingOverview(client: MongoClient): Promise<Sharding
       isSharded: true,
       ...definedEntry('mongosHost', readString(hello, 'me')),
       shards,
-      databases: mergeDatabases(databaseDocs.flatMap(toShardedDatabase), databaseNames),
+      databases: mergeDatabases(
+        databaseDocs.flatMap((doc) => toShardedDatabase(doc, major)),
+        databaseNames,
+      ),
       collections: collections.flatMap((collection) =>
         collection === undefined ? [] : [collection],
       ),
@@ -92,9 +108,10 @@ function readConfigDocs(
   return client.db(CONFIG_DATABASE).collection(collection).find(filter).toArray();
 }
 
-// config.databases holds only databases with sharding enabled. The legacy partitioned flag is not
-// used: 6.0 and newer store false for databases that have sharding enabled.
-function toShardedDatabase(raw: unknown): ShardedDatabase[] {
+// config.databases holds the databases that sharding knows about. From 6.0 on the server stores
+// partitioned: false even for databases with sharding enabled, so every row counts as enabled.
+// Before 6.0 the flag is true only after enableSharding.
+function toShardedDatabase(raw: unknown, major: number): ShardedDatabase[] {
   const name = readString(raw, '_id');
   if (name === undefined) {
     return [];
@@ -104,10 +121,20 @@ function toShardedDatabase(raw: unknown): ShardedDatabase[] {
     {
       name,
       primaryShard: readString(raw, 'primary') ?? '',
-      partitioned: true,
+      partitioned:
+        major >= PARTITIONED_FLAG_RETIRED_MAJOR || readBoolean(raw, 'partitioned') === true,
       ...definedEntry('version', version),
     },
   ];
+}
+
+async function readMajorVersion(client: MongoClient): Promise<number> {
+  const build: unknown = await client.db('admin').command({ buildInfo: 1 });
+  const fromArray = readArray(build, 'versionArray')[0];
+  if (typeof fromArray === 'number') {
+    return fromArray;
+  }
+  return Number(readString(build, 'version')?.split('.')[0] ?? 0);
 }
 
 // Databases without sharding (admin, config and plain databases) come from listDatabases. They

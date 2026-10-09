@@ -1,27 +1,31 @@
 import { z } from 'zod';
-import {
-  CollectionNameSchema,
-  DatabaseNameSchema,
-  ExistingCollectionNameSchema,
-} from '../management/types';
+import { DatabaseNameSchema, ExistingCollectionNameSchema } from '../management/types';
 
+const SYSTEM_PREFIX = 'system.';
 const HH_MM_PATTERN = /^([01]\d|2[0-3]):[0-5]\d$/;
 const HH_MM_MESSAGE = 'Times use the HH:MM form, 00:00 to 23:59';
 
 const DocumentSchema = z.record(z.string(), z.unknown());
 
 // Namespace in "database.collection" form. The collection part may contain dots.
-export const ShardNamespaceSchema = z.string().refine(
-  (ns) => {
-    const dot = ns.indexOf('.');
-    return (
-      dot > 0 &&
-      DatabaseNameSchema.safeParse(ns.slice(0, dot)).success &&
-      CollectionNameSchema.safeParse(ns.slice(dot + 1)).success
-    );
-  },
-  { message: 'The namespace must be database.collection' },
-);
+export const ShardNamespaceSchema = z.string().superRefine((ns, context) => {
+  const dot = ns.indexOf('.');
+  if (dot <= 0 || !DatabaseNameSchema.safeParse(ns.slice(0, dot)).success) {
+    context.addIssue({ code: 'custom', message: 'The namespace must be database.collection' });
+    return;
+  }
+  const collection = ns.slice(dot + 1);
+  if (collection.startsWith(SYSTEM_PREFIX)) {
+    context.addIssue({
+      code: 'custom',
+      message: 'System collections cannot be sharded or moved',
+    });
+    return;
+  }
+  if (!ExistingCollectionNameSchema.safeParse(collection).success) {
+    context.addIssue({ code: 'custom', message: 'The namespace must be database.collection' });
+  }
+});
 
 export const ShardInfoSchema = z.object({
   id: z.string().min(1),
@@ -159,6 +163,7 @@ export const RemoveShardStatusSchema = z.object({
   remainingChunks: z.number().int().nonnegative().optional(),
   remainingDatabases: z.number().int().nonnegative().optional(),
   remainingJumbo: z.number().int().nonnegative().optional(),
+  databasesToMove: z.array(z.string()).optional(),
 });
 
 export type ShardInfo = z.infer<typeof ShardInfoSchema>;

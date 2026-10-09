@@ -23,6 +23,14 @@ describe('ShardNamespaceSchema', () => {
   );
 });
 
+describe('ShardNamespaceSchema messages', () => {
+  it('names system collections in its own message', () => {
+    const result = ShardNamespaceSchema.safeParse('shop.system.views');
+    expect(result.success).toBe(false);
+    expect(result.error?.issues[0]?.message).toBe('System collections cannot be sharded or moved');
+  });
+});
+
 describe('ShardingOverviewSchema', () => {
   it('accepts a non-sharded overview with empty lists', () => {
     const result = ShardingOverviewSchema.safeParse({
