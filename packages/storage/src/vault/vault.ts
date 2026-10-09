@@ -129,6 +129,8 @@ export class Vault {
     this.touch();
     const result: unknown = fn(dek);
     if (isThenable(result)) {
+      // Attach a handler so a rejecting async body does not surface as an unhandled rejection.
+      result.then(undefined, () => undefined);
       throw new AppErrorException(appError('INTERNAL', 'withDek callbacks must be synchronous.'));
     }
     return result as T;

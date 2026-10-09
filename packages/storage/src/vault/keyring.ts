@@ -38,7 +38,8 @@ const KdfSchema = z
     p: z.number().int().positive(),
   })
   .strict()
-  .refine((kdf) => 128 * kdf.N * kdf.r <= SCRYPT_MAX_MEMORY);
+  // OpenSSL allocates 128 * r * (N + 2 + p) bytes, so this is the exact bound.
+  .refine((kdf) => 128 * kdf.r * (kdf.N + 2 + kdf.p) <= SCRYPT_MAX_MEMORY);
 
 export const KeyringFileSchema = z
   .object({

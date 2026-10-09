@@ -53,6 +53,10 @@ describe('parseKeyringFile', () => {
   it('rejects an N whose scrypt memory use exceeds the bound', () => {
     const keyring = { ...validKeyring(), kdf: { ...validKeyring().kdf, r: 32 } };
     expect(caughtInternal(() => parseKeyringFile(keyring))).toBe(true);
+    const doubled = { ...validKeyring(), kdf: { ...validKeyring().kdf, N: 2 ** 18 } };
+    expect(caughtInternal(() => parseKeyringFile(doubled))).toBe(true);
+    const r16 = { ...validKeyring(), kdf: { ...validKeyring().kdf, r: 16 } };
+    expect(caughtInternal(() => parseKeyringFile(r16))).toBe(true);
   });
 
   it('rejects unknown fields at either level', () => {
