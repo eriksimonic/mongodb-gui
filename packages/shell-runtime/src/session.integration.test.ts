@@ -5,7 +5,7 @@ import { EJSON, ObjectId } from 'bson';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import type { AppError, ShellRequest, ShellResponse } from '@mongo-gui/core';
 import { ShellProcessClient } from './client';
-import { startMongo, type StartedMongo } from './test/mongo-container';
+import { startMongo, type StartedMongo } from '@mongo-gui/mongo-adapter/test';
 
 const BUNDLE_PATH = resolve(dirname(fileURLToPath(import.meta.url)), '../dist/shell-runtime.cjs');
 const DATABASE = 'shop';
@@ -90,7 +90,7 @@ describe.each(['mongo:8.0.17', 'mongo:6.0'])('shell runtime against %s', (image)
       const messages = await run({
         id: 'connect',
         kind: 'connect',
-        uri: mongo.uri,
+        uri: mongo.rootUri,
         database: DATABASE,
       });
       const connected = messageOf(messages, 'connected');
@@ -280,6 +280,95 @@ describe.each(['mongo:8.0.17', 'mongo:6.0'])('shell runtime against %s', (image)
 
       const after = messageOf(await evaluate('db.getName()'), 'result');
       expect(EJSON.parse(after.printableEjson)).toBe(DATABASE);
+    },
+    TEST_TIMEOUT_MS,
+  );
+
+  it(
+    'stops the abandoned script when cancelled, so no later write lands',
+    async () => {
+      const script =
+        'sleep(1000); db.late.insertOne({}); for (let i = 0; i < 5; i++) { sleep(300); db.late.insertOne({}); }';
+      const lateId = nextId('late');
+      const late = collect(
+        client.request({ id: lateId, kind: 'evaluate', code: script, batchSize: 10 }),
+      );
+      await sleep(200);
+      await client.cancel(lateId);
+      expect(errorOf(await late).code).toBe('CANCELLED');
+      await sleep(2000);
+      const count = messageOf(await evaluate('db.late.countDocuments()'), 'result');
+      expect(EJSON.parse(count.printableEjson)).toBe(0);
+    },
+    TEST_TIMEOUT_MS,
+  );
+
+  it(
+    'completes after a collection whose documents hold only empty arrays',
+    async () => {
+      await evaluate('db.c9.insertOne({ e: [] })');
+      const calls = messageOf(
+        await run({ id: nextId('complete'), kind: 'complete', code: 'db.c9.find({', position: 12 }),
+        'completions',
+      );
+      expect(calls.kind).toBe('completions');
+      const keywords = messageOf(
+        await run({ id: nextId('complete'), kind: 'complete', code: 'sh', position: 2 }),
+        'completions',
+      );
+      expect(keywords.items.map((item) => item.text)).toContain('show');
+    },
+    TEST_TIMEOUT_MS,
+  );
+
+  it(
+    'reports a runtime ReferenceError from the script as VALIDATION',
+    async () => {
+      const messages = await evaluate('missingThing + 1');
+      expect(errorOf(messages).code).toBe('VALIDATION');
+      expect(errorOf(messages).message).toContain('missingThing is not defined');
+    },
+    TEST_TIMEOUT_MS,
+  );
+
+  it(
+    'tags cursor results with the request that opened the cursor',
+    async () => {
+      const opened = messageOf(
+        await run({ id: 'open-1', kind: 'evaluate', code: 'db.items.find()', batchSize: 5 }),
+        'result',
+      );
+      expect(opened.cursorRequestId).toBe('open-1');
+      expect(opened.hasMore).toBe(true);
+
+      const page = messageOf(await next(5), 'result');
+      expect(pageOf(page).documents).toHaveLength(5);
+      expect(page.cursorRequestId).toBe('open-1');
+
+      // An empty cursor has no batch to page through, so "next" reports no more pages.
+      messageOf(await evaluate('db.items.find({ i: -1 })', 5), 'result');
+      const empty = messageOf(await next(5), 'result');
+      expect(pageOf(empty).documents).toHaveLength(0);
+      expect(empty.hasMore).toBe(false);
+
+      expect(messageOf(await evaluate('1 + 1'), 'result').cursorRequestId).toBeUndefined();
+    },
+    TEST_TIMEOUT_MS,
+  );
+
+  it(
+    'rejects a malformed host list without losing the current connection',
+    async () => {
+      const bad = await run({
+        id: 'bad-host',
+        kind: 'connect',
+        uri: 'mongodb://admin:pw@127.0.0.1:37017,/?replicaSet=x',
+      });
+      expect(errorOf(bad).code).toBe('CONNECTION_FAILED');
+      expect(JSON.stringify(bad)).not.toContain(':pw@');
+
+      const alive = messageOf(await evaluate('1 + 1'), 'result');
+      expect(EJSON.parse(alive.printableEjson)).toBe(2);
     },
     TEST_TIMEOUT_MS,
   );

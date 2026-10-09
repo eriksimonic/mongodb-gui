@@ -95,6 +95,19 @@ describe('ShellResponseSchema', () => {
     }
   });
 
+  it('accepts a cursor result that names the request which opened the cursor', () => {
+    const result = ShellResponseSchema.safeParse({
+      id: 'next-1',
+      kind: 'result',
+      type: 'CursorIterationResult',
+      printableEjson: '{"cursorHasMore":true,"documents":[]}',
+      hasMore: true,
+      cursorRequestId: 'find-1',
+      elapsedMs: 1,
+    });
+    expect(result.success).toBe(true);
+  });
+
   it('rejects an unknown error code or a presence above 1', () => {
     expect(
       ShellResponseSchema.safeParse({

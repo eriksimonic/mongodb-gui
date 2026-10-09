@@ -124,6 +124,9 @@ export const ResultResponseSchema = z.object({
   type: ShellResultTypeSchema,
   printableEjson: z.string(),
   hasMore: z.boolean(),
+  // Set on cursor results. It is the id of the evaluate that opened the cursor, so "next" is offered
+  // only for that cursor.
+  cursorRequestId: RequestIdSchema.optional(),
   elapsedMs: z.number().min(0),
 });
 

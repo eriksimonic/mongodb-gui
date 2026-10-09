@@ -11,6 +11,7 @@ export {
   type ListCollectionsOptions,
 } from './catalog';
 export { mapDriverError } from './errors';
+export { readServerInfo, type ServerInfo } from './server-info';
 export * from './management/index';
 export { killOperation, listOperations, type ListOperationsOptions } from './monitor/operations';
 export {

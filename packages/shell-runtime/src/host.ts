@@ -14,13 +14,24 @@ import type { Transport } from './transport';
 // Gives the transport time to deliver the last message before the process exits.
 export const EXIT_FLUSH_MS = 50;
 
+// The session methods the host calls. Tests pass a fake that implements only these.
+export type HostSession = Pick<
+  ShellSession,
+  'connect' | 'evaluate' | 'next' | 'complete' | 'sampleSchema' | 'disconnect' | 'cancel'
+>;
+
+// The process events the fatal handlers listen to.
+export interface ProcessEvents {
+  on(event: string, listener: (...args: unknown[]) => void): unknown;
+}
+
 type WorkRequest = Exclude<ShellRequest, CancelRequest>;
 
 // Connects the transport to the session. Requests run one at a time in arrival order. A cancel is
 // handled at once, so it can stop the evaluation that is running.
 export function startHost(
   transport: Transport,
-  session: ShellSession,
+  session: HostSession,
   exit: (code: number) => void,
 ): void {
   const queued = new Set<string>();
@@ -97,24 +108,34 @@ export function startHost(
   send({ id: PROCESS_MESSAGE_ID, kind: 'ready' });
 }
 
-// Reports errors that escape every handler. The process exits with code 1 after the report.
-export function installFatalHandlers(transport: Transport, exit: (code: number) => void): void {
-  const fatal = (error: unknown): void => {
+// Reports errors that escape every handler. An uncaught exception leaves the process in an unknown
+// state, so it exits with code 1 after the report. An unhandled rejection is reported and the
+// process keeps running. The driver's background monitors can reject without a caller to blame.
+export function installFatalHandlers(
+  transport: Transport,
+  exit: (code: number) => void,
+  events: ProcessEvents = process,
+): void {
+  const report = (error: unknown): void => {
     transport.send({
       id: PROCESS_MESSAGE_ID,
       kind: 'error',
       error: redactAppError(toAppError(error)),
     });
+  };
+  events.on('uncaughtException', (error) => {
+    report(error);
     setTimeout(() => {
       exit(1);
     }, EXIT_FLUSH_MS);
-  };
-  process.on('uncaughtException', fatal);
-  process.on('unhandledRejection', fatal);
+  });
+  events.on('unhandledRejection', (reason) => {
+    report(reason);
+  });
 }
 
 async function dispatch(
-  session: ShellSession,
+  session: HostSession,
   request: WorkRequest,
   send: (message: ShellResponse) => void,
 ): Promise<void> {

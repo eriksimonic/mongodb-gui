@@ -149,6 +149,23 @@ describe('ShellProcessClient', () => {
     expect(first?.kind === 'error' && first.error.code).toBe('INTERNAL');
   });
 
+  it('ends pending requests when the channel disconnects or closes without an exit', async () => {
+    for (const event of ['disconnect', 'close']) {
+      const child = readyChild((request, fake) => {
+        if (request.kind === 'evaluate') {
+          fake.emit(event);
+        }
+      });
+      const client = new ShellProcessClient();
+      await client.spawn(() => child);
+      const messages = await collect(
+        client.request({ id: `e-${event}`, kind: 'evaluate', code: 'x', batchSize: 1 }),
+      );
+      expect(messages.map((message) => message.kind)).toEqual(['error', 'done']);
+      client.dispose();
+    }
+  });
+
   it('answers a request sent after the child exited with an error', async () => {
     const child = readyChild(() => undefined);
     const client = new ShellProcessClient();

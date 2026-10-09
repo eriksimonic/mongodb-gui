@@ -15,26 +15,45 @@ const SCRIPT_ERROR_NAMES: ReadonlySet<string> = new Set([
   'RangeError',
 ]);
 
+export interface ErrorFields {
+  name: string;
+  message: string;
+  code: unknown;
+}
+
 // Masks credentials in any URI that appears in free text, such as a driver message.
 export function redactText(text: string): string {
   return text.replace(EMBEDDED_URI, (uri) => redactUri(uri));
 }
 
+// Reads name and message by duck typing. Errors thrown inside the mongosh vm context come from
+// another realm, so "instanceof Error" is false for them.
+export function errorFields(value: unknown): ErrorFields | undefined {
+  if (typeof value !== 'object' || value === null) {
+    return undefined;
+  }
+  const name: unknown = Reflect.get(value, 'name');
+  const message: unknown = Reflect.get(value, 'message');
+  if (typeof name !== 'string' || typeof message !== 'string') {
+    return undefined;
+  }
+  return { name, message, code: Reflect.get(value, 'code') };
+}
+
 // Errors from evaluating user code. A server command failure is COMMAND_FAILED, a parse or
 // runtime error in the script is VALIDATION, and a lost connection maps through mapDriverError.
 export function toEvaluationError(error: unknown): AppError {
-  const name = errorName(error);
-  if (error instanceof Error && name === 'MongoServerError') {
-    return withMessage('COMMAND_FAILED', error.message);
-  }
-  if (name !== undefined && CONNECTION_ERROR_NAMES.has(name)) {
-    return redactAppError(mapDriverError(error));
-  }
-  if (
-    error instanceof Error &&
-    (SCRIPT_ERROR_NAMES.has(error.name) || error.name.startsWith('Mongosh'))
-  ) {
-    return withMessage('VALIDATION', error.message);
+  const fields = errorFields(error);
+  if (fields !== undefined) {
+    if (fields.name === 'MongoServerError') {
+      return withMessage('COMMAND_FAILED', fields.message);
+    }
+    if (CONNECTION_ERROR_NAMES.has(fields.name)) {
+      return redactAppError(mapDriverError(error));
+    }
+    if (SCRIPT_ERROR_NAMES.has(fields.name) || fields.name.startsWith('Mongosh')) {
+      return withMessage('VALIDATION', fields.message);
+    }
   }
   return redactAppError(toAppError(error));
 }
@@ -42,13 +61,14 @@ export function toEvaluationError(error: unknown): AppError {
 // Errors from opening the connection. Authentication failures are reported as AUTH_FAILED even
 // when the driver error class does not match the one mapDriverError checks.
 export function toConnectError(error: unknown): AppError {
+  const fields = errorFields(error);
   if (
-    error instanceof Error &&
-    errorName(error) === 'MongoServerError' &&
-    errorCode(error) === AUTH_FAILED_CODE
+    fields !== undefined &&
+    fields.name === 'MongoServerError' &&
+    fields.code === AUTH_FAILED_CODE
   ) {
     return redactAppError(
-      appError('AUTH_FAILED', 'Authentication failed', firstLine(error.message)),
+      appError('AUTH_FAILED', 'Authentication failed', firstLine(fields.message)),
     );
   }
   return redactAppError(mapDriverError(error));
@@ -72,14 +92,6 @@ export function redactAppError(error: AppError): AppError {
     next.cause = redactText(error.cause);
   }
   return next;
-}
-
-function errorName(error: unknown): string | undefined {
-  return error instanceof Error ? error.name : undefined;
-}
-
-function errorCode(error: Error): unknown {
-  return 'code' in error ? error.code : undefined;
 }
 
 function firstLine(text: string): string {

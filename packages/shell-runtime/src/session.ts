@@ -14,18 +14,18 @@ import {
   type SampleSchemaRequest,
   type ShellResponse,
 } from '@mongo-gui/core';
-import { buildClientOptions } from '@mongo-gui/mongo-adapter';
+import { buildClientOptions, readServerInfo } from '@mongo-gui/mongo-adapter';
 import { classifyCompletion, databaseMemberName, lineBeforeCursor } from './completion-kind';
 import { toConnectError, toEvaluationError } from './errors';
 import { readString } from './fields';
-import { formatPrintText, hasMoreResults, serializePrintable } from './results';
-import { readServerInfo } from './server-info';
+import { findHostListProblem } from './host-list';
+import { formatPrintText, hasMoreResults, isCursorResult, serializePrintable } from './results';
 import { summarizeDocuments } from './schema-sampler';
 
 export const DEFAULT_TIMEOUT_MS = 30_000;
 
-// After an abandoned evaluation, the runtime is replaced unless the evaluation settles in this
-// time. A server operation killed by cancel settles within it, so the runtime is kept.
+// How long an aborted evaluation may keep running after its server operations are killed. Past
+// this point the runtime is retired, because the mongosh evaluation cannot be interrupted.
 const SETTLE_GRACE_MS = 200;
 const PRODUCT_NAME = 'mongo-gui';
 const PRODUCT_DOCS_LINK = 'https://www.mongodb.com/docs/mongosh/';
@@ -55,16 +55,36 @@ interface ActiveRun {
   abort(error: AppErrorException): void;
 }
 
+interface RunOptions {
+  id: string;
+  code: string;
+  batchSize: number;
+  timeoutMs: number;
+  emit: Emit;
+  connection: OpenConnection;
+}
+
 // One session owns one driver connection and one mongosh runtime. Requests are serialised by the
 // caller, except cancel, which may arrive while an evaluation runs.
 export class ShellSession {
   private connectRequest: ConnectRequest | null = null;
   private connection: OpenConnection | null = null;
   private active: ActiveRun | null = null;
+  // Set while an aborted evaluation is being settled or its runtime retired. Requests wait on it.
+  private pendingAbort: Promise<void> | null = null;
+  // Database to reopen with after a retired runtime. Undefined when the runtime was never retired.
+  private resumeDatabase: string | undefined = undefined;
+  // The request whose evaluation opened the current cursor. "next" continues that cursor.
+  private cursorOwner: string | null = null;
   private generation = 0;
   private readonly bus = new EventEmitter();
 
   async connect(request: ConnectRequest, emit: Emit): Promise<void> {
+    // Checked before any state changes, so a malformed host list leaves the current connection.
+    const problem = findHostListProblem(request.uri);
+    if (problem !== undefined) {
+      throw new AppErrorException(appError('CONNECTION_FAILED', problem));
+    }
     await this.closeConnection();
     this.connectRequest = request;
     try {
@@ -90,12 +110,20 @@ export class ShellSession {
       request.batchSize,
       request.timeoutMs ?? DEFAULT_TIMEOUT_MS,
       emit,
+      false,
     );
   }
 
-  // Continues the cursor from the most recent result by evaluating the mongosh "it" command.
+  // Continues the cursor opened by the request named in cursorRequestId of earlier results.
   async next(request: NextRequest, emit: Emit): Promise<void> {
-    await this.runCode(request.id, CURSOR_NEXT_CODE, request.batchSize, DEFAULT_TIMEOUT_MS, emit);
+    await this.runCode(
+      request.id,
+      CURSOR_NEXT_CODE,
+      request.batchSize,
+      DEFAULT_TIMEOUT_MS,
+      emit,
+      true,
+    );
   }
 
   // Cancels the running evaluation with the given request id. Other ids are ignored.
@@ -158,17 +186,23 @@ export class ShellSession {
     batchSize: number,
     timeoutMs: number,
     emit: Emit,
+    continuation: boolean,
   ): Promise<void> {
     try {
       const connection = await this.ensureConnection();
       const started = performance.now();
       const result = await this.run({ id, code, batchSize, timeoutMs, emit, connection });
+      const cursor = isCursorResult(result.printable);
+      if (cursor && !continuation) {
+        this.cursorOwner = id;
+      }
       emit({
         id,
         kind: 'result',
         type: toShellResultType(result.type, result.printable),
         printableEjson: serializePrintable(result.printable),
         hasMore: hasMoreResults(result.printable),
+        ...(cursor && this.cursorOwner !== null ? { cursorRequestId: this.cursorOwner } : {}),
         elapsedMs: performance.now() - started,
       });
     } catch (error) {
@@ -176,14 +210,7 @@ export class ShellSession {
     }
   }
 
-  private async run(options: {
-    id: string;
-    code: string;
-    batchSize: number;
-    timeoutMs: number;
-    emit: Emit;
-    connection: OpenConnection;
-  }): Promise<RuntimeResult> {
+  private async run(options: RunOptions): Promise<RuntimeResult> {
     const { id, code, batchSize, timeoutMs, emit, connection } = options;
     // Every server operation issued while this evaluation runs carries a unique comment, so cancel
     // can find and kill those operations on the server.
@@ -229,37 +256,62 @@ export class ShellSession {
     }
   }
 
-  // Stops listening to the run, rejects its promise, and kills the server operations it started.
-  // The mongosh evaluation itself cannot be interrupted, so its runtime is replaced later if it
-  // is still running (see ensureConnection).
-  private async abortRun(run: ActiveRun, error: AppError): Promise<void> {
+  // Rejects the run at once. The returned promise resolves after its server operations are killed
+  // and, if the evaluation is still running, its runtime is retired. Requests made meanwhile wait.
+  private abortRun(run: ActiveRun, error: AppError): Promise<void> {
     if (this.active !== run) {
-      return;
+      return Promise.resolve();
     }
     this.active = null;
     run.abort(new AppErrorException(error));
+    const settled = this.settleAbort(run);
+    this.pendingAbort = settled;
+    return settled;
+  }
+
+  private async settleAbort(run: ActiveRun): Promise<void> {
     await killServerOperations(run.connection.provider, run.token);
+    if (this.connection !== run.connection) {
+      return;
+    }
+    const pending = run.connection.pendingWork;
+    if (pending === null || (await settlesWithin(pending, SETTLE_GRACE_MS))) {
+      return;
+    }
+    await this.retireConnection(run.connection);
+  }
+
+  // Closes the runtime whose evaluation keeps running. The next request opens a new runtime with
+  // the same database, so writes from the abandoned evaluation cannot land on the new one.
+  private async retireConnection(connection: OpenConnection): Promise<void> {
+    this.resumeDatabase = (await this.currentDatabase(connection)) ?? this.connectRequest?.database;
+    if (this.connection === connection) {
+      this.connection = null;
+    }
+    await closeProvider(connection.provider);
+  }
+
+  private async awaitAbort(): Promise<void> {
+    const abort = this.pendingAbort;
+    if (abort !== null) {
+      this.pendingAbort = null;
+      await abort;
+    }
   }
 
   private async ensureConnection(): Promise<OpenConnection> {
+    await this.awaitAbort();
     const request = this.connectRequest;
     if (request === null) {
       throw new AppErrorException(appError('NOT_CONNECTED', 'Connect to a server first'));
     }
     const current = this.connection;
-    if (current === null) {
-      return this.open(request.uri, request.driverOptions, request.database);
-    }
-    const pending = current.pendingWork;
-    if (pending === null || (await settlesWithin(pending, SETTLE_GRACE_MS))) {
-      current.pendingWork = null;
+    if (current !== null) {
       return current;
     }
-    // An abandoned evaluation still runs in this runtime. Replace the runtime so its cursor and
-    // shell state do not leak into the next request. The database is kept when it can be read.
-    const database = await this.currentDatabase(current);
-    await this.closeConnection();
-    return this.open(request.uri, request.driverOptions, database ?? request.database);
+    const database = this.resumeDatabase ?? request.database;
+    this.resumeDatabase = undefined;
+    return this.open(request.uri, request.driverOptions, database);
   }
 
   private async open(
@@ -284,6 +336,7 @@ export class ShellSession {
     };
     connection.runtime.setEvaluationListener(this.listenerFor(connection.generation));
     this.connection = connection;
+    this.cursorOwner = null;
     if (database !== undefined) {
       await connection.runtime.evaluate(`use(${JSON.stringify(database)})`);
     }
@@ -291,15 +344,12 @@ export class ShellSession {
   }
 
   private async closeConnection(): Promise<void> {
+    await this.awaitAbort();
     const connection = this.connection;
     this.connection = null;
-    if (connection === null) {
-      return;
-    }
-    try {
-      await connection.provider.close();
-    } catch {
-      // The client may already be closed. Nothing else needs releasing.
+    this.resumeDatabase = undefined;
+    if (connection !== null) {
+      await closeProvider(connection.provider);
     }
   }
 
@@ -319,6 +369,8 @@ export class ShellSession {
         });
       },
       // The cursor batch size of the current request. "it" and the first cursor page read it here.
+      // The mongosh types map each key to its own value type. displayBatchSize is a number, and
+      // the cast is needed because the typed signature is generic over the key.
       getConfig: ((key: string) => {
         const run = this.active;
         if (
@@ -359,6 +411,17 @@ function toFailure(error: unknown): AppErrorException {
     : new AppErrorException(toEvaluationError(error));
 }
 
+async function closeProvider(provider: NodeDriverServiceProvider): Promise<void> {
+  try {
+    await provider.close();
+  } catch {
+    // The client may already be closed. Nothing else needs releasing.
+  }
+}
+
+// Kills the server operations that carry the run's comment token. The token is the baseCmdOptions
+// comment, which the driver layers under the per-call options. A comment set on a query by the user
+// replaces the token, so such an operation is not found here and runs until it finishes.
 async function killServerOperations(
   provider: NodeDriverServiceProvider,
   token: string,

@@ -95,6 +95,13 @@ export class ShellProcessClient {
     child.on('error', () => {
       this.terminate('The shell process failed');
     });
+    // The IPC channel can close before the process exits. Pending requests end either way.
+    child.on('disconnect', () => {
+      this.terminate('The shell process disconnected');
+    });
+    child.on('close', () => {
+      this.terminate('The shell process closed');
+    });
     return new Promise<void>((resolve, reject) => {
       if (this.ready) {
         resolve();
