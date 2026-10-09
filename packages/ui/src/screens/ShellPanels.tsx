@@ -1,10 +1,16 @@
 import { Box, Center, Stack, Text, Title } from '@mantine/core';
+import { DockviewDefaultTab, type IDockviewPanelHeaderProps } from 'dockview-react';
 import { ConnectionTree } from '../components/connections/ConnectionTree';
+
+/** Tab for the three fixed panels. Same as dockview's default tab without the close button. */
+export function FixedTab(props: IDockviewPanelHeaderProps) {
+  return <DockviewDefaultTab {...props} hideClose />;
+}
 
 /** Left panel: the connection tree. */
 export function ConnectionsPanel() {
   return (
-    <Box p="xs" h="100%" style={{ overflow: 'auto' }}>
+    <Box p={8} h="100%" style={{ overflow: 'auto' }}>
       <ConnectionTree />
     </Box>
   );
@@ -28,7 +34,7 @@ export function WelcomePanel() {
 /** Bottom panel placeholder. Command output will appear here. */
 export function OutputPanel() {
   return (
-    <Box p="xs">
+    <Box p={8}>
       <Text size="sm" c="dimmed">
         No output yet.
       </Text>

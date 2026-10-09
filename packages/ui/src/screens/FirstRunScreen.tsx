@@ -3,6 +3,7 @@ import { toAppError } from '@mongo-gui/core';
 import { useState, type FormEvent } from 'react';
 import { useAppStore } from '../state/app-store-context';
 import { CenteredScreen } from './CenteredScreen';
+import { invalidInputStyles } from './field-state';
 import { passwordStrength, validateNewPassword } from './password-rules';
 
 const STRENGTH_COLORS = ['red', 'red', 'orange', 'yellow', 'green'] as const;
@@ -17,6 +18,8 @@ export function FirstRunScreen() {
 
   const errors = validateNewPassword(password, confirmation);
   const strength = passwordStrength(password);
+  const shownPassword = submitted ? errors.password : undefined;
+  const shownConfirmation = submitted ? errors.confirmation : undefined;
 
   async function handleSubmit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
@@ -46,9 +49,11 @@ export function FirstRunScreen() {
             label="Master password"
             value={password}
             onChange={(event) => setPassword(event.currentTarget.value)}
-            error={submitted ? errors.password : undefined}
+            styles={invalidInputStyles(shownPassword)}
+            aria-invalid={shownPassword !== undefined}
             autoFocus
           />
+          {shownPassword === undefined ? null : <Text size="xs">{shownPassword}</Text>}
           <Stack gap={4}>
             <Progress
               value={(strength.score / 4) * 100}
@@ -64,8 +69,10 @@ export function FirstRunScreen() {
             label="Confirm master password"
             value={confirmation}
             onChange={(event) => setConfirmation(event.currentTarget.value)}
-            error={submitted ? errors.confirmation : undefined}
+            styles={invalidInputStyles(shownConfirmation)}
+            aria-invalid={shownConfirmation !== undefined}
           />
+          {shownConfirmation === undefined ? null : <Text size="xs">{shownConfirmation}</Text>}
           {failure === undefined ? null : (
             <Alert color="red" variant="light">
               {failure}

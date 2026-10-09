@@ -366,6 +366,7 @@ export function createMockUiApi(options: MockUiApiOptions = {}): UiApi {
         state.statuses.delete(id);
       }),
       test: method(rpcContract.connections.test, latencyMs, (input): ConnectionTestResult => {
+        requireUnlocked();
         if (!isReachable(input.uri)) {
           return { ok: false, error: authError() };
         }

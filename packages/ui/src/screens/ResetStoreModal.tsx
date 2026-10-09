@@ -28,8 +28,20 @@ export function ResetStoreModal({ opened, onClose }: ResetStoreModalProps) {
     }
   }
 
+  function handleClose() {
+    setTyped('');
+    setFailure(undefined);
+    onClose();
+  }
+
   return (
-    <Modal opened={opened} onClose={onClose} title="Reset store" centered>
+    <Modal
+      opened={opened}
+      onClose={handleClose}
+      title="Reset store"
+      centered
+      closeButtonProps={{ 'aria-label': 'Close' }}
+    >
       <Stack gap="sm">
         <Text size="sm">
           This deletes every saved connection, history entry and favourite. It cannot be undone.
@@ -48,7 +60,7 @@ export function ResetStoreModal({ opened, onClose }: ResetStoreModalProps) {
           </Alert>
         )}
         <Group justify="flex-end">
-          <Button variant="default" onClick={onClose}>
+          <Button variant="default" onClick={handleClose}>
             Cancel
           </Button>
           <Button

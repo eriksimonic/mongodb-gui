@@ -90,60 +90,84 @@ interface QueryFields {
   extraOptions: ExtraOption[];
 }
 
-function applyQueryOption(fields: QueryFields, key: string, value: string): void {
-  switch (key) {
-    case 'authSource':
-      fields.authSource = value;
+/** Mutable accumulator used while reading the query string. */
+interface QueryState {
+  authSource: string;
+  replicaSet: string;
+  readPreference: ReadPreference | undefined;
+  connectTimeoutMs: number | undefined;
+  tlsEnabled: boolean | undefined;
+  caFile: string;
+  certFile: string;
+  allowInvalidCertificates: boolean;
+  extraOptions: ExtraOption[];
+}
+
+/** Applies one query option. Option names match case-insensitively, as the driver does. */
+function applyQueryOption(state: QueryState, key: string, value: string): void {
+  const name = key.toLowerCase();
+  const flag = value.toLowerCase();
+  switch (name) {
+    case 'authsource':
+      state.authSource = value;
       return;
-    case 'replicaSet':
-      fields.replicaSet = value;
+    case 'replicaset':
+      state.replicaSet = value;
       return;
-    case 'readPreference':
+    case 'readpreference':
       if (isReadPreference(value)) {
-        fields.readPreference = value;
+        state.readPreference = value;
         return;
       }
       break;
-    case 'connectTimeoutMS': {
+    case 'connecttimeoutms': {
       const milliseconds = Number(value);
       if (/^\d+$/.test(value) && Number.isSafeInteger(milliseconds) && milliseconds > 0) {
-        fields.connectTimeoutMs = milliseconds;
+        state.connectTimeoutMs = milliseconds;
         return;
       }
       break;
     }
     case 'tls':
     case 'ssl':
-      if (value === 'true') {
-        fields.tls = { ...fields.tls, enabled: true };
+      // `true` wins over `false` in either order, so tls and ssl never conflict.
+      if (flag === 'true') {
+        state.tlsEnabled = true;
+        return;
+      }
+      if (flag === 'false') {
+        state.tlsEnabled ??= false;
         return;
       }
       break;
-    case 'tlsCAFile':
-      fields.tls = { ...fields.tls, caFile: value };
+    case 'tlscafile':
+      state.caFile = value;
       return;
-    case 'tlsCertificateKeyFile':
-      fields.tls = { ...fields.tls, certFile: value };
+    case 'tlscertificatekeyfile':
+      state.certFile = value;
       return;
-    case 'tlsAllowInvalidCertificates':
-      if (value === 'true') {
-        fields.tls = { ...fields.tls, allowInvalidCertificates: true };
+    case 'tlsallowinvalidcertificates':
+      if (flag === 'true') {
+        state.allowInvalidCertificates = true;
         return;
       }
       break;
     default:
       break;
   }
-  fields.extraOptions.push([key, value]);
+  state.extraOptions.push([key, value]);
 }
 
 function parseQuery(query: string): QueryFields {
-  const fields: QueryFields = {
+  const state: QueryState = {
     authSource: '',
     replicaSet: '',
     readPreference: undefined,
     connectTimeoutMs: undefined,
-    tls: { enabled: false, caFile: '', certFile: '', allowInvalidCertificates: false },
+    tlsEnabled: undefined,
+    caFile: '',
+    certFile: '',
+    allowInvalidCertificates: false,
     extraOptions: [],
   };
   for (const pair of query.split('&')) {
@@ -153,9 +177,21 @@ function parseQuery(query: string): QueryFields {
     const equals = pair.indexOf('=');
     const key = decodeURIComponent(equals === -1 ? pair : pair.slice(0, equals));
     const value = decodeURIComponent(equals === -1 ? '' : pair.slice(equals + 1));
-    applyQueryOption(fields, key, value);
+    applyQueryOption(state, key, value);
   }
-  return fields;
+  return {
+    authSource: state.authSource,
+    replicaSet: state.replicaSet,
+    readPreference: state.readPreference,
+    connectTimeoutMs: state.connectTimeoutMs,
+    tls: {
+      enabled: state.tlsEnabled === true,
+      caFile: state.caFile,
+      certFile: state.certFile,
+      allowInvalidCertificates: state.allowInvalidCertificates,
+    },
+    extraOptions: state.extraOptions,
+  };
 }
 
 /** Splits a mongodb or mongodb+srv URI into form fields. Returns a message when the URI is malformed. */
@@ -200,7 +236,10 @@ export function parseMongoUri(uri: string): ParseResult {
   }
 }
 
-/** Builds a URI from form fields. Percent-encodes the user name, password and database. */
+/**
+ * Builds a URI from form fields. Percent-encodes the user name, password and database.
+ * Each known option is written once. TLS is written only when enabled, because it is off by default.
+ */
 export function buildMongoUri(form: UriForm): string {
   const userInfo =
     form.username === ''

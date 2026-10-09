@@ -37,6 +37,7 @@ export function ConnectionManager() {
       title="Connections"
       size="lg"
       centered
+      closeButtonProps={{ 'aria-label': 'Close' }}
     >
       <Stack gap="sm">
         <Group justify="flex-end">

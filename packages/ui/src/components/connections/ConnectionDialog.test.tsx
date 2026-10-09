@@ -4,6 +4,7 @@ import { describe, expect, it } from 'vitest';
 import { localConnectionId } from '../../api/mock-fixtures';
 import { renderWithApp } from '../../test-support/render';
 import { ConnectionDialog } from './ConnectionDialog';
+import { ConnectionTree } from './ConnectionTree';
 
 describe('ConnectionDialog', () => {
   it('round trips the URI through form mode', async () => {
@@ -54,10 +55,25 @@ describe('ConnectionDialog', () => {
   it('reports a successful test connection inline', async () => {
     renderWithApp(
       <ConnectionDialog connectionId={undefined} initialMode="uri" onClose={() => undefined} />,
+      { mock: { preset: 'unlocked' } },
     );
     fireEvent.change(screen.getByLabelText('Name'), { target: { value: 'Dev' } });
     fireEvent.click(screen.getByRole('button', { name: 'Test connection' }));
     expect(await screen.findByText('Connected. Server 8.0.4, standalone.')).toBeInTheDocument();
+  });
+
+  it('shows a saved connection in the tree straight away', async () => {
+    renderWithApp(
+      <>
+        <ConnectionDialog connectionId={undefined} initialMode="uri" onClose={() => undefined} />
+        <ConnectionTree />
+      </>,
+      { mock: { preset: 'unlocked' } },
+    );
+    fireEvent.change(screen.getByLabelText('Name'), { target: { value: 'Scratch' } });
+    fireEvent.click(screen.getByRole('button', { name: 'Save' }));
+
+    expect(await screen.findByRole('treeitem', { name: 'Scratch' })).toBeInTheDocument();
   });
 
   it('loads an existing connection for editing', async () => {

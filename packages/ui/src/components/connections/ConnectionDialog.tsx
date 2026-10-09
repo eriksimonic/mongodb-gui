@@ -1,5 +1,6 @@
 import {
   Alert,
+  Box,
   Button,
   Code,
   ColorInput,
@@ -13,7 +14,7 @@ import {
   TextInput,
 } from '@mantine/core';
 import { notifications } from '@mantine/notifications';
-import { appError, redactUri, toAppError, type ConnectionTestResult } from '@mongo-gui/core';
+import { redactUri, toAppError, type ConnectionTestResult } from '@mongo-gui/core';
 import { useEffect, useState } from 'react';
 import { useUiApi } from '../../api/ui-api';
 import { useAppStore } from '../../state/app-store-context';
@@ -36,6 +37,12 @@ export interface ConnectionDialogProps {
   readonly onClose: () => void;
 }
 
+/** One line under the buttons. Tone is green for success and red for a problem. */
+interface StatusLine {
+  readonly tone: 'green' | 'red';
+  readonly text: string;
+}
+
 /** Create or edit a connection in URI mode or Form mode. Both modes edit the same draft. */
 export function ConnectionDialog({
   connectionId,
@@ -50,10 +57,8 @@ export function ConnectionDialog({
     connectionId === undefined ? createDraft(initialMode) : undefined,
   );
   const [loadError, setLoadError] = useState<string | undefined>(undefined);
-  const [modeError, setModeError] = useState<string | undefined>(undefined);
-  const [testResult, setTestResult] = useState<ConnectionTestResult | undefined>(undefined);
+  const [status, setStatus] = useState<StatusLine | undefined>(undefined);
   const [testing, setTesting] = useState(false);
-  const [saveError, setSaveError] = useState<string | undefined>(undefined);
   const [saving, setSaving] = useState(false);
 
   useEffect(() => {
@@ -80,8 +85,7 @@ export function ConnectionDialog({
 
   function updateDraft(next: ConnectionDraft) {
     setDraft(next);
-    setTestResult(undefined);
-    setSaveError(undefined);
+    setStatus(undefined);
   }
 
   function changeMode(mode: DraftMode) {
@@ -90,24 +94,36 @@ export function ConnectionDialog({
     }
     const result = switchDraftMode(draft, mode);
     if (result.ok) {
-      setModeError(undefined);
+      setStatus(undefined);
       setDraft(result.draft);
     } else {
-      setModeError(result.message);
+      setStatus({ tone: 'red', text: result.message });
     }
+  }
+
+  function describeTest(result: ConnectionTestResult): StatusLine {
+    if (result.ok) {
+      return {
+        tone: 'green',
+        text: `Connected. Server ${result.serverVersion}, ${result.topology}.`,
+      };
+    }
+    const detail = result.error.detail === undefined ? '' : ` (${result.error.detail})`;
+    return { tone: 'red', text: `${result.error.message}${detail}` };
   }
 
   async function handleTest(current: ConnectionDraft) {
     const problem = validateDraft(current);
     if (problem !== undefined) {
-      setTestResult({ ok: false, error: appError('VALIDATION', problem) });
+      setStatus({ tone: 'red', text: problem });
       return;
     }
     setTesting(true);
+    setStatus(undefined);
     try {
-      setTestResult(await testConnection(draftInput(current)));
+      setStatus(describeTest(await testConnection(draftInput(current))));
     } catch (error) {
-      setTestResult({ ok: false, error: toAppError(error) });
+      setStatus(describeTest({ ok: false, error: toAppError(error) }));
     } finally {
       setTesting(false);
     }
@@ -116,11 +132,11 @@ export function ConnectionDialog({
   async function handleSave(current: ConnectionDraft) {
     const problem = validateDraft(current);
     if (problem !== undefined) {
-      setSaveError(problem);
+      setStatus({ tone: 'red', text: problem });
       return;
     }
     setSaving(true);
-    setSaveError(undefined);
+    setStatus(undefined);
     try {
       const input = draftInput(current);
       if (connectionId === undefined) {
@@ -131,7 +147,7 @@ export function ConnectionDialog({
       notifications.show({ color: 'green', message: 'Connection saved' });
       onClose();
     } catch (error) {
-      setSaveError(toAppError(error).message);
+      setStatus({ tone: 'red', text: toAppError(error).message });
       setSaving(false);
     }
   }
@@ -139,24 +155,36 @@ export function ConnectionDialog({
   const title = connectionId === undefined ? 'New connection' : 'Edit connection';
 
   return (
-    <Modal opened onClose={onClose} title={title} size="lg" centered>
+    <Modal
+      opened
+      onClose={onClose}
+      title={title}
+      size={640}
+      centered
+      closeButtonProps={{ 'aria-label': 'Close' }}
+    >
       {draft === undefined ? (
         <DialogLoading message={loadError} />
       ) : (
         <Stack gap="sm">
-          <TextInput
-            label="Name"
-            value={draft.name}
-            onChange={(event) => updateDraft({ ...draft, name: event.currentTarget.value })}
-            autoFocus
-          />
-          <ColorInput
-            label="Colour"
-            format="hex"
-            swatches={SWATCHES}
-            value={draft.color}
-            onChange={(value) => updateDraft({ ...draft, color: value })}
-          />
+          <Group align="flex-end" wrap="nowrap">
+            <TextInput
+              label="Name"
+              value={draft.name}
+              onChange={(event) => updateDraft({ ...draft, name: event.currentTarget.value })}
+              style={{ flex: 1 }}
+              autoFocus
+            />
+            <ColorInput
+              label="Colour"
+              format="hex"
+              w={150}
+              swatches={SWATCHES}
+              value={draft.color}
+              eyeDropperButtonProps={{ 'aria-label': 'Pick colour' }}
+              onChange={(value) => updateDraft({ ...draft, color: value })}
+            />
+          </Group>
           <SegmentedControl
             aria-label="Connection string mode"
             value={draft.mode}
@@ -186,22 +214,14 @@ export function ConnectionDialog({
               onChange={(patch) => updateDraft({ ...draft, form: { ...draft.form, ...patch } })}
             />
           )}
-          {modeError === undefined ? null : (
-            <Alert color="red" variant="light">
-              {modeError}
-            </Alert>
-          )}
-          {testResult === undefined ? null : <TestResultAlert result={testResult} />}
-          {saveError === undefined ? null : (
-            <Alert color="red" variant="light">
-              {saveError}
-            </Alert>
-          )}
-          <Group justify="space-between">
-            <Button variant="default" loading={testing} onClick={() => void handleTest(draft)}>
-              Test connection
-            </Button>
-            <Group gap="xs">
+          <Group justify="space-between" wrap="nowrap" gap="sm">
+            <Group gap="sm" wrap="nowrap" style={{ flex: 1, minWidth: 0 }}>
+              <Button variant="default" loading={testing} onClick={() => void handleTest(draft)}>
+                Test connection
+              </Button>
+              <StatusText status={status} />
+            </Group>
+            <Group gap="xs" wrap="nowrap">
               <Button variant="default" onClick={onClose}>
                 Cancel
               </Button>
@@ -213,6 +233,22 @@ export function ConnectionDialog({
         </Stack>
       )}
     </Modal>
+  );
+}
+
+/** Fixed-height line beside the buttons, so a result never shifts the layout. */
+function StatusText({ status }: { readonly status: StatusLine | undefined }) {
+  return (
+    <Box h={18} style={{ flex: 1, minWidth: 0 }}>
+      <Text
+        size="xs"
+        role="status"
+        c={status === undefined ? 'dimmed' : status.tone}
+        truncate="end"
+      >
+        {status?.text ?? ''}
+      </Text>
+    </Box>
   );
 }
 
@@ -228,22 +264,5 @@ function DialogLoading({ message }: { readonly message: string | undefined }) {
     <Group justify="center" py="md">
       <Loader size="sm" aria-label="Loading connection" />
     </Group>
-  );
-}
-
-function TestResultAlert({ result }: { readonly result: ConnectionTestResult }) {
-  if (result.ok) {
-    return (
-      <Alert color="green" variant="light">
-        Connected. Server {result.serverVersion}, {result.topology}.
-      </Alert>
-    );
-  }
-  const detail = result.error.detail === undefined ? '' : ` (${result.error.detail})`;
-  return (
-    <Alert color="red" variant="light">
-      {result.error.message}
-      {detail}
-    </Alert>
   );
 }

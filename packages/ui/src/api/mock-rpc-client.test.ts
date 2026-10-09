@@ -102,6 +102,14 @@ describe('mock connections', () => {
     expect(summaries.every((summary) => !('uri' in summary))).toBe(true);
   });
 
+  it('refuses a connection test while the vault is locked', async () => {
+    const api = createMockUiApi({ preset: 'unlocked' });
+    await api.rpc.vault.lock();
+    await expect(api.rpc.connections.test(connectionInput)).rejects.toMatchObject({
+      error: { code: 'VAULT_LOCKED' },
+    });
+  });
+
   it('creates, updates and removes a connection', async () => {
     const api = createMockUiApi({ preset: 'unlocked' });
     const created = await api.rpc.connections.create(connectionInput);

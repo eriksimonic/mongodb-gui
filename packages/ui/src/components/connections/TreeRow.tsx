@@ -1,89 +1,106 @@
-import { ActionIcon, Box, Group, Text, UnstyledButton } from '@mantine/core';
-import { IconChevronDown, IconChevronRight } from '@tabler/icons-react';
-import type { MouseEvent, ReactNode } from 'react';
+import { IconChevronDown, IconChevronRight, IconDatabase } from '@tabler/icons-react';
+import type { MouseEvent } from 'react';
+import { CollectionIcon } from './CollectionIcon';
+import { ConnectionStatusIcon } from './ConnectionStatusIcon';
+import type { TreeRow as TreeRowModel } from './tree-model';
+import './tree.css';
 
 const INDENT_PX = 16;
+const LABEL_OFFSET_PX = 42;
 
 export interface TreeRowProps {
-  readonly depth: number;
-  readonly label: string;
-  readonly icon?: ReactNode;
-  readonly trailing?: ReactNode;
-  readonly expandable?: boolean;
-  readonly expanded?: boolean;
-  readonly selected?: boolean;
-  readonly onToggle?: () => void;
-  readonly onSelect?: () => void;
-  readonly onDoubleClick?: () => void;
-  readonly onContextMenu?: (event: MouseEvent<HTMLButtonElement>) => void;
+  readonly row: TreeRowModel;
+  readonly focused: boolean;
+  readonly selected: boolean;
+  readonly setRef: (key: string, element: HTMLDivElement | null) => void;
+  readonly onFocusRow: (key: string) => void;
+  readonly onToggle: () => void;
+  readonly onSelect: () => void;
+  readonly onDoubleClick: () => void;
+  readonly onContextMenu: (event: MouseEvent<HTMLDivElement>) => void;
 }
 
-/** One line of the connection tree. Indents by depth and shows an expander when it has children. */
+/** One focusable tree row. Roving tabindex: only the focused row sits in the tab order. */
 export function TreeRow({
-  depth,
-  label,
-  icon,
-  trailing,
-  expandable = false,
-  expanded = false,
-  selected = false,
+  row,
+  focused,
+  selected,
+  setRef,
+  onFocusRow,
   onToggle,
   onSelect,
   onDoubleClick,
   onContextMenu,
 }: TreeRowProps) {
   return (
-    <Group
-      gap={2}
-      wrap="nowrap"
-      h={24}
-      pl={`${depth * INDENT_PX}px`}
-      pr={4}
-      bg={selected ? 'var(--mantine-primary-color-light)' : 'transparent'}
-      style={{ borderRadius: 'var(--mantine-radius-sm)' }}
+    <div
+      role="treeitem"
+      className="mg-tree-item"
+      data-key={row.key}
+      aria-level={row.depth + 1}
+      aria-expanded={row.expandable ? row.expanded : undefined}
+      aria-selected={selected}
+      tabIndex={focused ? 0 : -1}
+      ref={(element) => setRef(row.key, element)}
+      onFocus={() => onFocusRow(row.key)}
+      onClick={onSelect}
+      onDoubleClick={onDoubleClick}
+      onContextMenu={onContextMenu}
+      style={{
+        paddingLeft: row.depth * INDENT_PX + 4,
+        boxShadow: row.color === undefined ? undefined : `inset 3px 0 0 ${row.color}`,
+      }}
     >
-      {expandable ? (
-        <ActionIcon
-          size="xs"
-          aria-label={`${expanded ? 'Collapse' : 'Expand'} ${label}`}
-          aria-expanded={expanded}
-          onClick={onToggle}
-        >
-          {expanded ? <IconChevronDown size={12} /> : <IconChevronRight size={12} />}
-        </ActionIcon>
-      ) : (
-        <Box w={18} />
-      )}
-      <UnstyledButton
-        flex={1}
-        miw={0}
-        onClick={onSelect}
-        onDoubleClick={onDoubleClick}
-        onContextMenu={onContextMenu}
+      <span
+        className="mg-tree-chevron"
+        aria-hidden="true"
+        onClick={(event) => {
+          event.stopPropagation();
+          if (row.expandable) {
+            onToggle();
+          }
+        }}
       >
-        <Group gap={6} wrap="nowrap">
-          {icon}
-          <Text size="sm" truncate="end">
-            {label}
-          </Text>
-        </Group>
-      </UnstyledButton>
-      {trailing}
-    </Group>
+        {row.expandable ? (
+          row.expanded ? (
+            <IconChevronDown size={12} />
+          ) : (
+            <IconChevronRight size={12} />
+          )
+        ) : null}
+      </span>
+      <span className="mg-tree-icon" aria-hidden="true">
+        <RowIcon row={row} />
+      </span>
+      <span className="mg-tree-label">{row.label}</span>
+    </div>
   );
 }
 
-export interface TreeMessageProps {
-  readonly depth: number;
-  readonly tone?: 'dimmed' | 'red';
-  readonly children: ReactNode;
+function RowIcon({ row }: { readonly row: TreeRowModel }) {
+  if (row.kind === 'connection' && row.status !== undefined) {
+    return <ConnectionStatusIcon status={row.status} />;
+  }
+  if (row.kind === 'collection' && row.collectionType !== undefined) {
+    return <CollectionIcon type={row.collectionType} />;
+  }
+  return <IconDatabase size={14} />;
 }
 
-/** A status line under a node: loading, not connected, or an error. */
-export function TreeMessage({ depth, tone = 'dimmed', children }: TreeMessageProps) {
+export interface TreeMessageProps {
+  readonly row: TreeRowModel;
+}
+
+/** A status line under a node: loading, not connected, or an error. Not focusable. */
+export function TreeMessage({ row }: TreeMessageProps) {
   return (
-    <Text size="xs" c={tone} pl={`${depth * INDENT_PX + 24}px`} py={2} role="status">
-      {children}
-    </Text>
+    <div
+      role="none"
+      className="mg-tree-message"
+      data-tone={row.tone}
+      style={{ paddingLeft: row.depth * INDENT_PX + LABEL_OFFSET_PX }}
+    >
+      {row.label}
+    </div>
   );
 }

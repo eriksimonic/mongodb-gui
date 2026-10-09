@@ -10,12 +10,15 @@ export const appTheme = createTheme({
   components: {
     ActionIcon: { defaultProps: { size: 'sm', variant: 'subtle' } },
     Button: { defaultProps: { size: 'xs' } },
+    Checkbox: { defaultProps: { size: 'xs' } },
     ColorInput: { defaultProps: { size: 'xs' } },
     NumberInput: { defaultProps: { size: 'xs' } },
     PasswordInput: { defaultProps: { size: 'xs' } },
     Select: { defaultProps: { size: 'xs' } },
     SegmentedControl: { defaultProps: { size: 'xs' } },
+    Switch: { defaultProps: { size: 'xs' } },
     TextInput: { defaultProps: { size: 'xs' } },
     Textarea: { defaultProps: { size: 'xs' } },
+    Fieldset: { defaultProps: { radius: 'sm' } },
   },
 });

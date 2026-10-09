@@ -1,8 +1,9 @@
-import { Alert, Anchor, Button, Group, PasswordInput, Stack } from '@mantine/core';
+import { Alert, Anchor, Button, Group, PasswordInput, Stack, Text } from '@mantine/core';
 import { toAppError } from '@mongo-gui/core';
 import { useState, type FormEvent } from 'react';
 import { useAppStore } from '../state/app-store-context';
 import { CenteredScreen } from './CenteredScreen';
+import { invalidInputStyles } from './field-state';
 import { ResetStoreModal } from './ResetStoreModal';
 
 const WRONG_PASSWORD = 'Wrong master password. Try again.';
@@ -38,9 +39,11 @@ export function UnlockScreen() {
             label="Master password"
             value={password}
             onChange={(event) => setPassword(event.currentTarget.value)}
-            error={wrongPassword ? WRONG_PASSWORD : undefined}
+            styles={invalidInputStyles(wrongPassword ? WRONG_PASSWORD : undefined)}
+            aria-invalid={wrongPassword}
             autoFocus
           />
+          {wrongPassword ? <Text size="xs">{WRONG_PASSWORD}</Text> : null}
           {failure === undefined ? null : (
             <Alert color="red" variant="light">
               {failure}

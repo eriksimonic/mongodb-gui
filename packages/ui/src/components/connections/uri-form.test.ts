@@ -79,6 +79,38 @@ describe('parseMongoUri and buildMongoUri', () => {
     expect(form.extraOptions).toEqual([['connectTimeoutMS', 'soon']]);
   });
 
+  it('matches option names case-insensitively and reads explicit TLS flags', () => {
+    const form = parsed('mongodb://localhost/?authsource=admin&TLS=false&ssl=true');
+    expect(form.authSource).toBe('admin');
+    expect(form.tls.enabled).toBe(true);
+    expect(form.extraOptions).toEqual([]);
+    expect(buildMongoUri(form)).toBe('mongodb://localhost/?authSource=admin&tls=true');
+  });
+
+  it('treats tls=false on its own as TLS off and writes nothing for it', () => {
+    const form = parsed('mongodb://localhost/?TLS=false');
+    expect(form.tls.enabled).toBe(false);
+    expect(form.extraOptions).toEqual([]);
+    expect(buildMongoUri(form)).toBe('mongodb://localhost/');
+  });
+
+  it('never writes an option twice when the URI names it under two spellings', () => {
+    const form = parsed('mongodb://localhost/?tls=true&ssl=true&authsource=a&authSource=b');
+    expect(form.tls.enabled).toBe(true);
+    const uri = buildMongoUri(form);
+    expect(uri.match(/tls=/g)).toHaveLength(1);
+    expect(uri.match(/authSource=/g)).toHaveLength(1);
+  });
+
+  it('reads lower-case replicaset, readpreference and connecttimeoutms', () => {
+    const form = parsed(
+      'mongodb://localhost/?replicaset=rs1&readpreference=nearest&connecttimeoutms=900',
+    );
+    expect(form.replicaSet).toBe('rs1');
+    expect(form.readPreference).toBe('nearest');
+    expect(form.connectTimeoutMs).toBe(900);
+  });
+
   it('rejects a string that is not a mongo URI', () => {
     expect(parseMongoUri('postgres://localhost')).toEqual({
       ok: false,
