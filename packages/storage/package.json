@@ -9,6 +9,7 @@
     ".": "./src/index.ts"
   },
   "dependencies": {
-    "@mongo-gui/core": "workspace:*"
+    "@mongo-gui/core": "workspace:*",
+    "zod": "^4.6.5"
   }
 }
