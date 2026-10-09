@@ -33,6 +33,10 @@ release.
 | -------------------------------------------------------------------------------------- | ----------------------------------------------------------------------- |
 | ![Profiler panel with slow queries and the detail pane](docs/screenshots/profiler.png) | ![Profiler top query shapes view](docs/screenshots/profiler-shapes.png) |
 
+| Explain of a find with an in-memory sort warning                                               |
+| ---------------------------------------------------------------------------------------------- |
+| ![Explain panel with the summary, the warning and the plan tree](docs/screenshots/explain.png) |
+
 | Docker node in the connection tree                                                    |
 | ------------------------------------------------------------------------------------- |
 | ![Docker node listing local MongoDB containers](docs/screenshots/docker-tree.png)     |
@@ -44,7 +48,9 @@ release.
 | -------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------- |
 | ![Shell in the light theme with the tree expanded and a monitor panel](docs/screenshots/shell-light.png) | ![Settings screen with its sections](docs/screenshots/settings.png) |
 
->
+| Import wizard, preview and field mapping                                      | Export dialog                                                                     |
+| ----------------------------------------------------------------------------- | --------------------------------------------------------------------------------- |
+| ![Import wizard at the preview and mapping step](docs/screenshots/import.png) | ![Export dialog with a filter and the NDJSON format](docs/screenshots/export.png) |
 
 ## Prerequisites
 

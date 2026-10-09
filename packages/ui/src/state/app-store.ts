@@ -2,6 +2,8 @@ import {
   toAppError,
   type AppError,
   type CollectionInfo,
+  type StartExportInput,
+  type StartImportInput,
   type ConnectionProfile,
   type ConnectionProfileInput,
   type ConnectionProfileSummary,
@@ -27,6 +29,8 @@ import {
   EMPTY_MONITOR_VIEW,
   type MonitorView,
 } from './monitor-state';
+import { createExplainActions, type ExplainActions } from '../explain/explain-actions';
+import type { ExplainPanelState } from '../explain/explain-model';
 import { catalogKey, connectionNodeId } from './node-ids';
 import type { ThemeSetting } from '../theme/color-scheme';
 import { readCachedPreferences, writeCachedPreferences } from '../theme/preferences-cache';
@@ -36,6 +40,12 @@ export const DOCK_LAYOUT_KEY = 'dockview:main';
 
 /** Why the vault last locked. The unlock screen explains an idle lock. */
 export type LockReason = 'manual' | 'idle';
+import {
+  applyTransferProgress,
+  registerTransfer,
+  transfersFromList,
+  type TransfersState,
+} from './transfer-state';
 
 export type VaultState = VaultStatus['state'];
 
@@ -52,6 +62,25 @@ export interface Selection {
   readonly database?: string | undefined;
   readonly collection?: string | undefined;
 }
+
+/**
+ * The import wizard and the export dialog. An import without a collection creates one from the
+ * name the user types in the wizard.
+ */
+export type TransferDialogState =
+  | { readonly kind: 'closed' }
+  | {
+      readonly kind: 'import';
+      readonly connectionId: string;
+      readonly database: string;
+      readonly collection: string | undefined;
+    }
+  | {
+      readonly kind: 'export';
+      readonly connectionId: string;
+      readonly database: string;
+      readonly collection: string;
+    };
 
 export type DialogState =
   | { readonly kind: 'closed' }
@@ -129,9 +158,16 @@ export interface AppData {
   readonly layoutRevision: number;
   /** The updater state, pushed by the backend and read on start. */
   readonly updates: UpdateState;
+  /** Imports and exports this session started, with their latest progress. */
+  readonly transfers: TransfersState;
+  readonly transferDialog: TransferDialogState;
+  /** Explain panels by panel id. A panel is removed when its tab closes. */
+  readonly explainPanels: Readonly<Record<string, ExplainPanelState>>;
+  /** The explain panel the shell should show. `serial` moves on each request, so a repeat counts. */
+  readonly explainFocus: { readonly id: string; readonly serial: number } | undefined;
 }
 
-export interface AppActions {
+export interface AppActions extends ExplainActions {
   refreshVault(): Promise<void>;
   initialise(password: string): Promise<void>;
   unlock(password: string): Promise<void>;
@@ -191,6 +227,13 @@ export interface AppActions {
   installUpdate(): Promise<void>;
   dismissUpdate(version: string): Promise<void>;
   applyEvent(event: RpcEvent): void;
+  setTransferDialog(dialog: TransferDialogState): void;
+  /** Starts an import and records it. Resolves with the transfer id. */
+  startTransferImport(input: StartImportInput): Promise<string>;
+  startTransferExport(input: StartExportInput): Promise<string>;
+  cancelTransfer(transferId: string): Promise<void>;
+  /** Replaces the transfers with the list the backend holds, for example after a reload. */
+  refreshTransfers(): Promise<void>;
 }
 
 export type AppState = AppData & AppActions;
@@ -212,6 +255,10 @@ const SESSION_RESET: Pick<
   | 'panelRequest'
   | 'settingsOpen'
   | 'settings'
+  | 'transfers'
+  | 'transferDialog'
+  | 'explainPanels'
+  | 'explainFocus'
 > = {
   connections: { state: 'loading' },
   statuses: {},
@@ -227,6 +274,10 @@ const SESSION_RESET: Pick<
   panelRequest: undefined,
   settingsOpen: false,
   settings: undefined,
+  transfers: {},
+  transferDialog: { kind: 'closed' },
+  explainPanels: {},
+  explainFocus: undefined,
 };
 
 /** Replaced by the first state the backend reports. */
@@ -344,6 +395,7 @@ export function createAppStore(api: UiApi, initial: Partial<AppData> = {}): AppS
       theme: cached.theme,
       idleLockMinutes: cached.idleLockMinutes,
       ...initial,
+      ...createExplainActions(rpc, set, get),
 
       async refreshVault() {
         try {
@@ -706,6 +758,47 @@ export function createAppStore(api: UiApi, initial: Partial<AppData> = {}): AppS
         set({ updates: await rpc.updates.dismiss({ version }) });
       },
 
+      setTransferDialog(dialog) {
+        set({ transferDialog: dialog });
+      },
+
+      async startTransferImport(input) {
+        const { transferId } = await rpc.transfer.startImport(input);
+        set((state) => ({
+          transfers: registerTransfer(state.transfers, {
+            transferId,
+            kind: 'import',
+            database: input.database,
+            collection: input.collection,
+            path: input.path,
+          }),
+        }));
+        return transferId;
+      },
+
+      async startTransferExport(input) {
+        const { transferId } = await rpc.transfer.startExport(input);
+        set((state) => ({
+          transfers: registerTransfer(state.transfers, {
+            transferId,
+            kind: 'export',
+            database: input.database,
+            collection: input.collection,
+            path: input.path,
+          }),
+        }));
+        return transferId;
+      },
+
+      async cancelTransfer(transferId) {
+        await rpc.transfer.cancel({ transferId });
+      },
+
+      async refreshTransfers() {
+        const list = await rpc.transfer.list();
+        set({ transfers: transfersFromList(list) });
+      },
+
       applyEvent(event) {
         if (event.type === 'updates:state') {
           set({ updates: event.state });
@@ -718,6 +811,15 @@ export function createAppStore(api: UiApi, initial: Partial<AppData> = {}): AppS
             vault: 'locked',
             lockReason: state.lockReason === 'manual' ? 'manual' : 'idle',
           }));
+          return;
+        }
+        if (event.type === 'transfer:progress') {
+          // Events after the vault locked belong to transfers that the lock has already cancelled.
+          if (get().vault === 'unlocked') {
+            set((state) => ({
+              transfers: applyTransferProgress(state.transfers, event),
+            }));
+          }
           return;
         }
         if (event.type === 'catalog:changed') {

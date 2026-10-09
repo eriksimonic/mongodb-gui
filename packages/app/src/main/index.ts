@@ -1,4 +1,13 @@
-import { app, BrowserWindow, screen, session, shell } from 'electron';
+import {
+  app,
+  BrowserWindow,
+  dialog,
+  screen,
+  session,
+  shell,
+  type OpenDialogOptions,
+  type SaveDialogOptions,
+} from 'electron';
 import { autoUpdater } from 'electron-updater';
 import { join } from 'node:path';
 import { devServerUrl, isAppUrl, rendererDirectory } from './app-origin';
@@ -10,10 +19,19 @@ import {
   parseWindowBounds,
   type WindowBounds,
 } from '@mongo-gui/core';
-import { createAppServices, createRouter, type AppServices, type Router } from './rpc/router';
+import {
+  createAppServices,
+  createRouter,
+  type AppServices,
+  type NativeDialogs,
+  type Router,
+} from './rpc/router';
 import { registerIpc, sendEvent } from './rpc/ipc';
+import { utilityFork } from './shell/utility-fork';
 
 const preloadPath = join(import.meta.dirname, '../preload/index.cjs');
+// Built next to this file by the build:shell-runtime script.
+const shellRuntimePath = join(import.meta.dirname, 'shell-runtime.cjs');
 
 // Tests point the profile at a temporary directory. A packaged app never honours this.
 const userDataOverride = app.isPackaged ? undefined : process.env['MONGO_GUI_USER_DATA'];
@@ -75,6 +93,48 @@ function restoreWindowBounds(): void {
     window.maximize();
   }
 }
+/**
+ * The file dialogs open over the main window. The renderer gets only the path the user picked.
+ * A cancelled dialog gives no path.
+ */
+const nativeDialogs: NativeDialogs = {
+  async showOpenDialog(input) {
+    const options: OpenDialogOptions = {
+      title: input.title,
+      properties: ['openFile'],
+      filters: input.filters.map((filter) => ({
+        name: filter.name,
+        extensions: filter.extensions,
+      })),
+    };
+    const owner = mainWindow;
+    const result =
+      owner === undefined
+        ? await dialog.showOpenDialog(options)
+        : await dialog.showOpenDialog(owner, options);
+    const first = result.filePaths[0];
+    return result.canceled || first === undefined ? {} : { path: first };
+  },
+  async showSaveDialog(input) {
+    const options: SaveDialogOptions = {
+      title: input.title,
+      filters: input.filters.map((filter) => ({
+        name: filter.name,
+        extensions: filter.extensions,
+      })),
+      ...(input.defaultPath === undefined ? {} : { defaultPath: input.defaultPath }),
+    };
+    const owner = mainWindow;
+    const result =
+      owner === undefined
+        ? await dialog.showSaveDialog(options)
+        : await dialog.showSaveDialog(owner, options);
+    return result.canceled || result.filePath === '' ? {} : { path: result.filePath };
+  },
+  showItemInFolder(path) {
+    shell.showItemInFolder(path);
+  },
+};
 
 function contentSecurityPolicy(): string {
   if (devServerUrl === undefined) {
@@ -219,6 +279,7 @@ app
     installContentSecurityPolicy();
     const appServices = createAppServices({
       userDataDir: app.getPath('userData'),
+      shell: { entryPath: shellRuntimePath, fork: utilityFork },
       updates: {
         autoUpdater,
         platform: process.platform,
@@ -241,6 +302,7 @@ app
         chrome: process.versions.chrome,
         node: process.versions.node,
       }),
+      dialogs: nativeDialogs,
     });
     // Forwarders left behind by a crash or a force quit are removed before the user can connect.
     void appServices.docker.cleanupAll();
@@ -268,6 +330,8 @@ app.on('before-quit', (event) => {
   }
   event.preventDefault();
   quitting = true;
+  // Quitting ends the transfers that the window started, as a reset of the renderer does.
+  router?.resetRenderer();
   const current = services;
   // The bounds are written while the vault is still open, so the last move is not lost.
   boundsSaver.flush();

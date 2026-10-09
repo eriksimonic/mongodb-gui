@@ -332,8 +332,16 @@ function jsonFieldType(value: unknown): FieldType {
   return 'json';
 }
 
+// Long and Decimal128 print their exact digits. Relaxed EJSON would pass them through a JavaScript
+// number and lose precision, so the preview shows them as the driver's exact text.
 function displayExample(value: unknown): string {
-  return typeof value === 'string' ? value : EJSON.stringify(value, { relaxed: true });
+  if (typeof value === 'string') {
+    return value;
+  }
+  if (value instanceof Long || value instanceof Decimal128) {
+    return value.toString();
+  }
+  return EJSON.stringify(value, { relaxed: true });
 }
 
 // The canonical EJSON form of a document as plain JSON, so that it can cross the RPC boundary.

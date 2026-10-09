@@ -107,6 +107,11 @@ customer data) and favourites from anyone who copies the user's profile director
 reads a backup. Not in scope: an attacker with code running as the logged-in user while
 the app is unlocked.
 
+User code in the runtime process shares that process with the runtime's own state, so a
+script can change what later results show until the process restarts. That is the same
+trust as the user's own script, and the runtime process holds no secrets beyond the URI
+it was given.
+
 ### 3.2 Key hierarchy
 
 ```
@@ -253,6 +258,26 @@ issues.
   hot stage highlighting, a summary bar (index used, examined, returned, time), a plain
   language explanation generated from the normalised tree, and a raw JSON tab.
 
+- **P3-4 stage coverage.** Added on 2026-10-09 at Erik's request. A stage catalogue in
+  core describes every stage the planner can emit, with a plain-language description, its
+  category (scan, fetch, filter, sort, projection, limit, lookup, group, merge, sharding,
+  text, geo, write, cache, express), which metrics are meaningful for it, and specific
+  advice. Covered at least: COLLSCAN, IXSCAN, FETCH, SORT (in memory and spilling),
+  SORT_MERGE, SORT_KEY_GENERATOR, PROJECTION_SIMPLE/COVERED/DEFAULT, LIMIT, SKIP, OR,
+  AND_SORTED, AND_HASH, SUBPLAN, CACHED_PLAN, IDHACK and the 8.0 EXPRESS stages,
+  COUNT, COUNT_SCAN, DISTINCT_SCAN, TEXT_MATCH, TEXT_OR, GEO_NEAR_2D, GEO_NEAR_2DSPHERE,
+  SHARDING_FILTER, SHARD_MERGE, SHARD_MERGE_SORT, EQ_LOOKUP and `$lookup` with an inner
+  pipeline shown as a sub-tree, `$unionWith`, `$facet`, `$graphLookup`, `$group`
+  (with spill to disk), `$unwind`, `$match`, `$project`, `$addFields`, `$sort`,
+  `$limit`, `$skip`, `$count`, `$out`/`$merge` (explain only), UPDATE, DELETE,
+  BATCHED_DELETE, and the timeseries unpack stage. Fixtures captured from real servers
+  for each case on 4.4, 6.0 and 8.0 where the stage exists, plus hand-written sharded
+  ones. The panel shows an icon and category per stage, hover descriptions, the
+  metrics that apply, lookup and union sub-trees, and the advice. The raw tab is always
+  present: it shows the exact explain document the server returned, as canonical EJSON
+  with search, folding and copy, and it works even when the normaliser produces an
+  `UNKNOWN` tree, so an unexpected plan shape is still inspectable.
+
 ### Phase 4: collection management
 
 - **P4-1 collections and databases.** Create database, create collection (capped,
@@ -275,6 +300,21 @@ issues.
   network in and out, memory (resident, virtual, WiredTiger cache), queued readers and
   writers, replication lag per member, oplog window. Operations tab with running
   operations, filters, and kill with confirmation.
+
+- **P5-3 configurable dashboard.** Added on 2026-10-09 at Erik's request. A panel
+  catalogue in core drives both the sampler and the UI: each panel declares the series it
+  needs (serverStatus paths, counter or gauge, unit), the chart type and a title. The
+  sampler collects the sections the catalogue references (`wiredTiger` cache, checkpoint,
+  eviction, tickets and transactions, block-manager bytes read and written for IO,
+  `network`, `metrics.document`, `metrics.cursor`, `metrics.operation`, `metrics.ttl`,
+  `metrics.repl`, `transactions`, `locks`, `asserts`, `extra_info` page faults,
+  `logicalSessionRecordCache`, replica set lag and oplog) and emits a flat
+  `series: Record<string, number>` per sample next to the existing headline fields. The
+  dashboard gets an "Add panel" picker grouped by category (operations, documents, memory
+  and cache, WiredTiger, IO and network, locks and tickets, transactions, sessions and
+  cursors, replication, errors), every panel can be closed, resized and reordered, and the
+  layout is saved per connection through the `layout` namespace, with a "Reset to
+  default" action and a default set that matches today's dashboard.
 
 ### Phase 6: profiler
 
@@ -301,6 +341,45 @@ issues.
   the version, release notes and a download link. A setting turns checks off.
 - **P7-4 polish.** Light theme, settings screen, keyboard shortcut reference, idle
   lock, crash recovery of editor contents.
+
+### Phase 8: server administration
+
+Added on 2026-10-09 at Erik's request: the administrative features MongoDB exposes that a
+client is expected to cover. Each task has an adapter half (`core` types plus
+`mongo-adapter` functions with Testcontainers tests) and a UI half (contract namespace,
+router wiring, mock, panels, tests, screenshots). Adapter halves can run in parallel with
+anything; UI halves follow their adapter merge.
+
+- **P8-1 users and roles.** List users per database (`usersInfo` with roles and
+  authentication restrictions), create user (name, password, roles picker from built-in
+  and custom roles, mechanisms), change password, grant and revoke roles, drop user with
+  typed confirmation; custom roles: list (`rolesInfo` with inherited roles and
+  privileges), create and edit with a privilege editor (resource: cluster, database,
+  collection, any; actions picker grouped by category), drop. Passwords never leave the
+  main process in events or logs.
+- **P8-2 replica set administration.** `replSetGetStatus` and `replSetGetConfig` views:
+  members table (name, state, health, lag, priority, votes, hidden, delay, tags, arbiter),
+  oplog window, election history; actions with typed confirmation and a dry-run summary:
+  step down primary (with seconds), freeze member, add member, remove member, edit member
+  (priority, votes, hidden, slave delay, tags) via `replSetReconfig` with the version
+  bump, initiate a replica set on a standalone started with `--replSet`. Refuse
+  reconfigurations that would lose quorum and say why.
+- **P8-3 sharding overview.** `config` database readers: shards, databases with primary
+  shard and sharding state, sharded collections with shard key and chunk counts per
+  shard, balancer state and window, start and stop the balancer, enable sharding on a
+  database, shard a collection (key, unique, presplit option) with a summary, zones and
+  tags listing.
+- **P8-4 server logs and diagnostics.** `getLog` viewer (global, startupWarnings) with
+  filter and level, `getCmdLineOpts`, `getParameter: '*'` searchable table,
+  `hostInfo`, `buildInfo`, `serverStatus` as an explorable tree, `top` per collection,
+  `dbStats` and `collStats` panels, `connPoolStats`.
+- **P8-5 sessions.** List sessions (`$listLocalSessions`, `$listSessions`), kill a
+  session or all sessions of a user, with confirmation.
+- **P8-6 GridFS browser.** List buckets per database, list files with metadata, upload
+  (streaming from a chosen file), download to a chosen path, delete, rename.
+- **P8-7 change streams watcher.** Watch a collection, database or deployment with an
+  optional pipeline and full-document option; live event list with pause, filter and a
+  detail pane; resume token shown; stops on panel close and renderer reset.
 
 Order: P0 then P1 strictly sequential at the package level (P1-1 first, then P1-2,
 P1-3 and P1-5 in parallel, then P1-4, then P1-6). P2 follows P1. After P2, phases 3 and 4

@@ -24,6 +24,7 @@ import {
   type RpcClient,
   type RpcEvent,
   type Settings,
+  type ShellRuntimeState,
   type SettingsPatch,
   type UpdateState,
   type VaultStatus,
@@ -47,9 +48,17 @@ import {
   localConnectionId,
   mockMasterPassword,
 } from './mock-fixtures';
+import { createMockShell } from './mock-shell';
 import { delay, fail, method } from './mock-support';
 import { createMockMonitor } from './mock-monitor';
+import {
+  createMockTransfers,
+  MOCK_DIALOG_PATH,
+  mockImportPreview,
+  mockSavePath,
+} from './mock-transfer';
 import { createMockProfiler } from './mock-profiler';
+import { createMockExplain } from './mock-explain';
 import type { UiApi } from './ui-api';
 
 export type MockPreset = 'fresh' | 'unlocked';
@@ -289,6 +298,7 @@ export function createMockUiApi(options: MockUiApiOptions = {}): UiApi {
     }
   }
 
+  const shell = createMockShell(emit, (connectionId) => catalogOf(connectionId));
   function currentUpdate(): UpdateState {
     return state.updateStates[state.updateIndex] ?? DEFAULT_UPDATE_STATE;
   }
@@ -304,6 +314,13 @@ export function createMockUiApi(options: MockUiApiOptions = {}): UiApi {
     emit,
     hasReplication: () => options.replication === true,
   });
+  const transfers = createMockTransfers(
+    emit,
+    (database, collection) =>
+      fixtureCatalog(localConnectionId)
+        .find((item) => item.name === database)
+        ?.collections.find((item) => item.info.name === collection)?.documents.length,
+  );
 
   function statusOf(connectionId: string): ConnectionStatus {
     return state.statuses.get(connectionId) ?? { state: 'disconnected' };
@@ -313,8 +330,25 @@ export function createMockUiApi(options: MockUiApiOptions = {}): UiApi {
     state.statuses.set(connectionId, status);
     if (status.state !== 'connected') {
       monitor.stopConnection(connectionId);
+      shell.clearConnection(connectionId);
     }
     emit({ type: 'connection:status', connectionId, status });
+    // The runtime process follows the connection: it is ready when connected and stopped otherwise.
+    if (status.state === 'connected') {
+      emit({ type: 'shell:state', connectionId, state: 'ready' });
+    } else if (status.state !== 'connecting') {
+      emit({ type: 'shell:state', connectionId, state: 'stopped' });
+    }
+  }
+
+  // Runs one shell call with the busy state around it, as the supervisor reports it.
+  async function whileBusy<T>(connectionId: string, run: () => Promise<T>): Promise<T> {
+    emit({ type: 'shell:state', connectionId, state: 'busy' });
+    try {
+      return await run();
+    } finally {
+      emit({ type: 'shell:state', connectionId, state: 'ready' });
+    }
   }
 
   function disconnectAll(): void {
@@ -426,6 +460,8 @@ export function createMockUiApi(options: MockUiApiOptions = {}): UiApi {
     emit,
   });
 
+  const explain = createMockExplain({ wrap: wrapCall, requireUnlocked, requireConnected });
+
   const rpc: RpcClient = {
     updates: {
       state: method(rpcContract.updates.state, latencyMs, () => currentUpdate()),
@@ -462,6 +498,52 @@ export function createMockUiApi(options: MockUiApiOptions = {}): UiApi {
     app: {
       openExternal: method(rpcContract.app.openExternal, latencyMs, () => undefined),
       versions: method(rpcContract.app.versions, latencyMs, () => ({ ...MOCK_VERSIONS })),
+      showOpenDialog: method(rpcContract.app.showOpenDialog, latencyMs, () => ({
+        path: MOCK_DIALOG_PATH,
+      })),
+      showSaveDialog: method(rpcContract.app.showSaveDialog, latencyMs, ({ filters }) => ({
+        path: mockSavePath(filters[0]?.extensions[0] ?? 'csv'),
+      })),
+      showItemInFolder: method(rpcContract.app.showItemInFolder, latencyMs, ({ path }) => {
+        if (!transfers.wroteFile(path)) {
+          throw fail('VALIDATION', 'Only a file exported in this session can be shown.');
+        }
+      }),
+    },
+    transfer: {
+      previewImport: method(rpcContract.transfer.previewImport, latencyMs, ({ connectionId }) => {
+        requireUnlocked();
+        findConnection(connectionId);
+        return mockImportPreview();
+      }),
+      startImport: method(rpcContract.transfer.startImport, latencyMs, (input) => {
+        requireUnlocked();
+        requireConnected(input.connectionId);
+        const { connectionId, ...request } = input;
+        return { transferId: transfers.startImport(connectionId, request) };
+      }),
+      startExport: method(rpcContract.transfer.startExport, latencyMs, (input) => {
+        requireUnlocked();
+        requireConnected(input.connectionId);
+        const { connectionId, ...request } = input;
+        return { transferId: transfers.startExport(connectionId, request) };
+      }),
+      cancel: method(rpcContract.transfer.cancel, latencyMs, ({ transferId }) => {
+        requireUnlocked();
+        transfers.cancel(transferId);
+      }),
+      status: method(rpcContract.transfer.status, latencyMs, ({ transferId }) => {
+        requireUnlocked();
+        const progress = transfers.status(transferId);
+        if (progress === undefined) {
+          throw fail('VALIDATION', 'The transfer was not found.');
+        }
+        return progress;
+      }),
+      list: method(rpcContract.transfer.list, latencyMs, () => {
+        requireUnlocked();
+        return transfers.list();
+      }),
     },
     vault: {
       status: method(rpcContract.vault.status, latencyMs, () => ({ state: state.vault })),
@@ -626,6 +708,51 @@ export function createMockUiApi(options: MockUiApiOptions = {}): UiApi {
         },
       ),
     },
+    shell: {
+      evaluate: method(rpcContract.shell.evaluate, latencyMs, (input) => {
+        requireUnlocked();
+        requireConnected(input.connectionId);
+        return whileBusy(input.connectionId, () =>
+          shell.evaluate({
+            connectionId: input.connectionId,
+            requestId: input.requestId ?? newId(),
+            database: input.database,
+            code: input.code,
+            batchSize: input.batchSize,
+          }),
+        );
+      }),
+      next: method(rpcContract.shell.next, latencyMs, (input) => {
+        requireUnlocked();
+        requireConnected(input.connectionId);
+        return whileBusy(input.connectionId, async () => shell.next(input));
+      }),
+      cancel: method(rpcContract.shell.cancel, latencyMs, ({ requestId }) => {
+        requireUnlocked();
+        shell.cancel(requestId);
+      }),
+      complete: method(rpcContract.shell.complete, latencyMs, (input) => {
+        requireUnlocked();
+        requireConnected(input.connectionId);
+        return { items: shell.complete(input) };
+      }),
+      sampleSchema: method(rpcContract.shell.sampleSchema, latencyMs, (input) => {
+        requireUnlocked();
+        requireConnected(input.connectionId);
+        return shell.sampleSchema(input);
+      }),
+      restart: method(rpcContract.shell.restart, latencyMs, ({ connectionId }) => {
+        requireUnlocked();
+        requireConnected(connectionId);
+        shell.clearConnection(connectionId);
+      }),
+      state: method(rpcContract.shell.state, latencyMs, ({ connectionId }) => {
+        requireUnlocked();
+        const ready: ShellRuntimeState =
+          statusOf(connectionId).state === 'connected' ? 'ready' : 'stopped';
+        return { state: ready };
+      }),
+    },
     management,
     settings: {
       get: method(rpcContract.settings.get, latencyMs, () => {
@@ -723,6 +850,7 @@ export function createMockUiApi(options: MockUiApiOptions = {}): UiApi {
       }),
     },
     profiler,
+    explain,
     docker: {
       status: method(rpcContract.docker.status, latencyMs, (): DockerStatus => {
         return state.dockerAvailable

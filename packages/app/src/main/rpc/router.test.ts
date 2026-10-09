@@ -277,7 +277,7 @@ describe('input and output checks', () => {
   it('returns VALIDATION for an unknown method', async () => {
     harness = buildHarness();
 
-    const error = expectError(await harness.router.handle('shell.evaluate', {}), 'VALIDATION');
+    const error = expectError(await harness.router.handle('shell.explode', {}), 'VALIDATION');
 
     expect(error.message).toBe('The method is not known.');
   });

@@ -132,6 +132,23 @@ const SHAPE_8_0_FIND = {
   client: '10.0.0.5:51234',
 };
 
+describe('toProfileEntry keeps the originating command of a getMore', () => {
+  it('moves originatingCommand from beside the command into the command', () => {
+    const entry = toProfileEntry(SHAPE_6_0_GETMORE);
+    expect(entry.command).toEqual({
+      getMore: 123456789,
+      collection: 'orders',
+      $db: 'shop',
+      originatingCommand: { find: 'orders', filter: {} },
+    });
+  });
+
+  it('leaves the command alone when no originating command is present', () => {
+    const entry = toProfileEntry(SHAPE_6_0_REMOVE);
+    expect(entry.command).toEqual({ q: { orderNumber: 99 }, limit: 1 });
+  });
+});
+
 describe('toProfileEntry with 4.4 documents', () => {
   it('maps a find reported as op query with its command and plan fields', () => {
     const entry = toProfileEntry(SHAPE_4_4_FIND);

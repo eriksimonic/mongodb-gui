@@ -22,8 +22,19 @@ export interface StartedMongo {
   stop(): Promise<void>;
 }
 
-export async function startMongo(image: string): Promise<StartedMongo> {
-  const container: StartedTestContainer = await new GenericContainer(image)
+// The entrypoint prepends mongod to arguments that start with a dash.
+const TEST_COMMANDS = ['--setParameter', 'enableTestCommands=1'];
+
+export interface StartMongoOptions {
+  // Turns on test-only server commands such as refreshLogicalSessionCacheNow.
+  readonly testCommands?: boolean;
+}
+
+export async function startMongo(
+  image: string,
+  options: StartMongoOptions = {},
+): Promise<StartedMongo> {
+  const builder = new GenericContainer(image)
     .withEnvironment({
       MONGO_INITDB_ROOT_USERNAME: ROOT_USER,
       MONGO_INITDB_ROOT_PASSWORD: ROOT_PASSWORD,
@@ -35,8 +46,9 @@ export async function startMongo(image: string): Promise<StartedMongo> {
     .withWaitStrategy(
       Wait.forAll([Wait.forListeningPorts(), Wait.forLogMessage(/Waiting for connections/, 2)]),
     )
-    .withStartupTimeout(CONTAINER_STARTUP_TIMEOUT_MS)
-    .start();
+    .withStartupTimeout(CONTAINER_STARTUP_TIMEOUT_MS);
+  const configured = options.testCommands === true ? builder.withCommand(TEST_COMMANDS) : builder;
+  const container: StartedTestContainer = await configured.start();
   const hostPort = `${container.getHost()}:${container.getMappedPort(MONGO_PORT)}`;
   const rootUri = `mongodb://${ROOT_USER}:${ROOT_PASSWORD}@${hostPort}/?authSource=admin`;
   await waitUntilReady(rootUri);

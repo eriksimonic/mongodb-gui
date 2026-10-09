@@ -1,5 +1,6 @@
 import { useEffect, useState, type ReactNode } from 'react';
 import { useUiApi } from '../api/ui-api';
+import { bridgeProfilerExplain } from '../explain/profiler-explain-bridge';
 import { createAppStore, type AppData } from './app-store';
 import { AppStoreContext } from './app-store-context';
 
@@ -15,6 +16,9 @@ export function AppStoreProvider({ initialState, children }: AppStoreProviderPro
   const [store] = useState(() => createAppStore(api, initialState));
 
   useEffect(() => api.onEvent((event) => store.getState().applyEvent(event)), [api, store]);
+
+  // The profiler's "Explain this" opens an explain panel in this store.
+  useEffect(() => bridgeProfilerExplain(store), [store]);
 
   useEffect(() => {
     void store.getState().refreshVault();

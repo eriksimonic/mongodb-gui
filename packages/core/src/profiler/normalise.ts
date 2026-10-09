@@ -101,6 +101,12 @@ function opFromCommandName(name: string | undefined): ProfileOp {
 
 function readCommand(doc: Plain): unknown {
   if (doc.command !== undefined) {
+    // A getMore's originatingCommand sits beside its command in the document. It moves into the
+    // command, where the shape and explain code read it.
+    const original = doc.originatingCommand;
+    if (isPlainDocument(doc.command) && isPlainDocument(original)) {
+      return { ...doc.command, originatingCommand: original };
+    }
     return doc.command;
   }
   const legacy: Plain = {};

@@ -13,9 +13,11 @@ import {
   type IDockviewPanelProps,
 } from 'dockview-react';
 import { ConnectionTree } from '../components/connections/ConnectionTree';
+import { TransfersPanel } from '../components/transfers/TransfersPanel';
 import { DocumentsPanel } from '../components/management/DocumentsPanel';
 import { IndexesPanel } from '../components/management/IndexesPanel';
 import { ValidationPanel } from '../components/management/ValidationPanel';
+import { ExplainPanel } from '../explain/ExplainPanel';
 import { ProfilerPanel } from '../profiler/ProfilerPanel';
 import { MonitorDashboard } from '../monitor/MonitorDashboard';
 import { OperationsPanel } from '../monitor/OperationsPanel';
@@ -34,6 +36,20 @@ export interface CollectionPanelParams {
 export interface ProfilerPanelParams {
   readonly connectionId: string;
   readonly database: string;
+}
+
+/** Params of an explain panel. The id names the panel in the app store. */
+export interface ExplainPanelParams {
+  readonly panelId: string;
+}
+
+/** An explain panel in the centre group. Its request and result live in the app store. */
+export function ExplainDockPanel({ params }: IDockviewPanelProps<ExplainPanelParams>) {
+  return (
+    <Box h="100%" style={{ overflow: 'auto' }}>
+      <ExplainPanel panelId={params.panelId} />
+    </Box>
+  );
 }
 
 /** A profiler panel of one database. Closing the tab drops its state and stops its tail. */
@@ -246,13 +262,11 @@ function usePanelVisible(api: IDockviewPanelProps['api']): boolean {
   return visible;
 }
 
-/** Bottom panel placeholder. Command output will appear here. */
+/** Bottom panel. Command output will appear here. Transfers are listed until then. */
 export function OutputPanel() {
   return (
-    <Box p={8}>
-      <Text size="sm" c="dimmed">
-        No output yet.
-      </Text>
+    <Box p={8} h="100%" style={{ overflow: 'auto' }}>
+      <TransfersPanel />
     </Box>
   );
 }

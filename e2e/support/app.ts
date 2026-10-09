@@ -31,6 +31,11 @@ export const HARMLESS_LOG_PATTERNS: readonly {
   readonly reason: string;
 }[] = [
   {
+    pattern: /ERROR:dbus\/(bus|object_proxy)\.cc:\d+\]/,
+    reason:
+      'Headless CI runners have no session bus. Chromium logs the failed D-Bus connection and carries on.',
+  },
+  {
     pattern:
       /ERROR:ui\/ozone\/platform\/wayland\/gpu\/wayland_surface_factory\.cc:\d+\] '--ozone-platform=wayland' is not compatible with Vulkan/,
     reason:

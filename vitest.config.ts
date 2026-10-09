@@ -13,14 +13,19 @@ export default defineConfig({
             '**/.claude/**',
             '**/*.integration.test.{ts,tsx}',
           ],
+          // Cleans up rendered trees and drains timers before each jsdom file tears down.
+          setupFiles: ['packages/ui/src/test-support/vitest-setup.ts'],
         },
       },
       {
         test: {
           name: 'integration',
           include: ['packages/*/src/**/*.integration.test.{ts,tsx}'],
-          // Builds the shell runtime bundle that the integration tests fork.
-          globalSetup: ['packages/shell-runtime/src/test/build-global-setup.ts'],
+          // Build the shell runtime bundles that the integration tests fork.
+          globalSetup: [
+            'packages/shell-runtime/src/test/build-global-setup.ts',
+            'packages/app/src/test/build-shell-runtime.ts',
+          ],
         },
       },
     ],
