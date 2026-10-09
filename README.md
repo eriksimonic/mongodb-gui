@@ -48,9 +48,9 @@ release.
 | ------------------------------------------------------------------------------------------------------------------------------- |
 | ![Schema panel with a summary, type bars and a field table of paths, types, presence and examples](docs/screenshots/schema.png) |
 
-| Add panel picker, grouped by category                                                                                           |
-| ----------------------------------------------------------------------------------------                                        |
-| ![Add panel picker with panels grouped by category](docs/screenshots/monitor-picker.png)                                        |
+| Add panel picker, grouped by category                                                    |
+| ---------------------------------------------------------------------------------------- |
+| ![Add panel picker with panels grouped by category](docs/screenshots/monitor-picker.png) |
 
 | Import wizard, preview and field mapping                                      | Export dialog                                                                     |
 | ----------------------------------------------------------------------------- | --------------------------------------------------------------------------------- |
