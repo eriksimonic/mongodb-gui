@@ -2,7 +2,9 @@
   "extends": "../../tsconfig.base.json",
   "compilerOptions": {
     "emitDeclarationOnly": false,
-    "noEmit": true
+    "noEmit": true,
+    "lib": ["ES2023", "DOM"],
+    "jsx": "react-jsx"
   },
   "include": ["src"]
 }
