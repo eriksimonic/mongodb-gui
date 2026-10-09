@@ -8,13 +8,17 @@ describe('rpcContract', () => {
   it('declares the namespaces required by P1-1 and the P4-B management calls', () => {
     expect(Object.keys(rpcContract).sort()).toEqual(
       [
+        'app',
         'collections',
         'connections',
         'databases',
+        'docker',
         'favourites',
         'history',
         'management',
+        'monitor',
         'settings',
+        'updates',
         'vault',
       ].sort(),
     );

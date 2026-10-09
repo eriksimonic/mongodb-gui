@@ -1,0 +1,260 @@
+{
+  "Id": "426bc0945829b32e07f7b873c6f702d6cd7cbfb8a39a9e89b74bec42f9e8489b",
+  "Created": "2026-10-09T17:32:38.641197181Z",
+  "Path": "docker-entrypoint.sh",
+  "Args": ["/bin/bash", "/scripts/mongo_start.sh"],
+  "State": {
+    "Status": "running",
+    "Running": true,
+    "Paused": false,
+    "Restarting": false,
+    "OOMKilled": false,
+    "Dead": false,
+    "Pid": 46402,
+    "ExitCode": 0,
+    "Error": "",
+    "StartedAt": "2026-10-09T17:32:46.394440185Z",
+    "FinishedAt": "0001-01-01T00:00:00Z"
+  },
+  "Image": "sha256:1f995ad6fdb93244a1addab1b58f934a0bc2f5643c38e02f5e9d7f0c7d227a7b",
+  "ResolvConfPath": "/var/lib/docker/containers/426bc0945829b32e07f7b873c6f702d6cd7cbfb8a39a9e89b74bec42f9e8489b/resolv.conf",
+  "HostnamePath": "/var/lib/docker/containers/426bc0945829b32e07f7b873c6f702d6cd7cbfb8a39a9e89b74bec42f9e8489b/hostname",
+  "HostsPath": "/var/lib/docker/containers/426bc0945829b32e07f7b873c6f702d6cd7cbfb8a39a9e89b74bec42f9e8489b/hosts",
+  "LogPath": "/var/lib/docker/containers/426bc0945829b32e07f7b873c6f702d6cd7cbfb8a39a9e89b74bec42f9e8489b/426bc0945829b32e07f7b873c6f702d6cd7cbfb8a39a9e89b74bec42f9e8489b-json.log",
+  "Name": "/flowbase-flow-editor-mongo1-1",
+  "RestartCount": 0,
+  "Driver": "overlayfs",
+  "Platform": "linux",
+  "MountLabel": "",
+  "ProcessLabel": "",
+  "AppArmorProfile": "docker-default",
+  "ExecIDs": null,
+  "HostConfig": {
+    "Binds": ["/home/user/Documents/FlowBase-flow-editor:/scripts:rw"],
+    "ContainerIDFile": "",
+    "LogConfig": {
+      "Type": "json-file",
+      "Config": {}
+    },
+    "NetworkMode": "flowbase-flow-editor_default",
+    "PortBindings": {
+      "27017/tcp": [
+        {
+          "HostIp": "",
+          "HostPort": "27017"
+        }
+      ]
+    },
+    "RestartPolicy": {
+      "Name": "always",
+      "MaximumRetryCount": 0
+    },
+    "AutoRemove": false,
+    "VolumeDriver": "",
+    "VolumesFrom": null,
+    "ConsoleSize": [0, 0],
+    "CapAdd": null,
+    "CapDrop": null,
+    "CgroupnsMode": "private",
+    "Dns": null,
+    "DnsOptions": null,
+    "DnsSearch": null,
+    "ExtraHosts": [],
+    "GroupAdd": null,
+    "IpcMode": "private",
+    "Cgroup": "",
+    "Links": null,
+    "OomScoreAdj": 0,
+    "PidMode": "",
+    "Privileged": false,
+    "PublishAllPorts": false,
+    "ReadonlyRootfs": false,
+    "SecurityOpt": null,
+    "UTSMode": "",
+    "UsernsMode": "",
+    "ShmSize": 67108864,
+    "Runtime": "runc",
+    "Isolation": "",
+    "CpuShares": 0,
+    "Memory": 4294967296,
+    "NanoCpus": 4000000000,
+    "CgroupParent": "",
+    "BlkioWeight": 0,
+    "BlkioWeightDevice": null,
+    "BlkioDeviceReadBps": null,
+    "BlkioDeviceWriteBps": null,
+    "BlkioDeviceReadIOps": null,
+    "BlkioDeviceWriteIOps": null,
+    "CpuPeriod": 0,
+    "CpuQuota": 0,
+    "CpuRealtimePeriod": 0,
+    "CpuRealtimeRuntime": 0,
+    "CpusetCpus": "",
+    "CpusetMems": "",
+    "Devices": null,
+    "DeviceCgroupRules": null,
+    "DeviceRequests": null,
+    "MemoryReservation": 1073741824,
+    "MemorySwap": 8589934592,
+    "MemorySwappiness": null,
+    "OomKillDisable": null,
+    "PidsLimit": null,
+    "Ulimits": null,
+    "CpuCount": 0,
+    "CpuPercent": 0,
+    "IOMaximumIOps": 0,
+    "IOMaximumBandwidth": 0,
+    "MaskedPaths": [
+      "/proc/acpi",
+      "/proc/asound",
+      "/proc/interrupts",
+      "/proc/kcore",
+      "/proc/keys",
+      "/proc/latency_stats",
+      "/proc/sched_debug",
+      "/proc/scsi",
+      "/proc/timer_list",
+      "/proc/timer_stats",
+      "/sys/devices/virtual/powercap",
+      "/sys/firmware"
+    ],
+    "ReadonlyPaths": ["/proc/bus", "/proc/fs", "/proc/irq", "/proc/sys", "/proc/sysrq-trigger"]
+  },
+  "Storage": {
+    "RootFS": {
+      "Snapshot": {
+        "Name": "overlayfs"
+      }
+    }
+  },
+  "Mounts": [
+    {
+      "Type": "bind",
+      "Source": "/home/user/Documents/FlowBase-flow-editor",
+      "Destination": "/scripts",
+      "Mode": "rw",
+      "RW": true,
+      "Propagation": "rprivate"
+    },
+    {
+      "Type": "volume",
+      "Name": "3041cb22c4ed172c3edb836965bf862ea1ea481d6317a087da67c75a6b68643a",
+      "Source": "/var/lib/docker/volumes/3041cb22c4ed172c3edb836965bf862ea1ea481d6317a087da67c75a6b68643a/_data",
+      "Destination": "/data/configdb",
+      "Driver": "local",
+      "Mode": "",
+      "RW": true,
+      "Propagation": ""
+    },
+    {
+      "Type": "volume",
+      "Name": "120dcccff6faf6dcd586c93f39a22440ae3ffa9ddb71af83cf0c661a564ad55d",
+      "Source": "/var/lib/docker/volumes/120dcccff6faf6dcd586c93f39a22440ae3ffa9ddb71af83cf0c661a564ad55d/_data",
+      "Destination": "/data/db",
+      "Driver": "local",
+      "Mode": "",
+      "RW": true,
+      "Propagation": ""
+    }
+  ],
+  "Config": {
+    "Hostname": "mongo1",
+    "Domainname": "",
+    "User": "",
+    "AttachStdin": false,
+    "AttachStdout": true,
+    "AttachStderr": true,
+    "ExposedPorts": {
+      "27017/tcp": {}
+    },
+    "Tty": false,
+    "OpenStdin": false,
+    "StdinOnce": false,
+    "Env": [
+      "PATH=/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin",
+      "GOSU_VERSION=1.19",
+      "JSYAML_VERSION=3.13.1",
+      "JSYAML_CHECKSUM=662e32319bdd378e91f67578e56a34954b0a2e33aca11d70ab9f4826af24b941",
+      "MONGO_PACKAGE=mongodb-org",
+      "MONGO_REPO=repo.mongodb.org",
+      "MONGO_MAJOR=7.0",
+      "MONGO_VERSION=7.0.43",
+      "HOME=/data/db"
+    ],
+    "Cmd": ["/bin/bash", "/scripts/mongo_start.sh"],
+    "Image": "mongo:7",
+    "Volumes": {
+      "/data/configdb": {},
+      "/data/db": {}
+    },
+    "WorkingDir": "",
+    "Entrypoint": ["docker-entrypoint.sh"],
+    "Labels": {
+      "com.docker.compose.config-hash": "c1a20eaaccb14703fee5c114ccebd721dcc9d96ed186429bfa6d9a5b59852715",
+      "com.docker.compose.container-number": "1",
+      "com.docker.compose.depends_on": "",
+      "com.docker.compose.image": "sha256:494b956596706b19ba44908cb9d03648b585214600987b86cd2a34249358e572",
+      "com.docker.compose.oneoff": "False",
+      "com.docker.compose.project": "flowbase-flow-editor",
+      "com.docker.compose.project.config_files": "/home/user/Documents/FlowBase-flow-editor/docker-compose.yml",
+      "com.docker.compose.project.working_dir": "/home/user/Documents/FlowBase-flow-editor",
+      "com.docker.compose.service": "mongo1",
+      "com.docker.compose.version": "5.5.1",
+      "org.opencontainers.image.version": "22.04"
+    }
+  },
+  "NetworkSettings": {
+    "SandboxID": "80565168f7c638c0d8052e6f945c890933219a5dd54bb6ecf3fdfb86692fcf09",
+    "SandboxKey": "/var/run/docker/netns/80565168f7c6",
+    "Ports": {
+      "27017/tcp": [
+        {
+          "HostIp": "0.0.0.0",
+          "HostPort": "27017"
+        },
+        {
+          "HostIp": "::",
+          "HostPort": "27017"
+        }
+      ]
+    },
+    "Networks": {
+      "flowbase-flow-editor_default": {
+        "IPAMConfig": null,
+        "Links": null,
+        "Aliases": ["flowbase-flow-editor-mongo1-1", "mongo1"],
+        "DriverOpts": null,
+        "GwPriority": 0,
+        "NetworkID": "67d50f39a368d1a2b5ba772061df6ca20e86ab16fac71aca3a7c6c05d45067b5",
+        "EndpointID": "8be2c73e250c826d304335fb3cf8d15e72c181c87abb4700f2ac556ff8b660c9",
+        "Gateway": "172.19.0.1",
+        "IPAddress": "172.19.0.2",
+        "MacAddress": "82:1f:4a:92:40:15",
+        "IPPrefixLen": 16,
+        "IPv6Gateway": "",
+        "GlobalIPv6Address": "",
+        "GlobalIPv6PrefixLen": 0,
+        "DNSNames": ["flowbase-flow-editor-mongo1-1", "mongo1", "426bc0945829"]
+      }
+    }
+  },
+  "ImageManifestDescriptor": {
+    "mediaType": "application/vnd.oci.image.manifest.v1+json",
+    "digest": "sha256:494b956596706b19ba44908cb9d03648b585214600987b86cd2a34249358e572",
+    "size": 2476,
+    "annotations": {
+      "com.docker.official-images.bashbrew.arch": "amd64",
+      "org.opencontainers.image.base.digest": "sha256:08ea48a03a3e78ebc7cd526e6a275053223aadd88bfc09cc49b06d5281525fde",
+      "org.opencontainers.image.base.name": "ubuntu:jammy",
+      "org.opencontainers.image.created": "2026-10-02T01:31:23Z",
+      "org.opencontainers.image.revision": "8d9ef3e640d2925aa11c50524f656f7fc8b4d4f7",
+      "org.opencontainers.image.source": "https://github.com/docker-library/mongo.git#8d9ef3e640d2925aa11c50524f656f7fc8b4d4f7:7.0",
+      "org.opencontainers.image.url": "https://hub.docker.com/_/mongo",
+      "org.opencontainers.image.version": "7.0.43-jammy"
+    },
+    "platform": {
+      "architecture": "amd64",
+      "os": "linux"
+    }
+  }
+}

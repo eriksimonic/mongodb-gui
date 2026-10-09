@@ -11,3 +11,4 @@ playwright-report/
 e2e/output/
 *.tsbuildinfo
 .claude/
+packages/app/release/

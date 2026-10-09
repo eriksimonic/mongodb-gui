@@ -1,0 +1,173 @@
+{
+  "explainVersion": "2",
+  "queryPlanner": {
+    "namespace": "fixtures.orders",
+    "indexFilterSet": false,
+    "parsedQuery": {
+      "total": {
+        "$gt": {
+          "$numberInt": "5"
+        }
+      }
+    },
+    "queryHash": "540D2DB6",
+    "planCacheKey": "540D2DB6",
+    "maxIndexedOrSolutionsReached": false,
+    "maxIndexedAndSolutionsReached": false,
+    "maxScansToExplodeReached": false,
+    "winningPlan": {
+      "queryPlan": {
+        "stage": "COLLSCAN",
+        "planNodeId": {
+          "$numberInt": "1"
+        },
+        "filter": {
+          "total": {
+            "$gt": {
+              "$numberInt": "5"
+            }
+          }
+        },
+        "direction": "forward"
+      },
+      "slotBasedPlan": {
+        "slots": "$$RESULT=s4 $$RID=s5 env: { s1 = TimeZoneDatabase(Asia/Harbin...GB) (timeZoneDB), s3 = 1791574470778 (NOW), s2 = Nothing (SEARCH_META) }",
+        "stages": "[1] filter {applyClassicMatcher (ClassicMatcher({ total: { $gt: 5 } }), s4)} \n[1] scan s4 s5 none none none none [] @\"f3899e44-9a7a-41e5-9a3b-135109951701\" true false "
+      }
+    },
+    "rejectedPlans": []
+  },
+  "executionStats": {
+    "executionSuccess": true,
+    "nReturned": {
+      "$numberInt": "1990"
+    },
+    "executionTimeMillis": {
+      "$numberInt": "0"
+    },
+    "totalKeysExamined": {
+      "$numberInt": "0"
+    },
+    "totalDocsExamined": {
+      "$numberInt": "2000"
+    },
+    "executionStages": {
+      "stage": "filter",
+      "planNodeId": {
+        "$numberInt": "1"
+      },
+      "nReturned": {
+        "$numberInt": "1990"
+      },
+      "executionTimeMillisEstimate": {
+        "$numberInt": "1"
+      },
+      "opens": {
+        "$numberInt": "1"
+      },
+      "closes": {
+        "$numberInt": "1"
+      },
+      "saveState": {
+        "$numberInt": "2"
+      },
+      "restoreState": {
+        "$numberInt": "2"
+      },
+      "isEOF": {
+        "$numberInt": "1"
+      },
+      "numTested": {
+        "$numberInt": "2000"
+      },
+      "filter": "applyClassicMatcher (ClassicMatcher({ total: { $gt: 5 } }), s4) ",
+      "inputStage": {
+        "stage": "scan",
+        "planNodeId": {
+          "$numberInt": "1"
+        },
+        "nReturned": {
+          "$numberInt": "2000"
+        },
+        "executionTimeMillisEstimate": {
+          "$numberInt": "1"
+        },
+        "opens": {
+          "$numberInt": "1"
+        },
+        "closes": {
+          "$numberInt": "1"
+        },
+        "saveState": {
+          "$numberInt": "2"
+        },
+        "restoreState": {
+          "$numberInt": "2"
+        },
+        "isEOF": {
+          "$numberInt": "1"
+        },
+        "numReads": {
+          "$numberInt": "2000"
+        },
+        "recordSlot": {
+          "$numberInt": "4"
+        },
+        "recordIdSlot": {
+          "$numberInt": "5"
+        },
+        "fields": [],
+        "outputSlots": []
+      }
+    },
+    "allPlansExecution": []
+  },
+  "command": {
+    "find": "orders",
+    "filter": {
+      "total": {
+        "$gt": {
+          "$numberInt": "5"
+        }
+      }
+    },
+    "$db": "fixtures"
+  },
+  "serverInfo": {
+    "host": "734bd7ad9e7a",
+    "port": {
+      "$numberInt": "27017"
+    },
+    "version": "6.0.28",
+    "gitVersion": "ef888a6df901622004aeb4b7362e007b8c4299da"
+  },
+  "serverParameters": {
+    "internalQueryFacetBufferSizeBytes": {
+      "$numberInt": "104857600"
+    },
+    "internalQueryFacetMaxOutputDocSizeBytes": {
+      "$numberInt": "104857600"
+    },
+    "internalLookupStageIntermediateDocumentMaxSizeBytes": {
+      "$numberInt": "104857600"
+    },
+    "internalDocumentSourceGroupMaxMemoryBytes": {
+      "$numberInt": "104857600"
+    },
+    "internalQueryMaxBlockingSortMemoryUsageBytes": {
+      "$numberInt": "104857600"
+    },
+    "internalQueryProhibitBlockingMergeOnMongoS": {
+      "$numberInt": "0"
+    },
+    "internalQueryMaxAddToSetBytes": {
+      "$numberInt": "104857600"
+    },
+    "internalDocumentSourceSetWindowFieldsMaxMemoryBytes": {
+      "$numberInt": "104857600"
+    }
+  },
+  "ok": {
+    "$numberDouble": "1.0"
+  }
+}

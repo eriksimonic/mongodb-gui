@@ -1,5 +1,7 @@
 import {
   appError,
+  type DockerMongoContainerSummary,
+  type DockerStatus,
   defaultSettings,
   newId,
   redactUri,
@@ -21,6 +23,7 @@ import {
   type RpcEvent,
   type Settings,
   type SettingsPatch,
+  type UpdateState,
   type VaultStatus,
 } from '@mongo-gui/core';
 import {
@@ -34,21 +37,42 @@ import {
 import { createManagementCalls } from './mock-management';
 import {
   fixtureConnections,
+  DOCKER_PROFILE_ID,
+  fixtureDockerContainers,
+  fixtureDockerProfile,
   fixtureFavourites,
   fixtureHistory,
+  localConnectionId,
   mockMasterPassword,
 } from './mock-fixtures';
 import { delay, fail, method } from './mock-support';
+import { createMockMonitor } from './mock-monitor';
 import type { UiApi } from './ui-api';
 
 export type MockPreset = 'fresh' | 'unlocked';
+
+/**
+ * A scripted sequence of update states. The first state is the starting state. Each check,
+ * download or dismiss moves to the next state, and the last state then stays put.
+ */
+export interface MockUpdatesOptions {
+  readonly states: readonly UpdateState[];
+}
 
 export interface MockUiApiOptions {
   /** `fresh` starts uninitialised with no connections. `unlocked` starts unlocked with fixtures. */
   readonly preset?: MockPreset;
   /** Delay added to every call, in milliseconds. Defaults to 0. */
   readonly latencyMs?: number;
+  /** `unavailable` makes every Docker call report that the engine cannot be reached. */
+  readonly docker?: 'available' | 'unavailable';
+  /** Scripted update states. Defaults to an idle updater on version 0.1.0. */
+  readonly updates?: MockUpdatesOptions;
+  /** Adds replica set members and lag to the monitor samples. Defaults to standalone. */
+  readonly replication?: boolean;
 }
+
+const DEFAULT_UPDATE_STATE: UpdateState = { phase: 'idle', current: '0.1.0', canInstall: true };
 
 type VaultState = VaultStatus['state'];
 
@@ -63,7 +87,15 @@ interface MockState {
   /** Databases and collections per connection id. Mutated by the management calls. */
   catalogs: Map<string, MockDatabase[]>;
   builds: Map<string, MockBuild[]>;
+  dockerAvailable: boolean;
+  dockerContainers: DockerMongoContainerSummary[];
+  updateStates: readonly UpdateState[];
+  updateIndex: number;
 }
+
+const DOCKER_UNREACHABLE_REASON = 'Docker is not reachable at /var/run/docker.sock (ENOENT).';
+const DOCKER_ENGINE_VERSION = '29.8.2';
+const MOCK_DOCKER_PASSWORD = 'secret';
 
 const SERVER_VERSION = '8.0.4';
 const AVERAGE_OBJECT_SIZE = 420;
@@ -80,6 +112,10 @@ function initialState(preset: MockPreset): MockState {
     favourites: [],
     catalogs: new Map(),
     builds: new Map(),
+    dockerAvailable: true,
+    dockerContainers: fixtureDockerContainers(),
+    updateStates: [DEFAULT_UPDATE_STATE],
+    updateIndex: 0,
   };
   if (preset === 'fresh') {
     return base;
@@ -94,7 +130,8 @@ function initialState(preset: MockPreset): MockState {
     ...base,
     vault: 'unlocked',
     password: mockMasterPassword,
-    connections,
+    connections: [...connections, fixtureDockerProfile()],
+    statuses: new Map([[DOCKER_PROFILE_ID, connectedStatus()]]),
     history: fixtureHistory(),
     favourites: fixtureFavourites(),
   };
@@ -119,6 +156,10 @@ function applyPatch(
     readPreference: 'readPreference' in patch ? patch.readPreference : current.readPreference,
     connectTimeoutMs:
       'connectTimeoutMs' in patch ? patch.connectTimeoutMs : current.connectTimeoutMs,
+    ...(current.source === undefined ? {} : { source: current.source }),
+    ...(current.dockerContainerId === undefined
+      ? {}
+      : { dockerContainerId: current.dockerContainerId }),
   };
 }
 
@@ -129,7 +170,17 @@ function mergeSettings(current: Settings, patch: SettingsPatch): Settings {
     historyLimit: patch.historyLimit ?? current.historyLimit,
     editorFontSize: patch.editorFontSize ?? current.editorFontSize,
     sampleSize: patch.sampleSize ?? current.sampleSize,
+    dockerAutoConnect: patch.dockerAutoConnect ?? current.dockerAutoConnect,
+    checkForUpdates: patch.checkForUpdates ?? current.checkForUpdates,
   };
+}
+
+/** The URI the mock builds for a container. Only localhost reaches the mock server. */
+function mockContainerUri(container: DockerMongoContainerSummary): string {
+  const auth = container.hasCredentials
+    ? `${container.env.username ?? 'root'}:${MOCK_DOCKER_PASSWORD}@`
+    : '';
+  return `mongodb://${auth}localhost:27017/?directConnection=true`;
 }
 
 function summarise(profile: ConnectionProfile): ConnectionProfileSummary {
@@ -214,7 +265,11 @@ function databaseStats(database: MockDatabase): DatabaseStats {
 export function createMockUiApi(options: MockUiApiOptions = {}): UiApi {
   const latencyMs = options.latencyMs ?? 0;
   const state = initialState(options.preset ?? 'fresh');
+  state.dockerAvailable = options.docker !== 'unavailable';
   const listeners = new Set<(event: RpcEvent) => void>();
+  if (options.updates !== undefined && options.updates.states.length > 0) {
+    state.updateStates = options.updates.states;
+  }
 
   function emit(event: RpcEvent): void {
     for (const listener of listeners) {
@@ -222,12 +277,31 @@ export function createMockUiApi(options: MockUiApiOptions = {}): UiApi {
     }
   }
 
+  function currentUpdate(): UpdateState {
+    return state.updateStates[state.updateIndex] ?? DEFAULT_UPDATE_STATE;
+  }
+
+  /** Moves to the next scripted state and tells the listeners. */
+  function advanceUpdate(): UpdateState {
+    state.updateIndex = Math.min(state.updateIndex + 1, state.updateStates.length - 1);
+    const next = currentUpdate();
+    emit({ type: 'updates:state', state: next });
+    return next;
+  }
+  const monitor = createMockMonitor({
+    emit,
+    hasReplication: () => options.replication === true,
+  });
+
   function statusOf(connectionId: string): ConnectionStatus {
     return state.statuses.get(connectionId) ?? { state: 'disconnected' };
   }
 
   function setStatus(connectionId: string, status: ConnectionStatus): void {
     state.statuses.set(connectionId, status);
+    if (status.state !== 'connected') {
+      monitor.stopConnection(connectionId);
+    }
     emit({ type: 'connection:status', connectionId, status });
   }
 
@@ -266,21 +340,36 @@ export function createMockUiApi(options: MockUiApiOptions = {}): UiApi {
     return found;
   }
 
+  /** Docker profiles reuse the local fixture catalog, so their trees look like the other connections. */
+  function catalogSource(connectionId: string): string {
+    return state.connections.find((item) => item.id === connectionId)?.source === 'docker'
+      ? localConnectionId
+      : connectionId;
+  }
+
+  function requireDockerAvailable(): void {
+    if (!state.dockerAvailable) {
+      throw fail('INTERNAL', 'Docker is not reachable.', 'ENOENT');
+    }
+  }
+
   /** Each connection's catalog. A connection without fixtures starts with none. */
   function catalogOf(connectionId: string): MockDatabase[] {
-    let catalog = state.catalogs.get(connectionId);
+    const key = catalogSource(connectionId);
+    let catalog = state.catalogs.get(key);
     if (catalog === undefined) {
       catalog = [];
-      state.catalogs.set(connectionId, catalog);
+      state.catalogs.set(key, catalog);
     }
     return catalog;
   }
 
   function buildsOf(connectionId: string): MockBuild[] {
-    let builds = state.builds.get(connectionId);
+    const key = catalogSource(connectionId);
+    let builds = state.builds.get(key);
     if (builds === undefined) {
       builds = [];
-      state.builds.set(connectionId, builds);
+      state.builds.set(key, builds);
     }
     return builds;
   }
@@ -309,6 +398,31 @@ export function createMockUiApi(options: MockUiApiOptions = {}): UiApi {
   });
 
   const rpc: RpcClient = {
+    updates: {
+      state: method(rpcContract.updates.state, latencyMs, () => currentUpdate()),
+      check: method(rpcContract.updates.check, latencyMs, () => advanceUpdate()),
+      download: method(rpcContract.updates.download, latencyMs, () => advanceUpdate()),
+      install: method(rpcContract.updates.install, latencyMs, () => undefined),
+      dismiss: method(rpcContract.updates.dismiss, latencyMs, ({ version }) => {
+        const current = currentUpdate();
+        if (current.available?.version !== version) {
+          return current;
+        }
+        const next: UpdateState = {
+          phase: 'idle',
+          current: current.current,
+          canInstall: current.canInstall,
+          ...(current.lastCheckedAt === undefined ? {} : { lastCheckedAt: current.lastCheckedAt }),
+        };
+        state.updateStates = [next];
+        state.updateIndex = 0;
+        emit({ type: 'updates:state', state: next });
+        return next;
+      }),
+    },
+    app: {
+      openExternal: method(rpcContract.app.openExternal, latencyMs, () => undefined),
+    },
     vault: {
       status: method(rpcContract.vault.status, latencyMs, () => ({ state: state.vault })),
       initialise: method(rpcContract.vault.initialise, latencyMs, ({ password }) => {
@@ -329,6 +443,7 @@ export function createMockUiApi(options: MockUiApiOptions = {}): UiApi {
         requireInitialised();
         if (state.vault === 'unlocked') {
           state.vault = 'locked';
+          monitor.stopAll();
           disconnectAll();
           emit({ type: 'vault:locked' });
         }
@@ -482,6 +597,51 @@ export function createMockUiApi(options: MockUiApiOptions = {}): UiApi {
         return { ...state.settings };
       }),
     },
+    monitor: {
+      start: method(rpcContract.monitor.start, latencyMs, ({ connectionId, intervalMs }) => {
+        requireUnlocked();
+        requireConnected(connectionId);
+        return monitor.start(connectionId, intervalMs);
+      }),
+      stop: method(rpcContract.monitor.stop, latencyMs, ({ connectionId }) => {
+        requireUnlocked();
+        monitor.stop(connectionId);
+      }),
+      samples: method(rpcContract.monitor.samples, latencyMs, ({ connectionId, sinceIso }) => {
+        requireUnlocked();
+        return monitor.samples(connectionId, sinceIso);
+      }),
+      operations: method(
+        rpcContract.monitor.operations,
+        latencyMs,
+        ({ connectionId, includeIdle, includeSystem }) => {
+          requireUnlocked();
+          requireConnected(connectionId);
+          return monitor.operations(connectionId, {
+            includeIdle: includeIdle === true,
+            includeSystem: includeSystem === true,
+          });
+        },
+      ),
+      killOperation: method(
+        rpcContract.monitor.killOperation,
+        latencyMs,
+        ({ connectionId, opid }) => {
+          requireUnlocked();
+          requireConnected(connectionId);
+          monitor.killOperation(connectionId, opid);
+        },
+      ),
+      setInterval: method(
+        rpcContract.monitor.setInterval,
+        latencyMs,
+        ({ connectionId, intervalMs }) => {
+          requireUnlocked();
+          requireConnected(connectionId);
+          return monitor.setInterval(connectionId, intervalMs);
+        },
+      ),
+    },
     history: {
       list: method(rpcContract.history.list, latencyMs, ({ connectionId, search, limit }) => {
         requireUnlocked();
@@ -519,6 +679,62 @@ export function createMockUiApi(options: MockUiApiOptions = {}): UiApi {
           throw fail('VALIDATION', 'Favourite not found');
         }
         state.favourites = state.favourites.filter((item) => item.id !== id);
+      }),
+    },
+    docker: {
+      status: method(rpcContract.docker.status, latencyMs, (): DockerStatus => {
+        return state.dockerAvailable
+          ? { available: true, engineVersion: DOCKER_ENGINE_VERSION }
+          : { available: false, reason: DOCKER_UNREACHABLE_REASON };
+      }),
+      list: method(rpcContract.docker.list, latencyMs, () => {
+        requireUnlocked();
+        requireDockerAvailable();
+        return state.dockerContainers.map((container) => ({ ...container }));
+      }),
+      connect: method(rpcContract.docker.connect, latencyMs, async ({ containerId }) => {
+        requireUnlocked();
+        requireDockerAvailable();
+        const container = state.dockerContainers.find((item) => item.id === containerId);
+        if (container === undefined) {
+          throw fail('VALIDATION', 'The container was not found.');
+        }
+        const uri = mockContainerUri(container);
+        const existing = state.connections.find((item) => item.dockerContainerId === containerId);
+        const now = new Date().toISOString();
+        const profile: ConnectionProfile =
+          existing === undefined
+            ? {
+                id: newId(),
+                name: container.name,
+                uri,
+                source: 'docker',
+                dockerContainerId: containerId,
+                createdAt: now,
+                updatedAt: now,
+              }
+            : { ...existing, name: container.name, uri, updatedAt: now };
+        state.connections =
+          existing === undefined
+            ? [...state.connections, profile]
+            : state.connections.map((item) => (item.id === profile.id ? profile : item));
+        const status = await rpc.connections.connect({ id: profile.id });
+        return { connectionId: profile.id, status };
+      }),
+      disconnect: method(rpcContract.docker.disconnect, latencyMs, ({ containerId }) => {
+        requireUnlocked();
+        const profile = state.connections.find((item) => item.dockerContainerId === containerId);
+        if (profile !== undefined) {
+          setStatus(profile.id, { state: 'disconnected' });
+        }
+      }),
+      setAutoConnect: method(rpcContract.docker.setAutoConnect, latencyMs, ({ enabled }) => {
+        requireUnlocked();
+        state.settings = { ...state.settings, dockerAutoConnect: enabled };
+        return { ...state.settings };
+      }),
+      watch: method(rpcContract.docker.watch, latencyMs, () => {
+        // The mock never changes, so polling has nothing to push.
       }),
     },
   };

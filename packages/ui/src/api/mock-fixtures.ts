@@ -1,4 +1,9 @@
-import type { ConnectionProfile, Favourite, HistoryEntry } from '@mongo-gui/core';
+import type {
+  ConnectionProfile,
+  DockerMongoContainerSummary,
+  Favourite,
+  HistoryEntry,
+} from '@mongo-gui/core';
 
 /** The master password the `unlocked` preset starts with. */
 export const mockMasterPassword = 'correct horse battery';
@@ -68,4 +73,52 @@ export function fixtureFavourites(): Favourite[] {
       createdAt: CREATED_AT,
     },
   ];
+}
+
+/** A container with 27017 published on loopback. Its root user is `app`, with a password the mock never shows. */
+export function fixtureDockerContainers(): DockerMongoContainerSummary[] {
+  return [
+    {
+      id: '6c1e0b9d4f2a7e83c5d1b0a9f8e7d6c5b4a39281706f5e4d3c2b1a0f9e8d7c6b',
+      name: 'shop-mongo',
+      image: 'mongo:7',
+      state: 'running',
+      publishedPort: { hostIp: '127.0.0.1', hostPort: 27017 },
+      internalPort: 27017,
+      networks: ['shop_default'],
+      env: { username: 'app', database: 'shop' },
+      envKeys: [
+        'MONGO_INITDB_DATABASE',
+        'MONGO_INITDB_ROOT_PASSWORD',
+        'MONGO_INITDB_ROOT_USERNAME',
+      ],
+      hasCredentials: true,
+    },
+    {
+      id: '9d4a7b2c8e1f0a3b6c5d4e3f2a1b0c9d8e7f6a5b4c3d2e1f0a9b8c7d6e5f4a3b',
+      name: 'orders-mongo',
+      image: 'mongo:8.0.17',
+      state: 'running',
+      internalPort: 27017,
+      networks: ['orders_net'],
+      env: {},
+      envKeys: ['MONGO_VERSION'],
+      hasCredentials: false,
+    },
+  ];
+}
+
+/** The saved profile of the shop-mongo container. It is connected in the unlocked preset. */
+export const DOCKER_PROFILE_ID = '0d6f3b2a-9c1e-4f7a-8b5d-2e4c6a1f9b30';
+
+export function fixtureDockerProfile(): ConnectionProfile {
+  return {
+    id: DOCKER_PROFILE_ID,
+    name: 'shop-mongo',
+    uri: 'mongodb://app:secret@localhost:27017/?authSource=admin&directConnection=true',
+    source: 'docker',
+    dockerContainerId: '6c1e0b9d4f2a7e83c5d1b0a9f8e7d6c5b4a39281706f5e4d3c2b1a0f9e8d7c6b',
+    createdAt: CREATED_AT,
+    updatedAt: CREATED_AT,
+  };
 }

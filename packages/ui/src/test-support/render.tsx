@@ -1,3 +1,5 @@
+// The shims come first. uPlot reads matchMedia when its module loads, and App imports uPlot.
+import './browser-shims';
 import '@testing-library/jest-dom/vitest';
 import { cleanup, render, type RenderResult } from '@testing-library/react';
 import type { ReactElement } from 'react';
@@ -7,7 +9,6 @@ import { AppRoot } from '../AppRoot';
 import { createMockUiApi, type MockUiApiOptions } from '../api/mock-rpc-client';
 import type { UiApi } from '../api/ui-api';
 import type { AppData } from '../state/app-store';
-import './browser-shims';
 
 afterEach(cleanup);
 

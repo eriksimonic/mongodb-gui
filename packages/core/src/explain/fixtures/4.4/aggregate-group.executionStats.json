@@ -1,0 +1,267 @@
+{
+  "stages": [
+    {
+      "$cursor": {
+        "queryPlanner": {
+          "plannerVersion": {
+            "$numberInt": "1"
+          },
+          "namespace": "fixtures.orders",
+          "indexFilterSet": false,
+          "parsedQuery": {
+            "status": {
+              "$eq": "paid"
+            }
+          },
+          "queryHash": "119CC4E1",
+          "planCacheKey": "187D11D4",
+          "winningPlan": {
+            "stage": "PROJECTION_SIMPLE",
+            "transformBy": {
+              "customerId": {
+                "$numberInt": "1"
+              },
+              "total": {
+                "$numberInt": "1"
+              },
+              "_id": {
+                "$numberInt": "0"
+              }
+            },
+            "inputStage": {
+              "stage": "FETCH",
+              "inputStage": {
+                "stage": "IXSCAN",
+                "keyPattern": {
+                  "status": {
+                    "$numberInt": "1"
+                  }
+                },
+                "indexName": "status_1",
+                "isMultiKey": false,
+                "multiKeyPaths": {
+                  "status": []
+                },
+                "isUnique": false,
+                "isSparse": false,
+                "isPartial": false,
+                "indexVersion": {
+                  "$numberInt": "2"
+                },
+                "direction": "forward",
+                "indexBounds": {
+                  "status": [
+                    "[\"paid\", \"paid\"]"
+                  ]
+                }
+              }
+            }
+          },
+          "rejectedPlans": []
+        },
+        "executionStats": {
+          "executionSuccess": true,
+          "nReturned": {
+            "$numberInt": "667"
+          },
+          "executionTimeMillis": {
+            "$numberInt": "0"
+          },
+          "totalKeysExamined": {
+            "$numberInt": "667"
+          },
+          "totalDocsExamined": {
+            "$numberInt": "667"
+          },
+          "executionStages": {
+            "stage": "PROJECTION_SIMPLE",
+            "nReturned": {
+              "$numberInt": "667"
+            },
+            "executionTimeMillisEstimate": {
+              "$numberInt": "0"
+            },
+            "works": {
+              "$numberInt": "668"
+            },
+            "advanced": {
+              "$numberInt": "667"
+            },
+            "needTime": {
+              "$numberInt": "0"
+            },
+            "needYield": {
+              "$numberInt": "0"
+            },
+            "saveState": {
+              "$numberInt": "1"
+            },
+            "restoreState": {
+              "$numberInt": "1"
+            },
+            "isEOF": {
+              "$numberInt": "1"
+            },
+            "transformBy": {
+              "customerId": {
+                "$numberInt": "1"
+              },
+              "total": {
+                "$numberInt": "1"
+              },
+              "_id": {
+                "$numberInt": "0"
+              }
+            },
+            "inputStage": {
+              "stage": "FETCH",
+              "nReturned": {
+                "$numberInt": "667"
+              },
+              "executionTimeMillisEstimate": {
+                "$numberInt": "0"
+              },
+              "works": {
+                "$numberInt": "668"
+              },
+              "advanced": {
+                "$numberInt": "667"
+              },
+              "needTime": {
+                "$numberInt": "0"
+              },
+              "needYield": {
+                "$numberInt": "0"
+              },
+              "saveState": {
+                "$numberInt": "1"
+              },
+              "restoreState": {
+                "$numberInt": "1"
+              },
+              "isEOF": {
+                "$numberInt": "1"
+              },
+              "docsExamined": {
+                "$numberInt": "667"
+              },
+              "alreadyHasObj": {
+                "$numberInt": "0"
+              },
+              "inputStage": {
+                "stage": "IXSCAN",
+                "nReturned": {
+                  "$numberInt": "667"
+                },
+                "executionTimeMillisEstimate": {
+                  "$numberInt": "0"
+                },
+                "works": {
+                  "$numberInt": "668"
+                },
+                "advanced": {
+                  "$numberInt": "667"
+                },
+                "needTime": {
+                  "$numberInt": "0"
+                },
+                "needYield": {
+                  "$numberInt": "0"
+                },
+                "saveState": {
+                  "$numberInt": "1"
+                },
+                "restoreState": {
+                  "$numberInt": "1"
+                },
+                "isEOF": {
+                  "$numberInt": "1"
+                },
+                "keyPattern": {
+                  "status": {
+                    "$numberInt": "1"
+                  }
+                },
+                "indexName": "status_1",
+                "isMultiKey": false,
+                "multiKeyPaths": {
+                  "status": []
+                },
+                "isUnique": false,
+                "isSparse": false,
+                "isPartial": false,
+                "indexVersion": {
+                  "$numberInt": "2"
+                },
+                "direction": "forward",
+                "indexBounds": {
+                  "status": [
+                    "[\"paid\", \"paid\"]"
+                  ]
+                },
+                "keysExamined": {
+                  "$numberInt": "667"
+                },
+                "seeks": {
+                  "$numberInt": "1"
+                },
+                "dupsTested": {
+                  "$numberInt": "0"
+                },
+                "dupsDropped": {
+                  "$numberInt": "0"
+                }
+              }
+            }
+          }
+        }
+      },
+      "nReturned": {
+        "$numberLong": "667"
+      },
+      "executionTimeMillisEstimate": {
+        "$numberLong": "0"
+      }
+    },
+    {
+      "$group": {
+        "_id": "$customerId",
+        "spent": {
+          "$sum": "$total"
+        }
+      },
+      "nReturned": {
+        "$numberLong": "100"
+      },
+      "executionTimeMillisEstimate": {
+        "$numberLong": "0"
+      }
+    },
+    {
+      "$sort": {
+        "sortKey": {
+          "spent": {
+            "$numberInt": "-1"
+          }
+        }
+      },
+      "nReturned": {
+        "$numberLong": "100"
+      },
+      "executionTimeMillisEstimate": {
+        "$numberLong": "0"
+      }
+    }
+  ],
+  "serverInfo": {
+    "host": "a124add29127",
+    "port": {
+      "$numberInt": "27017"
+    },
+    "version": "4.4.30",
+    "gitVersion": "4d7fa6a6260d25c5caa971dce10561690cb79dea"
+  },
+  "ok": {
+    "$numberDouble": "1.0"
+  }
+}

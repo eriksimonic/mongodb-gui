@@ -1,7 +1,15 @@
-import { IconChevronDown, IconChevronRight, IconDatabase } from '@tabler/icons-react';
+import {
+  IconBrandDocker,
+  IconChartLine,
+  IconChevronDown,
+  IconChevronRight,
+  IconDatabase,
+  IconListDetails,
+} from '@tabler/icons-react';
 import type { MouseEvent } from 'react';
 import { CollectionIcon } from './CollectionIcon';
 import { ConnectionStatusIcon } from './ConnectionStatusIcon';
+import { DockerContainerMeta } from './DockerContainerMeta';
 import type { TreeRow as TreeRowModel } from './tree-model';
 import './tree.css';
 
@@ -37,6 +45,7 @@ export function TreeRow({
       role="treeitem"
       className="mg-tree-item"
       data-key={row.key}
+      title={row.note}
       aria-level={row.depth + 1}
       aria-expanded={row.expandable ? row.expanded : undefined}
       aria-selected={selected}
@@ -73,6 +82,7 @@ export function TreeRow({
         <RowIcon row={row} />
       </span>
       <span className="mg-tree-label">{row.label}</span>
+      {row.container === undefined ? null : <DockerContainerMeta container={row.container} />}
     </div>
   );
 }
@@ -83,6 +93,15 @@ function RowIcon({ row }: { readonly row: TreeRowModel }) {
   }
   if (row.kind === 'collection' && row.collectionType !== undefined) {
     return <CollectionIcon type={row.collectionType} />;
+  }
+  if (row.kind === 'docker' || row.kind === 'container') {
+    return <IconBrandDocker size={14} />;
+  }
+  if (row.kind === 'monitor') {
+    return <IconChartLine size={14} />;
+  }
+  if (row.kind === 'operations') {
+    return <IconListDetails size={14} />;
   }
   return <IconDatabase size={14} />;
 }

@@ -1,13 +1,16 @@
 import { Box, Center, Stack, Text, Title } from '@mantine/core';
+import { useEffect, useState } from 'react';
 import {
   DockviewDefaultTab,
-  type IDockviewPanelProps,
   type IDockviewPanelHeaderProps,
+  type IDockviewPanelProps,
 } from 'dockview-react';
 import { ConnectionTree } from '../components/connections/ConnectionTree';
 import { DocumentsPanel } from '../components/management/DocumentsPanel';
 import { IndexesPanel } from '../components/management/IndexesPanel';
 import { ValidationPanel } from '../components/management/ValidationPanel';
+import { MonitorDashboard } from '../monitor/MonitorDashboard';
+import { OperationsPanel } from '../monitor/OperationsPanel';
 
 /** The params every collection panel gets from the dock. */
 export interface CollectionPanelParams {
@@ -43,6 +46,42 @@ export function WelcomePanel() {
       </Stack>
     </Center>
   );
+}
+
+interface ConnectionPanelParams {
+  readonly connectionId: string;
+}
+
+/** Centre panel for one connection's live metrics. Opened from the tree or the context menu. */
+export function MonitorPanel(props: IDockviewPanelProps<ConnectionPanelParams>) {
+  return (
+    <Box h="100%" style={{ overflow: 'auto' }}>
+      <MonitorDashboard connectionId={props.params.connectionId} />
+    </Box>
+  );
+}
+
+/** Centre panel for one connection's running operations. Polling pauses while it is hidden. */
+export function OperationsPanelView(props: IDockviewPanelProps<ConnectionPanelParams>) {
+  const visible = usePanelVisible(props.api);
+  return (
+    <Box h="100%" style={{ overflow: 'auto' }}>
+      <OperationsPanel connectionId={props.params.connectionId} visible={visible} />
+    </Box>
+  );
+}
+
+function usePanelVisible(api: IDockviewPanelProps['api']): boolean {
+  const [visible, setVisible] = useState(api.isVisible);
+  useEffect(() => {
+    const subscription = api.onDidVisibilityChange((event) => {
+      setVisible(event.isVisible);
+    });
+    return () => {
+      subscription.dispose();
+    };
+  }, [api]);
+  return visible;
 }
 
 /** Bottom panel placeholder. Command output will appear here. */
