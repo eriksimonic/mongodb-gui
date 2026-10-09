@@ -21,6 +21,8 @@ export * from './explain/warnings';
 export * from './gridfs/types';
 export * from './management/types';
 export * from './ids';
+export * from './monitor/catalog';
+export * from './monitor/dashboard-layout';
 export * from './monitor/derive';
 export * from './monitor/opid';
 export * from './monitor/ring-buffer';

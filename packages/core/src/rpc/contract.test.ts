@@ -16,6 +16,7 @@ describe('rpcContract', () => {
         'explain',
         'favourites',
         'history',
+        'layout',
         'management',
         'monitor',
         'profiler',

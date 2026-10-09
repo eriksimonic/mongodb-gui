@@ -308,6 +308,8 @@ export function createMockUiApi(options: MockUiApiOptions = {}): UiApi {
     emit,
     hasReplication: () => options.replication === true,
   });
+  // Layout values live in memory only, so a reload of the mock starts from the default layouts.
+  const layouts = new Map<string, unknown>();
   const transfers = createMockTransfers(
     emit,
     (database, collection) =>
@@ -818,6 +820,16 @@ export function createMockUiApi(options: MockUiApiOptions = {}): UiApi {
           return monitor.setInterval(connectionId, intervalMs);
         },
       ),
+    },
+    layout: {
+      get: method(rpcContract.layout.get, latencyMs, ({ key }) => {
+        requireUnlocked();
+        return { value: layouts.get(key) ?? null };
+      }),
+      set: method(rpcContract.layout.set, latencyMs, ({ key, value }) => {
+        requireUnlocked();
+        layouts.set(key, value);
+      }),
     },
     history: {
       list: method(rpcContract.history.list, latencyMs, ({ connectionId, search, limit }) => {

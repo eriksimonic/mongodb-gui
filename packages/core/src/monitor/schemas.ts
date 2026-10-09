@@ -78,6 +78,8 @@ export const MonitorSampleSchema = z.object({
   globalLock: GlobalLockSampleSchema.optional(),
   replication: ReplicationSampleSchema.optional(),
   pageFaultsPerSec: nonNegative.optional(),
+  // One value per catalogue series the server reported. A missing series has no key.
+  series: z.record(z.string().min(1), z.number().finite()).default({}),
 });
 
 export const RunningOperationSchema = z.object({

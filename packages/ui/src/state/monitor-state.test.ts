@@ -17,6 +17,7 @@ function sampleAt(second: number): MonitorSample {
     connections: { current: 1, available: 100 },
     network: { bytesInPerSec: 0, bytesOutPerSec: 0, requestsPerSec: 0 },
     memory: { residentMb: 10, virtualMb: 20 },
+    series: {},
   };
 }
 
