@@ -477,7 +477,7 @@ export const PANEL_CATALOG: readonly PanelSpec[] = [
     title: 'Deadlocks',
     category: 'errors',
     chart: 'lines',
-    description: 'Deadlocks the server detected per second, shown once the first deadlock happens.',
+    description: 'Deadlocks the server detected per second, reading zero until the first one.',
     series: [counter('deadlocks', ['locks', 'deadlockCount'], 'per-second', 'Deadlocks')],
   },
 ];

@@ -199,19 +199,16 @@ function cacheFillPercent(status: unknown): number | undefined {
   return (used / max) * 100;
 }
 
-// Each lock resource reports its deadlockCount only after its first deadlock, so the total is
-// missing until some resource has one.
+// Each lock resource reports its deadlockCount only after its first deadlock. A locks section with
+// no such field means no deadlock has happened yet, so the total is zero. A missing section is unknown.
 function deadlockTotal(status: unknown): number | undefined {
   const locks = valueAt(status, ['locks']);
   if (!isPlainObject(locks)) {
     return undefined;
   }
-  let total: number | undefined;
+  let total = 0;
   for (const resource of Object.values(locks)) {
-    const count = numberAt(resource, ['deadlockCount']);
-    if (count !== undefined) {
-      total = (total ?? 0) + count;
-    }
+    total += numberAt(resource, ['deadlockCount']) ?? 0;
   }
   return total;
 }

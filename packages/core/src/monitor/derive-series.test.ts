@@ -190,18 +190,24 @@ describe('deriveSeries', () => {
     expect(deriveSeries(undefined, snapshot(T0, noMax))['wt-cache-fill']).toBeUndefined();
   });
 
-  it('sums deadlocks across lock resources, and leaves the series out until one occurs', () => {
+  it('reads zero on a server with a locks section and no deadlocks, and leaves it out without one', () => {
     const none = deriveSeries(snapshot(T0, status(1)), snapshot(T0 + 1000, status(2)));
-    expect(none['deadlocks']).toBeUndefined();
+    expect(none['deadlocks']).toBe(0);
+    const noLocks = clone(status(2)) as { locks?: unknown };
+    delete noLocks.locks;
+    const missing = deriveSeries(snapshot(T0, status(1)), snapshot(T0 + 1000, noLocks));
+    expect(missing['deadlocks']).toBeUndefined();
+  });
 
+  it('sums deadlocks across lock resources', () => {
     const before = clone(status(1)) as { locks: Record<string, unknown> };
     const after = clone(status(2)) as { locks: Record<string, unknown> };
     before.locks['Collection'] = { acquireCount: { r: 1 } };
     after.locks['Collection'] = { acquireCount: { r: 1 }, deadlockCount: 3 };
     after.locks['Global'] = { acquireCount: { r: 1 }, deadlockCount: 1 };
     const values = deriveSeries(snapshot(T0, before), snapshot(T0 + 1000, after));
-    // Before the first deadlock, the total was missing, so there is no rate yet.
-    expect(values['deadlocks']).toBeUndefined();
+    // Before the first deadlock the total was zero, so four deadlocks in one second is four per second.
+    expect(values['deadlocks']).toBe(4);
     // The total stays at four, so the rate over the next interval is zero.
     const later = deriveSeries(snapshot(T0 + 1000, after), snapshot(T0 + 3000, clone(after)));
     expect(later['deadlocks']).toBe(0);

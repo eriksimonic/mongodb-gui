@@ -98,3 +98,35 @@ describe('AddPanelPicker', () => {
     expect(within(group as HTMLElement).getByText('Replication lag')).toBeInTheDocument();
   });
 });
+
+describe('AddPanelPicker badges', () => {
+  it('says a saved panel is on the dashboard when this server offers it', () => {
+    renderWithApp(
+      <AddPanelPicker
+        opened
+        onClose={vi.fn()}
+        addedIds={new Set(['replication-lag'])}
+        capabilities={{ wiredTiger: true, replicaSet: true }}
+        onAdd={vi.fn()}
+      />,
+    );
+    const row = document.querySelector('[data-panel-id="replication-lag"]') as HTMLElement;
+    expect(within(row).getByText('On the dashboard')).toBeInTheDocument();
+    expect(within(row).queryByText('Saved, hidden on this server')).not.toBeInTheDocument();
+  });
+
+  it('says a saved panel is hidden on this server when the server lacks its requirement', () => {
+    renderWithApp(
+      <AddPanelPicker
+        opened
+        onClose={vi.fn()}
+        addedIds={new Set(['replication-lag'])}
+        capabilities={{ wiredTiger: true, replicaSet: false }}
+        onAdd={vi.fn()}
+      />,
+    );
+    const row = document.querySelector('[data-panel-id="replication-lag"]') as HTMLElement;
+    expect(within(row).getByText('Saved, hidden on this server')).toBeInTheDocument();
+    expect(within(row).queryByText('On the dashboard')).not.toBeInTheDocument();
+  });
+});

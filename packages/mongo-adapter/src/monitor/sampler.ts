@@ -26,14 +26,21 @@ export interface SamplerOptions {
 
 type Database = ReturnType<MongoClient['db']>;
 
-// Default serverStatus sections that no catalogue series or headline field reads.
+// Default serverStatus sections that no catalogue series or headline field reads. The 8.0 names
+// differ from the older ones, so both are listed.
 const DEFAULT_SECTIONS_NOT_READ = [
   'catalogStats',
   'electionMetrics',
   'flowControl',
+  'batchedDeletes',
+  'indexStats',
   'opLatencies',
   'opReadConcernCounters',
+  'opWorkingTime',
   'oplogTruncation',
+  'oplogTruncationThread',
+  'querySettings',
+  'readConcernCounters',
   'scramCache',
   'shardingStatistics',
   'trafficRecording',

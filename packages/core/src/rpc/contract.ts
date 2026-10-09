@@ -165,8 +165,8 @@ const externalUrl = z
 
 /** Layout keys name one saved setting, such as `layout:dashboard:<connection id>`. */
 const layoutKey = z.string().min(1).max(200);
-// Layout values have no core schema. The contract checks only their size. The UI parses the
-// dashboard layout with parseDashboardLayout when it reads one back.
+// Layout values have no core schema. The contract checks only their size. The UI checks each
+// stored layout with DashboardLayoutSchema (through readStoredLayout) when it reads one back.
 const layoutValue = z
   .unknown()
   .refine(
