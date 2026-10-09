@@ -216,6 +216,9 @@ export class RuntimeSupervisor {
       }
       await this.ensureReady(slot);
       this.markBusy(slot);
+      if (this.isCancelled(slot, requestId)) {
+        return failed(requestId, cancelledError(), started);
+      }
       const switched = await this.useDatabase(slot, input.database);
       if (switched !== undefined) {
         return failed(requestId, switched, started);
