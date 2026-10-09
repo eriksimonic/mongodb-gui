@@ -6,5 +6,10 @@
     "outDir": "dist/tooling",
     "types": ["node"]
   },
-  "include": ["vitest.config.ts", "tests/**/*.ts"]
+  "include": [
+    "vitest.config.ts",
+    "tests/**/*.ts",
+    "packages/app/electron.vite.config.ts",
+    "packages/ui/vite.config.ts"
+  ]
 }
