@@ -41,6 +41,10 @@ const CHILD_KEYS = [
 const UNKNOWN_STAGE = 'UNKNOWN';
 // Keys of the first pipeline stage that hold the query's own plan.
 const CURSOR_KEYS: readonly string[] = ['$cursor', '$geoNearCursor'];
+// Name of the node that stands for a $facet branch with no stages.
+const EMPTY_BRANCH = '$facetBranch';
+// Name of the node that stands for a shard that returned an error.
+const SHARD_ERROR = 'SHARD_ERROR';
 const SHARD_STAGE = 'SHARD_MERGE';
 // Slot-based stages that carry keys examined, documents read and sort or group spill counters.
 const KEY_STAGES: ReadonlySet<string> = new Set(['ixseek', 'IXSCAN']);
@@ -207,35 +211,58 @@ function innerSubtrees(name: string, spec: unknown): PlanStage[] {
     return [];
   }
   if (name === '$lookup') {
-    const pipeline = asArray(record['pipeline']);
-    const chain = pipeline === undefined ? undefined : chainOf(pipeline);
     const from = asString(record['from']) ?? 'another collection';
-    return chain === undefined
-      ? []
-      : [{ ...chain, label: `inner pipeline of $lookup from ${from}` }];
+    return pipelineInputs(
+      asArray(record['pipeline']) ?? [],
+      `inner pipeline of $lookup from ${from}`,
+    );
   }
   if (name === '$unionWith') {
-    const label = `union input from ${asString(record['coll']) ?? 'the collection'}`;
-    return (asArray(record['pipeline']) ?? []).flatMap((entry): PlanStage[] => {
-      const cursor = asRecord(asRecord(entry)?.['$cursor']);
-      if (cursor !== undefined) {
-        const planned = planTree(
-          asRecord(cursor['queryPlanner']) ?? {},
-          asRecord(cursor['executionStats']),
-        );
-        return planned === undefined ? [] : [{ ...planned.winning, label }];
-      }
-      const chain = chainOf([entry]);
-      return chain === undefined ? [] : [{ ...chain, label }];
-    });
+    const coll = asString(record['coll']) ?? 'the collection';
+    return pipelineInputs(asArray(record['pipeline']) ?? [], `union input from ${coll}`);
   }
   if (name === '$facet') {
-    return Object.entries(record).flatMap(([branch, entries]) => {
+    return Object.entries(record).map(([branch, entries]) => {
+      const label = `$facet branch ${branch}`;
       const chain = chainOf(asArray(entries) ?? []);
-      return chain === undefined ? [] : [{ ...chain, label: `$facet branch ${branch}` }];
+      // A branch with no stages passes every document through. It stays in the tree as a node.
+      return chain === undefined
+        ? { name: EMPTY_BRANCH, label, children: [], raw: entries }
+        : { ...chain, label };
     });
   }
   return [];
+}
+
+// The inner inputs of a pipeline stage. A run of plain stages becomes one chain. A $cursor entry
+// carries its own query plan, which becomes a node of its own. Every node gets the label.
+function pipelineInputs(entries: unknown[], label: string): PlanStage[] {
+  const nodes: PlanStage[] = [];
+  let run: unknown[] = [];
+  const flush = (): void => {
+    const chain = chainOf(run);
+    if (chain !== undefined) {
+      nodes.push({ ...chain, label });
+    }
+    run = [];
+  };
+  for (const entry of entries) {
+    const cursor = asRecord(asRecord(entry)?.['$cursor']);
+    if (cursor === undefined) {
+      run.push(entry);
+      continue;
+    }
+    flush();
+    const planned = planTree(
+      asRecord(cursor['queryPlanner']) ?? {},
+      asRecord(cursor['executionStats']),
+    );
+    if (planned !== undefined) {
+      nodes.push({ ...planned.winning, label });
+    }
+  }
+  flush();
+  return nodes;
 }
 
 // Totals for an aggregate. The top-level block wins when present. Otherwise the wrapper stages
@@ -268,7 +295,8 @@ function planTree(planner: RawRecord, exec: RawRecord | undefined): PlannedTree 
     return undefined;
   }
   const winning = buildRoot(winningRaw, asRecord(exec?.['executionStages']), undefined);
-  if (winning === undefined || winning.name === UNKNOWN_STAGE) {
+  // A root that is unknown but has inputs still normalises, so its inputs stay in the tree.
+  if (winning === undefined || (winning.name === UNKNOWN_STAGE && winning.children.length === 0)) {
     return undefined;
   }
   const rejected = rejectedStages(
@@ -436,6 +464,16 @@ function shardChildren(planner: RawRecord | undefined, exec: RawRecord | undefin
     );
     if (child !== undefined) {
       children.push({ ...child, label: `shard ${shardName}` });
+    } else {
+      // A shard that failed keeps its place in the tree, with its entry as the raw value.
+      const entry = plannerEntry ?? execEntry ?? {};
+      const failed = entry['error'] !== undefined;
+      children.push({
+        name: failed ? SHARD_ERROR : UNKNOWN_STAGE,
+        label: `shard ${shardName}`,
+        children: [],
+        raw: entry,
+      });
     }
   }
   return children;

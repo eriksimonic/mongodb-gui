@@ -115,7 +115,8 @@ one shard). The shard and merge stages come from the two older files.
   `BATCHED_DELETE` on 8.0 and `DELETE` on 6.0.
 - `SORT_MERGE` sits under `FETCH` on 6.0 and 8.0 and under `SUBPLAN` on 4.4.
 
-Stages in the catalogue that no captured case produced: `AND_SORTED`, `AND_HASH` (the and-hash
-case used a single index), `CACHED_PLAN` (the cached-plan case explains as its plan), `TEXT_OR`,
-`EXPRESS_UPDATE`, `EXPRESS_DELETE`, `SORT_KEY_GENERATOR`, `SHARD_MERGE_SORT` in the captured set
-(the hand-written file covers it), and `SHARDING_FILTER` (the hand-written file covers it).
+Stages in the catalogue that no captured case produced: `AND_HASH`, `CACHED_PLAN` (the cached-plan
+case explains as its plan), `TEXT_OR`, `EXPRESS_UPDATE`, `EXPRESS_DELETE` and `SORT_KEY_GENERATOR`.
+`AND_SORTED` is not a winning stage in any capture. It appears only in the `rejectedPlans` of the
+`and-hash` case, on all three versions. `SHARDING_FILTER`, `SHARD_MERGE` and `SHARD_MERGE_SORT`
+are covered by the hand-written sharded files.

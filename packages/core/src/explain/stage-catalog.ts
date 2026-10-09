@@ -217,6 +217,12 @@ const CATALOG: readonly StageInfo[] = [
   },
   // Express paths (8.0 and later)
   {
+    name: 'CLUSTERED_IXSCAN',
+    category: 'scan',
+    description: 'Reads documents in the order of the clustered key of a clustered collection.',
+    metrics: ['docsExamined', 'keysExamined', 'nReturned', 'executionTimeMs'],
+  },
+  {
     name: 'EXPRESS_IXSCAN',
     category: 'express',
     description:
@@ -282,6 +288,12 @@ const CATALOG: readonly StageInfo[] = [
     advice: SHARD_FILTER_ADVICE,
   },
   {
+    name: 'SHARD_ERROR',
+    category: 'sharding',
+    description: 'A shard returned an error, so the result is missing the documents of that shard.',
+    metrics: [],
+  },
+  {
     name: 'SHARD_MERGE',
     category: 'sharding',
     description: 'Merges the results of each shard in the order the shards return them.',
@@ -297,10 +309,8 @@ const CATALOG: readonly StageInfo[] = [
   {
     name: 'EQ_LOOKUP',
     category: 'lookup',
-    description:
-      'Joins each input document to the foreign collection on equal field values, through an index on the foreign field.',
+    description: 'Joins each input document to the foreign collection on equal field values.',
     metrics: ['nReturned', 'docsExamined', 'keysExamined', 'executionTimeMs', 'index'],
-    advice: LOOKUP_ADVICE,
   },
   {
     name: 'hash_lookup',
@@ -387,7 +397,6 @@ const CATALOG: readonly StageInfo[] = [
     description:
       'Joins each input document with the documents of another collection, or with the result of an inner pipeline.',
     metrics: ['nReturned', 'docsExamined', 'keysExamined', 'executionTimeMs', 'index'],
-    advice: LOOKUP_ADVICE,
   },
   {
     name: '$unionWith',
@@ -641,6 +650,12 @@ const CATALOG: readonly StageInfo[] = [
     description: 'Groups documents by key in the query plan of a slot-based $group.',
     metrics: ['nReturned', 'executionTimeMs', 'usedDisk', 'spills', 'spilledBytes'],
     advice: GROUP_ADVICE,
+  },
+  {
+    name: '$facetBranch',
+    category: 'projection',
+    description: 'A $facet branch with no stages, which passes every document through unchanged.',
+    metrics: ['nReturned'],
   },
   {
     name: '$teeConsumer',

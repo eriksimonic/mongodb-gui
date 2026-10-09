@@ -7,6 +7,7 @@ import {
 } from './plan-tree';
 import { explainInWords } from './explain-text';
 import { normaliseExplain } from './normalise';
+import { describeStage } from './stage-catalog';
 import { flattenStages } from './stage-walk';
 
 // Every committed fixture under ./fixtures, loaded as unknown JSON.
@@ -1520,5 +1521,18 @@ describe('committed fixture sub-trees and spill metrics', () => {
     expect(tree.winning.children.some((child) => child.label?.startsWith('shard ') === true)).toBe(
       true,
     );
+  });
+});
+
+describe('fixture stage catalogue coverage', () => {
+  it('maps no stage of any fixture to the unknown category', () => {
+    const unknownNames = Object.values(FIXTURES).flatMap((raw) => {
+      const tree = normaliseExplain(raw);
+      return [tree.winning, ...tree.rejected]
+        .flatMap((stage) => flattenStages(stage))
+        .map((stage) => stage.name)
+        .filter((name) => describeStage(name).category === 'unknown');
+    });
+    expect([...new Set(unknownNames)]).toEqual([]);
   });
 });

@@ -193,3 +193,49 @@ describe('normaliseExplain spill metrics', () => {
     expect(tree.winning.spilledBytes).toBeUndefined();
   });
 });
+
+describe('normaliseExplain edge cases', () => {
+  it('keeps an empty $facet branch as an empty labelled node', () => {
+    const tree = normaliseExplain(
+      aggregateDoc([{ $facet: { none: [], total: [{ $count: 'n' }] }, nReturned: 1 }]),
+    );
+    const branches = tree.winning.children.filter((child) => child.label !== undefined);
+    expect(branches.map((child) => child.label)).toEqual([
+      '$facet branch none',
+      '$facet branch total',
+    ]);
+    expect(branches[0]?.children).toEqual([]);
+  });
+
+  it('keeps a failed shard as a labelled node that carries its error', () => {
+    const tree = normaliseExplain({
+      queryPlanner: {
+        winningPlan: {
+          shards: [
+            { shardName: 's1', winningPlan: { stage: 'COLLSCAN' } },
+            { shardName: 's2', error: { errmsg: 'boom' } },
+          ],
+        },
+      },
+    });
+    const failed = tree.winning.children.find((child) => child.label === 'shard s2');
+    expect(failed?.name).toBe('SHARD_ERROR');
+    expect(failed?.raw).toEqual({ shardName: 's2', error: { errmsg: 'boom' } });
+    expect(tree.winning.children.map((child) => child.label)).toEqual(['shard s1', 'shard s2']);
+    expect(tree.sharded).toBe(true);
+  });
+
+  it('makes a non-string stage name UNKNOWN and still normalises its inputs', () => {
+    const tree = normaliseExplain({
+      queryPlanner: {
+        namespace: 'shop.orders',
+        winningPlan: { stage: 5, inputStage: { stage: 'IXSCAN', indexName: 'status_1' } },
+        rejectedPlans: [],
+      },
+    });
+    expect(tree.command).toBe('find');
+    expect(tree.winning.name).toBe('UNKNOWN');
+    expect(tree.winning.children[0]?.name).toBe('IXSCAN');
+    expect(tree.summary.indexesUsed).toEqual(['status_1']);
+  });
+});

@@ -37,7 +37,7 @@ export function deriveWarnings(tree: Omit<PlanTree, 'warnings'>): PlanWarning[] 
     ...noExecutionStatsWarnings(tree),
     ...groupSpillWarnings(stages).map(withCatalogAdvice),
     ...orphanWarnings(stages).map(withCatalogAdvice),
-    ...lookupWarnings(stages).map(withCatalogAdvice),
+    ...lookupWarnings(stages),
     ...blockingBeforeMatchWarnings(stages).map(withCatalogAdvice),
     ...unboundedFacetWarnings(stages).map(withCatalogAdvice),
   ];
@@ -85,8 +85,13 @@ function orphanWarnings(stages: PlanStage[]): PlanWarning[] {
     }));
 }
 
+// Advice for a join with no index on its foreign field. Shown only with the warning.
+const LOOKUP_INDEX_ADVICE =
+  'Without an index on the foreign field, the join reads the foreign collection for each input document. Create an index on the foreignField.';
+
 // A join without an index on the foreign field. An EQ_LOOKUP with no index name is one. A $lookup
-// is one when the plan has no EQ_LOOKUP and its inner pipeline scans a collection.
+// is one when the plan has no EQ_LOOKUP and a plan from the server, under its inner pipeline, scans
+// a collection. The servers we captured report no inner plan for a pipeline $lookup.
 function lookupWarnings(stages: PlanStage[]): PlanWarning[] {
   const eqLookupPresent = stages.some((stage) => stage.name === 'EQ_LOOKUP');
   return stages.flatMap((stage): PlanWarning[] => {
@@ -103,10 +108,12 @@ function lookupWarnings(stages: PlanStage[]): PlanWarning[] {
     if (stage.name !== '$lookup' || eqLookupPresent) {
       return [];
     }
-    const innerStages = stage.children
+    // Only a server-supplied inner plan has scan stages. Stages of the pipeline itself do not.
+    const scans = stage.children
       .filter((child) => child.label?.startsWith('inner pipeline') === true)
-      .flatMap((child) => flattenStages(child));
-    return innerStages.some((inner) => isCollectionScanStage(inner.name))
+      .flatMap((child) => flattenStages(child))
+      .some((inner) => isCollectionScanStage(inner.name));
+    return scans
       ? [
           lookupWarning(
             stage.name,
@@ -118,36 +125,111 @@ function lookupWarnings(stages: PlanStage[]): PlanWarning[] {
 }
 
 function lookupWarning(stageName: string, message: string): PlanWarning {
-  return { code: 'LOOKUP_WITHOUT_INDEX', severity: 'warning', message, stageName };
+  return {
+    code: 'LOOKUP_WITHOUT_INDEX',
+    severity: 'warning',
+    message,
+    stageName,
+    advice: LOOKUP_INDEX_ADVICE,
+  };
 }
 
-// A $match that runs after a blocking stage, reached along the pipeline input. The input of a
-// $cursor is a query plan, so the walk stops there.
+// The stages that move a field's value, so a $match on that field cannot be judged by its name.
+const FIELD_CREATING_STAGES: ReadonlySet<string> = new Set([
+  '$project',
+  '$addFields',
+  '$set',
+  '$unwind',
+  '$group',
+  '$lookup',
+  '$facet',
+  '$graphLookup',
+  '$unionWith',
+  '$replaceRoot',
+  '$replaceWith',
+]);
+
+// The top-level field names of a $match, or undefined when the match uses an operator such as $and
+// or $expr, which this check does not judge.
+function matchFields(stage: PlanStage): string[] | undefined {
+  const spec = asRecord(asRecord(stage.raw)?.['$match']);
+  const keys = Object.keys(spec ?? {});
+  return keys.length === 0 || keys.some((key) => key.startsWith('$')) ? undefined : keys;
+}
+
+// The accumulator names of a $group, which exist only after the group. $sortByCount makes one.
+function accumulatorNames(stage: PlanStage): string[] {
+  if (stage.name === '$sortByCount') {
+    return ['count'];
+  }
+  const spec = asRecord(asRecord(stage.raw)?.['$group']);
+  return Object.keys(spec ?? {}).filter((key) => key !== '_id');
+}
+
+// A $match after a blocking stage that it could move before the stage. The walk follows the
+// pipeline input and stops at a $cursor, because that input is a query plan.
 function blockingBeforeMatchWarnings(stages: PlanStage[]): PlanWarning[] {
   return stages
     .filter((stage) => stage.name === '$match')
     .flatMap((stage): PlanWarning[] => {
-      const blocker = blockingInputOf(stage);
-      if (blocker === undefined) {
+      const fields = matchFields(stage);
+      const found = blockingInput(stage);
+      if (fields === undefined || found === undefined) {
+        return [];
+      }
+      const { blocker, between } = found;
+      if (!isMovable(blocker, fields, between)) {
         return [];
       }
       return [
         {
           code: 'BLOCKING_STAGE_BEFORE_MATCH',
           severity: 'warning',
-          message: `The $match runs after a ${blocker}, so the ${blocker} handles every document before the filter. Move the $match before the ${blocker}.`,
+          message: `The $match runs after a ${blocker.name}, so the ${blocker.name} handles every document before the filter. Move the $match before the ${blocker.name}.`,
           stageName: stage.name,
         },
       ];
     });
 }
 
-function blockingInputOf(stage: PlanStage): string | undefined {
+// Whether the $match can move above its blocking stage. After a $group, only fields the group
+// does not compute can move, which means _id. After a $sort, the fields must be plain document
+// fields, and no $match above the sort may already filter on them.
+function isMovable(blocker: PlanStage, fields: string[], between: PlanStage[]): boolean {
+  if (blocker.name === '$sort') {
+    if (between.some((stage) => FIELD_CREATING_STAGES.has(stage.name))) {
+      return false;
+    }
+    return !earlierMatchOn(blocker, fields);
+  }
+  const computed = accumulatorNames(blocker);
+  return fields.every((field) => !computed.includes(field));
+}
+
+// A $match below the sort, on any of the fields, already filters them.
+function earlierMatchOn(blocker: PlanStage, fields: string[]): boolean {
+  let current: PlanStage | undefined = blocker.children[0];
+  while (current !== undefined && current.name !== '$cursor') {
+    if (current.name === '$match') {
+      const earlier = matchFields(current) ?? [];
+      if (earlier.some((field) => fields.includes(field))) {
+        return true;
+      }
+    }
+    current = current.children[0];
+  }
+  return false;
+}
+
+// The nearest blocking stage below a $match, with the stages between them.
+function blockingInput(stage: PlanStage): { blocker: PlanStage; between: PlanStage[] } | undefined {
+  const between: PlanStage[] = [];
   let current: PlanStage | undefined = stage.children[0];
   while (current !== undefined && current.name !== '$cursor') {
     if (BLOCKING_STAGE_NAMES.has(current.name)) {
-      return current.name;
+      return { blocker: current, between };
     }
+    between.push(current);
     current = current.children[0];
   }
   return undefined;

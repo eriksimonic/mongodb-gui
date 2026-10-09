@@ -109,19 +109,49 @@ describe('LOOKUP_WITHOUT_INDEX', () => {
     },
   });
 
-  it('fires for an EQ_LOOKUP without an index name', () => {
+  it('fires for an EQ_LOOKUP without an index name, with the index advice', () => {
     const warning = normaliseExplain(slotLookup(false)).warnings.find(
       (item) => item.code === 'LOOKUP_WITHOUT_INDEX',
     );
     expect(warning?.stageName).toBe('EQ_LOOKUP');
     expect(warning?.severity).toBe('warning');
+    expect(warning?.advice).toContain('Create an index');
   });
 
   it('does not fire for an EQ_LOOKUP that uses an index', () => {
     expect(codesOf(slotLookup(true))).not.toContain('LOOKUP_WITHOUT_INDEX');
   });
 
-  it('fires for a $lookup whose inner pipeline scans a collection and has no EQ_LOOKUP', () => {
+  it('fires for a $lookup whose server-supplied inner plan scans a collection', () => {
+    const codes = codesOf(
+      aggregateDoc([
+        {
+          $lookup: {
+            from: 'customers',
+            as: 'm',
+            pipeline: [
+              {
+                $cursor: {
+                  queryPlanner: {
+                    namespace: 'shop.customers',
+                    winningPlan: { stage: 'COLLSCAN', direction: 'forward' },
+                    rejectedPlans: [],
+                  },
+                  executionStats: {
+                    executionStages: { stage: 'COLLSCAN', nReturned: 3, docsExamined: 300 },
+                  },
+                },
+              },
+            ],
+          },
+          nReturned: 500,
+        },
+      ]),
+    );
+    expect(codes).toContain('LOOKUP_WITHOUT_INDEX');
+  });
+
+  it('does not fire for a $lookup whose inner pipeline has no plan', () => {
     const codes = codesOf(
       aggregateDoc([
         {
@@ -134,17 +164,26 @@ describe('LOOKUP_WITHOUT_INDEX', () => {
         },
       ]),
     );
-    // The inner pipeline reports no plan on the servers we captured, so no scan appears here.
     expect(codes).not.toContain('LOOKUP_WITHOUT_INDEX');
   });
 });
 
 describe('BLOCKING_STAGE_BEFORE_MATCH', () => {
-  it('fires for a $match that runs after a $group', () => {
+  it('does not fire for a $match on an accumulator, which cannot move above the $group', () => {
+    const codes = codesOf(
+      aggregateDoc([
+        { $group: { _id: '$s', n: { $sum: 1 } }, nReturned: 5 },
+        { $match: { n: { $gt: 5 } }, nReturned: 2 },
+      ]),
+    );
+    expect(codes).not.toContain('BLOCKING_STAGE_BEFORE_MATCH');
+  });
+
+  it('fires for a $match on _id after a $group, which the server could move up', () => {
     const tree = normaliseExplain(
       aggregateDoc([
         { $group: { _id: '$cuisine', n: { $sum: 1 } }, nReturned: 5 },
-        { $match: { n: { $gt: 10 } }, nReturned: 2 },
+        { $match: { _id: 'thai' }, nReturned: 1 },
       ]),
     );
     const warning = tree.warnings.find((item) => item.code === 'BLOCKING_STAGE_BEFORE_MATCH');
@@ -152,11 +191,33 @@ describe('BLOCKING_STAGE_BEFORE_MATCH', () => {
     expect(warning?.stageName).toBe('$match');
   });
 
-  it('does not fire for a $match before the $group', () => {
+  it('fires for a $match on a plain field after a $sort', () => {
+    const codes = codesOf(
+      aggregateDoc([
+        { $sort: { sortKey: { name: 1 } }, nReturned: 500 },
+        { $match: { cuisine: 'thai' }, nReturned: 100 },
+      ]),
+    );
+    expect(codes).toContain('BLOCKING_STAGE_BEFORE_MATCH');
+  });
+
+  it('does not fire after a $sort when an earlier $match already filters the same field', () => {
     const codes = codesOf(
       aggregateDoc([
         { $match: { cuisine: 'thai' }, nReturned: 100 },
-        { $group: { _id: '$cuisine' }, nReturned: 1 },
+        { $sort: { sortKey: { name: 1 } }, nReturned: 100 },
+        { $match: { cuisine: 'thai' }, nReturned: 100 },
+      ]),
+    );
+    expect(codes).not.toContain('BLOCKING_STAGE_BEFORE_MATCH');
+  });
+
+  it('does not fire after a $sort when a $project above it creates the field', () => {
+    const codes = codesOf(
+      aggregateDoc([
+        { $sort: { sortKey: { score: 1 } }, nReturned: 100 },
+        { $project: { score: 1 }, nReturned: 100 },
+        { $match: { score: 5 }, nReturned: 10 },
       ]),
     );
     expect(codes).not.toContain('BLOCKING_STAGE_BEFORE_MATCH');
