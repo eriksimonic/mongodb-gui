@@ -35,3 +35,6 @@ export * from './schemas/settings';
 export * from './schemas/vault';
 export * from './shell/protocol';
 export * from './shell/result-type';
+export * from './transfer/csv';
+export * from './transfer/infer';
+export * from './transfer/types';
