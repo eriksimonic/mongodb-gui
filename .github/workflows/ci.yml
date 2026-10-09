@@ -73,8 +73,14 @@ jobs:
 
       # Electron is the browser under test, so Playwright's own browsers are not needed.
       # The MongoDB container runs through Docker, which ubuntu runners provide.
+      # GitHub's shared runners hit Docker Hub's anonymous pull limit. Testcontainers pulls
+      # the same official images from the AWS public mirror of the Docker library instead.
       - name: Run end-to-end tests
         run: xvfb-run -a pnpm test:e2e
+        env:
+          TESTCONTAINERS_HUB_IMAGE_NAME_PREFIX: public.ecr.aws/docker/library/
+          # The ryuk cleanup helper lives only on Docker Hub; the runner discards containers anyway.
+          TESTCONTAINERS_RYUK_DISABLED: 'true'
 
       - name: Upload e2e output
         if: failure()

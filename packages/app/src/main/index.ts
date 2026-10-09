@@ -27,6 +27,8 @@ function contentSecurityPolicy(): string {
     return [
       "default-src 'self'",
       "script-src 'self'",
+      // Monaco runs its language and editor workers as blob: URLs.
+      "worker-src 'self' blob:",
       "style-src 'self' 'unsafe-inline'",
       "font-src 'self' data:",
       "img-src 'self' data:",
@@ -42,6 +44,7 @@ function contentSecurityPolicy(): string {
   return [
     `default-src 'self' ${origin} ${socketOrigin}`,
     `script-src 'self' ${origin} 'unsafe-inline'`,
+    "worker-src 'self' blob:",
     `style-src 'self' ${origin} 'unsafe-inline'`,
     `font-src 'self' ${origin} data:`,
     `img-src 'self' ${origin} data:`,

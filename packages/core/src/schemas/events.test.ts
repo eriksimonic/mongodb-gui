@@ -15,6 +15,25 @@ describe('RpcEventSchema', () => {
     expect(RpcEventSchema.safeParse({ type: 'vault:locked' }).success).toBe(true);
   });
 
+  it('accepts a catalog change scoped to a connection, a database or a collection', () => {
+    const connectionId = '3f2b8c1e-5d4a-4b7e-9c1f-2a6d8e0b7f10';
+    expect(RpcEventSchema.safeParse({ type: 'catalog:changed', connectionId }).success).toBe(true);
+    expect(
+      RpcEventSchema.safeParse({
+        type: 'catalog:changed',
+        connectionId,
+        database: 'shop',
+        collection: 'orders',
+      }).success,
+    ).toBe(true);
+  });
+
+  it('rejects a catalog change that is not tied to a connection', () => {
+    expect(RpcEventSchema.safeParse({ type: 'catalog:changed', database: 'shop' }).success).toBe(
+      false,
+    );
+  });
+
   it('accepts profiler entries and profiler errors', () => {
     const connectionId = '3f2b8c1e-5d4a-4b7e-9c1f-2a6d8e0b7f10';
     const entry = {

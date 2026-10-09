@@ -6,7 +6,7 @@ import {
   type ShellEvaluation,
   type ShellResult,
 } from '@mongo-gui/core';
-import { fixtureDatabases, fixtureDocuments } from './mock-fixtures';
+import type { MockCollection, MockDatabase } from './mock-catalog';
 
 export type MockShellEmit = (event: RpcEvent) => void;
 
@@ -48,20 +48,30 @@ const IDENTIFIER = '[A-Za-z_][A-Za-z0-9_]*';
  * getName.
  * Anything else returns the code as a string. It is not a JavaScript evaluator.
  */
-export function createMockShell(emit: MockShellEmit) {
+export function createMockShell(
+  emit: MockShellEmit,
+  catalogOf: (connectionId: string) => MockDatabase[],
+) {
   const cursors = new Map<string, OpenCursor>();
   const running = new Map<string, () => void>();
   const cancelled = new Set<string>();
+
+  function collectionOf(
+    connectionId: string,
+    database: string,
+    collection: string,
+  ): MockCollection | undefined {
+    return catalogOf(connectionId)
+      .find((item) => item.name === database)
+      ?.collections.find((item) => item.info.name === collection);
+  }
 
   function collectionDocuments(
     connectionId: string,
     database: string,
     collection: string,
   ): readonly unknown[] {
-    const found = fixtureDatabases(connectionId)
-      .find((item) => item.name === database)
-      ?.collections.find((item) => item.info.name === collection);
-    return found === undefined ? [] : fixtureDocuments(collection, found.count);
+    return (collectionOf(connectionId, database, collection)?.documents ?? []).map(toCanonical);
   }
 
   function runStatement(input: EvaluationInput, statement: Statement): Promise<ShellEvaluation> {
@@ -91,9 +101,8 @@ export function createMockShell(emit: MockShellEmit) {
         );
       case 'count': {
         const total =
-          fixtureDatabases(input.connectionId)
-            .find((item) => item.name === input.database)
-            ?.collections.find((item) => item.info.name === statement.collection)?.count ?? 0;
+          collectionOf(input.connectionId, input.database, statement.collection)?.documents
+            .length ?? 0;
         return Promise.resolve(
           value({ type: 'number', printableEjson: int32Text(total), hasMore: false }),
         );
@@ -216,7 +225,7 @@ export function createMockShell(emit: MockShellEmit) {
       }
       if (/db\.\w*$/.test(before)) {
         const names =
-          fixtureDatabases(input.connectionId)
+          catalogOf(input.connectionId)
             .find((item) => item.name === input.database)
             ?.collections.map((item) => item.info.name) ?? [];
         return names.map((text) => ({ text, kind: 'collection' }));
@@ -302,6 +311,23 @@ export function parseStatement(code: string): Statement {
     return { kind: 'getName' };
   }
   return { kind: 'echo' };
+}
+
+// Numbers are written the way canonical EJSON writes them: int32 values with $numberInt, the rest
+// with $numberDouble. Nested values convert too.
+export function toCanonical(value: unknown): unknown {
+  if (typeof value === 'number') {
+    return Number.isInteger(value) && Math.abs(value) <= 2_147_483_647
+      ? { $numberInt: String(value) }
+      : { $numberDouble: String(value) };
+  }
+  if (Array.isArray(value)) {
+    return value.map(toCanonical);
+  }
+  if (typeof value === 'object' && value !== null) {
+    return Object.fromEntries(Object.entries(value).map(([key, item]) => [key, toCanonical(item)]));
+  }
+  return value;
 }
 
 // Canonical EJSON writes an int32 with its wrapper, as the runtime does.

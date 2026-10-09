@@ -3,7 +3,7 @@ import 'dockview/dist/styles/dockview.css';
 import '../theme/dockview-theme.css';
 import { Box, Button, Flex, Group, Text } from '@mantine/core';
 import { IconDatabase, IconLock, IconPlus, IconServer, IconSettings } from '@tabler/icons-react';
-import { useCallback, useMemo, useRef } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import {
   DockviewReact,
   themeDark,
@@ -13,20 +13,26 @@ import {
 } from 'dockview-react';
 import { ConnectionDialog } from '../components/connections/ConnectionDialog';
 import { ConnectionManager } from '../components/connections/ConnectionManager';
+import { ManagementDialogs } from '../components/management/ManagementDialogs';
 import { runReported } from '../components/notify-error';
 import { SettingsModal } from '../components/settings/SettingsModal';
 import { UpdateBanner } from '../components/updates/UpdateBanner';
 import { ProfilerOpenerContext, type ProfilerOpener } from '../profiler/profiler-opener';
+import type { PanelRequest } from '../state/app-store';
 import { useAppStore } from '../state/app-store-context';
 import { PanelOpenerContext, type OpenPanel } from '../state/panel-opener';
 import { profilerPanelId } from '../state/node-ids';
+import { databasePanelIds, stalePanelIds } from './collection-panels';
 import {
   ConnectionsPanel,
+  DocumentsDockPanel,
   FixedTab,
+  IndexesDockPanel,
   MonitorPanel,
   OperationsPanelView,
   OutputPanel,
   ProfilerDockPanel,
+  ValidationDockPanel,
   WelcomePanel,
 } from './ShellPanels';
 
@@ -37,6 +43,9 @@ const PANEL_COMPONENTS = {
   profiler: ProfilerDockPanel,
   monitor: MonitorPanel,
   operations: OperationsPanelView,
+  indexes: IndexesDockPanel,
+  validation: ValidationDockPanel,
+  documents: DocumentsDockPanel,
 };
 
 const TAB_COMPONENTS = { fixed: FixedTab };
@@ -49,6 +58,11 @@ const MONGO_THEME: DockviewTheme = { ...themeDark, name: 'mongo-gui', className:
 
 const SIDEBAR_WIDTH_PX = 280;
 const OUTPUT_SHARE = 0.3;
+const PANEL_TITLE_SUFFIX: Readonly<Record<PanelRequest['panel'], string>> = {
+  indexes: 'indexes',
+  validation: 'validation',
+  documents: 'documents',
+};
 
 /**
  * Lays out the three default panels: connections on the left, welcome in the centre, and output
@@ -126,6 +140,62 @@ function openConnectionPanel(api: DockviewApi, request: Parameters<OpenPanel>[0]
   });
 }
 
+function panelId(request: PanelRequest): string {
+  return `${request.panel}:${request.connectionId}:${request.database}.${request.collection}`;
+}
+
+/**
+ * Focuses the panel for the request, or adds it. One panel exists per collection and kind. The
+ * shell remembers the request, so a rename or a drop can close the panel later.
+ */
+function openCollectionPanel(
+  api: DockviewApi,
+  request: PanelRequest,
+  open: Map<string, PanelRequest>,
+): void {
+  const id = panelId(request);
+  const existing = api.getPanel(id);
+  if (existing !== undefined) {
+    existing.api.setActive();
+    return;
+  }
+  open.set(id, request);
+  // Collection panels open as tabs of the centre group. The active group could be the tree's, and a
+  // dockview group hides the tree's content while another of its tabs is active.
+  api.addPanel({
+    id,
+    component: request.panel,
+    title: `${request.database}.${request.collection} ${PANEL_TITLE_SUFFIX[request.panel]}`,
+    params: {
+      connectionId: request.connectionId,
+      database: request.database,
+      collection: request.collection,
+    },
+    position: { referencePanel: 'welcome' },
+  });
+}
+
+function removePanelById(api: DockviewApi, id: string): void {
+  const panel = api.getPanel(id);
+  if (panel !== undefined) {
+    api.removePanel(panel);
+  }
+}
+
+/** Closes every collection and profiler panel of one database. Runs when the database is dropped. */
+function closeDatabasePanels(
+  api: DockviewApi,
+  open: Map<string, PanelRequest>,
+  connectionId: string,
+  database: string,
+): void {
+  for (const id of databasePanelIds(open, connectionId, database)) {
+    removePanelById(api, id);
+    open.delete(id);
+  }
+  removePanelById(api, profilerPanelId(connectionId, database));
+}
+
 /**
  * Stops a connection's sampler when its last monitor panel closes. A reload of the
  * renderer also removes the panels, but no stop is sent then. The main process stops every sampler
@@ -158,7 +228,14 @@ export function ShellScreen() {
   const setDialog = useAppStore((state) => state.setDialog);
   const setManagerOpen = useAppStore((state) => state.setManagerOpen);
   const setSettingsOpen = useAppStore((state) => state.setSettingsOpen);
+  const panelRequest = useAppStore((state) => state.panelRequest);
+  const clearPanelRequest = useAppStore((state) => state.clearPanelRequest);
+  const databases = useAppStore((state) => state.databases);
+  const collections = useAppStore((state) => state.collections);
   const dockApi = useRef<DockviewApi | undefined>(undefined);
+  const [dock, setDock] = useState<DockviewApi | undefined>(undefined);
+  // The collection panels this shell opened, by panel id.
+  const collectionPanels = useRef(new Map<string, PanelRequest>());
   const openPanel = useCallback<OpenPanel>((request) => {
     if (dockApi.current !== undefined) {
       openConnectionPanel(dockApi.current, request);
@@ -174,6 +251,27 @@ export function ShellScreen() {
     }),
     [],
   );
+
+  // A request can arrive before the dock is ready, so the effect also runs when the dock appears.
+  useEffect(() => {
+    if (dock === undefined || panelRequest === undefined) {
+      return;
+    }
+    openCollectionPanel(dock, panelRequest, collectionPanels.current);
+    clearPanelRequest();
+  }, [dock, panelRequest, clearPanelRequest]);
+
+  // Closes a collection panel once its database or collection is gone from a loaded list. A
+  // database that was never expanded still counts, because the database list is loaded first.
+  useEffect(() => {
+    if (dock === undefined) {
+      return;
+    }
+    for (const id of stalePanelIds(collectionPanels.current, databases, collections)) {
+      removePanelById(dock, id);
+      collectionPanels.current.delete(id);
+    }
+  }, [dock, databases, collections]);
 
   return (
     <PanelOpenerContext.Provider value={openPanel}>
@@ -233,8 +331,10 @@ export function ShellScreen() {
                 tabComponents={TAB_COMPONENTS}
                 onReady={(event) => {
                   dockApi.current = event.api;
+                  setDock(event.api);
                   handleDockReady(event);
                   event.api.onDidRemovePanel((panel) => {
+                    collectionPanels.current.delete(panel.id);
                     stopSamplerWhenUnused(event.api, panel.id, stopMonitor);
                   });
                 }}
@@ -248,6 +348,18 @@ export function ShellScreen() {
               onClose={() => setDialog({ kind: 'closed' })}
             />
           )}
+          <ManagementDialogs
+            onDatabaseDropped={(connectionId, database) => {
+              if (dockApi.current !== undefined) {
+                closeDatabasePanels(
+                  dockApi.current,
+                  collectionPanels.current,
+                  connectionId,
+                  database,
+                );
+              }
+            }}
+          />
           <ConnectionManager />
           <SettingsModal />
         </Flex>

@@ -6,9 +6,19 @@ import {
   type IDockviewPanelProps,
 } from 'dockview-react';
 import { ConnectionTree } from '../components/connections/ConnectionTree';
+import { DocumentsPanel } from '../components/management/DocumentsPanel';
+import { IndexesPanel } from '../components/management/IndexesPanel';
+import { ValidationPanel } from '../components/management/ValidationPanel';
 import { ProfilerPanel } from '../profiler/ProfilerPanel';
 import { MonitorDashboard } from '../monitor/MonitorDashboard';
 import { OperationsPanel } from '../monitor/OperationsPanel';
+
+/** The params every collection panel gets from the dock. */
+export interface CollectionPanelParams {
+  readonly connectionId: string;
+  readonly database: string;
+  readonly collection: string;
+}
 
 /** Params of a profiler panel. The shell sets them when it opens the panel. */
 export interface ProfilerPanelParams {
@@ -93,6 +103,33 @@ export function OutputPanel() {
       <Text size="sm" c="dimmed">
         No output yet.
       </Text>
+    </Box>
+  );
+}
+
+/** Dock panel: indexes of one collection. */
+export function IndexesDockPanel({ params }: IDockviewPanelProps<CollectionPanelParams>) {
+  return (
+    <Box h="100%" style={{ overflow: 'auto' }}>
+      <IndexesPanel {...params} />
+    </Box>
+  );
+}
+
+/** Dock panel: validator of one collection. */
+export function ValidationDockPanel({ params }: IDockviewPanelProps<CollectionPanelParams>) {
+  return (
+    <Box h="100%" style={{ overflow: 'auto' }}>
+      <ValidationPanel {...params} />
+    </Box>
+  );
+}
+
+/** Dock panel: sampled documents of one collection. */
+export function DocumentsDockPanel({ params }: IDockviewPanelProps<CollectionPanelParams>) {
+  return (
+    <Box h="100%" style={{ overflow: 'auto' }}>
+      <DocumentsPanel {...params} />
     </Box>
   );
 }

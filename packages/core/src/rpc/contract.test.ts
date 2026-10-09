@@ -2,9 +2,10 @@ import { describe, expect, it } from 'vitest';
 import { rpcContract } from './contract';
 
 const namespaces = Object.entries(rpcContract);
+const CONNECTION_ID = '3f2b8c1e-5d4a-4b7e-9c1f-2a6d8e0b7f10';
 
 describe('rpcContract', () => {
-  it('declares the namespaces required by P1-1, P2-2 and the later phases', () => {
+  it('declares the namespaces required by P1-1, P2-2, the P4-B management calls and the P6-2 profiler', () => {
     expect(Object.keys(rpcContract).sort()).toEqual(
       [
         'app',
@@ -14,6 +15,7 @@ describe('rpcContract', () => {
         'docker',
         'favourites',
         'history',
+        'management',
         'monitor',
         'profiler',
         'settings',
@@ -87,5 +89,83 @@ describe('rpcContract', () => {
       uriRedacted: 'mongodb://app:***@localhost/',
     };
     expect(rpcContract.connections.list.output.safeParse([summary]).success).toBe(true);
+  });
+
+  describe('management', () => {
+    const { management } = rpcContract;
+
+    it('requires a connection id on every call', () => {
+      for (const [name, call] of Object.entries(management)) {
+        const withoutConnection = call.input.safeParse({
+          database: 'shop',
+          collection: 'orders',
+          name: 'orders',
+          newName: 'orders2',
+          sampleSize: 10,
+          limit: 5,
+          idEjson: '{}',
+          idsEjson: [],
+          keys: { a: 1 },
+          options: {},
+          rules: { validatorEjson: '{}', validationLevel: 'strict', validationAction: 'error' },
+          documentEjson: '{}',
+          filterEjson: '{}',
+          expectedCount: 0,
+        });
+        expect(withoutConnection.success, name).toBe(false);
+      }
+    });
+
+    it('accepts a create collection input with capped options and an EJSON validator', () => {
+      const result = management.createCollection.input.safeParse({
+        connectionId: CONNECTION_ID,
+        database: 'shop',
+        name: 'orders',
+        capped: { sizeBytes: 1_048_576 },
+        validatorEjson: '{"status": {"$in": ["paid"]}}',
+      });
+      expect(result.success).toBe(true);
+    });
+
+    it('refuses a collection that is both capped and timeseries', () => {
+      const result = management.createCollection.input.safeParse({
+        connectionId: CONNECTION_ID,
+        database: 'shop',
+        name: 'orders',
+        capped: { sizeBytes: 1024 },
+        timeseries: { timeField: 'ts' },
+      });
+      expect(result.success).toBe(false);
+    });
+
+    it('refuses to drop the _id_ index through the contract', () => {
+      const result = management.dropIndex.input.safeParse({
+        connectionId: CONNECTION_ID,
+        database: 'shop',
+        collection: 'orders',
+        name: '_id_',
+      });
+      expect(result.success).toBe(false);
+    });
+
+    it('bounds the sample sizes of validation checks and document sampling', () => {
+      const base = { connectionId: CONNECTION_ID, database: 'shop', collection: 'orders' };
+      expect(
+        management.checkValidation.input.safeParse({ ...base, sampleSize: 10_001 }).success,
+      ).toBe(false);
+      expect(
+        management.checkValidation.input.safeParse({ ...base, sampleSize: 1000 }).success,
+      ).toBe(true);
+      expect(management.sampleDocuments.input.safeParse({ ...base, limit: 201 }).success).toBe(
+        false,
+      );
+    });
+
+    it('returns an id string from insert and EJSON strings from reads', () => {
+      const oid = '{"$oid":"64b7f0f0e4b0a1b2c3d4e5f6"}';
+      expect(management.insertDocument.output.safeParse(oid).success).toBe(true);
+      expect(management.sampleDocuments.output.safeParse(['{"a":1}']).success).toBe(true);
+      expect(management.findDocumentById.output.safeParse(null).success).toBe(true);
+    });
   });
 });

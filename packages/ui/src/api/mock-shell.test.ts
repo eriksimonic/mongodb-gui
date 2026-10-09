@@ -72,7 +72,7 @@ describe('mock shell', () => {
     });
     expect(outcome.result).toEqual({
       type: 'number',
-      printableEjson: '{"$numberInt":"1200"}',
+      printableEjson: '{"$numberInt":"240"}',
       hasMore: false,
     });
   });
@@ -212,7 +212,7 @@ describe('mock shell', () => {
       code: 'db.orders.countDocuments({})',
       batchSize: 50,
     });
-    expect(JSON.parse(count.result?.printableEjson ?? '')).toEqual({ $numberInt: '1200' });
+    expect(JSON.parse(count.result?.printableEjson ?? '')).toEqual({ $numberInt: '240' });
   });
 
   it('drops the cursors of a connection when it disconnects', async () => {

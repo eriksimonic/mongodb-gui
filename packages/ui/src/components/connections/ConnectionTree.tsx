@@ -9,10 +9,10 @@ import { catalogKey, connectionNodeId, databaseNodeId } from '../../state/node-i
 import { useProfilerOpener } from '../../profiler/profiler-opener';
 import { runReported } from '../notify-error';
 import { ConnectionContextMenu } from './ConnectionContextMenu';
-import { DatabaseContextMenu } from './DatabaseContextMenu';
 import { DockerContainerContextMenu } from './DockerContainerContextMenu';
 import { DockerLinkedContextMenu } from './DockerLinkedContextMenu';
 import { DockerNodeContextMenu } from './DockerNodeContextMenu';
+import { CollectionContextMenu, DatabaseContextMenu } from './CatalogContextMenu';
 import { TreeMessage, TreeRow } from './TreeRow';
 import {
   buildTreeRows,
@@ -30,17 +30,17 @@ type MenuTarget =
   | { readonly kind: 'connection'; readonly connectionId: string }
   | { readonly kind: 'linked'; readonly connectionId: string }
   | { readonly kind: 'container'; readonly containerId: string }
-  | { readonly kind: 'docker' };
+  | { readonly kind: 'docker' }
+  | { readonly kind: 'database'; readonly connectionId: string; readonly database: string }
+  | {
+      readonly kind: 'collection';
+      readonly connectionId: string;
+      readonly database: string;
+      readonly collection: string;
+    };
 
 interface MenuAnchor {
   readonly target: MenuTarget;
-  readonly x: number;
-  readonly y: number;
-}
-
-interface DatabaseMenuAnchor {
-  readonly connectionId: string;
-  readonly database: string;
   readonly x: number;
   readonly y: number;
 }
@@ -91,6 +91,19 @@ function menuTargetFor(
         : { kind: 'container', containerId: row.container.id };
     case 'docker':
       return { kind: 'docker' };
+    case 'database':
+      return row.database === undefined
+        ? undefined
+        : { kind: 'database', connectionId: row.connectionId, database: row.database };
+    case 'collection':
+      return row.database === undefined || row.collection === undefined
+        ? undefined
+        : {
+            kind: 'collection',
+            connectionId: row.connectionId,
+            database: row.database,
+            collection: row.collection,
+          };
     default:
       return undefined;
   }
@@ -123,7 +136,6 @@ export function ConnectionTree() {
   const profilerOpener = useProfilerOpener();
   const [focusKey, setFocusKey] = useState<string | undefined>(undefined);
   const [menu, setMenu] = useState<MenuAnchor | undefined>(undefined);
-  const [databaseMenu, setDatabaseMenu] = useState<DatabaseMenuAnchor | undefined>(undefined);
   const items = useRef(new Map<string, HTMLDivElement>());
   // A double click sends two clicks. This set keeps one connect call per container in flight.
   const connectingContainers = useRef(new Set<string>());
@@ -284,10 +296,6 @@ export function ConnectionTree() {
     const rect = items.current.get(row.key)?.getBoundingClientRect();
     const x = rect === undefined ? 0 : rect.left + 12;
     const y = rect === undefined ? 0 : rect.bottom;
-    if (row.kind === 'database' && row.database !== undefined) {
-      setDatabaseMenu({ connectionId: row.connectionId, database: row.database, x, y });
-      return;
-    }
     const target = menuTargetFor(row, readyConnections);
     if (target === undefined) {
       return;
@@ -341,15 +349,6 @@ export function ConnectionTree() {
 
   function handleContextMenu(row: TreeRowModel, event: MouseEvent<HTMLDivElement>) {
     event.preventDefault();
-    if (row.kind === 'database' && row.database !== undefined) {
-      setDatabaseMenu({
-        connectionId: row.connectionId,
-        database: row.database,
-        x: event.clientX,
-        y: event.clientY,
-      });
-      return;
-    }
     const target = menuTargetFor(row, readyConnections);
     if (target !== undefined) {
       setMenu({ target, x: event.clientX, y: event.clientY });
@@ -400,6 +399,27 @@ export function ConnectionTree() {
       return (
         <DockerNodeContextMenu
           autoConnect={docker.autoConnect}
+          position={position}
+          onClose={closeMenu}
+        />
+      );
+    }
+    if (target.kind === 'database') {
+      return (
+        <DatabaseContextMenu
+          connectionId={target.connectionId}
+          database={target.database}
+          position={position}
+          onClose={closeMenu}
+        />
+      );
+    }
+    if (target.kind === 'collection') {
+      return (
+        <CollectionContextMenu
+          connectionId={target.connectionId}
+          database={target.database}
+          collection={target.collection}
           position={position}
           onClose={closeMenu}
         />
@@ -483,14 +503,6 @@ export function ConnectionTree() {
           ),
         )}
         {menu === undefined ? null : renderMenu(menu)}
-        {databaseMenu === undefined ? null : (
-          <DatabaseContextMenu
-            connectionId={databaseMenu.connectionId}
-            database={databaseMenu.database}
-            position={{ x: databaseMenu.x, y: databaseMenu.y }}
-            onClose={() => setDatabaseMenu(undefined)}
-          />
-        )}
       </div>
     </>
   );
