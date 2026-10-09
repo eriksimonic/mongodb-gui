@@ -41,6 +41,7 @@ export * from './schemas/monitor';
 export * from './schemas/settings';
 export * from './schemas/vault';
 export * from './updates/types';
+export * from './sharding/types';
 export * from './shell/protocol';
 export * from './shell/result-type';
 export * from './shell/rpc-schemas';
