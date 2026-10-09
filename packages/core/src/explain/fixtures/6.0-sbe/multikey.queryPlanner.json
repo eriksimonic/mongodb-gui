@@ -51,8 +51,8 @@
         }
       },
       "slotBasedPlan": {
-        "slots": "$$RESULT=s11 $$RID=s12 env: { s1 = TimeZoneDatabase(Atlantic/Cape_Verde...Asia/Ashkhabad) (timeZoneDB), s3 = 1791573146989 (NOW), s2 = Nothing (SEARCH_META) }",
-        "stages": "[2] nlj [] [s8, s4, s5, s6, s7] \n    left \n        [1] unique [s8] \n        [1] nlj [s7] [s9, s10] \n            left \n                [1] project [s7 = {\"items.sku\" : 1}, s9 = KS(3C4131000104), s10 = KS(3C413100FE04)] \n                [1] limit 1 \n                [1] coscan \n            right \n                [1] ixseek s9 s10 s6 s8 s4 s5 [] @\"816038ae-feda-4fd1-9aa7-ac038e21dbb0\" @\"items.sku_1\" true \n            \n        \n    right \n        [2] limit 1 \n        [2] seek s8 s11 s12 s4 s5 s6 s7 [] @\"816038ae-feda-4fd1-9aa7-ac038e21dbb0\" true false \n    \n"
+        "slots": "$$RESULT=s11 $$RID=s12 env: { s1 = TimeZoneDatabase(Asia/Harbin...GB) (timeZoneDB), s3 = 1791574470786 (NOW), s2 = Nothing (SEARCH_META) }",
+        "stages": "[2] nlj [] [s8, s4, s5, s6, s7] \n    left \n        [1] unique [s8] \n        [1] nlj [s7] [s9, s10] \n            left \n                [1] project [s7 = {\"items.sku\" : 1}, s9 = KS(3C4131000104), s10 = KS(3C413100FE04)] \n                [1] limit 1 \n                [1] coscan \n            right \n                [1] ixseek s9 s10 s6 s8 s4 s5 [] @\"f3899e44-9a7a-41e5-9a3b-135109951701\" @\"items.sku_1\" true \n            \n        \n    right \n        [2] limit 1 \n        [2] seek s8 s11 s12 s4 s5 s6 s7 [] @\"f3899e44-9a7a-41e5-9a3b-135109951701\" true false \n    \n"
       }
     },
     "rejectedPlans": []
@@ -65,7 +65,7 @@
     "$db": "fixtures"
   },
   "serverInfo": {
-    "host": "6a26fe1ab200",
+    "host": "734bd7ad9e7a",
     "port": {
       "$numberInt": "27017"
     },

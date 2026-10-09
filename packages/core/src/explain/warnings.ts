@@ -1,5 +1,5 @@
 import type { PlanStage, PlanTree, PlanWarning } from './plan-tree';
-import { asBoolean, asRecord, fieldNames, readNumber } from './raw-values';
+import { asBoolean, readNumber } from './raw-values';
 import { flattenStages, isCollectionScanStage, isSortStage } from './stage-walk';
 
 export const COLLSCAN_CRITICAL_DOCS = 1000;
@@ -21,6 +21,8 @@ export function deriveWarnings(tree: Omit<PlanTree, 'warnings'>): PlanWarning[] 
   ];
 }
 
+// Critical only when the examined count is known and above the threshold. An unknown count is a
+// warning, because the plan may still be small.
 function collectionScanWarnings(
   stages: PlanStage[],
   tree: Omit<PlanTree, 'warnings'>,
@@ -29,7 +31,7 @@ function collectionScanWarnings(
     .filter((stage) => isCollectionScanStage(stage.name))
     .map((stage) => {
       const docs = stage.docsExamined ?? tree.summary.docsExamined;
-      const critical = docs === undefined || docs > COLLSCAN_CRITICAL_DOCS;
+      const critical = docs !== undefined && docs > COLLSCAN_CRITICAL_DOCS;
       const message =
         docs === undefined
           ? 'The query scans the whole collection. The examined count is unknown.'
@@ -112,8 +114,9 @@ function examinedRatioWarnings(tree: Omit<PlanTree, 'warnings'>): PlanWarning[] 
   ];
 }
 
-// A PROJECTION_SIMPLE over a FETCH over an IXSCAN can skip the fetch when every projected field
-// is in the index key and _id is excluded. Any other shape gets no warning.
+// A PROJECTION_SIMPLE over a FETCH over an IXSCAN can skip the fetch when the index holds every
+// projected field. The warning fires when _id is still returned, because then the index cannot
+// cover the query, and the advice is to exclude _id. It never fires when _id is excluded.
 function coveredFetchWarnings(stages: PlanStage[]): PlanWarning[] {
   return stages.flatMap((stage): PlanWarning[] => {
     if (stage.name !== 'PROJECTION_SIMPLE') {
@@ -125,38 +128,40 @@ function coveredFetchWarnings(stages: PlanStage[]): PlanWarning[] {
       fetch === undefined ||
       scan === undefined ||
       fetch.name !== 'FETCH' ||
-      fetch.filter !== undefined
+      fetch.filter !== undefined ||
+      scan.name !== 'IXSCAN' ||
+      scan.isMultiKey === true ||
+      stage.projection === undefined ||
+      !couldCover(stage.projection, scan.indexKeys ?? [])
     ) {
-      return [];
-    }
-    if (scan.name !== 'IXSCAN' || !isCoverable(stage, scan)) {
       return [];
     }
     return [
       {
         code: 'FETCH_AFTER_COVERED_INDEX',
         severity: 'info',
-        message: `The projection needs only fields in index ${scan.index ?? 'unknown'}, but the query still fetches whole documents.`,
+        message: `Index ${scan.index ?? 'used by this query'} holds every projected field except _id, so the query still fetches whole documents.`,
         stageName: fetch.name,
       },
     ];
   });
 }
 
-function isCoverable(projection: PlanStage, scan: PlanStage): boolean {
-  const transform = asRecord(asRecord(projection.raw)?.['transformBy']);
-  if (transform === undefined || readNumber(transform['_id']) !== 0) {
+// True when _id is returned, every other projected field is an inclusion, and the index key
+// holds all of those fields. A projection with no fields besides _id does not qualify.
+function couldCover(projection: Record<string, unknown>, keys: string[]): boolean {
+  const idValue = projection['_id'];
+  if (idValue !== undefined && (readNumber(idValue) === 0 || asBoolean(idValue) === false)) {
     return false;
   }
-  const keyFields = new Set(fieldNames(asRecord(scan.raw)?.['keyPattern']));
-  const projected = Object.keys(transform).filter((field) => field !== '_id');
-  if (projected.length === 0) {
+  const fields = Object.keys(projection).filter((field) => field !== '_id');
+  if (fields.length === 0) {
     return false;
   }
-  return projected.every((field) => {
-    const value = transform[field];
+  return fields.every((field) => {
+    const value = projection[field];
     const included = readNumber(value) === 1 || asBoolean(value) === true;
-    return included && keyFields.has(field);
+    return included && keys.includes(field);
   });
 }
 

@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { explainInWords, suggestIndexKeys } from './explain-text';
+import { explainInWords, indexKeyFor } from './explain-text';
 import { normaliseExplain } from './normalise';
 import type { PlanStage, PlanTree, PlanWarning, PlanWarningCode } from './plan-tree';
 
@@ -160,7 +160,7 @@ describe('explainInWords', () => {
   it('suggests the sort keys for an in-memory sort', () => {
     const words = explainInWords(
       tree({
-        winning: stage('SORT', { raw: { sortPattern: { total: 1 } } }),
+        winning: stage('SORT', { sortPattern: { total: 1 } }),
         warnings: [warning('IN_MEMORY_SORT')],
       }),
     );
@@ -169,10 +169,10 @@ describe('explainInWords', () => {
     );
   });
 
-  it('reads the sort keys of an aggregate $sort stage', () => {
+  it('suggests the sort keys of an aggregate $sort stage', () => {
     const words = explainInWords(
       tree({
-        winning: stage('$sort', { raw: { $sort: { sortKey: { spent: -1 } } } }),
+        winning: stage('$sort', { sortPattern: { spent: -1 } }),
         warnings: [warning('IN_MEMORY_SORT')],
       }),
     );
@@ -234,41 +234,194 @@ describe('explainInWords', () => {
   });
 });
 
-describe('suggestIndexKeys', () => {
-  it('puts equality fields before range fields, in filter order', () => {
-    expect(suggestIndexKeys({ total: { $gt: 5 }, status: 'paid', customerId: { $eq: 7 } })).toEqual(
-      [
-        ['status', 1],
-        ['customerId', 1],
-        ['total', 1],
-      ],
+describe('explainInWords index advice', () => {
+  const sortWarning: PlanWarning = { code: 'IN_MEMORY_SORT', severity: 'warning', message: 'sort' };
+
+  it('puts the filter equality field before the sort key', () => {
+    const words = explainInWords(
+      tree({
+        filter: { status: { $eq: 'paid' } },
+        winning: stage('SORT', { sortPattern: { total: 1 } }),
+        warnings: [sortWarning],
+      }),
     );
+    expect(words).toContain(
+      'Add an index on { status: 1, total: 1 } so the server can return sorted documents without an in-memory sort.',
+    );
+  });
+
+  it('gives no index advice when the $sort follows a $group', () => {
+    const words = explainInWords(
+      tree({
+        command: 'aggregate',
+        winning: stage('$sort', {
+          sortPattern: { spent: -1 },
+          children: [stage('$group', { children: [stage('$cursor')] })],
+        }),
+        warnings: [sortWarning],
+      }),
+    );
+    expect(words).toContain(
+      'The $sort follows a $group, $unwind or $project stage, so an index cannot return the documents in sorted order.',
+    );
+    expect(words.some((sentence) => sentence.startsWith('Add an index'))).toBe(false);
+  });
+
+  it('gives no index advice when the $sort follows a $unwind or $project', () => {
+    for (const blocking of ['$unwind', '$project']) {
+      const words = explainInWords(
+        tree({
+          command: 'aggregate',
+          winning: stage('$sort', {
+            sortPattern: { total: 1 },
+            children: [stage(blocking, { children: [stage('$cursor')] })],
+          }),
+          warnings: [sortWarning],
+        }),
+      );
+      expect(words.some((sentence) => sentence.startsWith('Add an index'))).toBe(false);
+    }
+  });
+
+  it('drops the advice when a used index already starts with the advised keys', () => {
+    const words = explainInWords(
+      tree({
+        filter: { customerId: 7 },
+        summary: {
+          indexesUsed: ['customerId_1_createdAt_-1'],
+          inMemorySort: true,
+          collectionScan: false,
+        },
+        winning: stage('FETCH', {
+          indexKeys: ['customerId', 'createdAt'],
+          children: [stage('SORT', { sortPattern: { createdAt: -1 } })],
+        }),
+        warnings: [sortWarning],
+      }),
+    );
+    expect(words.some((sentence) => sentence.startsWith('Add an index'))).toBe(false);
+  });
+
+  it('keeps the advice when the used index only shares a leading field', () => {
+    const words = explainInWords(
+      tree({
+        filter: { status: 'paid' },
+        summary: { indexesUsed: ['status_1'], inMemorySort: true, collectionScan: false },
+        winning: stage('FETCH', {
+          indexKeys: ['status'],
+          children: [stage('SORT', { sortPattern: { total: 1 } })],
+        }),
+        warnings: [sortWarning],
+      }),
+    );
+    expect(words).toContain(
+      'Add an index on { status: 1, total: 1 } so the server can return sorted documents without an in-memory sort.',
+    );
+  });
+
+  it('keeps the MULTIKEY advice concrete', () => {
+    const words = explainInWords(
+      tree({ warnings: [{ code: 'MULTIKEY_INDEX', severity: 'info', message: 'm' }] }),
+    );
+    expect(words.at(-1)).toContain('$elemMatch');
+  });
+});
+
+describe('explainInWords write and count sentences', () => {
+  it('says how many documents a delete would remove', () => {
+    const words = explainInWords(
+      tree({
+        command: 'delete',
+        winning: stage('DELETE', { raw: { nWouldDelete: 666 } }),
+        summary: {
+          indexesUsed: ['status_1'],
+          keysExamined: 666,
+          docsExamined: 666,
+          nReturned: 0,
+          inMemorySort: false,
+          collectionScan: false,
+          executionTimeMs: 0,
+        },
+      }),
+    );
+    expect(words[0]).toBe(
+      'The planner chose the index status_1 and examined 666 keys and 666 documents to delete 666 documents in 0 ms.',
+    );
+  });
+
+  it('says how many documents an update would modify', () => {
+    const words = explainInWords(
+      tree({
+        command: 'update',
+        winning: stage('UPDATE', { raw: { nWouldModify: 1 } }),
+        summary: { indexesUsed: [], inMemorySort: false, collectionScan: false, nReturned: 0 },
+      }),
+    );
+    expect(words[0]).toBe('The planner ran the plan to update 1 document.');
+  });
+
+  it('says how many documents a count counted', () => {
+    const words = explainInWords(
+      tree({
+        command: 'count',
+        winning: stage('COUNT', { raw: { nCounted: 0 } }),
+        summary: {
+          indexesUsed: ['status_1'],
+          keysExamined: 668,
+          docsExamined: 0,
+          nReturned: 0,
+          inMemorySort: false,
+          collectionScan: false,
+        },
+      }),
+    );
+    expect(words[0]).toBe(
+      'The planner chose the index status_1 and examined 668 keys and 0 documents and counted 0 documents.',
+    );
+  });
+});
+
+describe('indexKeyFor', () => {
+  it('puts equality fields first, then sort keys, then range fields', () => {
+    expect(
+      indexKeyFor({ total: { $gt: 5 }, status: 'paid', customerId: { $eq: 7 } }, [
+        ['createdAt', -1],
+      ]),
+    ).toEqual([
+      ['status', 1],
+      ['customerId', 1],
+      ['createdAt', -1],
+      ['total', 1],
+    ]);
+  });
+
+  it('uses a range field as a sort key when it is also sorted on', () => {
+    expect(indexKeyFor({ total: { $gt: 5 } }, [['total', -1]])).toEqual([['total', -1]]);
   });
 
   it('treats $in as equality and skips $ne and $exists', () => {
     expect(
-      suggestIndexKeys({
-        status: { $in: ['paid', 'open'] },
-        note: { $ne: 'x' },
-        flag: { $exists: true },
-      }),
+      indexKeyFor(
+        { status: { $in: ['paid', 'open'] }, note: { $ne: 'x' }, flag: { $exists: true } },
+        [],
+      ),
     ).toEqual([['status', 1]]);
   });
 
   it('reads canonical EJSON number wrappers as plain values', () => {
-    expect(suggestIndexKeys({ customerId: { $numberInt: '7' } })).toEqual([['customerId', 1]]);
+    expect(indexKeyFor({ customerId: { $numberInt: '7' } }, [])).toEqual([['customerId', 1]]);
   });
 
   it('skips top-level operators such as $or', () => {
-    expect(suggestIndexKeys({ $or: [{ a: 1 }] })).toEqual([]);
+    expect(indexKeyFor({ $or: [{ a: 1 }] }, [])).toEqual([]);
   });
 
   it('returns nothing for a filter that is not an object', () => {
-    expect(suggestIndexKeys(undefined)).toEqual([]);
-    expect(suggestIndexKeys('total > 5')).toEqual([]);
+    expect(indexKeyFor(undefined, [])).toEqual([]);
+    expect(indexKeyFor('total > 5', [])).toEqual([]);
   });
 
   it('lists a field once when it is both equality and range', () => {
-    expect(suggestIndexKeys({ total: { $gt: 1, $eq: 2 } })).toEqual([['total', 1]]);
+    expect(indexKeyFor({ total: { $gt: 1, $eq: 2 } }, [])).toEqual([['total', 1]]);
   });
 });

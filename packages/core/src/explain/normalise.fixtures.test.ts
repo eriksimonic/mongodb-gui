@@ -72,6 +72,27 @@ const EXPECTATIONS: readonly Expectation[] = [
     'COLLSCAN',
     'NO_EXECUTION_STATS',
   ]),
+  e(
+    '4.4/competing.allPlansExecution',
+    'find',
+    'classic',
+    false,
+    ['customerId_1_createdAt_-1'],
+    false,
+    [],
+  ),
+  e(
+    '4.4/competing.executionStats',
+    'find',
+    'classic',
+    false,
+    ['customerId_1_createdAt_-1'],
+    false,
+    [],
+  ),
+  e('4.4/competing.queryPlanner', 'find', 'classic', false, ['customerId_1_createdAt_-1'], false, [
+    'NO_EXECUTION_STATS',
+  ]),
   e('4.4/count.allPlansExecution', 'count', 'classic', false, ['status_1'], false, []),
   e('4.4/count.executionStats', 'count', 'classic', false, ['status_1'], false, []),
   e('4.4/count.queryPlanner', 'count', 'classic', false, ['status_1'], false, [
@@ -202,7 +223,7 @@ const EXPECTATIONS: readonly Expectation[] = [
     'aggregate',
     'sbe',
     false,
-    ['status_1', 'customerId_1_createdAt_-1'],
+    ['customerId_1_createdAt_-1', 'status_1'],
     false,
     ['HIGH_EXAMINED_RATIO'],
   ),
@@ -211,7 +232,7 @@ const EXPECTATIONS: readonly Expectation[] = [
     'aggregate',
     'sbe',
     false,
-    ['status_1', 'customerId_1_createdAt_-1'],
+    ['customerId_1_createdAt_-1', 'status_1'],
     false,
     ['HIGH_EXAMINED_RATIO'],
   ),
@@ -228,6 +249,27 @@ const EXPECTATIONS: readonly Expectation[] = [
   e('6.0-sbe/collscan.executionStats', 'find', 'sbe', true, [], false, ['COLLSCAN']),
   e('6.0-sbe/collscan.queryPlanner', 'find', 'sbe', true, [], false, [
     'COLLSCAN',
+    'NO_EXECUTION_STATS',
+  ]),
+  e(
+    '6.0-sbe/competing.allPlansExecution',
+    'find',
+    'sbe',
+    false,
+    ['customerId_1_createdAt_-1'],
+    false,
+    [],
+  ),
+  e(
+    '6.0-sbe/competing.executionStats',
+    'find',
+    'sbe',
+    false,
+    ['customerId_1_createdAt_-1'],
+    false,
+    [],
+  ),
+  e('6.0-sbe/competing.queryPlanner', 'find', 'sbe', false, ['customerId_1_createdAt_-1'], false, [
     'NO_EXECUTION_STATS',
   ]),
   e('6.0-sbe/count.allPlansExecution', 'count', 'classic', false, ['status_1'], false, []),
@@ -380,6 +422,27 @@ const EXPECTATIONS: readonly Expectation[] = [
   e('6.0/collscan.executionStats', 'find', 'classic', true, [], false, ['COLLSCAN']),
   e('6.0/collscan.queryPlanner', 'find', 'classic', true, [], false, [
     'COLLSCAN',
+    'NO_EXECUTION_STATS',
+  ]),
+  e(
+    '6.0/competing.allPlansExecution',
+    'find',
+    'classic',
+    false,
+    ['customerId_1_createdAt_-1'],
+    false,
+    [],
+  ),
+  e(
+    '6.0/competing.executionStats',
+    'find',
+    'classic',
+    false,
+    ['customerId_1_createdAt_-1'],
+    false,
+    [],
+  ),
+  e('6.0/competing.queryPlanner', 'find', 'classic', false, ['customerId_1_createdAt_-1'], false, [
     'NO_EXECUTION_STATS',
   ]),
   e('6.0/count.allPlansExecution', 'count', 'classic', false, ['status_1'], false, []),
@@ -557,6 +620,33 @@ const EXPECTATIONS: readonly Expectation[] = [
     'COLLSCAN',
     'NO_EXECUTION_STATS',
   ]),
+  e(
+    '8.0.17-classic/competing.allPlansExecution',
+    'find',
+    'classic',
+    false,
+    ['customerId_1_createdAt_-1'],
+    false,
+    [],
+  ),
+  e(
+    '8.0.17-classic/competing.executionStats',
+    'find',
+    'classic',
+    false,
+    ['customerId_1_createdAt_-1'],
+    false,
+    [],
+  ),
+  e(
+    '8.0.17-classic/competing.queryPlanner',
+    'find',
+    'classic',
+    false,
+    ['customerId_1_createdAt_-1'],
+    false,
+    ['NO_EXECUTION_STATS'],
+  ),
   e('8.0.17-classic/count.allPlansExecution', 'count', 'classic', false, ['status_1'], false, []),
   e('8.0.17-classic/count.executionStats', 'count', 'classic', false, ['status_1'], false, []),
   e('8.0.17-classic/count.queryPlanner', 'count', 'classic', false, ['status_1'], false, [
@@ -731,7 +821,7 @@ const EXPECTATIONS: readonly Expectation[] = [
     'aggregate',
     'sbe',
     false,
-    ['status_1', 'customerId_1_createdAt_-1'],
+    ['customerId_1_createdAt_-1', 'status_1'],
     false,
     ['HIGH_EXAMINED_RATIO'],
   ),
@@ -740,7 +830,7 @@ const EXPECTATIONS: readonly Expectation[] = [
     'aggregate',
     'sbe',
     false,
-    ['status_1', 'customerId_1_createdAt_-1'],
+    ['customerId_1_createdAt_-1', 'status_1'],
     false,
     ['HIGH_EXAMINED_RATIO'],
   ),
@@ -759,6 +849,33 @@ const EXPECTATIONS: readonly Expectation[] = [
     'COLLSCAN',
     'NO_EXECUTION_STATS',
   ]),
+  e(
+    '8.0.17/competing.allPlansExecution',
+    'find',
+    'classic',
+    false,
+    ['customerId_1_createdAt_-1'],
+    false,
+    [],
+  ),
+  e(
+    '8.0.17/competing.executionStats',
+    'find',
+    'classic',
+    false,
+    ['customerId_1_createdAt_-1'],
+    false,
+    [],
+  ),
+  e(
+    '8.0.17/competing.queryPlanner',
+    'find',
+    'classic',
+    false,
+    ['customerId_1_createdAt_-1'],
+    false,
+    ['NO_EXECUTION_STATS'],
+  ),
   e('8.0.17/count.allPlansExecution', 'count', 'classic', false, ['status_1'], false, []),
   e('8.0.17/count.executionStats', 'count', 'classic', false, ['status_1'], false, []),
   e('8.0.17/count.queryPlanner', 'count', 'classic', false, ['status_1'], false, [
@@ -930,6 +1047,12 @@ describe('committed explain fixtures', () => {
     expect(tree.summary.inMemorySort).toBe(expected.inMemorySort);
     expect(tree.warnings.map((warning) => warning.code)).toEqual([...expected.warnings]);
     expect(tree.sharded).toBe(key.startsWith('sharded/'));
+    if (tree.verbosity === 'allPlansExecution') {
+      // Each rejected plan pairs with its allPlansExecution entry, so it carries counters.
+      for (const rejected of tree.rejected) {
+        expect(rejected.nReturned, `${key} rejected ${rejected.name}`).toBeTypeOf('number');
+      }
+    }
     if (tree.verbosity === 'queryPlanner') {
       expect(tree.summary.executionTimeMs).toBeUndefined();
     } else {

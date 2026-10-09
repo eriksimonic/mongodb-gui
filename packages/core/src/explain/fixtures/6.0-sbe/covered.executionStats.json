@@ -62,8 +62,8 @@
         }
       },
       "slotBasedPlan": {
-        "slots": "$$RESULT=s8 $$RID=s5 env: { s1 = TimeZoneDatabase(Atlantic/Cape_Verde...Asia/Ashkhabad) (timeZoneDB), s3 = 1791573146988 (NOW), s2 = Nothing (SEARCH_META) }",
-        "stages": "[2] mkbson s8 [customerId = s4] true false \n[1] nlj [] [s6, s7] \n    left \n        [1] project [s6 = KS(2B0E0F0104), s7 = KS(2B0EF5FE04)] \n        [1] limit 1 \n        [1] coscan \n    right \n        [1] ixseek s6 s7 none s5 none none [s4 = 0] @\"816038ae-feda-4fd1-9aa7-ac038e21dbb0\" @\"customerId_1_createdAt_-1\" true \n    \n"
+        "slots": "$$RESULT=s8 $$RID=s5 env: { s1 = TimeZoneDatabase(Asia/Harbin...GB) (timeZoneDB), s3 = 1791574470785 (NOW), s2 = Nothing (SEARCH_META) }",
+        "stages": "[2] mkbson s8 [customerId = s4] true false \n[1] nlj [] [s6, s7] \n    left \n        [1] project [s6 = KS(2B0E0F0104), s7 = KS(2B0EF5FE04)] \n        [1] limit 1 \n        [1] coscan \n    right \n        [1] ixseek s6 s7 none s5 none none [s4 = 0] @\"f3899e44-9a7a-41e5-9a3b-135109951701\" @\"customerId_1_createdAt_-1\" true \n    \n"
       }
     },
     "rejectedPlans": []
@@ -345,7 +345,7 @@
     "$db": "fixtures"
   },
   "serverInfo": {
-    "host": "6a26fe1ab200",
+    "host": "734bd7ad9e7a",
     "port": {
       "$numberInt": "27017"
     },

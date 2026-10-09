@@ -70,7 +70,7 @@
         "$numberInt": "667"
       },
       "executionTimeMillisEstimate": {
-        "$numberInt": "1"
+        "$numberInt": "0"
       },
       "works": {
         "$numberInt": "668"
@@ -105,7 +105,7 @@
           "$numberInt": "667"
         },
         "executionTimeMillisEstimate": {
-          "$numberInt": "1"
+          "$numberInt": "0"
         },
         "works": {
           "$numberInt": "668"
@@ -176,7 +176,7 @@
     "$db": "fixtures"
   },
   "serverInfo": {
-    "host": "f0f9585d62fd",
+    "host": "5490cf8510f6",
     "port": {
       "$numberInt": "27017"
     },

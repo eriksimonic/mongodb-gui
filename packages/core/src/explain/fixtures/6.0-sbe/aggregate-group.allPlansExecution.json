@@ -58,8 +58,8 @@
               }
             },
             "slotBasedPlan": {
-              "slots": "$$RESULT=s19 env: { s2 = Nothing (SEARCH_META), s3 = 1791573146998 (NOW), s1 = TimeZoneDatabase(Atlantic/Cape_Verde...Asia/Ashkhabad) (timeZoneDB) }",
-              "stages": "[3] mkobj s19 [_id = s14, spent = s18] true false \n[3] project [s18 = doubleDoubleSumFinalize (s16)] \n[3] group [s14] [s16 = aggDoubleDoubleSum (s15)] spillSlots[s17] mergingExprs[aggMergeDoubleDoubleSums (s17)] \n[3] project [s15 = getField (s11, \"total\")] \n[3] project [s14 = fillEmpty (s13, null)] \n[3] project [s13 = getField (s11, \"customerId\")] \n[2] nlj [] [s8, s4, s5, s6, s7] \n    left \n        [1] nlj [s7] [s9, s10] \n            left \n                [1] project [s7 = {\"status\" : 1}, s9 = KS(3C70616964000104), s10 = KS(3C7061696400FE04)] \n                [1] limit 1 \n                [1] coscan \n            right \n                [1] ixseek s9 s10 s6 s8 s4 s5 [] @\"816038ae-feda-4fd1-9aa7-ac038e21dbb0\" @\"status_1\" true \n            \n        \n    right \n        [2] limit 1 \n        [2] seek s8 s11 s12 s4 s5 s6 s7 [] @\"816038ae-feda-4fd1-9aa7-ac038e21dbb0\" true false \n    \n"
+              "slots": "$$RESULT=s19 env: { s1 = TimeZoneDatabase(Asia/Harbin...GB) (timeZoneDB), s3 = 1791574470799 (NOW), s2 = Nothing (SEARCH_META) }",
+              "stages": "[3] mkobj s19 [_id = s14, spent = s18] true false \n[3] project [s18 = doubleDoubleSumFinalize (s16)] \n[3] group [s14] [s16 = aggDoubleDoubleSum (s15)] spillSlots[s17] mergingExprs[aggMergeDoubleDoubleSums (s17)] \n[3] project [s15 = getField (s11, \"total\")] \n[3] project [s14 = fillEmpty (s13, null)] \n[3] project [s13 = getField (s11, \"customerId\")] \n[2] nlj [] [s8, s4, s5, s6, s7] \n    left \n        [1] nlj [s7] [s9, s10] \n            left \n                [1] project [s7 = {\"status\" : 1}, s9 = KS(3C70616964000104), s10 = KS(3C7061696400FE04)] \n                [1] limit 1 \n                [1] coscan \n            right \n                [1] ixseek s9 s10 s6 s8 s4 s5 [] @\"f3899e44-9a7a-41e5-9a3b-135109951701\" @\"status_1\" true \n            \n        \n    right \n        [2] limit 1 \n        [2] seek s8 s11 s12 s4 s5 s6 s7 [] @\"f3899e44-9a7a-41e5-9a3b-135109951701\" true false \n    \n"
             }
           },
           "rejectedPlans": []
@@ -693,7 +693,7 @@
     }
   ],
   "serverInfo": {
-    "host": "6a26fe1ab200",
+    "host": "734bd7ad9e7a",
     "port": {
       "$numberInt": "27017"
     },

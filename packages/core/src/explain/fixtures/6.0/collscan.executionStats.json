@@ -96,7 +96,7 @@
     "$db": "fixtures"
   },
   "serverInfo": {
-    "host": "78d8d2b7d181",
+    "host": "34329e6dff8d",
     "port": {
       "$numberInt": "27017"
     },

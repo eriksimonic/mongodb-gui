@@ -55,14 +55,14 @@ describe('deriveWarnings', () => {
       expect(deriveWarnings(input)[0]?.severity).toBe('critical');
     });
 
-    it('is critical when the examined count is unknown', () => {
+    it('is a warning when the examined count is unknown', () => {
       const input = tree(stage('COLLSCAN'), {
         verbosity: 'queryPlanner',
         summary: { collectionScan: true },
       });
       const warnings = deriveWarnings(input);
       expect(warnings.map((warning) => warning.code)).toEqual(['COLLSCAN', 'NO_EXECUTION_STATS']);
-      expect(warnings[0]?.severity).toBe('critical');
+      expect(warnings[0]?.severity).toBe('warning');
     });
 
     it('falls back to the summary count when the stage has none', () => {
@@ -162,64 +162,88 @@ describe('deriveWarnings', () => {
   });
 
   describe('FETCH_AFTER_COVERED_INDEX', () => {
-    const keyPattern = { customerId: 1, createdAt: -1 };
+    const keys = ['customerId', 'createdAt'];
 
+    // PROJECTION_SIMPLE over FETCH over IXSCAN. The index key fields come from the scan stage.
     function projectionPlan(
-      transformBy: Record<string, unknown>,
-      options: { fetchFilter?: unknown; keys?: Record<string, number> } = {},
+      projection: Record<string, unknown> | undefined,
+      options: { fetchFilter?: unknown; isMultiKey?: boolean; indexKeys?: string[] } = {},
     ): PlanStage {
       const scan = stage('IXSCAN', {
         index: 'customerId_1_createdAt_-1',
-        raw: { keyPattern: options.keys ?? keyPattern },
+        indexKeys: options.indexKeys ?? keys,
+        ...(options.isMultiKey === undefined ? {} : { isMultiKey: options.isMultiKey }),
       });
       const fetch = stage('FETCH', {
         children: [scan],
         ...(options.fetchFilter === undefined ? {} : { filter: options.fetchFilter }),
       });
-      return stage('PROJECTION_SIMPLE', { raw: { transformBy }, children: [fetch] });
+      return stage('PROJECTION_SIMPLE', {
+        ...(projection === undefined ? {} : { projection }),
+        children: [fetch],
+      });
     }
 
-    it('flags a projection that only needs indexed fields when _id is excluded', () => {
-      const warnings = deriveWarnings(tree(projectionPlan({ customerId: 1, _id: 0 })));
+    it('fires when _id is returned and every other field is an indexed inclusion', () => {
+      const warnings = deriveWarnings(tree(projectionPlan({ customerId: 1, _id: 1 })));
       expect(warnings).toEqual([
         expect.objectContaining({
           code: 'FETCH_AFTER_COVERED_INDEX',
           severity: 'info',
           stageName: 'FETCH',
+          message: expect.stringContaining('customerId_1_createdAt_-1'),
         }),
       ]);
     });
 
-    it('does not flag when _id is not excluded', () => {
-      expect(codes(tree(projectionPlan({ customerId: 1 })))).not.toContain(
+    it('fires when _id is not mentioned in the projection', () => {
+      expect(codes(tree(projectionPlan({ customerId: 1 })))).toContain('FETCH_AFTER_COVERED_INDEX');
+    });
+
+    it('never fires when _id is excluded', () => {
+      expect(codes(tree(projectionPlan({ customerId: 1, _id: 0 })))).not.toContain(
+        'FETCH_AFTER_COVERED_INDEX',
+      );
+      expect(codes(tree(projectionPlan({ customerId: 1, _id: false })))).not.toContain(
         'FETCH_AFTER_COVERED_INDEX',
       );
     });
 
-    it('does not flag when a projected field is outside the index key', () => {
-      expect(codes(tree(projectionPlan({ customerId: 1, total: 1, _id: 0 })))).not.toContain(
+    it('does not fire when a projected field is outside the index key', () => {
+      expect(codes(tree(projectionPlan({ customerId: 1, total: 1, _id: 1 })))).not.toContain(
         'FETCH_AFTER_COVERED_INDEX',
       );
     });
 
-    it('does not flag an exclusion projection', () => {
-      expect(codes(tree(projectionPlan({ customerId: 0, _id: 0 })))).not.toContain(
+    it('does not fire for an exclusion projection', () => {
+      expect(codes(tree(projectionPlan({ customerId: 0 })))).not.toContain(
         'FETCH_AFTER_COVERED_INDEX',
       );
     });
 
-    it('does not flag when the fetch has a filter', () => {
+    it('does not fire when the fetch has a filter', () => {
       expect(
-        codes(tree(projectionPlan({ customerId: 1, _id: 0 }, { fetchFilter: { total: 1 } }))),
+        codes(tree(projectionPlan({ customerId: 1 }, { fetchFilter: { total: 1 } }))),
       ).not.toContain('FETCH_AFTER_COVERED_INDEX');
     });
 
-    it('does not flag an empty projection', () => {
-      expect(codes(tree(projectionPlan({ _id: 0 })))).not.toContain('FETCH_AFTER_COVERED_INDEX');
+    it('does not fire on a multikey index', () => {
+      expect(codes(tree(projectionPlan({ customerId: 1 }, { isMultiKey: true })))).not.toContain(
+        'FETCH_AFTER_COVERED_INDEX',
+      );
     });
 
-    it('does not flag when the scan is not an index scan', () => {
-      const plan = projectionPlan({ customerId: 1, _id: 0 });
+    it('does not fire for a projection with no field besides _id', () => {
+      expect(codes(tree(projectionPlan({ _id: 1 })))).not.toContain('FETCH_AFTER_COVERED_INDEX');
+      expect(codes(tree(projectionPlan({})))).not.toContain('FETCH_AFTER_COVERED_INDEX');
+    });
+
+    it('does not fire without a projection', () => {
+      expect(codes(tree(projectionPlan(undefined)))).not.toContain('FETCH_AFTER_COVERED_INDEX');
+    });
+
+    it('does not fire when the scan is not an index scan', () => {
+      const plan = projectionPlan({ customerId: 1 });
       const fetch = plan.children[0];
       const scan = fetch?.children[0];
       if (scan === undefined || fetch === undefined) {

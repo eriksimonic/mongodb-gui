@@ -65,7 +65,7 @@
             },
             "slotBasedPlan": {
               "slots": "$$RESULT=s14 env: { s5 = {\"status\" : 1} }",
-              "stages": "[4] project [s14 = newObj(\"_id\", s11, \"spent\", s13)] \n[4] project [s13 = doubleDoubleSumFinalize(s12)] \n[4] group [s11] [s12 = aggDoubleDoubleSum(s9)] spillSlots[s10] mergingExprs[aggMergeDoubleDoubleSums(s10)] \n[4] project [s11 = (s8 ?: null)] \n[2] nlj inner [] [s1, s2, s3, s4, s5] \n    left \n        [1] ixseek KS(3C70616964000104) KS(3C7061696400FE04) s4 s1 s2 s3 [] @\"5f019fd8-1a2f-4579-99e0-e88ed0992c98\" @\"status_1\" true \n    right \n        [2] limit 1ll \n        [2] seek s1 s6 s7 s2 s3 s4 s5 none none [s8 = customerId, s9 = total] @\"5f019fd8-1a2f-4579-99e0-e88ed0992c98\" true false \n"
+              "stages": "[4] project [s14 = newObj(\"_id\", s11, \"spent\", s13)] \n[4] project [s13 = doubleDoubleSumFinalize(s12)] \n[4] group [s11] [s12 = aggDoubleDoubleSum(s9)] spillSlots[s10] mergingExprs[aggMergeDoubleDoubleSums(s10)] \n[4] project [s11 = (s8 ?: null)] \n[2] nlj inner [] [s1, s2, s3, s4, s5] \n    left \n        [1] ixseek KS(3C70616964000104) KS(3C7061696400FE04) s4 s1 s2 s3 [] @\"0794c393-1374-4d68-a72e-b308e2f32565\" @\"status_1\" true \n    right \n        [2] limit 1ll \n        [2] seek s1 s6 s7 s2 s3 s4 s5 none none [s8 = customerId, s9 = total] @\"0794c393-1374-4d68-a72e-b308e2f32565\" true false \n"
             }
           },
           "rejectedPlans": []
@@ -483,7 +483,7 @@
   ],
   "queryShapeHash": "254403A8933347FFA44FCC56547CD47ADC0F71006380EB880E06EDAADF5E4E76",
   "serverInfo": {
-    "host": "f0f9585d62fd",
+    "host": "5490cf8510f6",
     "port": {
       "$numberInt": "27017"
     },

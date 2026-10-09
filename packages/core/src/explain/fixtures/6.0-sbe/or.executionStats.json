@@ -103,8 +103,8 @@
         }
       },
       "slotBasedPlan": {
-        "slots": "$$RESULT=s23 $$RID=s24 env: { s1 = TimeZoneDatabase(Atlantic/Cape_Verde...Asia/Ashkhabad) (timeZoneDB), s3 = 1791573146991 (NOW), s2 = Nothing (SEARCH_META) }",
-        "stages": "[4] nlj [] [s18, s21, s20, s22, s19] \n    left \n        [3] unique [s18] \n        [3] union [s18, s19, s20, s21, s22] [\n            [s8, s7, s5, s4, s6] [1] nlj [s7] [s9, s10] \n                left \n                    [1] project [s7 = {\"customerId\" : 1, \"createdAt\" : -1}, s9 = KS(2B0E0F0104), s10 = KS(2B0EF5FE04)] \n                    [1] limit 1 \n                    [1] coscan \n                right \n                    [1] ixseek s9 s10 s6 s8 s4 s5 [] @\"816038ae-feda-4fd1-9aa7-ac038e21dbb0\" @\"customerId_1_createdAt_-1\" true \n                \n            , \n            [s15, s14, s12, s11, s13] [2] nlj [s14] [s16, s17] \n                left \n                    [2] project [s14 = {\"status\" : 1}, s16 = KS(3C63616E63656C6C6564000104), s17 = KS(3C63616E63656C6C656400FE04)] \n                    [2] limit 1 \n                    [2] coscan \n                right \n                    [2] ixseek s16 s17 s13 s15 s11 s12 [] @\"816038ae-feda-4fd1-9aa7-ac038e21dbb0\" @\"status_1\" true \n                \n            \n       ] \n    right \n        [4] limit 1 \n        [4] seek s18 s23 s24 s21 s20 s22 s19 [] @\"816038ae-feda-4fd1-9aa7-ac038e21dbb0\" true false \n    \n"
+        "slots": "$$RESULT=s23 $$RID=s24 env: { s1 = TimeZoneDatabase(Asia/Harbin...GB) (timeZoneDB), s3 = 1791574470790 (NOW), s2 = Nothing (SEARCH_META) }",
+        "stages": "[4] nlj [] [s18, s19, s22, s20, s21] \n    left \n        [3] unique [s18] \n        [3] union [s18, s19, s20, s21, s22] [\n            [s8, s4, s6, s7, s5] [1] nlj [s7] [s9, s10] \n                left \n                    [1] project [s7 = {\"customerId\" : 1, \"createdAt\" : -1}, s9 = KS(2B0E0F0104), s10 = KS(2B0EF5FE04)] \n                    [1] limit 1 \n                    [1] coscan \n                right \n                    [1] ixseek s9 s10 s6 s8 s4 s5 [] @\"f3899e44-9a7a-41e5-9a3b-135109951701\" @\"customerId_1_createdAt_-1\" true \n                \n            , \n            [s15, s11, s13, s14, s12] [2] nlj [s14] [s16, s17] \n                left \n                    [2] project [s14 = {\"status\" : 1}, s16 = KS(3C63616E63656C6C6564000104), s17 = KS(3C63616E63656C6C656400FE04)] \n                    [2] limit 1 \n                    [2] coscan \n                right \n                    [2] ixseek s16 s17 s13 s15 s11 s12 [] @\"f3899e44-9a7a-41e5-9a3b-135109951701\" @\"status_1\" true \n                \n            \n       ] \n    right \n        [4] limit 1 \n        [4] seek s18 s23 s24 s19 s22 s20 s21 [] @\"f3899e44-9a7a-41e5-9a3b-135109951701\" true false \n    \n"
       }
     },
     "rejectedPlans": []
@@ -132,7 +132,7 @@
         "$numberInt": "680"
       },
       "executionTimeMillisEstimate": {
-        "$numberInt": "1"
+        "$numberInt": "0"
       },
       "opens": {
         "$numberInt": "1"
@@ -183,16 +183,16 @@
           "$numberLong": "18"
         },
         {
-          "$numberLong": "21"
-        },
-        {
-          "$numberLong": "20"
+          "$numberLong": "19"
         },
         {
           "$numberLong": "22"
         },
         {
-          "$numberLong": "19"
+          "$numberLong": "20"
+        },
+        {
+          "$numberLong": "21"
         }
       ],
       "outerStage": {
@@ -204,7 +204,7 @@
           "$numberInt": "680"
         },
         "executionTimeMillisEstimate": {
-          "$numberInt": "1"
+          "$numberInt": "0"
         },
         "opens": {
           "$numberInt": "1"
@@ -241,7 +241,7 @@
             "$numberInt": "686"
           },
           "executionTimeMillisEstimate": {
-            "$numberInt": "1"
+            "$numberInt": "0"
           },
           "opens": {
             "$numberInt": "1"
@@ -263,31 +263,31 @@
               "$numberLong": "8"
             },
             {
-              "$numberLong": "7"
-            },
-            {
-              "$numberLong": "5"
-            },
-            {
               "$numberLong": "4"
             },
             {
               "$numberLong": "6"
             },
             {
+              "$numberLong": "7"
+            },
+            {
+              "$numberLong": "5"
+            },
+            {
               "$numberLong": "15"
-            },
-            {
-              "$numberLong": "14"
-            },
-            {
-              "$numberLong": "12"
             },
             {
               "$numberLong": "11"
             },
             {
               "$numberLong": "13"
+            },
+            {
+              "$numberLong": "14"
+            },
+            {
+              "$numberLong": "12"
             }
           ],
           "outputSlots": [
@@ -530,7 +530,7 @@
                 "$numberInt": "666"
               },
               "executionTimeMillisEstimate": {
-                "$numberInt": "1"
+                "$numberInt": "0"
               },
               "opens": {
                 "$numberInt": "1"
@@ -685,7 +685,7 @@
                   "$numberInt": "666"
                 },
                 "executionTimeMillisEstimate": {
-                  "$numberInt": "1"
+                  "$numberInt": "0"
                 },
                 "opens": {
                   "$numberInt": "1"
@@ -805,16 +805,16 @@
             "$numberInt": "18"
           },
           "snapshotIdSlot": {
-            "$numberInt": "21"
+            "$numberInt": "19"
           },
           "indexIdSlot": {
-            "$numberInt": "20"
-          },
-          "indexKeySlot": {
             "$numberInt": "22"
           },
+          "indexKeySlot": {
+            "$numberInt": "20"
+          },
           "indexKeyPatternSlot": {
-            "$numberInt": "19"
+            "$numberInt": "21"
           },
           "fields": [],
           "outputSlots": []
@@ -839,7 +839,7 @@
     "$db": "fixtures"
   },
   "serverInfo": {
-    "host": "6a26fe1ab200",
+    "host": "734bd7ad9e7a",
     "port": {
       "$numberInt": "27017"
     },

@@ -4,6 +4,15 @@ import { flattenStages, isCollectionScanStage, isSortStage } from './stage-walk'
 
 const EQUALITY_OPERATORS: ReadonlySet<string> = new Set(['$eq', '$in']);
 const RANGE_OPERATORS: ReadonlySet<string> = new Set(['$gt', '$gte', '$lt', '$lte']);
+// Pipeline stages that change the documents so an index on the input cannot give the sort order.
+const SORT_BLOCKING_STAGES: ReadonlySet<string> = new Set(['$group', '$unwind', '$project']);
+// Write and count stages, with the counter that holds the number of documents they touch.
+const COUNTERS: Readonly<Record<string, { verb: string; key: string }>> = {
+  DELETE: { verb: 'to delete', key: 'nWouldDelete' },
+  BATCHED_DELETE: { verb: 'to delete', key: 'nWouldDelete' },
+  UPDATE: { verb: 'to update', key: 'nWouldModify' },
+  COUNT: { verb: 'counted', key: 'nCounted' },
+};
 
 type KeyEntry = readonly [field: string, direction: number];
 
@@ -26,7 +35,10 @@ export function explainInWords(tree: PlanTree): string[] {
     );
   }
   for (const warning of tree.warnings) {
-    sentences.push(suggestionFor(warning, tree));
+    const sentence = suggestionFor(warning, tree);
+    if (sentence !== undefined) {
+      sentences.push(sentence);
+    }
   }
   return sentences;
 }
@@ -51,15 +63,33 @@ function planSentence(tree: PlanTree): string {
       : `${summary.keysExamined} keys`,
     summary.docsExamined === undefined ? undefined : `${summary.docsExamined} documents`,
   ].filter((part): part is string => part !== undefined);
-  const returned =
-    summary.nReturned === undefined
-      ? undefined
-      : `${summary.nReturned} ${summary.nReturned === 1 ? 'document' : 'documents'}`;
   const time = summary.executionTimeMs === undefined ? undefined : `${summary.executionTimeMs} ms`;
   const examinedPart = examined.length === 0 ? '' : ` and examined ${examined.join(' and ')}`;
-  const returnedPart = returned === undefined ? '' : ` to return ${returned}`;
   const timePart = time === undefined ? '' : ` in ${time}`;
-  return `${lead}${examinedPart}${returnedPart}${timePart}.`;
+  return `${lead}${examinedPart}${resultPhrase(tree)}${timePart}.`;
+}
+
+// The clause that says what the operation produced. Writes and counts report their own counter,
+// because nReturned is zero for them.
+function resultPhrase(tree: PlanTree): string {
+  for (const stage of flattenStages(tree.winning)) {
+    const counter = COUNTERS[stage.name];
+    if (counter === undefined) {
+      continue;
+    }
+    const count = readNumber(asRecord(stage.raw)?.[counter.key]);
+    if (count !== undefined) {
+      return counter.verb === 'counted'
+        ? ` and counted ${count} ${plural(count)}`
+        : ` ${counter.verb} ${count} ${plural(count)}`;
+    }
+  }
+  const returned = tree.summary.nReturned;
+  return returned === undefined ? '' : ` to return ${returned} ${plural(returned)}`;
+}
+
+function plural(count: number): string {
+  return count === 1 ? 'document' : 'documents';
 }
 
 function shardSentence(tree: PlanTree): string | undefined {
@@ -77,7 +107,7 @@ function shardSentence(tree: PlanTree): string | undefined {
   return `The query ran on ${count} ${count === 1 ? 'shard' : 'shards'}: ${names.join(', ')}.`;
 }
 
-function suggestionFor(warning: PlanWarning, tree: PlanTree): string {
+function suggestionFor(warning: PlanWarning, tree: PlanTree): string | undefined {
   const stages = flattenStages(tree.winning);
   switch (warning.code) {
     case 'COLLSCAN': {
@@ -86,18 +116,14 @@ function suggestionFor(warning: PlanWarning, tree: PlanTree): string {
         tree.summary.docsExamined === undefined
           ? 'avoid scanning the whole collection'
           : `avoid scanning ${tree.summary.docsExamined} documents`;
-      const keys = suggestIndexKeys(stage?.filter);
+      const keys = indexKeyFor(stage?.filter, []);
       if (keys.length === 0) {
         return `Add an index on the fields in the filter to ${scope}.`;
       }
       return `Add an index on ${formatKeys(keys)} to ${scope}.`;
     }
-    case 'IN_MEMORY_SORT': {
-      const stage = stages.find((candidate) => isSortStage(candidate.name));
-      const keys = sortKeys(stage);
-      const target = keys.length === 0 ? 'the sort fields' : formatKeys(keys);
-      return `Add an index on ${target} so the server can return sorted documents without an in-memory sort.`;
-    }
+    case 'IN_MEMORY_SORT':
+      return sortAdvice(stages, tree);
     case 'SORT_SPILLED':
       return 'Add an index on the sort fields so the sort stays in memory and does not spill to disk.';
     case 'HIGH_EXAMINED_RATIO':
@@ -109,22 +135,86 @@ function suggestionFor(warning: PlanWarning, tree: PlanTree): string {
     case 'MANY_REJECTED_PLANS':
       return 'Several plans competed for this query. A compound index that matches the filter and the sort can remove the competition.';
     case 'MULTIKEY_INDEX':
-      return 'Each array element adds an index key, so check that the query needs the array field.';
+      return 'Filter on the array field with $elemMatch, or put a non-array field first in the index, so the index holds fewer keys per document.';
     case 'NO_EXECUTION_STATS':
       return 'Run the explain at executionStats verbosity to see the keys, documents and time for each stage.';
   }
 }
 
-// Index key for a filter: top-level equality fields first, then range fields, all ascending.
-// Operator objects other than equality and range are skipped, and so are $-prefixed top-level
-// operators such as $or.
-export function suggestIndexKeys(filter: unknown): KeyEntry[] {
-  const record = asRecord(filter);
-  if (record === undefined) {
-    return [];
+// Advice for an in-memory sort. Nothing is advised when the sort follows a stage that changes the
+// documents, and nothing when an index already used starts with the advised keys.
+function sortAdvice(stages: PlanStage[], tree: PlanTree): string | undefined {
+  const sort = stages.find((candidate) => isSortStage(candidate.name));
+  const generic =
+    'Add an index on the sort fields so the server can return sorted documents without an in-memory sort.';
+  if (sort !== undefined && precedingNames(sort).some((name) => SORT_BLOCKING_STAGES.has(name))) {
+    return 'The $sort follows a $group, $unwind or $project stage, so an index cannot return the documents in sorted order.';
   }
+  const keys = indexKeyFor(tree.filter, sortEntries(sort));
+  if (keys.length === 0) {
+    return generic;
+  }
+  const covered = stages.some((stage) => {
+    const used = stage.indexKeys ?? [];
+    return used.length >= keys.length && keys.every(([field], index) => used[index] === field);
+  });
+  if (covered) {
+    return undefined;
+  }
+  return `Add an index on ${formatKeys(keys)} so the server can return sorted documents without an in-memory sort.`;
+}
+
+// Names of the stages below a stage, following the first input.
+function precedingNames(stage: PlanStage): string[] {
+  const names: string[] = [];
+  let current = stage.children[0];
+  while (current !== undefined) {
+    names.push(current.name);
+    current = current.children[0];
+  }
+  return names;
+}
+
+function sortEntries(stage: PlanStage | undefined): KeyEntry[] {
+  return Object.entries(stage?.sortPattern ?? {}).map(([field, direction]): KeyEntry => [
+    field,
+    direction,
+  ]);
+}
+
+// Index key for a query. Equality fields come first, then the sort keys, then range fields. Each
+// field appears once.
+export function indexKeyFor(filter: unknown, sort: readonly KeyEntry[]): KeyEntry[] {
+  const { equality, range } = filterFields(filter);
+  const entries: KeyEntry[] = [];
+  const seen = new Set<string>();
+  const add = (field: string, direction: number): void => {
+    if (!seen.has(field)) {
+      seen.add(field);
+      entries.push([field, direction]);
+    }
+  };
+  for (const field of equality) {
+    add(field, 1);
+  }
+  for (const [field, direction] of sort) {
+    add(field, direction);
+  }
+  for (const field of range) {
+    add(field, 1);
+  }
+  return entries;
+}
+
+// Top-level equality and range fields of a filter. Operators other than equality and range are
+// skipped, and so are $-prefixed top-level operators such as $or.
+function filterFields(filter: unknown): { equality: string[]; range: string[] } {
+  const record = asRecord(filter);
   const equality: string[] = [];
   const range: string[] = [];
+  if (record === undefined) {
+    return { equality, range };
+  }
   for (const [field, value] of Object.entries(record)) {
     if (field.startsWith('$')) {
       continue;
@@ -136,7 +226,7 @@ export function suggestIndexKeys(filter: unknown): KeyEntry[] {
       range.push(field);
     }
   }
-  return [...new Set([...equality, ...range])].map((field) => [field, 1] as const);
+  return { equality, range };
 }
 
 function operatorKind(value: unknown): 'equality' | 'range' | 'other' {
@@ -155,20 +245,6 @@ function operatorKind(value: unknown): 'equality' | 'range' | 'other' {
   return keys.length === 1 && keys[0] !== undefined && keys[0].startsWith('$number')
     ? 'equality'
     : 'other';
-}
-
-function sortKeys(stage: PlanStage | undefined): KeyEntry[] {
-  const raw = asRecord(stage?.raw);
-  const spec = asRecord(raw?.[stage?.name ?? '']);
-  const pattern =
-    asRecord(raw?.['sortPattern']) ??
-    asRecord(spec?.['sortKey']) ??
-    asRecord(spec?.['sortPattern']) ??
-    asRecord(raw?.['sortKey']);
-  if (pattern === undefined) {
-    return [];
-  }
-  return Object.entries(pattern).map(([field, value]): KeyEntry => [field, readNumber(value) ?? 1]);
 }
 
 function formatKeys(entries: readonly KeyEntry[]): string {

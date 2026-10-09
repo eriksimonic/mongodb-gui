@@ -103,8 +103,8 @@
         }
       },
       "slotBasedPlan": {
-        "slots": "$$RESULT=s23 $$RID=s24 env: { s1 = TimeZoneDatabase(Atlantic/Cape_Verde...Asia/Ashkhabad) (timeZoneDB), s3 = 1791573146991 (NOW), s2 = Nothing (SEARCH_META) }",
-        "stages": "[4] nlj [] [s20, s21, s22, s18, s19] \n    left \n        [3] unique [s20] \n        [3] union [s18, s19, s20, s21, s22] [\n            [s6, s7, s8, s4, s5] [1] nlj [s7] [s9, s10] \n                left \n                    [1] project [s7 = {\"customerId\" : 1, \"createdAt\" : -1}, s9 = KS(2B0E0F0104), s10 = KS(2B0EF5FE04)] \n                    [1] limit 1 \n                    [1] coscan \n                right \n                    [1] ixseek s9 s10 s6 s8 s4 s5 [] @\"816038ae-feda-4fd1-9aa7-ac038e21dbb0\" @\"customerId_1_createdAt_-1\" true \n                \n            , \n            [s13, s14, s15, s11, s12] [2] nlj [s14] [s16, s17] \n                left \n                    [2] project [s14 = {\"status\" : 1}, s16 = KS(3C63616E63656C6C6564000104), s17 = KS(3C63616E63656C6C656400FE04)] \n                    [2] limit 1 \n                    [2] coscan \n                right \n                    [2] ixseek s16 s17 s13 s15 s11 s12 [] @\"816038ae-feda-4fd1-9aa7-ac038e21dbb0\" @\"status_1\" true \n                \n            \n       ] \n    right \n        [4] limit 1 \n        [4] seek s20 s23 s24 s21 s22 s18 s19 [] @\"816038ae-feda-4fd1-9aa7-ac038e21dbb0\" true false \n    \n"
+        "slots": "$$RESULT=s23 $$RID=s24 env: { s1 = TimeZoneDatabase(Asia/Harbin...GB) (timeZoneDB), s3 = 1791574470789 (NOW), s2 = Nothing (SEARCH_META) }",
+        "stages": "[4] nlj [] [s22, s18, s20, s19, s21] \n    left \n        [3] unique [s22] \n        [3] union [s18, s19, s20, s21, s22] [\n            [s4, s6, s5, s7, s8] [1] nlj [s7] [s9, s10] \n                left \n                    [1] project [s7 = {\"customerId\" : 1, \"createdAt\" : -1}, s9 = KS(2B0E0F0104), s10 = KS(2B0EF5FE04)] \n                    [1] limit 1 \n                    [1] coscan \n                right \n                    [1] ixseek s9 s10 s6 s8 s4 s5 [] @\"f3899e44-9a7a-41e5-9a3b-135109951701\" @\"customerId_1_createdAt_-1\" true \n                \n            , \n            [s11, s13, s12, s14, s15] [2] nlj [s14] [s16, s17] \n                left \n                    [2] project [s14 = {\"status\" : 1}, s16 = KS(3C63616E63656C6C6564000104), s17 = KS(3C63616E63656C6C656400FE04)] \n                    [2] limit 1 \n                    [2] coscan \n                right \n                    [2] ixseek s16 s17 s13 s15 s11 s12 [] @\"f3899e44-9a7a-41e5-9a3b-135109951701\" @\"status_1\" true \n                \n            \n       ] \n    right \n        [4] limit 1 \n        [4] seek s22 s23 s24 s18 s20 s19 s21 [] @\"f3899e44-9a7a-41e5-9a3b-135109951701\" true false \n    \n"
       }
     },
     "rejectedPlans": []
@@ -126,7 +126,7 @@
     "$db": "fixtures"
   },
   "serverInfo": {
-    "host": "6a26fe1ab200",
+    "host": "734bd7ad9e7a",
     "port": {
       "$numberInt": "27017"
     },

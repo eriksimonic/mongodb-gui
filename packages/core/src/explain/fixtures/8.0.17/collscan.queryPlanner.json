@@ -47,7 +47,7 @@
     "$db": "fixtures"
   },
   "serverInfo": {
-    "host": "f0f9585d62fd",
+    "host": "5490cf8510f6",
     "port": {
       "$numberInt": "27017"
     },

@@ -127,6 +127,12 @@ const CASES: readonly ExplainCase[] = [
     },
     minMajor: 4,
   },
+  {
+    // Two indexes match: the compound index on customerId and status_1. The loser is a rejected plan.
+    name: 'competing',
+    command: { find: COLLECTION, filter: { customerId: 7, status: 'paid' } },
+    minMajor: 4,
+  },
 ];
 
 // Engine variants run on the same container after changing one runtime parameter.

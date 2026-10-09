@@ -54,6 +54,12 @@ export interface PlanStage {
   memLimitBytes?: number;
   usedDisk?: boolean;
   shard?: string;
+  // Field names of the index key pattern, in order.
+  indexKeys?: string[];
+  // Projection of a PROJECTION_* stage, as the server reports it (transformBy).
+  projection?: Record<string, unknown>;
+  // Sort keys of a SORT stage or of an aggregate $sort, with directions (1 or -1).
+  sortPattern?: Record<string, number>;
   children: PlanStage[];
   raw: unknown;
 }
@@ -83,6 +89,8 @@ export interface PlanTree {
   verbosity: PlanVerbosity;
   engine: PlanEngine;
   serverVersion?: string;
+  // The query filter, from parsedQuery or the command. For aggregates, the first $match.
+  filter?: unknown;
   winning: PlanStage;
   rejected: PlanStage[];
   summary: PlanSummary;
@@ -107,6 +115,9 @@ export const PlanStageSchema: z.ZodType<PlanStage> = z.lazy(() =>
     memLimitBytes: z.exactOptional(z.number()),
     usedDisk: z.exactOptional(z.boolean()),
     shard: z.exactOptional(z.string()),
+    indexKeys: z.exactOptional(z.array(z.string())),
+    projection: z.exactOptional(z.record(z.string(), z.unknown())),
+    sortPattern: z.exactOptional(z.record(z.string(), z.number())),
     children: z.array(PlanStageSchema),
     raw: z.unknown(),
   }),
@@ -137,6 +148,7 @@ export const PlanTreeSchema: z.ZodType<PlanTree> = z.object({
   verbosity: PlanVerbositySchema,
   engine: PlanEngineSchema,
   serverVersion: z.exactOptional(z.string()),
+  filter: z.exactOptional(z.unknown()),
   winning: PlanStageSchema,
   rejected: z.array(PlanStageSchema),
   summary: PlanSummarySchema,

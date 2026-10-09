@@ -63,7 +63,7 @@
         "$numberInt": "0"
       },
       "executionTimeMillisEstimate": {
-        "$numberInt": "1"
+        "$numberInt": "0"
       },
       "works": {
         "$numberInt": "668"
@@ -197,7 +197,7 @@
     "allPlansExecution": []
   },
   "serverInfo": {
-    "host": "00bff90f7ca0",
+    "host": "a124add29127",
     "port": {
       "$numberInt": "27017"
     },

@@ -254,17 +254,20 @@ describe('normaliseExplain on classic find output', () => {
 });
 
 describe('normaliseExplain on slot-based engine output', () => {
-  it('uses the classic plan for structure and takes the slot-based scan filter and index facts', () => {
+  it('builds the classic shape from queryPlan and joins counters by planNodeId', () => {
     const tree = parsed({
       queryPlanner: {
         winningPlan: {
           queryPlan: {
             stage: 'FETCH',
+            planNodeId: 2,
             inputStage: {
               stage: 'IXSCAN',
+              planNodeId: 1,
               indexName: 'items.sku_1',
               isMultiKey: true,
               direction: 'forward',
+              keyPattern: { 'items.sku': 1 },
               indexBounds: { 'items.sku': ['["A1", "A1"]'] },
             },
           },
@@ -275,58 +278,137 @@ describe('normaliseExplain on slot-based engine output', () => {
         executionTimeMillis: 1,
         executionStages: {
           stage: 'nlj',
+          planNodeId: 2,
           nReturned: 4,
-          outerStage: { stage: 'scan', nReturned: 4, numReads: 4 },
+          executionTimeMillisEstimate: 1,
+          outerStage: { stage: 'limit', planNodeId: 2, nReturned: 4 },
           innerStage: {
-            stage: 'ixseek',
-            indexName: 'items.sku_1',
-            keysExamined: 4,
+            stage: 'nlj',
+            planNodeId: 1,
             nReturned: 4,
+            outerStage: { stage: 'coscan', planNodeId: 1, nReturned: 1 },
+            innerStage: {
+              stage: 'ixseek',
+              planNodeId: 1,
+              indexName: 'items.sku_1',
+              keysExamined: 4,
+              numReads: 5,
+              nReturned: 4,
+            },
           },
         },
       },
     });
     expect(tree.engine).toBe('sbe');
-    expect(tree.winning.name).toBe('nlj');
-    const scan = tree.winning.children[0];
-    expect(scan).toMatchObject({ name: 'scan', docsExamined: 4 });
-    const seek = tree.winning.children[1];
-    expect(seek).toMatchObject({
-      name: 'ixseek',
+    expect(tree.winning).toMatchObject({ name: 'FETCH', nReturned: 4, executionTimeMs: 1 });
+    expect(tree.winning.children[0]).toMatchObject({
+      name: 'IXSCAN',
       index: 'items.sku_1',
-      keysExamined: 4,
       isMultiKey: true,
+      keysExamined: 4,
+      nReturned: 4,
+      indexKeys: ['items.sku'],
       indexBounds: { 'items.sku': ['["A1", "A1"]'] },
     });
-    expect(tree.summary.collectionScan).toBe(true);
+    expect(tree.winning.children[0]?.docsExamined).toBeUndefined();
     expect(tree.summary.indexesUsed).toEqual(['items.sku_1']);
+    expect(tree.summary.collectionScan).toBe(false);
   });
 
-  it('gives a scan the query filter of the classic collection scan, in order', () => {
+  it('keeps the slot-based node in raw', () => {
+    const tree = parsed({
+      queryPlanner: {
+        winningPlan: { queryPlan: { stage: 'COLLSCAN', planNodeId: 1 }, slotBasedPlan: {} },
+      },
+      executionStats: {
+        executionStages: {
+          stage: 'filter',
+          planNodeId: 1,
+          nReturned: 3,
+          inputStage: { stage: 'scan', planNodeId: 1, numReads: 3 },
+        },
+      },
+    });
+    expect(tree.winning.name).toBe('COLLSCAN');
+    expect(tree.winning.raw).toMatchObject({ stage: 'filter', planNodeId: 1, nReturned: 3 });
+  });
+
+  it('reads documents examined from scan and seek stages only', () => {
     const tree = parsed({
       queryPlanner: {
         winningPlan: {
           queryPlan: {
-            stage: 'COLLSCAN',
-            filter: { total: { $gt: 5 } },
+            stage: 'FETCH',
+            planNodeId: 2,
+            inputStage: { stage: 'IXSCAN', planNodeId: 1, indexName: 'a_1' },
           },
           slotBasedPlan: {},
         },
       },
       executionStats: {
-        executionStages: { stage: 'filter', inputStage: { stage: 'scan', numReads: 9 } },
+        executionStages: {
+          stage: 'nlj',
+          planNodeId: 2,
+          inputStage: {
+            stage: 'ixseek',
+            planNodeId: 1,
+            indexName: 'a_1',
+            keysExamined: 9,
+            numReads: 21,
+          },
+          innerStage: { stage: 'seek', planNodeId: 2, numReads: 9 },
+        },
       },
     });
-    expect(tree.winning.children[0]?.filter).toEqual({ total: { $gt: 5 } });
-    expect(tree.summary.docsExamined).toBeUndefined();
+    expect(tree.winning.docsExamined).toBe(9);
+    expect(tree.winning.children[0]?.docsExamined).toBeUndefined();
+    expect(tree.winning.children[0]?.keysExamined).toBe(9);
   });
 
-  it('reads the sort memory counters of the slot-based sort', () => {
+  it('takes the collection scan filter from the classic plan', () => {
     const tree = parsed({
-      queryPlanner: { winningPlan: { queryPlan: { stage: 'SORT' }, slotBasedPlan: {} } },
+      queryPlanner: {
+        winningPlan: {
+          queryPlan: { stage: 'COLLSCAN', planNodeId: 1, filter: { total: { $gt: 5 } } },
+          slotBasedPlan: {},
+        },
+      },
+      executionStats: {
+        executionStages: {
+          stage: 'filter',
+          planNodeId: 1,
+          nReturned: 1990,
+          inputStage: { stage: 'scan', planNodeId: 1, nReturned: 2000, numReads: 2000 },
+        },
+      },
+    });
+    expect(tree.winning).toMatchObject({
+      name: 'COLLSCAN',
+      filter: { total: { $gt: 5 } },
+      nReturned: 1990,
+      docsExamined: 2000,
+    });
+    expect(tree.summary.collectionScan).toBe(true);
+  });
+
+  it('reads sort memory, disk use and the sort pattern from the matching sort', () => {
+    const tree = parsed({
+      queryPlanner: {
+        winningPlan: {
+          queryPlan: {
+            stage: 'SORT',
+            planNodeId: 3,
+            sortPattern: { total: 1 },
+            inputStage: { stage: 'COLLSCAN', planNodeId: 1 },
+          },
+          slotBasedPlan: {},
+        },
+      },
       executionStats: {
         executionStages: {
           stage: 'sort',
+          planNodeId: 3,
+          nReturned: 5,
           memLimit: 100,
           totalDataSizeSorted: 95,
           usedDisk: false,
@@ -334,12 +416,206 @@ describe('normaliseExplain on slot-based engine output', () => {
       },
     });
     expect(tree.winning).toMatchObject({
-      name: 'sort',
+      name: 'SORT',
+      nReturned: 5,
       memLimitBytes: 100,
       memUsageBytes: 95,
       usedDisk: false,
+      sortPattern: { total: 1 },
     });
     expect(tree.summary.inMemorySort).toBe(true);
+  });
+
+  it('unwraps a slot-based shard into its classic queryPlan', () => {
+    const tree = parsed({
+      queryPlanner: {
+        winningPlan: {
+          shards: [
+            {
+              shardName: 'rs0',
+              winningPlan: {
+                queryPlan: {
+                  stage: 'FETCH',
+                  planNodeId: 2,
+                  inputStage: { stage: 'IXSCAN', planNodeId: 1, indexName: 'i_1' },
+                },
+                slotBasedPlan: {},
+              },
+            },
+          ],
+        },
+      },
+      executionStats: {
+        executionStages: {
+          stage: 'SHARD_MERGE',
+          shards: [
+            {
+              shardName: 'rs0',
+              executionStages: { stage: 'nlj', planNodeId: 2, nReturned: 3 },
+            },
+          ],
+        },
+      },
+    });
+    expect(tree.sharded).toBe(true);
+    expect(tree.winning.children[0]).toMatchObject({ name: 'FETCH', nReturned: 3, shard: 'rs0' });
+    expect(tree.winning.children[0]?.children[0]).toMatchObject({ name: 'IXSCAN', shard: 'rs0' });
+  });
+});
+
+describe('normaliseExplain on rejected plans', () => {
+  it('pairs a classic rejected plan with its allPlansExecution entry by stage and index names', () => {
+    const tree = parsed({
+      queryPlanner: {
+        winningPlan: { stage: 'FETCH', inputStage: { stage: 'IXSCAN', indexName: 'customerId_1' } },
+        rejectedPlans: [{ stage: 'FETCH', inputStage: { stage: 'IXSCAN', indexName: 'status_1' } }],
+      },
+      executionStats: {
+        nReturned: 7,
+        allPlansExecution: [
+          {
+            nReturned: 7,
+            executionStages: {
+              stage: 'FETCH',
+              inputStage: { stage: 'IXSCAN', indexName: 'customerId_1' },
+            },
+          },
+          {
+            nReturned: 1,
+            executionStages: {
+              stage: 'FETCH',
+              nReturned: 1,
+              inputStage: { stage: 'IXSCAN', indexName: 'status_1', nReturned: 1, keysExamined: 1 },
+            },
+          },
+        ],
+      },
+    });
+    expect(tree.rejected[0]).toMatchObject({ name: 'FETCH', nReturned: 1 });
+    expect(tree.rejected[0]?.children[0]).toMatchObject({ index: 'status_1', keysExamined: 1 });
+  });
+
+  it('pairs a slot-based rejected plan by planNodeId and index names', () => {
+    const entry = (index: string, returned: number) => ({
+      nReturned: returned,
+      executionStages: {
+        stage: 'filter',
+        planNodeId: 2,
+        nReturned: returned,
+        inputStage: { stage: 'ixseek', planNodeId: 1, indexName: index, nReturned: returned },
+      },
+    });
+    const tree = parsed({
+      queryPlanner: {
+        winningPlan: {
+          queryPlan: {
+            stage: 'FETCH',
+            planNodeId: 2,
+            inputStage: { stage: 'IXSCAN', planNodeId: 1, indexName: 'customerId_1' },
+          },
+          slotBasedPlan: {},
+        },
+        rejectedPlans: [
+          {
+            queryPlan: {
+              stage: 'FETCH',
+              planNodeId: 2,
+              inputStage: { stage: 'IXSCAN', planNodeId: 1, indexName: 'status_1' },
+            },
+            slotBasedPlan: {},
+          },
+        ],
+      },
+      executionStats: {
+        nReturned: 7,
+        allPlansExecution: [entry('customerId_1', 7), entry('status_1', 1)],
+      },
+    });
+    expect(tree.engine).toBe('sbe');
+    expect(tree.rejected[0]).toMatchObject({ name: 'FETCH', nReturned: 1 });
+    expect(tree.rejected[0]?.children[0]?.index).toBe('status_1');
+  });
+
+  it('keeps a rejected plan with no matching entry as planner-only', () => {
+    const tree = parsed({
+      queryPlanner: {
+        winningPlan: { stage: 'FETCH' },
+        rejectedPlans: [{ stage: 'COLLSCAN' }],
+      },
+      executionStats: { allPlansExecution: [] },
+    });
+    expect(tree.rejected[0]).toMatchObject({ name: 'COLLSCAN' });
+    expect(tree.rejected[0]?.nReturned).toBeUndefined();
+  });
+});
+
+describe('normaliseExplain on query facts', () => {
+  it('exposes the parsed query as the filter', () => {
+    const tree = parsed({
+      queryPlanner: { parsedQuery: { status: { $eq: 'paid' } }, winningPlan: { stage: 'FETCH' } },
+    });
+    expect(tree.filter).toEqual({ status: { $eq: 'paid' } });
+  });
+
+  it('falls back to the command filter, then leaves the filter out', () => {
+    const fromCommand = parsed({
+      queryPlanner: { winningPlan: { stage: 'FETCH' } },
+      command: { find: 'orders', filter: { x: 1 }, $db: 'shop' },
+    });
+    expect(fromCommand.filter).toEqual({ x: 1 });
+    expect(parsed({ queryPlanner: { winningPlan: { stage: 'FETCH' } } }).filter).toBeUndefined();
+  });
+
+  it('exposes the leading $match of an aggregate when the cursor has no parsed query', () => {
+    const tree = parsed({
+      stages: [
+        { $cursor: { queryPlanner: { winningPlan: { stage: 'FETCH' } } } },
+        { $sort: { sortKey: { total: 1 } } },
+      ],
+      command: { aggregate: 'orders', pipeline: [{ $match: { status: 'paid' } }], $db: 'shop' },
+    });
+    expect(tree.filter).toEqual({ status: 'paid' });
+  });
+
+  it('reads the index key fields and the projection of classic stages', () => {
+    const tree = parsed({
+      queryPlanner: {
+        winningPlan: {
+          stage: 'PROJECTION_SIMPLE',
+          transformBy: { customerId: 1, _id: 0 },
+          inputStage: {
+            stage: 'FETCH',
+            inputStage: {
+              stage: 'IXSCAN',
+              indexName: 'customerId_1_createdAt_-1',
+              keyPattern: { customerId: 1, createdAt: -1 },
+            },
+          },
+        },
+      },
+    });
+    expect(tree.winning.projection).toEqual({ customerId: 1, _id: 0 });
+    expect(tree.winning.children[0]?.children[0]?.indexKeys).toEqual(['customerId', 'createdAt']);
+  });
+
+  it('reads the sort key and bytes sorted of an aggregate $sort', () => {
+    const tree = parsed({
+      stages: [
+        { $cursor: { queryPlanner: { winningPlan: { stage: 'FETCH' } } } },
+        {
+          $sort: { sortKey: { spent: { $numberInt: '-1' } } },
+          totalDataSizeSortedBytesEstimate: { $numberLong: '20' },
+          usedDisk: false,
+          nReturned: 2,
+        },
+      ],
+    });
+    expect(tree.winning).toMatchObject({
+      name: '$sort',
+      sortPattern: { spent: -1 },
+      memUsageBytes: 20,
+      usedDisk: false,
+    });
   });
 });
 
