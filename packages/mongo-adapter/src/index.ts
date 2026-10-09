@@ -43,3 +43,4 @@ export {
   type ProfileCollectionInfo,
   type ProfileTail,
 } from './profiler/profiler';
+export * from './sharding/index';
