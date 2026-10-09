@@ -1,4 +1,5 @@
 dist
+out
 coverage
 pnpm-lock.yaml
 docs/PLAN.md

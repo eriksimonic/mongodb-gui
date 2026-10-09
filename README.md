@@ -16,6 +16,9 @@ This repository holds the pnpm workspace skeleton. It contains six packages unde
 ## Scripts
 
 - `pnpm install` installs dependencies.
+- `pnpm dev` starts the Electron app with hot reload (electron-vite in `packages/app`).
+- `pnpm dev:ui` serves the UI in a browser. Electron APIs are absent there, so the ping button reports that it is not available.
+- `pnpm build` builds the Electron main, preload and renderer bundles into `packages/app/out`.
 - `pnpm lint` runs ESLint over the repository.
 - `pnpm typecheck` builds all TypeScript project references with `tsc -b`.
 - `pnpm test` runs the unit tests.
