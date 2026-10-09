@@ -526,6 +526,11 @@ export function createRouter(deps: RouterDeps): Router {
     emit: deps.onEvent,
   });
 
+  // A reload or a closed window must not leave samplers running for a page that is gone.
+  rendererResets.add(() => {
+    monitor.stopAll();
+  });
+
   deps.connections.onStatusChange((connectionId, status) => {
     if (status.state !== 'connected') {
       stopTails((active) => active.connectionId === connectionId);

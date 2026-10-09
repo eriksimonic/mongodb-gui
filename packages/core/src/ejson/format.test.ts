@@ -20,16 +20,30 @@ describe('formatMongoshSyntax, scalar wrappers', () => {
     expect(shell({ $date: { $numberLong: '0' } })).toBe('ISODate("1970-01-01T00:00:00.000Z")');
   });
 
-  it('keeps a date outside the ISO range through the NumberLong constructor', () => {
-    // Year 10000 and year -1 have no ISO form in this writer.
-    expect(shell({ $date: { $numberLong: '253402300800000' } })).toBe(
-      'new Date(NumberLong("253402300800000"))',
+  it('writes a date with no ISO form as new Date with plain milliseconds', () => {
+    // Year 50000 is inside the Date range but past the ISO years, so it takes the number form.
+    const year50000 = Date.UTC(50000, 0, 1);
+    expect(shell({ $date: { $numberLong: String(year50000) } })).toBe(`new Date(${year50000})`);
+    // Year -1 is also outside the ISO years.
+    const yearMinus1 = Date.UTC(-1, 0, 1);
+    expect(shell({ $date: { $numberLong: String(yearMinus1) } })).toBe(`new Date(${yearMinus1})`);
+  });
+
+  it('writes a null with a comment for a date beyond the Date range, never Invalid Date', () => {
+    expect(shell({ $date: { $numberLong: '9007199254740993' } })).toBe(
+      '/* date out of range: 9007199254740993 */ null',
     );
-    expect(shell({ $date: { $numberLong: '-62198755200000' } })).toBe(
-      'new Date(NumberLong("-62198755200000"))',
+    expect(shell({ $date: { $numberLong: '-9000000000000000' } })).toBe(
+      '/* date out of range: -9000000000000000 */ null',
     );
     expect(shell({ $date: { $numberLong: 'not a number' } })).toBe(
-      'new Date(NumberLong("not a number"))',
+      '/* date out of range: not a number */ null',
+    );
+  });
+
+  it('keeps the largest in-range date as a plain number', () => {
+    expect(shell({ $date: { $numberLong: '8640000000000000' } })).toBe(
+      'new Date(8640000000000000)',
     );
   });
 
@@ -204,7 +218,8 @@ describe('formatMongoshSyntax, plain values', () => {
 
   it('always quotes a __proto__ key, in mongosh and in the JSON view', () => {
     const value = JSON.parse('{"__proto__": {"$numberInt": "1"}, "a": 2}') as unknown;
-    expect(formatMongoshSyntax(JSON.stringify(value), ONE_LINE)).toBe('{"__proto__": 1, a: 2}');
+    // A computed key, so mongosh adds a field named __proto__ rather than setting the prototype.
+    expect(formatMongoshSyntax(JSON.stringify(value), ONE_LINE)).toBe('{["__proto__"]: 1, a: 2}');
     const relaxed = JSON.parse(formatRelaxedJson(JSON.stringify(value))) as Record<string, unknown>;
     expect(Object.keys(relaxed)).toEqual(['__proto__', 'a']);
     expect(Object.getOwnPropertyDescriptor(relaxed, '__proto__')?.value).toBe(1);
@@ -247,6 +262,38 @@ function regexFromLiteral(text: string): RegExp {
 }
 
 describe('regex round trip through mongosh text', () => {
+  it('escapes every bare slash, including runs of slashes and the slashes of a URL', () => {
+    expect(shell({ $regularExpression: { pattern: 'a//b', options: '' } })).toBe('/a\\/\\/b/');
+    expect(shell({ $regularExpression: { pattern: '^//', options: '' } })).toBe('/^\\/\\//');
+    expect(shell({ $regularExpression: { pattern: 'https://x', options: '' } })).toBe(
+      '/https:\\/\\/x/',
+    );
+  });
+
+  it('reads back a pattern with a double slash to the same matches', () => {
+    const doubled = regexFromLiteral(
+      shell({ $regularExpression: { pattern: 'a//b', options: '' } }),
+    );
+    expect(doubled.test('a//b')).toBe(true);
+    expect(doubled.test('a/b')).toBe(false);
+
+    const anchored = regexFromLiteral(
+      shell({ $regularExpression: { pattern: '^//', options: '' } }),
+    );
+    expect(anchored.test('//x')).toBe(true);
+    expect(anchored.test('x//')).toBe(false);
+
+    const url = regexFromLiteral(
+      shell({ $regularExpression: { pattern: 'https://x', options: 'i' } }),
+    );
+    expect(url.test('HTTPS://X')).toBe(true);
+  });
+
+  it('keeps an escaped backslash before a slash as one escape', () => {
+    // The pattern is a literal backslash followed by a slash: the slash still needs its escape.
+    expect(shell({ $regularExpression: { pattern: 'a\\\\/b', options: '' } })).toBe('/a\\\\\\/b/');
+  });
+
   it('reads a literal with an escaped slash back to the same pattern', () => {
     const literal = shell({ $regularExpression: { pattern: 'a\\/b', options: '' } });
     expect(regexFromLiteral(literal).test('a/b')).toBe(true);

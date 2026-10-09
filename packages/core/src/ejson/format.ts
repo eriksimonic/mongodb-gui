@@ -88,8 +88,11 @@ function writeObject(object: Plain, indent: number, depth: number): string {
 }
 
 function writeKey(key: string): string {
-  // __proto__ is always quoted: unquoted, mongosh would read it as a prototype setter.
-  return key !== '__proto__' && IDENTIFIER.test(key) ? key : JSON.stringify(key);
+  // A computed key. A plain __proto__ key would set the prototype rather than add a field.
+  if (key === '__proto__') {
+    return '["__proto__"]';
+  }
+  return IDENTIFIER.test(key) ? key : JSON.stringify(key);
 }
 
 function wrap(
@@ -148,10 +151,13 @@ function writeSpecial(value: Plain): string | undefined {
 }
 
 const MAX_ISO_YEAR = 9999;
+// The range of a JavaScript Date, in milliseconds either side of the epoch.
+const MAX_DATE_MILLIS = 8.64e15;
 const LITERAL_REGEX_FLAGS = /^[imsu]*$/;
 const LINE_TERMINATOR = /[\n\r\u2028\u2029]/;
-// A slash that is not already escaped: an even run of backslashes before it is not an escape.
-const UNESCAPED_SLASH = /(^|[^\\])((?:\\\\)*)\//g;
+// Tokens: an escape pair is kept as it is, and a bare slash gets its escape. Tokenising keeps a
+// slash that follows another slash, or a colon, from being read as part of the character before it.
+const SLASH_OR_ESCAPE = /\\[\s\S]|\//g;
 
 /** ISO text for milliseconds, or undefined when the date has no ISO form (years outside 0 to 9999). */
 function isoFromMillis(millis: number): string | undefined {
@@ -171,11 +177,15 @@ function writeDate(inner: unknown): string | undefined {
   if (typeof millis !== 'string') {
     return undefined;
   }
-  const iso = isoFromMillis(Number(millis));
-  // A date outside the ISO range keeps its exact milliseconds through the constructor.
-  return iso === undefined
-    ? `new Date(NumberLong(${JSON.stringify(millis)}))`
-    : `ISODate(${JSON.stringify(iso)})`;
+  const value = Number(millis);
+  // A date beyond the Date range has no value. A null with a comment says so, where an expression
+  // would quietly give Invalid Date.
+  if (!Number.isFinite(value) || Math.abs(value) > MAX_DATE_MILLIS) {
+    return `/* date out of range: ${millis} */ null`;
+  }
+  const iso = isoFromMillis(value);
+  // The constructor takes plain milliseconds. NumberLong inside Date() would give Invalid Date.
+  return iso === undefined ? `new Date(${value})` : `ISODate(${JSON.stringify(iso)})`;
 }
 
 function doubleText(text: string): string {
@@ -242,7 +252,8 @@ function writeRegex(inner: unknown): string | undefined {
   const pattern = inner.pattern;
   const options = typeof inner.options === 'string' ? inner.options : '';
   if (LITERAL_REGEX_FLAGS.test(options) && !LINE_TERMINATOR.test(pattern)) {
-    return `/${pattern.replace(UNESCAPED_SLASH, '$1$2\\/')}/${options}`;
+    const escaped = pattern.replace(SLASH_OR_ESCAPE, (token) => (token === '/' ? '\\/' : token));
+    return `/${escaped}/${options}`;
   }
   return `BSONRegExp(${JSON.stringify(pattern)}, ${JSON.stringify(options)})`;
 }
