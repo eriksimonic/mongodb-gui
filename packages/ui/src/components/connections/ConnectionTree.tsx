@@ -4,6 +4,7 @@ import { useEffect, useMemo, useRef, useState, type KeyboardEvent, type MouseEve
 import type { ConnectionStatus } from '@mongo-gui/core';
 import type { Selection } from '../../state/app-store';
 import { useAppStore } from '../../state/app-store-context';
+import { usePanelOpener } from '../../state/panel-opener';
 import { catalogKey, connectionNodeId, databaseNodeId } from '../../state/node-ids';
 import { ConnectionContextMenu } from './ConnectionContextMenu';
 import { TreeMessage, TreeRow } from './TreeRow';
@@ -71,6 +72,7 @@ export function ConnectionTree() {
   const loadDatabases = useAppStore((state) => state.loadDatabases);
   const loadCollections = useAppStore((state) => state.loadCollections);
   const select = useAppStore((state) => state.select);
+  const openPanel = usePanelOpener();
   const [focusKey, setFocusKey] = useState<string | undefined>(undefined);
   const [menu, setMenu] = useState<MenuAnchor | undefined>(undefined);
   const items = useRef(new Map<string, HTMLDivElement>());
@@ -172,10 +174,24 @@ export function ConnectionTree() {
     }
   }
 
+  /** Monitoring and Operations children open their panel in the centre group. */
+  function openToolRow(row: TreeRowModel) {
+    if (row.kind !== 'monitor' && row.kind !== 'operations') {
+      return;
+    }
+    const connectionName = list?.find((item) => item.id === row.connectionId)?.name ?? '';
+    openPanel({
+      kind: row.kind === 'monitor' ? 'monitor' : 'operations',
+      connectionId: row.connectionId,
+      connectionName,
+    });
+  }
+
   /** Enter opens a collapsed connection, which also connects it. On an open one it connects if needed. */
   function openRow(row: TreeRowModel) {
     selectRow(row);
     if (row.kind !== 'connection') {
+      openToolRow(row);
       return;
     }
     if (!row.expanded) {
@@ -270,7 +286,9 @@ export function ConnectionTree() {
             onToggle={() => toggleRow(row)}
             onSelect={() => selectRow(row)}
             onDoubleClick={() => {
-              if (row.kind === 'connection' && canConnect(statuses[row.connectionId])) {
+              if (row.kind !== 'connection') {
+                openToolRow(row);
+              } else if (canConnect(statuses[row.connectionId])) {
                 void connect(row.connectionId);
               }
             }}

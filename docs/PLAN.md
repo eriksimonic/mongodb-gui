@@ -59,6 +59,7 @@ imports the driver directly; it talks to the utility process over a MessagePort.
 | `packages/mongo-adapter` | core | `mongodb`, `bson` | Everything that touches the driver: connect, list, stats, indexes, explain, serverStatus, profiler reads. |
 | `packages/shell-runtime` | core, mongo-adapter | `@mongosh/*` | Hosts the mongosh evaluator. Runs as an Electron utility process. Also runnable as a plain child process for tests. |
 | `packages/storage` | core | `node:sqlite`, `node:crypto` | Encrypted store for connections, history, favourites, settings, layout. Key management. |
+| `packages/docker` | core | Node built-ins (`http` over the Docker socket) | Discovers MongoDB containers and manages the throwaway socat forwarders. No dockerode, no native code. |
 | `packages/ui` | core | React, Mantine, dockview, Monaco, AG Grid | All screens. Talks to an `RpcClient` interface from core. Ships a `MockRpcClient` so it runs in a browser with no Electron. |
 | `packages/app` | all | Electron | Main process, preload, window, RPC router, utility process supervisor, auto-update. |
 
@@ -70,7 +71,7 @@ built-ins.
 
 `packages/core/src/rpc/contract.ts` declares every call as `{ input: zod schema, output:
 zod schema }` grouped by namespace: `connections`, `databases`, `collections`, `shell`,
-`explain`, `indexes`, `documents`, `monitor`, `profiler`, `history`, `settings`.
+`explain`, `indexes`, `documents`, `monitor`, `profiler`, `history`, `settings`, `updates`, `app`.
 Streaming calls (query results, monitor samples, profiler tail) are modelled as
 subscriptions with `subscribe(input) -> AsyncIterable<event>` and an explicit `cancel`.
 

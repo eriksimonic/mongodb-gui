@@ -1,4 +1,6 @@
 // @vitest-environment jsdom
+// The shims come first. uPlot reads matchMedia when its module loads, and App imports uPlot.
+import './test-support/browser-shims';
 import { fireEvent, screen } from '@testing-library/react';
 import { describe, expect, it } from 'vitest';
 import { App } from './App';
