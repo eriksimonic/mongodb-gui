@@ -2,8 +2,7 @@
   "extends": "../../tsconfig.base.json",
   "compilerOptions": {
     "emitDeclarationOnly": false,
-    "noEmit": true,
-    "lib": ["ES2023", "DOM"]
+    "noEmit": true
   },
   "include": ["src"]
 }

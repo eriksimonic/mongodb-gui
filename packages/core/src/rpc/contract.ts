@@ -1,4 +1,5 @@
 import { z } from 'zod';
+import type { ParsedUrl, ParsedUrlConstructor } from '../types/url';
 import {
   ConnectionProfileInputSchema,
   ConnectionProfileSchema,
@@ -26,6 +27,9 @@ const collectionParam = databaseParam.extend({ collection: z.string().min(1) });
 const password = z.string().min(1);
 const newPassword = z.string().min(10);
 
+/** The runtime URL class. Declared at module scope so no other package sees a changed global. */
+declare const URL: ParsedUrlConstructor;
+
 const PROJECT_PATH_PREFIX = '/eriksimonic/mongodb-mager/';
 const MAX_LINK_LENGTH = 2048;
 const ENCODED_DOT_OR_SLASH = /%2e|%2f/i;
@@ -49,7 +53,7 @@ export function isProjectLink(value: string): boolean {
   if (hasWhitespaceOrControl(value) || ENCODED_DOT_OR_SLASH.test(value)) {
     return false;
   }
-  let url: URL;
+  let url: ParsedUrl;
   try {
     url = new URL(value);
   } catch {

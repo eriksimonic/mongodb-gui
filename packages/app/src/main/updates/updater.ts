@@ -432,15 +432,42 @@ function availableFrom(info: UpdaterInfo): UpdateAvailable | undefined {
 
 function notesText(notes: UpdaterInfo['releaseNotes']): string | undefined {
   if (typeof notes === 'string') {
-    return notes;
+    return plainText(notes);
   }
   if (Array.isArray(notes)) {
     return notes
-      .map((entry) => entry.note ?? '')
+      .map((entry) => plainText(entry.note ?? ''))
       .filter((text) => text !== '')
       .join('\n\n');
   }
   return undefined;
+}
+
+const LINE_BREAK = /<br\s*\/?>|<\/(?:p|li|h[1-6]|div|tr)>/gi;
+const TAG = /<[^>]*>/g;
+const ENTITY = /&(amp|lt|gt|quot|#39);/g;
+const ENTITY_TEXT: Readonly<Record<string, string>> = {
+  amp: '&',
+  lt: '<',
+  gt: '>',
+  quot: '"',
+  '#39': "'",
+};
+
+/**
+ * Turns release notes, which GitHub usually sends as HTML, into plain text. Block tags become line
+ * breaks, other tags are dropped, and the five common entities are decoded in one pass, so
+ * `&amp;lt;` shows as `&lt;` and not as `<`.
+ */
+export function plainText(html: string): string {
+  return html
+    .replace(LINE_BREAK, '\n')
+    .replace(TAG, '')
+    .replace(ENTITY, (_match, name: string) => ENTITY_TEXT[name] ?? '')
+    .split('\n')
+    .map((line) => line.trim())
+    .filter((line) => line !== '')
+    .join('\n');
 }
 
 function progressOf(info: UpdaterProgressInfo): UpdateProgress {

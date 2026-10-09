@@ -7,6 +7,7 @@ import {
   FIRST_CHECK_DELAY_MS,
   canInstallUpdates,
   createUpdater,
+  plainText,
   type Updater,
   type UpdaterBackend,
   type UpdaterListeners,
@@ -517,6 +518,28 @@ describe('manual check errors', () => {
     const result = await updater.check();
     expect(result.phase).toBe('error');
     expect(result.available).toBeUndefined();
+  });
+});
+
+describe('release notes', () => {
+  it('turns GitHub HTML notes into plain text before they reach the state', async () => {
+    const { updater, backend } = harness({ env: { APPIMAGE: '/a.AppImage' } });
+    backend.checkForUpdates.mockImplementation(() => {
+      backend.emit('update-available', {
+        ...availableInfo(),
+        releaseNotes:
+          '<p>Fixed &amp; improved</p><ul><li>One &lt;two&gt;</li><li>Say &quot;hi&quot; &#39;yo&#39;</li></ul><br/>Done &amp;lt;',
+      });
+      return Promise.resolve(null);
+    });
+    const result = await updater.check();
+    expect(result.available?.notes).toBe('Fixed & improved\nOne <two>\nSay "hi" \'yo\'\nDone &lt;');
+  });
+
+  it('decodes each entity once and drops unknown tags', () => {
+    expect(plainText('<script>x</script>&amp;lt;')).toBe('x&lt;');
+    expect(plainText('<h2>Title</h2>\n\n<p>  body  </p>')).toBe('Title\nbody');
+    expect(plainText('')).toBe('');
   });
 });
 
