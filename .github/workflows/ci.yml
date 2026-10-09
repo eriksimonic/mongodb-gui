@@ -36,3 +36,42 @@ jobs:
 
       - name: Check formatting
         run: pnpm format:check
+
+  e2e:
+    name: e2e (ubuntu-latest)
+    runs-on: ubuntu-latest
+    needs: check
+    timeout-minutes: 25
+    steps:
+      - name: Check out the repository
+        uses: actions/checkout@v4
+
+      - name: Set up pnpm
+        uses: pnpm/action-setup@v4
+        with:
+          version: 12.10.1
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          cache: pnpm
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Install a virtual display
+        run: sudo apt-get update && sudo apt-get install -y xvfb
+
+      # Electron is the browser under test, so Playwright's own browsers are not needed.
+      # The MongoDB container runs through Docker, which ubuntu runners provide.
+      - name: Run end-to-end tests
+        run: xvfb-run -a pnpm test:e2e
+
+      - name: Upload e2e output
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: e2e-output
+          path: e2e/output
+          if-no-files-found: ignore

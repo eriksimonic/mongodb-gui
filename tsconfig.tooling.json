@@ -10,6 +10,7 @@
     "vitest.config.ts",
     "tests/**/*.ts",
     "packages/app/electron.vite.config.ts",
-    "packages/ui/vite.config.ts"
+    "packages/ui/vite.config.ts",
+    "e2e/**/*.ts"
   ]
 }

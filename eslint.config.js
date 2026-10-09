@@ -59,6 +59,13 @@ export default [
     },
   },
   {
+    // Playwright loads its config and global setup through their default exports.
+    files: ['e2e/playwright.config.ts', 'e2e/global-setup.ts'],
+    rules: {
+      'no-restricted-exports': 'off',
+    },
+  },
+  {
     files: ['**/*.tsx'],
     plugins: {
       'react-hooks': reactHooks,

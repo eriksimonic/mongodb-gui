@@ -1,0 +1,200 @@
+{
+  "queryPlanner": {
+    "mongosPlannerVersion": 1,
+    "winningPlan": {
+      "stage": "SHARD_MERGE_SORT",
+      "sortPattern": {
+        "createdAt": -1
+      },
+      "shards": [
+        {
+          "shardName": "shard01",
+          "connectionString": "shard01/localhost:27018",
+          "serverInfo": {
+            "host": "localhost",
+            "port": 27018,
+            "version": "6.0.28"
+          },
+          "plannerVersion": 1,
+          "namespace": "fixtures.orders",
+          "indexFilterSet": false,
+          "parsedQuery": {
+            "customerId": {
+              "$eq": 7
+            }
+          },
+          "winningPlan": {
+            "stage": "FETCH",
+            "inputStage": {
+              "stage": "IXSCAN",
+              "keyPattern": {
+                "customerId": 1,
+                "createdAt": -1
+              },
+              "indexName": "customerId_1_createdAt_-1",
+              "isMultiKey": false,
+              "multiKeyPaths": {
+                "customerId": [],
+                "createdAt": []
+              },
+              "isUnique": false,
+              "isSparse": false,
+              "isPartial": false,
+              "indexVersion": 2,
+              "direction": "forward",
+              "indexBounds": {
+                "customerId": [
+                  "[7, 7]"
+                ],
+                "createdAt": [
+                  "[MaxKey, MinKey]"
+                ]
+              },
+              "keysExamined": 20,
+              "nReturned": 20
+            }
+          },
+          "rejectedPlans": []
+        },
+        {
+          "shardName": "shard02",
+          "connectionString": "shard02/localhost:27019",
+          "serverInfo": {
+            "host": "localhost",
+            "port": 27019,
+            "version": "6.0.28"
+          },
+          "plannerVersion": 1,
+          "namespace": "fixtures.orders",
+          "indexFilterSet": false,
+          "parsedQuery": {
+            "customerId": {
+              "$eq": 7
+            }
+          },
+          "winningPlan": {
+            "stage": "FETCH",
+            "inputStage": {
+              "stage": "IXSCAN",
+              "keyPattern": {
+                "customerId": 1,
+                "createdAt": -1
+              },
+              "indexName": "customerId_1_createdAt_-1",
+              "isMultiKey": false,
+              "multiKeyPaths": {
+                "customerId": [],
+                "createdAt": []
+              },
+              "isUnique": false,
+              "isSparse": false,
+              "isPartial": false,
+              "indexVersion": 2,
+              "direction": "forward",
+              "indexBounds": {
+                "customerId": [
+                  "[7, 7]"
+                ],
+                "createdAt": [
+                  "[MaxKey, MinKey]"
+                ]
+              },
+              "keysExamined": 20,
+              "nReturned": 20
+            }
+          },
+          "rejectedPlans": []
+        }
+      ]
+    }
+  },
+  "executionStats": {
+    "executionSuccess": true,
+    "nReturned": 40,
+    "executionTimeMillis": 4,
+    "totalKeysExamined": 40,
+    "totalDocsExamined": 40,
+    "executionStages": {
+      "stage": "SHARD_MERGE_SORT",
+      "nReturned": 40,
+      "executionTimeMillis": 4,
+      "totalKeysExamined": 40,
+      "totalDocsExamined": 40,
+      "sortPattern": {
+        "createdAt": -1
+      },
+      "shards": [
+        {
+          "shardName": "shard01",
+          "executionSuccess": true,
+          "nReturned": 20,
+          "executionTimeMillis": 2,
+          "totalKeysExamined": 20,
+          "totalDocsExamined": 20,
+          "totalChildMillis": 1,
+          "executionStages": {
+            "stage": "FETCH",
+            "nReturned": 20,
+            "executionTimeMillisEstimate": 2,
+            "works": 21,
+            "advanced": 20,
+            "docsExamined": 20,
+            "inputStage": {
+              "stage": "IXSCAN",
+              "nReturned": 20,
+              "executionTimeMillisEstimate": 2,
+              "works": 21,
+              "keysExamined": 20,
+              "isMultiKey": false,
+              "indexName": "customerId_1_createdAt_-1",
+              "direction": "forward"
+            }
+          }
+        },
+        {
+          "shardName": "shard02",
+          "executionSuccess": true,
+          "nReturned": 20,
+          "executionTimeMillis": 3,
+          "totalKeysExamined": 20,
+          "totalDocsExamined": 20,
+          "totalChildMillis": 1,
+          "executionStages": {
+            "stage": "FETCH",
+            "nReturned": 20,
+            "executionTimeMillisEstimate": 3,
+            "works": 21,
+            "advanced": 20,
+            "docsExamined": 20,
+            "inputStage": {
+              "stage": "IXSCAN",
+              "nReturned": 20,
+              "executionTimeMillisEstimate": 3,
+              "works": 21,
+              "keysExamined": 20,
+              "isMultiKey": false,
+              "indexName": "customerId_1_createdAt_-1",
+              "direction": "forward"
+            }
+          }
+        }
+      ]
+    }
+  },
+  "serverInfo": {
+    "host": "mongos",
+    "port": 27017,
+    "version": "6.0.28"
+  },
+  "ok": 1,
+  "command": {
+    "find": "orders",
+    "filter": {
+      "customerId": 7
+    },
+    "sort": {
+      "createdAt": -1
+    },
+    "$db": "fixtures"
+  }
+}
