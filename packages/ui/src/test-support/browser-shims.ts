@@ -19,9 +19,16 @@ if (typeof globalThis.ResizeObserver === 'undefined') {
 // the profiler scroller reports a fixed viewport. Every other element keeps the jsdom answer.
 const PROFILER_VIEWPORT_PX = 800;
 const PROFILER_SCROLLER = 'mg-profiler-scroll';
+// Every other virtualised list takes the same viewport through this class.
+const VIRTUAL_SCROLLER = 'mg-virtual-scroll';
+function isViewport(element: Element): boolean {
+  return (
+    element.classList.contains(PROFILER_SCROLLER) || element.classList.contains(VIRTUAL_SCROLLER)
+  );
+}
 const originalRect = Element.prototype.getBoundingClientRect;
 Element.prototype.getBoundingClientRect = function getBoundingClientRect(): DOMRect {
-  if (this.classList.contains(PROFILER_SCROLLER)) {
+  if (isViewport(this)) {
     return {
       x: 0,
       y: 0,
@@ -39,7 +46,7 @@ Element.prototype.getBoundingClientRect = function getBoundingClientRect(): DOMR
 Object.defineProperty(HTMLElement.prototype, 'offsetHeight', {
   configurable: true,
   get(this: HTMLElement): number {
-    return this.classList.contains(PROFILER_SCROLLER) ? PROFILER_VIEWPORT_PX : 0;
+    return isViewport(this) ? PROFILER_VIEWPORT_PX : 0;
   },
 });
 
@@ -70,7 +77,7 @@ const PROFILER_HEADER_PX = 32;
 Object.defineProperty(HTMLElement.prototype, 'scrollHeight', {
   configurable: true,
   get(this: HTMLElement): number {
-    if (!this.classList.contains(PROFILER_SCROLLER)) {
+    if (!isViewport(this)) {
       return 0;
     }
     const body = this.firstElementChild?.lastElementChild;
@@ -81,7 +88,7 @@ Object.defineProperty(HTMLElement.prototype, 'scrollHeight', {
 Object.defineProperty(HTMLElement.prototype, 'clientHeight', {
   configurable: true,
   get(this: HTMLElement): number {
-    return this.classList.contains(PROFILER_SCROLLER) ? PROFILER_VIEWPORT_PX : 0;
+    return isViewport(this) ? PROFILER_VIEWPORT_PX : 0;
   },
 });
 

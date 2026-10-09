@@ -26,7 +26,12 @@ import {
   MonitorStartInputSchema,
   MonitorStopInputSchema,
 } from '../schemas/monitor';
-import { FavouriteInputSchema, FavouriteSchema, HistoryEntrySchema } from '../schemas/history';
+import {
+  FavouriteInputSchema,
+  FavouriteSchema,
+  HistoryAppendInputSchema,
+  HistoryEntrySchema,
+} from '../schemas/history';
 import { VaultStatusSchema } from '../schemas/vault';
 import {
   ShellCancelInputSchema,
@@ -85,6 +90,7 @@ import {
 import { UpdateStateSchema } from '../updates/types';
 import { defineCall, type RpcContract } from './define';
 
+const LayoutKeySchema = z.string().min(1).max(200);
 const idParam = z.object({ id: z.uuid() });
 const connectionParam = z.object({ connectionId: z.uuid() });
 const databaseParam = connectionParam.extend({ database: z.string().min(1) });
@@ -245,6 +251,7 @@ export const rpcContract = {
       }),
       z.array(HistoryEntrySchema),
     ),
+    append: defineCall(HistoryAppendInputSchema, HistoryEntrySchema),
     clear: defineCall(z.void(), z.void()),
   },
   favourites: {
@@ -299,6 +306,11 @@ export const rpcContract = {
     download: defineCall(z.void(), UpdateStateSchema),
     install: defineCall(z.void(), z.void()),
     dismiss: defineCall(z.object({ version: z.string().min(1).max(64) }), UpdateStateSchema),
+  },
+  // Small per-key values the renderer keeps across launches, such as the open editor tabs.
+  layout: {
+    get: defineCall(z.object({ key: LayoutKeySchema }), z.unknown()),
+    set: defineCall(z.object({ key: LayoutKeySchema, value: z.unknown() }), z.void()),
   },
   app: {
     openExternal: defineCall(z.object({ url: externalUrl }), z.void()),

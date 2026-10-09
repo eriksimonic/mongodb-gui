@@ -12,6 +12,9 @@ export const HistoryEntrySchema = z.object({
   error: AppErrorSchema.optional(),
 });
 
+/** A history row before the store assigns its id. */
+export const HistoryAppendInputSchema = HistoryEntrySchema.omit({ id: true });
+
 export const FavouriteSchema = z.object({
   id: z.uuid(),
   name: z.string().min(1),

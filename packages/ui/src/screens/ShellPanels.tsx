@@ -10,6 +10,9 @@ import { DocumentsPanel } from '../components/management/DocumentsPanel';
 import { IndexesPanel } from '../components/management/IndexesPanel';
 import { ValidationPanel } from '../components/management/ValidationPanel';
 import { ProfilerPanel } from '../profiler/ProfilerPanel';
+import { EditorView } from '../components/editor/EditorView';
+
+export { OutputPanel } from '../components/editor/OutputPanel';
 import { MonitorDashboard } from '../monitor/MonitorDashboard';
 import { OperationsPanel } from '../monitor/OperationsPanel';
 
@@ -29,6 +32,16 @@ export interface ProfilerPanelParams {
 /** A profiler panel of one database. Closing the tab drops its state and stops its tail. */
 export function ProfilerDockPanel({ params }: IDockviewPanelProps<ProfilerPanelParams>) {
   return <ProfilerPanel connectionId={params.connectionId} database={params.database} />;
+}
+
+/** Params of an editor panel. The tab's state lives in the store, so only its id is passed. */
+export interface EditorPanelParams {
+  readonly tabId: string;
+}
+
+/** A query editor tab. Closing the tab removes the editor from the store. */
+export function EditorDockPanel({ params }: IDockviewPanelProps<EditorPanelParams>) {
+  return <EditorView tabId={params.tabId} />;
 }
 
 /** Tab for the three fixed panels. Same as dockview's default tab without the close button. */
@@ -52,8 +65,8 @@ export function WelcomePanel() {
       <Stack gap="xs" maw={420}>
         <Title order={4}>Welcome</Title>
         <Text size="sm" c="dimmed">
-          Expand a connection in the Connections panel to browse its databases and collections. The
-          query editor arrives in a later phase.
+          Expand a connection in the Connections panel to browse its databases and collections.
+          Double-click a database to open a query editor on it.
         </Text>
       </Stack>
     </Center>
@@ -94,17 +107,6 @@ function usePanelVisible(api: IDockviewPanelProps['api']): boolean {
     };
   }, [api]);
   return visible;
-}
-
-/** Bottom panel placeholder. Command output will appear here. */
-export function OutputPanel() {
-  return (
-    <Box p={8}>
-      <Text size="sm" c="dimmed">
-        No output yet.
-      </Text>
-    </Box>
-  );
 }
 
 /** Dock panel: indexes of one collection. */

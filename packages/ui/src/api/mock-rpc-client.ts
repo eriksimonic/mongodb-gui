@@ -91,6 +91,7 @@ interface MockState {
   settings: Settings;
   history: HistoryEntry[];
   favourites: Favourite[];
+  layout: Record<string, unknown>;
   /** Databases and collections per connection id. Mutated by the management calls. */
   catalogs: Map<string, MockDatabase[]>;
   builds: Map<string, MockBuild[]>;
@@ -117,6 +118,7 @@ function initialState(preset: MockPreset): MockState {
     settings: { ...defaultSettings },
     history: [],
     favourites: [],
+    layout: {},
     catalogs: new Map(),
     builds: new Map(),
     dockerAvailable: true,
@@ -141,6 +143,7 @@ function initialState(preset: MockPreset): MockState {
     statuses: new Map([[DOCKER_PROFILE_ID, connectedStatus()]]),
     history: fixtureHistory(),
     favourites: fixtureFavourites(),
+    layout: {},
   };
 }
 
@@ -506,6 +509,7 @@ export function createMockUiApi(options: MockUiApiOptions = {}): UiApi {
         state.settings = { ...defaultSettings };
         state.history = [];
         state.favourites = [];
+        state.layout = {};
         state.catalogs.clear();
         state.builds.clear();
       }),
@@ -730,6 +734,12 @@ export function createMockUiApi(options: MockUiApiOptions = {}): UiApi {
       ),
     },
     history: {
+      append: method(rpcContract.history.append, latencyMs, (input) => {
+        requireUnlocked();
+        const entry: HistoryEntry = { ...input, id: newId() };
+        state.history = [entry, ...state.history];
+        return entry;
+      }),
       list: method(rpcContract.history.list, latencyMs, ({ connectionId, search, limit }) => {
         requireUnlocked();
         const needle = search?.toLowerCase();
@@ -747,6 +757,16 @@ export function createMockUiApi(options: MockUiApiOptions = {}): UiApi {
       clear: method(rpcContract.history.clear, latencyMs, () => {
         requireUnlocked();
         state.history = [];
+      }),
+    },
+    layout: {
+      get: method(rpcContract.layout.get, latencyMs, ({ key }) => {
+        requireUnlocked();
+        return state.layout[key];
+      }),
+      set: method(rpcContract.layout.set, latencyMs, ({ key, value }) => {
+        requireUnlocked();
+        state.layout = { ...state.layout, [key]: value };
       }),
     },
     favourites: {

@@ -18,14 +18,15 @@ import { runReported } from '../components/notify-error';
 import { SettingsModal } from '../components/settings/SettingsModal';
 import { UpdateBanner } from '../components/updates/UpdateBanner';
 import { ProfilerOpenerContext, type ProfilerOpener } from '../profiler/profiler-opener';
-import type { PanelRequest } from '../state/app-store';
-import { useAppStore } from '../state/app-store-context';
+import type { AppData, PanelRequest } from '../state/app-store';
+import { useAppStore, useAppStoreApi } from '../state/app-store-context';
 import { PanelOpenerContext, type OpenPanel } from '../state/panel-opener';
 import { profilerPanelId } from '../state/node-ids';
 import { databasePanelIds, stalePanelIds } from './collection-panels';
 import {
   ConnectionsPanel,
   DocumentsDockPanel,
+  EditorDockPanel,
   FixedTab,
   IndexesDockPanel,
   MonitorPanel,
@@ -46,6 +47,7 @@ const PANEL_COMPONENTS = {
   indexes: IndexesDockPanel,
   validation: ValidationDockPanel,
   documents: DocumentsDockPanel,
+  editor: EditorDockPanel,
 };
 
 const TAB_COMPONENTS = { fixed: FixedTab };
@@ -55,6 +57,8 @@ const TAB_COMPONENTS = { fixed: FixedTab };
  * takes its colours from theme/dockview-theme.css, which uses Mantine tokens.
  */
 const MONGO_THEME: DockviewTheme = { ...themeDark, name: 'mongo-gui', className: 'mg-dockview' };
+
+type ConnectionsState = AppData['connections'];
 
 const SIDEBAR_WIDTH_PX = 280;
 const OUTPUT_SHARE = 0.3;
@@ -138,6 +142,19 @@ function openConnectionPanel(api: DockviewApi, request: Parameters<OpenPanel>[0]
       ? {}
       : { position: { referencePanel: centre, direction: 'within' as const } }),
   });
+}
+
+/** Title of an editor tab: the connection and the database it runs against. */
+function editorTitle(
+  connections: ConnectionsState,
+  connectionId: string,
+  database: string,
+): string {
+  const name =
+    connections.state === 'ready'
+      ? connections.data.find((item) => item.id === connectionId)?.name
+      : undefined;
+  return `${name ?? 'Connection'} · ${database}`;
 }
 
 function panelId(request: PanelRequest): string {
@@ -232,6 +249,13 @@ export function ShellScreen() {
   const clearPanelRequest = useAppStore((state) => state.clearPanelRequest);
   const databases = useAppStore((state) => state.databases);
   const collections = useAppStore((state) => state.collections);
+  const store = useAppStoreApi();
+  const connections = useAppStore((state) => state.connections);
+  const editorOrder = useAppStore((state) => state.editors.order);
+  const editorTabs = useAppStore((state) => state.editors.tabs);
+  const activeEditor = useAppStore((state) => state.editors.activeId);
+  // The editor panels this shell opened, by tab id. Their state lives in the store.
+  const editorPanels = useRef(new Set<string>());
   const dockApi = useRef<DockviewApi | undefined>(undefined);
   const [dock, setDock] = useState<DockviewApi | undefined>(undefined);
   // The collection panels this shell opened, by panel id.
@@ -272,6 +296,76 @@ export function ShellScreen() {
       collectionPanels.current.delete(id);
     }
   }, [dock, databases, collections]);
+
+  // Adds a panel for each open tab and removes the panels of closed tabs. Titles follow the tab.
+  useEffect(() => {
+    if (dock === undefined) {
+      return;
+    }
+    const open = new Set(editorOrder);
+    for (const id of [...editorPanels.current]) {
+      if (!open.has(id)) {
+        editorPanels.current.delete(id);
+        removePanelById(dock, id);
+      }
+    }
+    for (const id of editorOrder) {
+      const tab = editorTabs[id];
+      if (tab === undefined) {
+        continue;
+      }
+      const title = editorTitle(connections, tab.connectionId, tab.database);
+      const panel = dock.getPanel(id);
+      if (panel === undefined) {
+        dock.addPanel({
+          id,
+          component: 'editor',
+          title,
+          params: { tabId: id },
+          position: { referencePanel: 'welcome' },
+        });
+        editorPanels.current.add(id);
+      } else if (panel.title !== title) {
+        panel.api.setTitle(title);
+      }
+    }
+  }, [dock, editorOrder, editorTabs, connections]);
+
+  // Brings the active tab's panel to the front when the store changes the active tab.
+  useEffect(() => {
+    if (dock !== undefined && activeEditor !== undefined) {
+      dock.getPanel(activeEditor)?.api.setActive();
+    }
+  }, [dock, activeEditor]);
+
+  // Ctrl+N opens a new editor on the selected connection, and on the selected database when there is one.
+  useEffect(() => {
+    function onKeyDown(event: KeyboardEvent) {
+      if (
+        event.key.toLowerCase() !== 'n' ||
+        !(event.ctrlKey || event.metaKey) ||
+        event.shiftKey ||
+        event.altKey
+      ) {
+        return;
+      }
+      const state = store.getState();
+      const selection = state.selection;
+      if (selection === undefined) {
+        return;
+      }
+      event.preventDefault();
+      const loaded = state.databases[selection.connectionId];
+      const first = loaded?.state === 'ready' ? loaded.data[0]?.name : undefined;
+      state.openEditor({
+        connectionId: selection.connectionId,
+        database: selection.database ?? first ?? 'admin',
+        newTab: true,
+      });
+    }
+    window.addEventListener('keydown', onKeyDown);
+    return () => window.removeEventListener('keydown', onKeyDown);
+  }, [store]);
 
   return (
     <PanelOpenerContext.Provider value={openPanel}>
@@ -336,6 +430,15 @@ export function ShellScreen() {
                   event.api.onDidRemovePanel((panel) => {
                     collectionPanels.current.delete(panel.id);
                     stopSamplerWhenUnused(event.api, panel.id, stopMonitor);
+                    // Closing an editor tab removes it from the store, which the sync effect then sees.
+                    if (editorPanels.current.delete(panel.id)) {
+                      store.getState().closeEditor(panel.id);
+                    }
+                  });
+                  event.api.onDidActivePanelChange(({ panel }) => {
+                    if (panel !== undefined && editorPanels.current.has(panel.id)) {
+                      store.getState().activateEditor(panel.id);
+                    }
                   });
                 }}
               />

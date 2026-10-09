@@ -671,8 +671,14 @@ export function createRouter(deps: RouterDeps): Router {
     }),
 
     entry('history.list', rpcContract.history.list, (input) => repos().history.list(input)),
+    entry('history.append', rpcContract.history.append, (input) => repos().history.append(input)),
     entry('history.clear', rpcContract.history.clear, () => {
       repos().history.clear();
+    }),
+
+    entry('layout.get', rpcContract.layout.get, (input) => repos().layout.get(input.key)),
+    entry('layout.set', rpcContract.layout.set, (input) => {
+      repos().layout.set(input.key, input.value);
     }),
 
     entry('favourites.list', rpcContract.favourites.list, () => repos().favourites.list()),

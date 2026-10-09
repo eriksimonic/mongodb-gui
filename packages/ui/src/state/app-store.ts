@@ -26,6 +26,8 @@ import {
   type MonitorView,
 } from './monitor-state';
 import { catalogKey, connectionNodeId } from './node-ids';
+import { EMPTY_EDITORS, savedTabsOf, type EditorsState } from './editors';
+import { createEditorActions, type EditorActions } from './editor-actions';
 
 export type VaultState = VaultStatus['state'];
 
@@ -109,9 +111,11 @@ export interface AppData {
   readonly settingsOpen: boolean;
   /** The updater state, pushed by the backend and read on start. */
   readonly updates: UpdateState;
+  /** Editor tabs, their results and output, and the shell runtime state of each connection. */
+  readonly editors: EditorsState;
 }
 
-export interface AppActions {
+export interface AppActions extends EditorActions {
   refreshVault(): Promise<void>;
   initialise(password: string): Promise<void>;
   unlock(password: string): Promise<void>;
@@ -182,6 +186,7 @@ const SESSION_RESET: Pick<
   | 'managementDialog'
   | 'panelRequest'
   | 'settingsOpen'
+  | 'editors'
 > = {
   connections: { state: 'loading' },
   statuses: {},
@@ -196,6 +201,7 @@ const SESSION_RESET: Pick<
   managementDialog: undefined,
   panelRequest: undefined,
   settingsOpen: false,
+  editors: EMPTY_EDITORS,
 };
 
 /** Replaced by the first state the backend reports. */
@@ -263,9 +269,15 @@ export function createAppStore(api: UiApi, initial: Partial<AppData> = {}): AppS
   // Outside the state on purpose: these only matter to in-flight calls, not to rendering.
   const monitorGenerations = new Map<string, number>();
 
-  return createStore<AppState>()((set, get) => {
+  const store = createStore<AppState>()((set, get) => {
+    const editorActions = createEditorActions({
+      rpc,
+      get: () => get(),
+      update: (update) => set((state) => ({ editors: update(state.editors) })),
+    });
     function clearSession(): void {
       set(SESSION_RESET);
+      editorActions.forgetRestored();
     }
 
     function setStatus(id: string, status: ConnectionStatus): void {
@@ -294,6 +306,7 @@ export function createAppStore(api: UiApi, initial: Partial<AppData> = {}): AppS
     return {
       ...INITIAL_DATA,
       ...initial,
+      ...editorActions,
 
       async refreshVault() {
         try {
@@ -341,6 +354,9 @@ export function createAppStore(api: UiApi, initial: Partial<AppData> = {}): AppS
         try {
           const data = await rpc.connections.list();
           set({ connections: { state: 'ready', data } });
+          for (const connection of data) {
+            void editorActions.restoreEditors(connection.id);
+          }
         } catch (error) {
           set({ connections: { state: 'error', error: toAppError(error) } });
         }
@@ -618,6 +634,14 @@ export function createAppStore(api: UiApi, initial: Partial<AppData> = {}): AppS
       },
 
       applyEvent(event) {
+        if (event.type === 'shell:print') {
+          editorActions.printLine(event.requestId, event.text);
+          return;
+        }
+        if (event.type === 'shell:state') {
+          editorActions.setRuntimeState(event.connectionId, event.state);
+          return;
+        }
         if (event.type === 'updates:state') {
           set({ updates: event.state });
           return;
@@ -671,5 +695,41 @@ export function createAppStore(api: UiApi, initial: Partial<AppData> = {}): AppS
         }
       },
     };
+  });
+  persistEditorTabs(store);
+  return store;
+}
+
+const PERSIST_DELAY_MS = 500;
+
+/**
+ * Saves the tabs of each connection whose saved part changed. Saves wait a short time, so typing
+ * sends one write per pause rather than one per key.
+ */
+function persistEditorTabs(store: AppStore): void {
+  const timers = new Map<string, ReturnType<typeof setTimeout>>();
+  store.subscribe((state, previous) => {
+    if (state.editors === previous.editors) {
+      return;
+    }
+    const connectionIds = new Set([
+      ...Object.values(state.editors.tabs).map((tab) => tab.connectionId),
+      ...Object.values(previous.editors.tabs).map((tab) => tab.connectionId),
+    ]);
+    for (const connectionId of connectionIds) {
+      const now = JSON.stringify(savedTabsOf(state.editors, connectionId));
+      const before = JSON.stringify(savedTabsOf(previous.editors, connectionId));
+      if (now === before) {
+        continue;
+      }
+      clearTimeout(timers.get(connectionId));
+      timers.set(
+        connectionId,
+        setTimeout(() => {
+          timers.delete(connectionId);
+          void store.getState().persistEditors(connectionId);
+        }, PERSIST_DELAY_MS),
+      );
+    }
   });
 }

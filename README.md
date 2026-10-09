@@ -14,6 +14,16 @@ See the security section of [docs/PLAN.md](docs/PLAN.md).
 Current state of the app. The set grows as screens land and gets a final refresh at
 release.
 
+![Query editor with the documents of a find shown as a grid](docs/screenshots/editor-table.png)
+
+The query editor runs mongosh statements with completion for collections, fields and
+operators. Each result opens as a grid, an expandable tree or read-only JSON, with paging,
+inline edits in the tree, and a history and favourites list in the Output panel.
+
+| Tree view with inline edit                                                    | JSON view in mongosh syntax                                                    | History with search and re-run                                   |
+| ----------------------------------------------------------------------------- | ------------------------------------------------------------------------------ | ---------------------------------------------------------------- |
+| ![Tree view of a document with type badges](docs/screenshots/editor-tree.png) | ![JSON view of the result in mongosh syntax](docs/screenshots/editor-json.png) | ![History panel listing past runs](docs/screenshots/history.png) |
+
 | Unlock                                        | Shell                                                                            |
 | --------------------------------------------- | -------------------------------------------------------------------------------- |
 | ![Unlock screen](docs/screenshots/unlock.png) | ![Shell with connections, welcome and output panels](docs/screenshots/shell.png) |

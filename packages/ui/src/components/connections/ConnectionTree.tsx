@@ -134,6 +134,7 @@ export function ConnectionTree() {
   const connectContainer = useAppStore((state) => state.connectContainer);
   const openPanel = usePanelOpener();
   const profilerOpener = useProfilerOpener();
+  const openEditor = useAppStore((state) => state.openEditor);
   const [focusKey, setFocusKey] = useState<string | undefined>(undefined);
   const [menu, setMenu] = useState<MenuAnchor | undefined>(undefined);
   const items = useRef(new Map<string, HTMLDivElement>());
@@ -257,6 +258,13 @@ export function ConnectionTree() {
       connectionId: row.connectionId,
       connectionName,
     });
+  }
+
+  /** A database opens a query editor on it, or focuses the one already open there. */
+  function openDatabaseEditor(row: TreeRowModel) {
+    if (row.database !== undefined) {
+      openEditor({ connectionId: row.connectionId, database: row.database });
+    }
   }
 
   /** The profiler of a database opens its panel in the centre group. */
@@ -492,6 +500,8 @@ export function ConnectionTree() {
               onDoubleClick={() => {
                 if (row.kind === 'profiler') {
                   openProfiler(row);
+                } else if (row.kind === 'database') {
+                  openDatabaseEditor(row);
                 } else if (row.kind !== 'connection') {
                   openToolRow(row);
                 } else if (canConnect(statuses[row.connectionId])) {

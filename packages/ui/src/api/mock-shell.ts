@@ -389,6 +389,20 @@ function collectFields(
   }
 }
 
+const WRAPPER_TYPES: Readonly<Record<string, string>> = {
+  $oid: 'ObjectId',
+  $date: 'Date',
+  $numberInt: 'int',
+  $numberLong: 'long',
+  $numberDouble: 'double',
+  $numberDecimal: 'decimal',
+  $binary: 'binData',
+  $timestamp: 'timestamp',
+  $regularExpression: 'regex',
+  $minKey: 'minKey',
+  $maxKey: 'maxKey',
+};
+
 function typeOf(value: unknown): string {
   if (value === null) {
     return 'null';
@@ -397,13 +411,9 @@ function typeOf(value: unknown): string {
     return 'Array';
   }
   if (typeof value === 'object') {
-    if ('$oid' in value) {
-      return 'ObjectId';
-    }
-    if ('$date' in value) {
-      return 'Date';
-    }
-    return 'Object';
+    const wrapper =
+      Object.keys(value).length === 1 ? WRAPPER_TYPES[Object.keys(value)[0] ?? ''] : undefined;
+    return wrapper ?? 'Object';
   }
   return typeof value;
 }
