@@ -11,6 +11,13 @@ export {
   type ListCollectionsOptions,
 } from './catalog';
 export { toCanonicalEjson } from './ejson';
+export {
+  explainableCommand,
+  parseCommandEjson,
+  runExplainCommand,
+  type ExplainCommandResult,
+  wrapWriteCommand,
+} from './explain/run-explain';
 export { mapDriverError } from './errors';
 export { exportCollection } from './transfer/export';
 export { dropBucket, listBuckets } from './gridfs/buckets';
