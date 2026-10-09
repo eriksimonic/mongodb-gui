@@ -66,7 +66,7 @@ export async function getHostInfo(client: MongoClient): Promise<HostInfo> {
     ...definedEntry('cpu', toCpu(system)),
     ...definedEntry('memSizeMb', readNumber(system, 'memSizeMB')),
     ...definedEntry('numaEnabled', readBoolean(system, 'numaEnabled')),
-    raw: reply,
+    rawEjson: stringifyEjson(reply),
   };
 }
 
@@ -85,7 +85,7 @@ export async function getBuildInfo(client: MongoClient): Promise<BuildInfo> {
     storageEngines: readStringArray(reply, 'storageEngines'),
     ...definedEntry('bits', readNumber(reply, 'bits')),
     ...definedEntry('maxBsonObjectSize', readNumber(reply, 'maxBsonObjectSize')),
-    raw: reply,
+    rawEjson: stringifyEjson(reply),
   };
 }
 
@@ -110,7 +110,7 @@ export async function getServerStatusTree(client: MongoClient): Promise<ServerSt
     }
     raw[section] = value;
   }
-  return { at: new Date().toISOString(), raw, stripped };
+  return { at: new Date().toISOString(), rawEjson: stringifyEjson(raw), stripped };
 }
 
 export async function getConnPoolStats(client: MongoClient): Promise<ConnPoolStats> {
@@ -130,16 +130,18 @@ export async function getConnPoolStats(client: MongoClient): Promise<ConnPoolSta
         },
       ]),
     ),
-    raw: reply,
+    rawEjson: stringifyEjson(reply),
   };
 }
 
 // The top command lists one entry per namespace. It fails on mongos, and the server's message
-// reaches the caller as the error detail.
+// reaches the caller as the error detail. The totals document also carries a "note" string,
+// which is not a namespace and is skipped.
 export async function getTop(client: MongoClient): Promise<TopEntry[]> {
   const reply = await runAdminCommand(client, { top: 1 });
   const totals = readRecord(reply, 'totals') ?? {};
   return Object.entries(totals)
+    .filter(([, value]) => isPlainObject(value))
     .map(([ns, value]) => toTopEntry(ns, value))
     .sort((a, b) => compareText(a.ns, b.ns));
 }

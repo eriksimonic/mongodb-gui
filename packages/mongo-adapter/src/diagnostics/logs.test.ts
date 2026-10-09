@@ -25,9 +25,31 @@ describe('parseLogLine', () => {
     });
   });
 
-  it('keeps only the raw text for a line that is not JSON', () => {
-    const text = '2026-01-01T00:00:00.000+0000 I  NETWORK  [listener] Connection accepted';
+  it('splits a 4.2 text line into timestamp, severity, component, context and message', () => {
+    const text = '2019-08-28T12:00:00.000+0000 I  NETWORK  [listener] Connection accepted';
+    expect(parseLogLine(text)).toEqual({
+      ts: '2019-08-28T12:00:00.000+0000',
+      severity: 'I',
+      component: 'NETWORK',
+      context: 'listener',
+      message: 'Connection accepted',
+      raw: text,
+    });
+  });
+
+  it('accepts a debug level text severity such as D2', () => {
+    const text = '2019-08-28T12:00:00.000+0000 D2 QUERY [conn3] query plan chosen';
+    expect(parseLogLine(text)).toMatchObject({ severity: 'D2', component: 'QUERY' });
+  });
+
+  it('keeps only the raw text for a line in neither format', () => {
+    const text = 'WARNING: something happened without a context';
     expect(parseLogLine(text)).toEqual({ message: text, raw: text });
+  });
+
+  it('drops an id that is not an integer', () => {
+    const line = JSON.stringify({ t: { $date: '2026-01-01T00:00:00Z' }, msg: 'x', id: 1.5 });
+    expect(parseLogLine(line)).not.toHaveProperty('id');
   });
 
   it('falls back when the JSON has no message', () => {

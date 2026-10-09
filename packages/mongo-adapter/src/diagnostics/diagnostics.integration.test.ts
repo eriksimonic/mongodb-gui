@@ -13,6 +13,7 @@ import {
 import {
   getBuildInfo,
   getCollStats,
+  getDbStats,
   getCommandLineOptions,
   getConnPoolStats,
   getHostInfo,
@@ -53,7 +54,7 @@ describe.each(MONGO_IMAGES)('server diagnostics on %s', (image) => {
   let killer: MongoClient | undefined;
 
   beforeAll(async () => {
-    mongo = await startMongo(image);
+    mongo = await startMongo(image, { testCommands: true });
     client = new MongoClient(mongo.rootUri, { appName: 'diagnostics-test' });
     await client.connect();
     const items = client.db(DIAG_DB).collection(DIAG_COLLECTION);
@@ -201,7 +202,9 @@ describe.each(MONGO_IMAGES)('server diagnostics on %s', (image) => {
     async () => {
       const tree = await getServerStatusTree(connected());
       expect(ServerStatusTreeSchema.safeParse(tree).success).toBe(true);
-      const raw = tree.raw as Record<string, unknown>;
+      // serverStatus has operator-count keys that start with "$", so EJSON.parse rejects it. The
+      // payload is still valid JSON, and JSON.parse reads it.
+      const raw = JSON.parse(tree.rawEjson) as Record<string, unknown>;
       expect(raw).toHaveProperty('host');
       expect(raw).not.toHaveProperty('tcmalloc');
       expect(tree.stripped).toContain('tcmalloc');
@@ -228,6 +231,7 @@ describe.each(MONGO_IMAGES)('server diagnostics on %s', (image) => {
       const entries = await getTop(connected());
       const entry = entries.find((candidate) => candidate.ns === `${DIAG_DB}.${DIAG_COLLECTION}`);
       expect(entry).toBeDefined();
+      expect(entries.map((candidate) => candidate.ns)).not.toContain('note');
       expect(entry?.total.count ?? 0).toBeGreaterThan(0);
     },
     SUITE_TIMEOUT_MS,
@@ -238,6 +242,40 @@ describe.each(MONGO_IMAGES)('server diagnostics on %s', (image) => {
     async () => {
       const stats = await getCollStats(connected(), DIAG_DB, DIAG_COLLECTION);
       expect(stats.count).toBe(ITEM_COUNT);
+    },
+    SUITE_TIMEOUT_MS,
+  );
+
+  it(
+    'reads database stats through the diagnostics re-export',
+    async () => {
+      const stats = await getDbStats(connected(), DIAG_DB);
+      expect(stats.db).toBe(DIAG_DB);
+      expect(stats.collections).toBeGreaterThan(0);
+    },
+    SUITE_TIMEOUT_MS,
+  );
+
+  // The session cache flushes to config.system.sessions on a timer. The test command forces the
+  // flush, so the cluster-wide read has a row to return.
+  it(
+    'reports the all scope with the user name once the session cache is flushed',
+    async () => {
+      const session = connected().startSession();
+      try {
+        await connected().db(DIAG_DB).collection(DIAG_COLLECTION).findOne({}, { session });
+        await connected().db('admin').command({ refreshLogicalSessionCacheNow: 1 });
+        const listing = await listSessions(connected(), { allUsers: true });
+        expect(SessionListSchema.safeParse(listing).success).toBe(true);
+        expect(listing.scope).toBe('all');
+        expect(listing.fallbackReason).toBeUndefined();
+        const mine = listing.sessions.find((info) => info.id === sessionHex(session));
+        expect(mine).toBeDefined();
+        expect(mine?.userId).toBeDefined();
+        expect(mine?.user).toBe('root@admin');
+      } finally {
+        await endSession(session);
+      }
     },
     SUITE_TIMEOUT_MS,
   );

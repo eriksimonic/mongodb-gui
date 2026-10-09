@@ -46,18 +46,18 @@ describe('ServerLogSchema', () => {
 });
 
 describe('HostInfoSchema and BuildInfoSchema', () => {
-  it('accepts a host with only raw data', () => {
-    expect(HostInfoSchema.safeParse({ raw: {} }).success).toBe(true);
+  it('accepts a host with only the raw EJSON payload', () => {
+    expect(HostInfoSchema.safeParse({ rawEjson: '{}' }).success).toBe(true);
   });
 
   it('requires a version and module lists for build info', () => {
-    expect(BuildInfoSchema.safeParse({ version: '8.0.17', raw: {} }).success).toBe(false);
+    expect(BuildInfoSchema.safeParse({ version: '8.0.17', rawEjson: '{}' }).success).toBe(false);
     expect(
       BuildInfoSchema.safeParse({
         version: '8.0.17',
         modules: [],
         storageEngines: ['wiredTiger'],
-        raw: {},
+        rawEjson: '{}',
       }).success,
     ).toBe(true);
   });
@@ -89,7 +89,7 @@ describe('ConnPoolStatsSchema', () => {
       totalAvailable: 2,
       totalCreated: 3,
       hosts: { 'localhost:27017': { inUse: 1, available: 2, created: 3 } },
-      raw: {},
+      rawEjson: '{}',
     };
     expect(ConnPoolStatsSchema.safeParse(stats).success).toBe(true);
   });
@@ -100,12 +100,24 @@ describe('SessionListSchema', () => {
     expect(SessionListSchema.safeParse({ scope: 'local', sessions: [] }).success).toBe(true);
     expect(SessionListSchema.safeParse({ scope: 'global', sessions: [] }).success).toBe(false);
   });
+
+  it('accepts a fallback reason only from the known set', () => {
+    const fallback = { scope: 'local', sessions: [], fallbackReason: 'unauthorized' };
+    expect(SessionListSchema.safeParse(fallback).success).toBe(true);
+    expect(SessionListSchema.safeParse({ ...fallback, fallbackReason: 'timeout' }).success).toBe(
+      false,
+    );
+  });
 });
 
 describe('ServerStatusTreeSchema', () => {
   it('keeps the list of stripped sections', () => {
-    const tree = { at: '2026-01-01T00:00:00.000Z', raw: { host: 'h' }, stripped: ['tcmalloc'] };
+    const tree = {
+      at: '2026-01-01T00:00:00.000Z',
+      rawEjson: '{"host":"h"}',
+      stripped: ['tcmalloc'],
+    };
     expect(ServerStatusTreeSchema.safeParse(tree).success).toBe(true);
-    expect(ServerStatusTreeSchema.safeParse({ at: 'x', raw: {} }).success).toBe(false);
+    expect(ServerStatusTreeSchema.safeParse({ at: 'x', rawEjson: '{}' }).success).toBe(false);
   });
 });

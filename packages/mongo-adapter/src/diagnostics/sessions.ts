@@ -1,5 +1,5 @@
-import { Binary, type Document, type MongoClient } from 'mongodb';
-import type { SessionInfo, SessionList } from '@mongo-gui/core';
+import { Binary, MongoServerError, type Document, type MongoClient } from 'mongodb';
+import type { SessionFallbackReason, SessionInfo, SessionList } from '@mongo-gui/core';
 import {
   definedEntry,
   readBoolean,
@@ -8,7 +8,7 @@ import {
   readRecord,
   readString,
 } from '../documents';
-import { validationError } from '../management/errors';
+import { toAppException, validationError } from '../management/errors';
 import { runAdminCommand } from './command';
 
 export interface SessionUser {
@@ -22,34 +22,39 @@ export interface ListSessionsOptions {
 }
 
 const SESSION_ID_HEX = /^[0-9a-f]{32}$/i;
+const UNAUTHORIZED_CODE = 13;
 
-// Lists sessions cluster-wide from config.system.sessions when the caller asks for other users
-// and the server allows it. Otherwise, or when that read fails or finds nothing, it lists the
-// sessions the connected server holds and reports the scope as "local".
+// Lists sessions cluster-wide from config.system.sessions when the caller asks for other users.
+// The "all" scope is reported whenever that read succeeds, even when it returns no rows. When the
+// read fails, the list falls back to the sessions the connected server holds, reports the scope
+// as "local", and names the reason in fallbackReason.
+//
+// Rows from config.system.sessions carry only the user digest (_id.uid). The user name is filled
+// by matching that digest against the local listing. A digest with no local match keeps only
+// userId, the sole identity for that session.
 export async function listSessions(
   client: MongoClient,
   options: ListSessionsOptions = {},
 ): Promise<SessionList> {
   const filter = sessionFilter(options);
+  let fallbackReason: SessionFallbackReason | undefined;
   if (options.allUsers === true || (options.users?.length ?? 0) > 0) {
-    try {
-      const rows: unknown[] = await client
-        .db('config')
-        .collection('system.sessions')
-        .aggregate([{ $listSessions: filter }])
-        .toArray();
-      if (rows.length > 0) {
-        return { scope: 'all', sessions: rows.flatMap(toSessionInfo) };
-      }
-    } catch {
-      // The user lacks the privilege, or the deployment has no config.system.sessions.
+    const global = await readGlobalRows(client, filter);
+    if (global.ok) {
+      const names = await userNamesByDigest(client);
+      return {
+        scope: 'all',
+        sessions: global.rows.flatMap((row) => toSessionInfo(row, names)),
+      };
     }
+    fallbackReason = global.reason;
   }
-  const rows: unknown[] = await client
-    .db('admin')
-    .aggregate([{ $listLocalSessions: filter }])
-    .toArray();
-  return { scope: 'local', sessions: rows.flatMap(toSessionInfo) };
+  const rows = await readLocalRows(client, filter);
+  return {
+    scope: 'local',
+    sessions: rows.flatMap((row) => toSessionInfo(row)),
+    ...definedEntry('fallbackReason', fallbackReason),
+  };
 }
 
 // The ids are the lsid UUIDs as 32 hex characters, as listSessions returns them. The server
@@ -63,6 +68,14 @@ export async function killSessions(client: MongoClient, ids: readonly string[]):
   await runAdminCommand(client, { killSessions: sessions });
 }
 
+// Kills the running operations and sessions of each user.
+//
+// The caller needs the impersonate privilege on the cluster, in addition to killAnySession. The
+// root role lacks impersonate, so a root client gets "Not authorized to impersonate".
+//
+// Side effect: on 4.4, 6.0 and 8.0 a run of this command also interrupted a running read from a
+// different user (root) in the same test, not only the target user's read. Callers should expect
+// running operations outside the named users to be interrupted.
 export async function killAllSessionsByUser(
   client: MongoClient,
   users: readonly SessionUser[],
@@ -71,10 +84,62 @@ export async function killAllSessionsByUser(
     throw validationError('Choose at least one user whose sessions to kill');
   }
   // Each pattern matches the sessions of one user. Patterns combine with OR on the server.
-  // The caller needs the impersonate privilege. On 4.4, 6.0 and 8.0 a run of this command also
-  // interrupted a running read from another user, so a caller should expect that side effect.
   const patterns = users.map((user) => ({ users: [sessionUser(user)] }));
   await runAdminCommand(client, { killAllSessionsByPattern: patterns });
+}
+
+type GlobalRows =
+  | { readonly ok: true; readonly rows: unknown[] }
+  | { readonly ok: false; readonly reason: SessionFallbackReason };
+
+async function readGlobalRows(client: MongoClient, filter: Document): Promise<GlobalRows> {
+  try {
+    const rows: unknown[] = await client
+      .db('config')
+      .collection('system.sessions')
+      .aggregate([{ $listSessions: filter }])
+      .toArray();
+    return { ok: true, rows };
+  } catch (error) {
+    return { ok: false, reason: isUnauthorized(error) ? 'unauthorized' : 'unsupported' };
+  }
+}
+
+async function readLocalRows(client: MongoClient, filter: Document): Promise<unknown[]> {
+  try {
+    const rows: unknown[] = await client
+      .db('admin')
+      .aggregate([{ $listLocalSessions: filter }])
+      .toArray();
+    return rows;
+  } catch (error) {
+    throw toAppException(error);
+  }
+}
+
+// Best effort: the mapping is empty when the caller cannot read the local sessions.
+async function userNamesByDigest(client: MongoClient): Promise<Map<string, string>> {
+  const names = new Map<string, string>();
+  try {
+    const rows = await readLocalRows(client, { allUsers: true });
+    for (const row of rows) {
+      const digest = binaryHex(readField(readRecord(row, '_id'), 'uid'));
+      const user = readString(row, 'user');
+      if (digest !== undefined && user !== undefined) {
+        names.set(digest, user);
+      }
+    }
+  } catch {
+    // Without the mapping, rows keep only userId.
+  }
+  return names;
+}
+
+function isUnauthorized(error: unknown): boolean {
+  return (
+    error instanceof MongoServerError &&
+    (error.code === UNAUTHORIZED_CODE || error.codeName === 'Unauthorized')
+  );
 }
 
 function sessionFilter(options: ListSessionsOptions): Document {
@@ -99,18 +164,23 @@ function toUuidBinary(id: string): Binary {
 }
 
 // Session rows carry the lsid UUID in _id.id and the user digest in _id.uid.
-function toSessionInfo(row: unknown): SessionInfo[] {
+function toSessionInfo(
+  row: unknown,
+  names: ReadonlyMap<string, string> = new Map(),
+): SessionInfo[] {
   const key = readRecord(row, '_id');
   const id = binaryHex(readField(key, 'id'));
   if (id === undefined) {
     return [];
   }
+  const userId = binaryHex(readField(key, 'uid'));
+  const user = readString(row, 'user') ?? (userId === undefined ? undefined : names.get(userId));
   const lastUse = readDate(row, 'lastUse');
   return [
     {
       id,
-      ...definedEntry('user', readString(row, 'user')),
-      ...definedEntry('userId', binaryHex(readField(key, 'uid'))),
+      ...definedEntry('user', user),
+      ...definedEntry('userId', userId),
       ...definedEntry('lastUse', lastUse?.toISOString()),
       ...definedEntry('expired', readBoolean(row, 'expired')),
     },

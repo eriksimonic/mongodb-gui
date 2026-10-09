@@ -57,7 +57,7 @@ export const HostInfoSchema = z.object({
     .optional(),
   memSizeMb: z.number().nonnegative().optional(),
   numaEnabled: z.boolean().optional(),
-  raw: z.unknown(),
+  rawEjson: z.string(),
 });
 
 export const BuildInfoSchema = z.object({
@@ -69,7 +69,7 @@ export const BuildInfoSchema = z.object({
   storageEngines: z.array(z.string()),
   bits: z.number().int().optional(),
   maxBsonObjectSize: nonNegativeInt.optional(),
-  raw: z.unknown(),
+  rawEjson: z.string(),
 });
 
 export const OpStatSchema = z.object({
@@ -101,7 +101,7 @@ export const ConnPoolStatsSchema = z.object({
   totalAvailable: nonNegativeInt,
   totalCreated: nonNegativeInt,
   hosts: z.record(z.string(), ConnPoolHostStatsSchema),
-  raw: z.unknown(),
+  rawEjson: z.string(),
 });
 
 export const SessionInfoSchema = z.object({
@@ -115,14 +115,18 @@ export const SessionInfoSchema = z.object({
 // "all" comes from config.system.sessions. "local" is what the connected server holds.
 export const SessionScopeSchema = z.enum(['local', 'all']);
 
+export const SessionFallbackReasonSchema = z.enum(['unauthorized', 'unsupported']);
+
 export const SessionListSchema = z.object({
   scope: SessionScopeSchema,
+  // Set when a "scope: all" read was attempted and failed, so the local list was returned instead.
+  fallbackReason: SessionFallbackReasonSchema.optional(),
   sessions: z.array(SessionInfoSchema),
 });
 
 export const ServerStatusTreeSchema = z.object({
   at: z.string(),
-  raw: z.unknown(),
+  rawEjson: z.string(),
   stripped: z.array(z.string()),
 });
 
@@ -142,3 +146,4 @@ export type SessionInfo = z.infer<typeof SessionInfoSchema>;
 export type SessionScope = z.infer<typeof SessionScopeSchema>;
 export type SessionList = z.infer<typeof SessionListSchema>;
 export type ServerStatusTree = z.infer<typeof ServerStatusTreeSchema>;
+export type SessionFallbackReason = z.infer<typeof SessionFallbackReasonSchema>;
