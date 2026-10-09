@@ -104,7 +104,7 @@ describe('profiler through the router against a real MongoDB 8.0 server', () => 
       ) as { level: number };
       expect(level.level).toBe(2);
 
-      await client.db(SCRATCH_DB).collection('probe').find(SLOW_FIND).toArray();
+      await client.db(SCRATCH_DB).collection('probe').find(SLOW_FIND).limit(5).toArray();
 
       const filter = { ns: `${SCRATCH_DB}.probe`, minMillis: 50, limit: 50 };
       const listed = valueOf(
@@ -115,6 +115,10 @@ describe('profiler through the router against a real MongoDB 8.0 server', () => 
       expect(slow?.op).toBe('query');
       expect(slow?.ns).toBe(`${SCRATCH_DB}.probe`);
       expect(slow?.millis).toBeGreaterThanOrEqual(50);
+      // Values arrive as canonical extended JSON: the int32 limit is wrapped, not a bare number.
+      expect(JSON.stringify(slow?.command)).toContain('"limit":{"$numberInt":"5"}');
+      expect(JSON.stringify(slow?.raw)).toContain('"docsExamined":{"$numberInt":"1"}');
+      expect(slow?.ts).toMatch(/Z$/);
 
       const shapes = valueOf(
         await router.handle('profiler.shapes', { connectionId, database: SCRATCH_DB, filter }),
@@ -157,6 +161,13 @@ describe('profiler through the router against a real MongoDB 8.0 server', () => 
             event.entries.some((entry) => JSON.stringify(entry.command).includes('sleep(120)')),
         );
       await waitUntil(delivered, 15_000);
+
+      // The tail row has the same canonical form as a listed row.
+      const tailed = events
+        .flatMap((event) => (event.type === 'profiler:entries' ? event.entries : []))
+        .find((entry) => JSON.stringify(entry.command).includes('sleep(120)'));
+      expect(JSON.stringify(tailed?.raw)).toContain('"docsExamined":{"$numberInt":"1"}');
+      expect(JSON.stringify(tailed?.raw)).toContain('"ts":{"$date":{"$numberLong"');
 
       valueOf(
         await router.handle('profiler.tail', {

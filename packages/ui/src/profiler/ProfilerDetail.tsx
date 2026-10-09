@@ -1,10 +1,23 @@
-import { Accordion, Badge, Box, Button, Code, Group, SimpleGrid, Stack, Text } from '@mantine/core';
+import {
+  Accordion,
+  Badge,
+  Box,
+  Button,
+  Code,
+  Group,
+  SegmentedControl,
+  SimpleGrid,
+  Stack,
+  Text,
+} from '@mantine/core';
 import { notifications } from '@mantine/notifications';
 import type { ProfileEntry } from '@mongo-gui/core';
-import { useRef, type KeyboardEvent, type PointerEvent } from 'react';
+import { useRef, useState, type KeyboardEvent, type PointerEvent } from 'react';
 import { notifyError } from '../components/notify-error';
 import { profilerUiEvents } from './profiler-events';
-import { formatCommand, isCollscan } from './profiler-model';
+import { formatCommand, formatCommandJson, formatLocalTime, isCollscan } from './profiler-model';
+
+type CommandView = 'mongosh' | 'json';
 
 const RESIZE_STEP_PX = 24;
 
@@ -93,7 +106,10 @@ interface EntryDetailProps {
 }
 
 function EntryDetail({ connectionId, database, entry }: EntryDetailProps) {
+  // Copy always gives mongosh source. The view toggle only changes what is on screen.
+  const [view, setView] = useState<CommandView>('mongosh');
   const command = formatCommand(entry.command);
+  const shownCommand = view === 'mongosh' ? command : formatCommandJson(entry.command);
 
   function explain() {
     profilerUiEvents.emit({ type: 'profiler:explain', ref: { connectionId, database, entry } });
@@ -131,7 +147,7 @@ function EntryDetail({ connectionId, database, entry }: EntryDetailProps) {
           ) : null}
         </Group>
         <Text size="xs" c="dimmed">
-          {entry.ts} · {entry.millis} ms
+          {formatLocalTime(entry.ts)} · {entry.millis} ms
         </Text>
         {entry.errMsg === undefined ? null : (
           <Text size="xs" c="red">
@@ -154,8 +170,18 @@ function EntryDetail({ connectionId, database, entry }: EntryDetailProps) {
         <Text size="xs" fw={600}>
           Command
         </Text>
+        <SegmentedControl
+          size="xs"
+          aria-label="Command view"
+          value={view}
+          onChange={(value) => setView(value === 'json' ? 'json' : 'mongosh')}
+          data={[
+            { label: 'Mongosh', value: 'mongosh' },
+            { label: 'JSON', value: 'json' },
+          ]}
+        />
         <Code block fz="xs" style={{ maxHeight: 240, overflow: 'auto' }}>
-          {command === '' ? 'No command recorded' : command}
+          {shownCommand === '' ? 'No command recorded' : shownCommand}
         </Code>
       </Stack>
       <Stack gap={4}>

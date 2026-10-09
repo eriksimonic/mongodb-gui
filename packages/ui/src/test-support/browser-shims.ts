@@ -10,6 +10,34 @@ if (typeof globalThis.ResizeObserver === 'undefined') {
   Object.assign(globalThis, { ResizeObserver: ResizeObserverShim });
 }
 
+// The profiler table virtualises rows against its scroll element's height. jsdom reports zero, so
+// the profiler scroller reports a fixed viewport. Every other element keeps the jsdom answer.
+const PROFILER_VIEWPORT_PX = 800;
+const PROFILER_SCROLLER = 'mg-profiler-scroll';
+const originalRect = Element.prototype.getBoundingClientRect;
+Element.prototype.getBoundingClientRect = function getBoundingClientRect(): DOMRect {
+  if (this.classList.contains(PROFILER_SCROLLER)) {
+    return {
+      x: 0,
+      y: 0,
+      top: 0,
+      left: 0,
+      bottom: PROFILER_VIEWPORT_PX,
+      right: 1000,
+      width: 1000,
+      height: PROFILER_VIEWPORT_PX,
+      toJSON: () => ({}),
+    } as DOMRect;
+  }
+  return originalRect.call(this);
+};
+Object.defineProperty(HTMLElement.prototype, 'offsetHeight', {
+  configurable: true,
+  get(this: HTMLElement): number {
+    return this.classList.contains(PROFILER_SCROLLER) ? PROFILER_VIEWPORT_PX : 0;
+  },
+});
+
 // Mantine's combobox scrolls the highlighted option into view when it opens.
 if (typeof Element.prototype.scrollIntoView !== 'function') {
   Element.prototype.scrollIntoView = (): void => undefined;

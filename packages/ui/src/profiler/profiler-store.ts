@@ -1,6 +1,8 @@
 import {
+  appError,
   toAppError,
   groupByShape,
+  shapeKey,
   type AppError,
   type ProfileCollectionInfo,
   type ProfileEntry,
@@ -40,8 +42,17 @@ export interface ProfilerSeed {
   readonly filters?: Partial<ProfilerFilters>;
 }
 
+/** Optional table columns. Hidden by default so the default columns fit a 1440 px window. */
+export interface ProfilerColumns {
+  readonly client: boolean;
+  readonly error: boolean;
+}
+
+const DEFAULT_COLUMNS: ProfilerColumns = { client: false, error: false };
+
 /** The state of one profiler panel, keyed by panel id in the store. */
 export interface ProfilerPanelState {
+  readonly columns: ProfilerColumns;
   readonly connectionId: string;
   readonly database: string;
   readonly level: ProfilingLevel | undefined;
@@ -82,13 +93,33 @@ export interface ProfilerActions {
   setTab(panelId: string, tab: ProfilerTab): void;
   setShapeFilter(panelId: string, key: string | undefined): void;
   setDetailWidth(panelId: string, width: number): void;
+  setColumn(panelId: string, key: keyof ProfilerColumns, visible: boolean): void;
   applyEvent(event: RpcEvent): void;
 }
 
 export type ProfilerStoreState = ProfilerState & ProfilerActions;
 export type ProfilerStore = StoreApi<ProfilerStoreState>;
 
-const DEFAULT_DETAIL_WIDTH = 380;
+const DEFAULT_DETAIL_WIDTH = 340;
+
+/**
+ * The selection that survives a change of rows. It stays only while the row is still listed and
+ * still passes the shape filter. Otherwise the detail pane would show a row the table hides.
+ */
+function visibleSelection(
+  entries: readonly ProfileEntry[],
+  selectedId: string | undefined,
+  shapeFilter: string | undefined,
+): string | undefined {
+  if (selectedId === undefined) {
+    return undefined;
+  }
+  const kept = entries.some(
+    (entry) =>
+      entry.id === selectedId && (shapeFilter === undefined || shapeKey(entry) === shapeFilter),
+  );
+  return kept ? selectedId : undefined;
+}
 
 function initialPanel(
   connectionId: string,
@@ -98,6 +129,7 @@ function initialPanel(
   return {
     connectionId,
     database,
+    columns: DEFAULT_COLUMNS,
     level: undefined,
     levelDraft: DEFAULT_LEVEL_DRAFT,
     info: undefined,
@@ -243,9 +275,7 @@ export function createProfilerStore(api: UiApi): ProfilerStore {
             rpc.profiler.list({ ...target, filter }),
             rpc.profiler.shapes({ ...target, filter }),
           ]);
-          const selected = entries.some((entry) => entry.id === panel.selectedId)
-            ? panel.selectedId
-            : undefined;
+          const selected = visibleSelection(entries, panel.selectedId, panel.shapeFilter);
           patch(panelId, {
             entries,
             shapes,
@@ -327,18 +357,44 @@ export function createProfilerStore(api: UiApi): ProfilerStore {
       },
 
       setShapeFilter(panelId, key) {
-        // Filtering to a shape shows its rows in the slow query table.
-        patch(
-          panelId,
-          key === undefined ? { shapeFilter: undefined } : { shapeFilter: key, tab: 'slow' },
-        );
+        const panel = panelOf(panelId);
+        if (panel === undefined) {
+          return;
+        }
+        // Filtering to a shape shows its rows in the slow query table. A selected row outside
+        // the shape is dropped, so the detail pane never shows a hidden row.
+        patch(panelId, {
+          shapeFilter: key,
+          selectedId: visibleSelection(panel.entries, panel.selectedId, key),
+          ...(key === undefined ? {} : { tab: 'slow' as const }),
+        });
       },
 
       setDetailWidth(panelId, width) {
         patch(panelId, { detailWidth: width });
       },
 
+      setColumn(panelId, key, visible) {
+        const panel = panelOf(panelId);
+        if (panel === undefined) {
+          return;
+        }
+        patch(panelId, { columns: { ...panel.columns, [key]: visible } });
+      },
+
       applyEvent(event) {
+        if (event.type === 'connection:status' && event.status.state !== 'connected') {
+          // A tail cannot outlive its connection. The panel says why it stopped.
+          for (const [panelId, panel] of Object.entries(get().panels)) {
+            if (panel.connectionId === event.connectionId && panel.tailEnabled) {
+              patch(panelId, {
+                tailEnabled: false,
+                tailError: appError('NOT_CONNECTED', 'The connection closed.'),
+              });
+            }
+          }
+          return;
+        }
         if (event.type === 'profiler:entries') {
           for (const [panelId, panel] of Object.entries(get().panels)) {
             if (panel.connectionId !== event.connectionId || panel.database !== event.database) {

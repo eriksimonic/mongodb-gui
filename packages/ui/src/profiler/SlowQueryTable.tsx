@@ -1,30 +1,78 @@
-import { Badge, Box, Group, Loader, Table, Text, UnstyledButton } from '@mantine/core';
+import { Badge, Box, Group, Loader, Text, UnstyledButton } from '@mantine/core';
 import { IconChevronDown, IconChevronUp } from '@tabler/icons-react';
-import type { KeyboardEvent } from 'react';
+import { useVirtualizer } from '@tanstack/react-virtual';
+import { memo, useEffect, useMemo, useRef, type KeyboardEvent } from 'react';
 import type { ProfileEntry, ProfilingLevel } from '@mongo-gui/core';
 import {
   clientLabel,
   durationPercent,
   examinedRatio,
+  formatLocalTime,
   isCollscan,
   type EntrySort,
   type SortKey,
 } from './profiler-model';
+import type { ProfilerColumns } from './profiler-store';
+
+/** Every row is this tall. Fixed heights keep the virtualiser exact and rows from wrapping. */
+const ROW_HEIGHT_PX = 32;
+const OVERSCAN_ROWS = 12;
+
+/** Column tracks in order. The plan column takes the remaining width. */
+const BASE_TRACKS = [
+  '92px',
+  '140px',
+  '70px',
+  '110px',
+  '64px',
+  '62px',
+  '66px',
+  'minmax(110px, 1fr)',
+];
+const CLIENT_TRACK = '140px';
+const ERROR_TRACK = '64px';
+/** The narrowest the grid may get before it scrolls sideways. */
+const BASE_MIN_WIDTH_PX = 790;
+const EXTRA_MIN_WIDTH_PX = 210;
 
 export interface SlowQueryTableProps {
   readonly entries: readonly ProfileEntry[];
   readonly selectedId: string | undefined;
-  readonly highlighted: readonly string[];
+  readonly highlighted: ReadonlySet<string>;
   readonly sort: EntrySort;
   readonly loading: boolean;
   readonly level: ProfilingLevel['level'] | undefined;
+  readonly columns: ProfilerColumns;
   readonly onSelect: (id: string) => void;
   readonly onSort: (key: SortKey) => void;
 }
 
+function gridTemplate(columns: ProfilerColumns): string {
+  const tracks = [...BASE_TRACKS];
+  if (columns.client) {
+    tracks.push(CLIENT_TRACK);
+  }
+  if (columns.error) {
+    tracks.push(ERROR_TRACK);
+  }
+  return tracks.join(' ');
+}
+
+function minWidthPx(columns: ProfilerColumns): number {
+  let width = BASE_MIN_WIDTH_PX;
+  if (columns.client) {
+    width += 140;
+  }
+  if (columns.error) {
+    width += EXTRA_MIN_WIDTH_PX - 140;
+  }
+  return width;
+}
+
 /**
- * The slow query table. Rows are selected by click or with the arrow keys once the table has
- * focus. Rows that arrive through the tail carry a short highlight and keep the selection.
+ * The slow query table. Rows are virtualised at a fixed height. Keyboard navigation moves the
+ * selection with the arrow keys, and the selected row is scrolled into view. Rows that arrived
+ * through the tail carry a short highlight.
  */
 export function SlowQueryTable({
   entries,
@@ -33,16 +81,44 @@ export function SlowQueryTable({
   sort,
   loading,
   level,
+  columns,
   onSelect,
   onSort,
 }: SlowQueryTableProps) {
-  const maxMillis = entries.reduce((max, entry) => Math.max(max, entry.millis), 0);
+  const scrollRef = useRef<HTMLDivElement>(null);
+  const template = useMemo(() => gridTemplate(columns), [columns]);
+  const width = minWidthPx(columns);
+  const maxMillis = useMemo(
+    () => entries.reduce((max, entry) => Math.max(max, entry.millis), 0),
+    [entries],
+  );
+  const selectedIndex = useMemo(
+    () => entries.findIndex((entry) => entry.id === selectedId),
+    [entries, selectedId],
+  );
+  const indexRef = useRef(selectedIndex);
+  indexRef.current = selectedIndex;
+
+  const virtualizer = useVirtualizer({
+    count: entries.length,
+    getScrollElement: () => scrollRef.current,
+    estimateSize: () => ROW_HEIGHT_PX,
+    overscan: OVERSCAN_ROWS,
+  });
+
+  // Scroll only when the selection changes. A tail that prepends rows must not move the view.
+  useEffect(() => {
+    const index = indexRef.current;
+    if (index >= 0) {
+      virtualizer.scrollToIndex(index, { align: 'auto' });
+    }
+  }, [selectedId, virtualizer]);
 
   function handleKeyDown(event: KeyboardEvent<HTMLDivElement>) {
     if (entries.length === 0) {
       return;
     }
-    const index = entries.findIndex((entry) => entry.id === selectedId);
+    const index = selectedIndex;
     let next: number | undefined;
     if (event.key === 'ArrowDown') {
       next = Math.min(entries.length - 1, index + 1);
@@ -85,100 +161,163 @@ export function SlowQueryTable({
 
   return (
     <div
-      tabIndex={0}
+      ref={scrollRef}
+      role="grid"
       aria-label="Slow operations"
-      className="mg-profiler-table"
+      aria-rowcount={entries.length + 1}
+      tabIndex={0}
+      className="mg-profiler-scroll"
       onKeyDown={handleKeyDown}
     >
-      <Table
-        highlightOnHover={false}
-        verticalSpacing={4}
-        horizontalSpacing={8}
-        fz="xs"
-        withTableBorder={false}
-      >
-        <Table.Thead>
-          <Table.Tr>
-            <SortableHeader label="Time" sortKey="time" sort={sort} onSort={onSort} />
-            <Table.Th>Namespace</Table.Th>
-            <Table.Th>Op</Table.Th>
-            <SortableHeader label="Duration" sortKey="duration" sort={sort} onSort={onSort} />
-            <Table.Th>Docs examined</Table.Th>
-            <Table.Th>Returned</Table.Th>
-            <Table.Th>Examined per returned</Table.Th>
-            <Table.Th>Plan</Table.Th>
-            <Table.Th>Client or app</Table.Th>
-            <Table.Th>Error</Table.Th>
-          </Table.Tr>
-        </Table.Thead>
-        <Table.Tbody>
-          {entries.map((entry) => {
-            const selected = entry.id === selectedId;
-            const ratio = examinedRatio(entry);
+      <div style={{ minWidth: width }}>
+        <div role="row" className="mg-profiler-head" style={{ gridTemplateColumns: template }}>
+          <SortableHeader label="Time" sortKey="time" sort={sort} onSort={onSort} />
+          <HeaderCell>Namespace</HeaderCell>
+          <HeaderCell>Op</HeaderCell>
+          <SortableHeader label="Duration" sortKey="duration" sort={sort} onSort={onSort} />
+          <HeaderCell title="Documents examined">Examined</HeaderCell>
+          <HeaderCell title="Documents returned">Returned</HeaderCell>
+          <HeaderCell title="Documents examined per document returned">Ratio</HeaderCell>
+          <HeaderCell>Plan</HeaderCell>
+          {columns.client ? <HeaderCell>Client or app</HeaderCell> : null}
+          {columns.error ? <HeaderCell>Error</HeaderCell> : null}
+        </div>
+        <div style={{ height: virtualizer.getTotalSize(), position: 'relative' }}>
+          {virtualizer.getVirtualItems().map((item) => {
+            const entry = entries[item.index];
+            if (entry === undefined) {
+              return null;
+            }
             return (
-              <Table.Tr
+              <SlowQueryRow
                 key={entry.id}
-                className="mg-profiler-row"
-                data-selected={selected ? 'true' : undefined}
-                data-highlight={highlighted.includes(entry.id) ? 'true' : undefined}
-                aria-selected={selected}
-                onClick={() => onSelect(entry.id)}
-                style={{ cursor: 'pointer' }}
-              >
-                <Table.Td style={{ whiteSpace: 'nowrap' }}>{formatTime(entry.ts)}</Table.Td>
-                <Table.Td>{entry.ns}</Table.Td>
-                <Table.Td style={{ whiteSpace: 'nowrap', width: 1 }}>
-                  <Badge
-                    variant="light"
-                    size="xs"
-                    color="gray"
-                    style={{ maxWidth: 'none', minWidth: 'max-content' }}
-                  >
-                    {entry.op}
-                  </Badge>
-                </Table.Td>
-                <Table.Td>
-                  <Group gap={6} wrap="nowrap">
-                    <Text size="xs" ta="right" w={64} style={{ whiteSpace: 'nowrap' }}>
-                      {entry.millis} ms
-                    </Text>
-                    <Box className="mg-profiler-bar-track">
-                      <Box
-                        className="mg-profiler-bar"
-                        data-testid="duration-bar"
-                        style={{ width: `${durationPercent(entry.millis, maxMillis)}%` }}
-                      />
-                    </Box>
-                  </Group>
-                </Table.Td>
-                <Table.Td>{entry.docsExamined ?? '-'}</Table.Td>
-                <Table.Td>{entry.nreturned ?? '-'}</Table.Td>
-                <Table.Td>{ratio === undefined ? '-' : ratio.toFixed(1)}</Table.Td>
-                <Table.Td>
-                  <Group gap={4} wrap="nowrap">
-                    {isCollscan(entry.planSummary) ? (
-                      <Badge color="red" variant="filled" size="xs">
-                        COLLSCAN
-                      </Badge>
-                    ) : null}
-                    <Text size="xs" truncate maw={220} title={entry.planSummary}>
-                      {entry.planSummary ?? '-'}
-                    </Text>
-                  </Group>
-                </Table.Td>
-                <Table.Td>{clientLabel(entry)}</Table.Td>
-                <Table.Td>
-                  {entry.errMsg === undefined ? null : (
-                    <Badge color="red" variant="light" size="xs" title={entry.errMsg}>
-                      Error
-                    </Badge>
-                  )}
-                </Table.Td>
-              </Table.Tr>
+                entry={entry}
+                index={item.index}
+                top={item.start}
+                template={template}
+                selected={entry.id === selectedId}
+                highlighted={highlighted.has(entry.id)}
+                maxMillis={maxMillis}
+                columns={columns}
+                onSelect={onSelect}
+              />
             );
           })}
-        </Table.Tbody>
-      </Table>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+interface SlowQueryRowProps {
+  readonly entry: ProfileEntry;
+  readonly index: number;
+  readonly top: number;
+  readonly template: string;
+  readonly selected: boolean;
+  readonly highlighted: boolean;
+  readonly maxMillis: number;
+  readonly columns: ProfilerColumns;
+  readonly onSelect: (id: string) => void;
+}
+
+/**
+ * One table row. Memoised on its own props, so selecting a row or a tail batch re-renders only
+ * the rows whose selection or highlight changed.
+ */
+const SlowQueryRow = memo(function SlowQueryRow({
+  entry,
+  index,
+  top,
+  template,
+  selected,
+  highlighted,
+  maxMillis,
+  columns,
+  onSelect,
+}: SlowQueryRowProps) {
+  const ratio = examinedRatio(entry);
+  return (
+    <div
+      role="row"
+      aria-rowindex={index + 2}
+      aria-selected={selected}
+      data-row-index={index}
+      data-highlight={highlighted ? 'true' : undefined}
+      className="mg-profiler-row"
+      style={{ gridTemplateColumns: template, transform: `translateY(${top}px)` }}
+      onClick={() => onSelect(entry.id)}
+    >
+      <div role="gridcell" className="mg-profiler-cell">
+        {formatLocalTime(entry.ts)}
+      </div>
+      <div role="gridcell" className="mg-profiler-cell" title={entry.ns}>
+        {entry.ns}
+      </div>
+      <div role="gridcell" className="mg-profiler-cell">
+        <Badge variant="light" size="xs" color="gray" style={{ flexShrink: 0, maxWidth: 'none' }}>
+          {entry.op}
+        </Badge>
+      </div>
+      <div role="gridcell" className="mg-profiler-cell">
+        <span className="mg-profiler-duration">
+          <span className="mg-profiler-duration-label">{entry.millis} ms</span>
+          <span className="mg-profiler-bar-track">
+            <span
+              className="mg-profiler-bar"
+              data-testid="duration-bar"
+              style={{ width: `${durationPercent(entry.millis, maxMillis)}%` }}
+            />
+          </span>
+        </span>
+      </div>
+      <div role="gridcell" className="mg-profiler-cell">
+        {entry.docsExamined ?? '-'}
+      </div>
+      <div role="gridcell" className="mg-profiler-cell">
+        {entry.nreturned ?? '-'}
+      </div>
+      <div role="gridcell" className="mg-profiler-cell">
+        {ratio === undefined ? '-' : ratio.toFixed(1)}
+      </div>
+      <div role="gridcell" className="mg-profiler-cell mg-profiler-plan" title={entry.planSummary}>
+        {isCollscan(entry.planSummary) ? (
+          <Badge color="red" variant="filled" size="xs" style={{ flexShrink: 0, maxWidth: 'none' }}>
+            COLLSCAN
+          </Badge>
+        ) : null}
+        <span className="mg-profiler-cell">{entry.planSummary ?? '-'}</span>
+      </div>
+      {columns.client ? (
+        <div role="gridcell" className="mg-profiler-cell" title={clientLabel(entry)}>
+          {clientLabel(entry)}
+        </div>
+      ) : null}
+      {columns.error ? (
+        <div role="gridcell" className="mg-profiler-cell">
+          {entry.errMsg === undefined ? null : (
+            <Badge
+              color="red"
+              variant="light"
+              size="xs"
+              title={entry.errMsg}
+              style={{ maxWidth: 'none' }}
+            >
+              Error
+            </Badge>
+          )}
+        </div>
+      ) : null}
+    </div>
+  );
+});
+
+function HeaderCell({ children, title }: { readonly children: string; readonly title?: string }) {
+  return (
+    <div role="columnheader" className="mg-profiler-cell" title={title}>
+      <Text size="xs" fw={600} span>
+        {children}
+      </Text>
     </div>
   );
 }
@@ -194,7 +333,7 @@ function SortableHeader({ label, sortKey, sort, onSort }: SortableHeaderProps) {
   const active = sort.key === sortKey;
   const ariaSort = active ? (sort.direction === 'asc' ? 'ascending' : 'descending') : 'none';
   return (
-    <Table.Th aria-sort={ariaSort}>
+    <div role="columnheader" aria-sort={ariaSort} className="mg-profiler-cell">
       <UnstyledButton onClick={() => onSort(sortKey)} aria-label={`Sort by ${label.toLowerCase()}`}>
         <Group gap={2} wrap="nowrap">
           <Text size="xs" fw={600}>
@@ -209,13 +348,6 @@ function SortableHeader({ label, sortKey, sort, onSort }: SortableHeaderProps) {
           ) : null}
         </Group>
       </UnstyledButton>
-    </Table.Th>
+    </div>
   );
-}
-
-/** Local time with seconds and milliseconds, the precision the tail works at. */
-function formatTime(iso: string): string {
-  const date = new Date(iso);
-  const time = date.toLocaleTimeString(undefined, { hour12: false });
-  return `${time}.${String(date.getMilliseconds()).padStart(3, '0')}`;
 }

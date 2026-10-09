@@ -1,6 +1,8 @@
 import {
   DEFAULT_PROFILE_LIMIT,
   MAX_PROFILE_LIMIT,
+  formatMongoshSyntax,
+  formatRelaxedJson,
   shapeKey,
   type ProfileEntry,
   type ProfileFilter,
@@ -199,19 +201,31 @@ export function clientLabel(entry: ProfileEntry): string {
 }
 
 /** The command as formatted canonical extended JSON. The values arrive already canonical. */
-export function formatCommand(command: unknown): string {
-  if (command === undefined) {
-    return '';
-  }
-  return JSON.stringify(command, null, 2) ?? '';
+/** The command as mongosh source, so a pasted command keeps the server's types. */
+export function formatCommand(command: unknown, indent = 2): string {
+  const text = JSON.stringify(command);
+  return text === undefined ? '' : formatMongoshSyntax(text, { indent });
 }
 
-/** One line of a command for a table cell. */
+/** The command as relaxed extended JSON, for the JSON view. */
+export function formatCommandJson(command: unknown): string {
+  const text = JSON.stringify(command);
+  return text === undefined ? '' : formatRelaxedJson(text);
+}
+
+/** One line of mongosh source for a table cell, shortened with an ellipsis. */
 export function commandPreview(command: unknown): string {
-  const text = JSON.stringify(command) ?? '';
+  const text = formatCommand(command, 0);
   return text.length <= COMMAND_PREVIEW_CHARS
     ? text
     : `${text.slice(0, COMMAND_PREVIEW_CHARS - 1)}…`;
+}
+
+/** Local time with milliseconds. The table and the detail pane both show this form. */
+export function formatLocalTime(iso: string): string {
+  const date = new Date(iso);
+  const time = date.toLocaleTimeString(undefined, { hour12: false });
+  return `${time}.${String(date.getMilliseconds()).padStart(3, '0')}`;
 }
 
 export function formatBytes(bytes: number): string {

@@ -128,6 +128,14 @@ interface ActiveTail {
 
 export interface Router {
   handle(method: string, input: unknown): Promise<RpcResult>;
+  /**
+   * Drops every subscription held for the renderer: profiler tails now, and whatever services
+   * register with onRendererReset later. Called when the page reloads, its process dies or the
+   * window closes while the app stays alive.
+   */
+  resetRenderer(): void;
+  /** Registers a cleanup that runs on resetRenderer. Returns the unregister function. */
+  onRendererReset(listener: () => void): () => void;
 }
 
 export interface AppServicesOptions {
@@ -153,6 +161,8 @@ export function createRouter(deps: RouterDeps): Router {
   const profiler = deps.profiler ?? adapterProfilerPort;
   // At most one tail per connection and database, keyed by both.
   const tails = new Map<string, ActiveTail>();
+  // Per-renderer cleanups. Tails register first; other services join the same registry.
+  const rendererResets = new Set<() => void>();
   const profilerClient = (connectionId: string): DriverClient =>
     deps.connections.getClient(connectionId);
 
@@ -165,6 +175,10 @@ export function createRouter(deps: RouterDeps): Router {
       }
     }
   };
+
+  rendererResets.add(() => {
+    stopTails(() => true);
+  });
 
   const startTail = (
     connectionId: string,
@@ -365,6 +379,23 @@ export function createRouter(deps: RouterDeps): Router {
   });
 
   return {
+    resetRenderer() {
+      for (const listener of [...rendererResets]) {
+        try {
+          listener();
+        } catch (error) {
+          deps.log?.error('renderer reset failed', {
+            error: toAppError(error).message,
+          });
+        }
+      }
+    },
+    onRendererReset(listener) {
+      rendererResets.add(listener);
+      return () => {
+        rendererResets.delete(listener);
+      };
+    },
     async handle(method, input) {
       const op = operations.get(method);
       if (op === undefined) {

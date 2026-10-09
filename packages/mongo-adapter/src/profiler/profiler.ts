@@ -109,16 +109,15 @@ export async function listProfileEntries(
       : find
           .limit(Math.min(limit * TEXT_SEARCH_FETCH_FACTOR, TEXT_SEARCH_FETCH_CAP))
           .maxTimeMS(TEXT_SEARCH_MAX_TIME_MS);
-  const label = occurrenceLabeller();
-  const entries: ProfileEntry[] = [];
+  const matched: ProfileEntry[] = [];
   try {
     // The loop stops at the limit, so a text search that rejects documents keeps reading
     // until it has enough matches or the window is exhausted.
     for await (const doc of cursor) {
-      const entry = label(toProfileEntry(doc));
+      const entry = toProfileEntry(doc);
       if (matchesInMemory(entry, options)) {
-        entries.push(entry);
-        if (entries.length >= limit) {
+        matched.push(entry);
+        if (matched.length >= limit) {
           break;
         }
       }
@@ -126,7 +125,8 @@ export async function listProfileEntries(
   } catch (error) {
     throw toException(error);
   }
-  return entries;
+  // Labels follow the canonical order, then the listing goes newest first like the server sort.
+  return labelOccurrences(matched).reverse();
 }
 
 // Polls system.profile with setTimeout chaining. Each poll reads entries at or after the newest
@@ -275,8 +275,7 @@ async function fetchAfter(
     .sort({ ts: 1 })
     .limit(limit)
     .toArray();
-  const label = occurrenceLabeller();
-  return docs.map((doc) => label(toProfileEntry(doc)));
+  return labelOccurrences(docs.map((doc) => toProfileEntry(doc)));
 }
 
 // Every query excludes the profiler's own reads and anything in system.profile itself.
@@ -353,14 +352,25 @@ function matchesInMemory(entry: ProfileEntry, filter: ProfileFilter | undefined)
 
 // Profile documents with the same content in the same millisecond share a base id. Each repeat
 // gets a suffix with its occurrence index, so ids stay unique within one listing or poll.
-function occurrenceLabeller(): (entry: ProfileEntry) => ProfileEntry {
+// The suffixes follow one order, ascending by timestamp then base id, whatever order the server
+// returned the batch in. A list and a tail that read the same documents then label them alike,
+// so the renderer never shows one document twice under two ids.
+export function labelOccurrences(entries: readonly ProfileEntry[]): ProfileEntry[] {
+  const ordered = [...entries].sort((a, b) => compareText(a.ts, b.ts) || compareText(a.id, b.id));
   const occurrences = new Map<string, number>();
-  return (entry) => {
+  return ordered.map((entry) => {
     const key = `${entry.ts}|${entry.id}`;
     const occurrence = occurrences.get(key) ?? 0;
     occurrences.set(key, occurrence + 1);
     return occurrence === 0 ? entry : { ...entry, id: `${entry.id}~${occurrence}` };
-  };
+  });
+}
+
+function compareText(a: string, b: string): number {
+  if (a < b) {
+    return -1;
+  }
+  return a > b ? 1 : 0;
 }
 
 function safeJson(value: unknown): string {

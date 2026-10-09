@@ -1,5 +1,5 @@
-import { Alert, Box, Button, Flex, Stack, Tabs, Text } from '@mantine/core';
-import { useEffect, useMemo, useRef } from 'react';
+import { Alert, Box, Button, Checkbox, Flex, Menu, Stack, Tabs, Text } from '@mantine/core';
+import { useCallback, useEffect, useMemo, useRef } from 'react';
 import { useAppStore } from '../state/app-store-context';
 import { catalogKey, profilerPanelId } from '../state/node-ids';
 import { ProfilerDetail } from './ProfilerDetail';
@@ -85,6 +85,7 @@ function ProfilerBody({ panelId, connectionId, database, namespaces, panel }: Pr
   const select = useProfilerStore((state) => state.select);
   const sortBy = useProfilerStore((state) => state.sortBy);
   const setDetailWidth = useProfilerStore((state) => state.setDetailWidth);
+  const setColumn = useProfilerStore((state) => state.setColumn);
 
   const visible = useMemo(() => {
     const rows =
@@ -93,7 +94,12 @@ function ProfilerBody({ panelId, connectionId, database, namespaces, panel }: Pr
         : entriesOfShape(panel.entries, panel.shapeFilter);
     return sortEntries(rows, panel.sort);
   }, [panel.entries, panel.shapeFilter, panel.sort]);
+  const highlighted = useMemo(() => new Set(panel.highlighted), [panel.highlighted]);
   const selected = panel.entries.find((entry) => entry.id === panel.selectedId);
+
+  // Stable callbacks, so memoised table rows do not re-render on unrelated store updates.
+  const onSelect = useCallback((id: string) => select(panelId, id), [select, panelId]);
+  const onSort = useCallback((key: 'time' | 'duration') => sortBy(panelId, key), [sortBy, panelId]);
 
   function changeTab(value: string | null) {
     if (value === 'slow' || value === 'shapes') {
@@ -114,19 +120,44 @@ function ProfilerBody({ panelId, connectionId, database, namespaces, panel }: Pr
           {panel.error.message}
         </Alert>
       )}
-      <Tabs value={panel.tab} onChange={changeTab} keepMounted={false}>
-        <Tabs.List>
-          <Tabs.Tab value="slow">Slow queries</Tabs.Tab>
-          <Tabs.Tab value="shapes">Top shapes</Tabs.Tab>
-        </Tabs.List>
-      </Tabs>
+      <Flex justify="space-between" align="flex-end" gap={8}>
+        <Tabs value={panel.tab} onChange={changeTab} keepMounted={false} style={{ flex: 1 }}>
+          <Tabs.List>
+            <Tabs.Tab value="slow">Slow queries</Tabs.Tab>
+            <Tabs.Tab value="shapes">Top shapes</Tabs.Tab>
+          </Tabs.List>
+        </Tabs>
+        {panel.tab === 'slow' ? (
+          <Menu closeOnItemClick={false} position="bottom-end" shadow="md" withinPortal>
+            <Menu.Target>
+              <Button size="xs" variant="default" mb={4}>
+                Columns
+              </Button>
+            </Menu.Target>
+            <Menu.Dropdown>
+              <Stack gap={6} p={8}>
+                <Checkbox
+                  label="Client or app"
+                  checked={panel.columns.client}
+                  onChange={(event) => setColumn(panelId, 'client', event.currentTarget.checked)}
+                />
+                <Checkbox
+                  label="Error"
+                  checked={panel.columns.error}
+                  onChange={(event) => setColumn(panelId, 'error', event.currentTarget.checked)}
+                />
+              </Stack>
+            </Menu.Dropdown>
+          </Menu>
+        ) : null}
+      </Flex>
       {panel.tab === 'shapes' ? (
         <Box style={{ flex: 1, minHeight: 0, overflow: 'auto' }}>
           <ShapesTable shapes={panel.shapes} onSelect={(key) => setShapeFilter(panelId, key)} />
         </Box>
       ) : (
         <Flex style={{ flex: 1, minHeight: 0 }} gap={0}>
-          <Box style={{ flex: 1, minWidth: 0, overflow: 'auto' }}>
+          <Flex direction="column" style={{ flex: 1, minWidth: 0, minHeight: 0 }}>
             {panel.shapeFilter === undefined ? null : (
               <Alert color="blue" variant="light" p="xs" mb={6}>
                 <Flex justify="space-between" align="center" gap={8}>
@@ -143,17 +174,20 @@ function ProfilerBody({ panelId, connectionId, database, namespaces, panel }: Pr
                 </Flex>
               </Alert>
             )}
-            <SlowQueryTable
-              entries={visible}
-              selectedId={panel.selectedId}
-              highlighted={panel.highlighted}
-              sort={panel.sort}
-              loading={panel.loading}
-              level={panel.level?.level}
-              onSelect={(id) => select(panelId, id)}
-              onSort={(key) => sortBy(panelId, key)}
-            />
-          </Box>
+            <Box style={{ flex: 1, minHeight: 0 }}>
+              <SlowQueryTable
+                entries={visible}
+                selectedId={panel.selectedId}
+                highlighted={highlighted}
+                sort={panel.sort}
+                loading={panel.loading}
+                level={panel.level?.level}
+                columns={panel.columns}
+                onSelect={onSelect}
+                onSort={onSort}
+              />
+            </Box>
+          </Flex>
           <ProfilerDetail
             connectionId={connectionId}
             database={database}

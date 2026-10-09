@@ -388,6 +388,46 @@ describe('profiler routes', () => {
     expect(port.tails).toHaveLength(0);
   });
 
+  it('resetRenderer stops every tail, so a reloaded page starts clean', async () => {
+    await router.handle('profiler.tail', { ...DATABASE, enabled: true, pollMs: 500 });
+    await router.handle('profiler.tail', {
+      ...DATABASE,
+      database: 'logs',
+      enabled: true,
+      pollMs: 500,
+    });
+    router.resetRenderer();
+    expect(port.tails.every((tail) => tail.stopped)).toBe(true);
+  });
+
+  it('runs the cleanups registered with onRendererReset and no others', async () => {
+    let kept = 0;
+    let dropped = 0;
+    router.onRendererReset(() => {
+      kept += 1;
+    });
+    const unregister = router.onRendererReset(() => {
+      dropped += 1;
+    });
+    unregister();
+    router.resetRenderer();
+    router.resetRenderer();
+    expect(kept).toBe(2);
+    expect(dropped).toBe(0);
+  });
+
+  it('keeps running the other cleanups when one of them throws', async () => {
+    let ran = 0;
+    router.onRendererReset(() => {
+      throw new Error('cleanup failed');
+    });
+    router.onRendererReset(() => {
+      ran += 1;
+    });
+    router.resetRenderer();
+    expect(ran).toBe(1);
+  });
+
   it('rejects a poll interval under 50 ms', async () => {
     const result = await router.handle('profiler.tail', { ...DATABASE, enabled: true, pollMs: 10 });
     expect(errorOf(result)).toBe('VALIDATION');

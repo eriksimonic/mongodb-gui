@@ -45,6 +45,7 @@ export function ProfilerFilterRow({ panelId, panel, namespaces }: ProfilerFilter
   return (
     <Group gap={8} align="flex-end" wrap="wrap">
       <Autocomplete
+        size="xs"
         label="Namespace"
         placeholder="All collections"
         data={[...namespaces]}

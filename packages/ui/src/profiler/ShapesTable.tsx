@@ -1,6 +1,6 @@
 import { Badge, Box, Group, Table, Text } from '@mantine/core';
 import type { QueryShape } from '@mongo-gui/core';
-import { commandPreview, isCollscan } from './profiler-model';
+import { commandPreview, formatCommand, isCollscan } from './profiler-model';
 
 export interface ShapesTableProps {
   readonly shapes: readonly QueryShape[];
@@ -66,7 +66,7 @@ export function ShapesTable({ shapes, onSelect }: ShapesTableProps) {
                 ff="monospace"
                 truncate
                 maw={260}
-                title={JSON.stringify(shape.example.command)}
+                title={formatCommand(shape.example.command, 0)}
               >
                 {commandPreview(shape.example.command)}
               </Text>

@@ -1,4 +1,4 @@
-import { toProfileEntry, type ProfileEntry } from '@mongo-gui/core';
+import { toCanonicalValue, toProfileEntry, type ProfileEntry } from '@mongo-gui/core';
 
 /**
  * One kind of slow operation. Raw documents go through toProfileEntry, the same conversion the
@@ -176,7 +176,19 @@ export function fixtureEntry(index: number, nowMs: number, ageMs: number): Profi
   }
   const variation = 1 + ((index * 37) % 11) / 10;
   const millis = Math.round(spec.millis * variation);
-  return toProfileEntry(rawDocument(spec, new Date(nowMs - ageMs), index, millis));
+  return canonicalEntry(toProfileEntry(rawDocument(spec, new Date(nowMs - ageMs), index, millis)));
+}
+
+/**
+ * The BSON-bearing parts of an entry in canonical extended JSON, as the router sends them. Numbers
+ * in the command become $numberInt and dates $date, so browser dev shows what Electron shows.
+ */
+function canonicalEntry(entry: ProfileEntry): ProfileEntry {
+  return {
+    ...entry,
+    raw: toCanonicalValue(entry.raw),
+    ...(entry.command === undefined ? {} : { command: toCanonicalValue(entry.command) }),
+  };
 }
 
 /** Fixture rows for the shop database (orders, customers) and the analytics database (events). */
@@ -186,6 +198,15 @@ export function fixtureProfileEntries(nowMs: number): ProfileEntry[] {
     entries.push(fixtureEntry(index, nowMs, index * 90_000 + 4_000));
   }
   return entries.sort((a, b) => (a.ts < b.ts ? 1 : a.ts > b.ts ? -1 : 0));
+}
+
+/** `count` rows for performance checks, one every 700 ms back from now. */
+export function bulkProfileEntries(count: number, nowMs: number): ProfileEntry[] {
+  const entries: ProfileEntry[] = [];
+  for (let index = 0; index < count; index += 1) {
+    entries.push(fixtureEntry(index, nowMs, index * 700 + 1000));
+  }
+  return entries;
 }
 
 /** The next tail row, `index` operations after the fixtures. */

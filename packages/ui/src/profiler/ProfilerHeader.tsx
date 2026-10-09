@@ -112,7 +112,7 @@ export function ProfilerHeader({ panelId, panel }: ProfilerHeaderProps) {
           </Text>
           <Text size="sm">{describeProfileCollection(panel)}</Text>
         </Stack>
-        <Group gap={8} align="flex-end" wrap="nowrap">
+        <Group gap={8} align="center" wrap="nowrap" h={28}>
           <Switch
             label="Tail"
             checked={panel.tailEnabled}

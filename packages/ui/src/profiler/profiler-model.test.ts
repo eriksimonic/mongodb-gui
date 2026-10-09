@@ -9,7 +9,10 @@ import {
   examinedRatio,
   filtersToQuery,
   formatBytes,
+  commandPreview,
   formatCommand,
+  formatCommandJson,
+  formatLocalTime,
   isCollscan,
   isDraftDirty,
   levelFromText,
@@ -214,9 +217,41 @@ describe('display helpers', () => {
     expect(durationPercent(10, 0)).toBe(0);
   });
 
-  it('formats a command as indented JSON and an absent command as empty text', () => {
-    expect(formatCommand({ find: 'orders' })).toBe('{\n  "find": "orders"\n}');
+  it('formats a command as indented mongosh source and an absent command as empty text', () => {
+    expect(formatCommand({ find: 'orders' })).toBe('{\n  find: "orders"\n}');
     expect(formatCommand(undefined)).toBe('');
+  });
+
+  it('writes canonical wrappers as mongosh constructors in the command text', () => {
+    const command = {
+      find: 'orders',
+      limit: { $numberInt: '20' },
+      at: { $date: { $numberLong: '0' } },
+    };
+    expect(formatCommand(command, 0)).toBe(
+      '{find: "orders", limit: 20, at: ISODate("1970-01-01T00:00:00.000Z")}',
+    );
+  });
+
+  it('formats the JSON view with numbers and dates as plain JSON', () => {
+    const command = { limit: { $numberInt: '20' }, at: { $date: { $numberLong: '0' } } };
+    expect(JSON.parse(formatCommandJson(command))).toEqual({
+      limit: 20,
+      at: '1970-01-01T00:00:00.000Z',
+    });
+  });
+
+  it('shortens a one-line command preview with an ellipsis', () => {
+    const long = { filter: { name: 'x'.repeat(200) } };
+    const preview = commandPreview(long);
+    expect(preview.endsWith('…')).toBe(true);
+    expect(preview.length).toBe(120);
+    expect(commandPreview({ find: 'orders' })).toBe('{find: "orders"}');
+  });
+
+  it('formats a local time with milliseconds', () => {
+    const iso = '2026-10-09T10:00:00.007Z';
+    expect(formatLocalTime(iso)).toMatch(/^\d{2}:\d{2}:\d{2}\.007$/);
   });
 
   it('formats byte counts', () => {

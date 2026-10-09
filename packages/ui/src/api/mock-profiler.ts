@@ -9,7 +9,7 @@ import {
   type RpcEvent,
 } from '@mongo-gui/core';
 import type { z } from 'zod';
-import { fixtureProfileEntries, tailEntry } from './mock-profiler-fixtures';
+import { bulkProfileEntries, fixtureProfileEntries, tailEntry } from './mock-profiler-fixtures';
 
 type Rpc = RpcClient['profiler'];
 
@@ -25,6 +25,8 @@ export interface MockProfilerDeps {
   /** False once the connection or the vault is gone. A running tail stops then. */
   isAvailable(connectionId: string): boolean;
   emit(event: RpcEvent): void;
+  /** When set, shop holds this many generated rows instead of the fixtures. For performance checks. */
+  readonly bulkRows?: number | undefined;
 }
 
 interface MockLevel {
@@ -98,9 +100,12 @@ export function createMockProfiler(deps: MockProfilerDeps): Rpc {
     const key = keyOf(connectionId, database);
     if (!rows.has(key)) {
       const prefix = FIXTURE_PREFIXES[database];
-      const fixtures = fixtureProfileEntries(Date.now()).filter(
-        (entry) => prefix !== undefined && entry.ns.startsWith(prefix),
-      );
+      const fixtures =
+        deps.bulkRows !== undefined && database === 'shop'
+          ? bulkProfileEntries(deps.bulkRows, Date.now())
+          : fixtureProfileEntries(Date.now()).filter(
+              (entry) => prefix !== undefined && entry.ns.startsWith(prefix),
+            );
       rows.set(key, fixtures);
       levels.set(
         key,

@@ -30,7 +30,16 @@ function renderPanel(api: UiApi, seed?: ProfilerSeed) {
   );
 }
 
-/** The slow query table, or the shapes table, whichever is on screen. */
+/** The slow query grid, which is virtualised. Only rows near the viewport are in the DOM. */
+function slowGrid(): HTMLElement {
+  const grid = document.querySelector('.mg-profiler-scroll');
+  if (grid === null) {
+    throw new Error('no slow query grid on screen');
+  }
+  return grid as HTMLElement;
+}
+
+/** The shapes table, which is a plain table. */
 function dataTable(): HTMLElement {
   const table = document.querySelector('table');
   if (table === null) {
@@ -39,9 +48,11 @@ function dataTable(): HTMLElement {
   return table;
 }
 
-/** Body rows of the table on screen, without the header row. */
+/** Rendered body rows of the slow query grid, in display order. */
 function bodyRows(): HTMLElement[] {
-  return within(dataTable()).getAllByRole('row').slice(1);
+  return Array.from(slowGrid().querySelectorAll<HTMLElement>('[data-row-index]')).sort(
+    (a, b) => Number(a.dataset['rowIndex']) - Number(b.dataset['rowIndex']),
+  );
 }
 
 async function waitForRows(count: number): Promise<void> {
@@ -95,7 +106,22 @@ describe('ProfilerPanel', () => {
       filter: { limit: 200, textSearch: 'customers' },
     });
     await waitForRows(expected.length);
-    expect(within(dataTable()).queryByText('shop.orders')).not.toBeInTheDocument();
+    expect(within(slowGrid()).queryByText('shop.orders')).not.toBeInTheDocument();
+  });
+
+  it('moves the selection with the arrow keys from the grid', async () => {
+    const api = await connectedApi();
+    renderPanel(api);
+    await waitForRows((await api.rpc.profiler.list({ ...SHOP, filter: LIMIT })).length);
+
+    fireEvent.click(bodyRows()[0] as HTMLElement);
+    fireEvent.keyDown(slowGrid(), { key: 'ArrowDown' });
+    fireEvent.keyDown(slowGrid(), { key: 'ArrowDown' });
+    await waitFor(() => expect(bodyRows()[2]?.getAttribute('aria-selected')).toBe('true'));
+    expect(bodyRows()[0]?.getAttribute('aria-selected')).toBe('false');
+
+    fireEvent.keyDown(slowGrid(), { key: 'Home' });
+    await waitFor(() => expect(bodyRows()[0]?.getAttribute('aria-selected')).toBe('true'));
   });
 
   it('adds rows from the tail and keeps the selected row', async () => {
@@ -136,9 +162,11 @@ describe('ProfilerPanel', () => {
 
     fireEvent.click(screen.getByRole('tab', { name: 'Top shapes' }));
     const shapes = await api.rpc.profiler.shapes({ ...SHOP, filter: LIMIT });
-    await waitForRows(shapes.length);
+    await waitFor(() =>
+      expect(within(dataTable()).getAllByRole('row').slice(1)).toHaveLength(shapes.length),
+    );
 
-    fireEvent.click(bodyRows()[0] as HTMLElement);
+    fireEvent.click(within(dataTable()).getAllByRole('row')[1] as HTMLElement);
     expect(
       await screen.findByText('Showing the operations of one query shape'),
     ).toBeInTheDocument();

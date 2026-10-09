@@ -45,6 +45,8 @@ export interface MockUiApiOptions {
   readonly preset?: MockPreset;
   /** Delay added to every call, in milliseconds. Defaults to 0. */
   readonly latencyMs?: number;
+  /** Replaces the shop profiler fixtures with this many generated rows. For performance checks. */
+  readonly profilerRows?: number | undefined;
 }
 
 type VaultState = VaultStatus['state'];
@@ -297,6 +299,7 @@ export function createMockUiApi(options: MockUiApiOptions = {}): UiApi {
   }
 
   const profiler = createMockProfiler({
+    bulkRows: options.profilerRows,
     wrap: wrapCall,
     requireUnlocked,
     requireConnected,

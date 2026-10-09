@@ -88,6 +88,18 @@ function createMainWindow(): void {
     if (mainWindow === window) {
       mainWindow = undefined;
     }
+    router?.resetRenderer();
+  });
+
+  // A reload or a new page drops what the old page subscribed to. Same-document navigations keep
+  // the page, so they do not reset.
+  window.webContents.on('did-start-navigation', (_event, _url, isInPlace, isMainFrame) => {
+    if (isMainFrame && !isInPlace) {
+      router?.resetRenderer();
+    }
+  });
+  window.webContents.on('render-process-gone', () => {
+    router?.resetRenderer();
   });
 
   window.webContents.setWindowOpenHandler(() => ({ action: 'deny' }));
