@@ -11,7 +11,11 @@ export function errorText(error: unknown): string {
   if (detail === undefined || detail === '') {
     return message;
   }
-  return detail.startsWith(message) ? detail : `${message}: ${detail}`;
+  // The period is dropped before the detail follows, so the sentence reads as one line.
+  const sentence = message.replace(/\.$/, '');
+  return detail.startsWith(message) || detail.startsWith(sentence)
+    ? detail
+    : `${sentence}: ${detail}`;
 }
 
 /** Shows a red notification with the text of a thrown error. */

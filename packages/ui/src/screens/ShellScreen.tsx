@@ -16,6 +16,7 @@ import { ConnectionManager } from '../components/connections/ConnectionManager';
 import { ManagementDialogs } from '../components/management/ManagementDialogs';
 import { runReported } from '../components/notify-error';
 import { SettingsModal } from '../components/settings/SettingsModal';
+import { TransferModals } from '../components/transfers/TransferModals';
 import { UpdateBanner } from '../components/updates/UpdateBanner';
 import { ProfilerOpenerContext, type ProfilerOpener } from '../profiler/profiler-opener';
 import type { PanelRequest } from '../state/app-store';
@@ -362,6 +363,7 @@ export function ShellScreen() {
           />
           <ConnectionManager />
           <SettingsModal />
+          <TransferModals />
         </Flex>
       </ProfilerOpenerContext.Provider>
     </PanelOpenerContext.Provider>

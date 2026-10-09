@@ -73,6 +73,26 @@ jobs:
 
       # Electron is the browser under test, so Playwright's own browsers are not needed.
       # The MongoDB container runs through Docker, which ubuntu runners provide.
+      # Optional: with DOCKERHUB_USERNAME and DOCKERHUB_TOKEN set as repository secrets the
+      # runner logs in to Docker Hub, which lifts the anonymous pull limit entirely.
+      - name: Log in to Docker Hub
+        if: ${{ env.DOCKERHUB_USERNAME != '' }}
+        env:
+          DOCKERHUB_USERNAME: ${{ secrets.DOCKERHUB_USERNAME }}
+          DOCKERHUB_TOKEN: ${{ secrets.DOCKERHUB_TOKEN }}
+        run: echo "$DOCKERHUB_TOKEN" | docker login -u "$DOCKERHUB_USERNAME" --password-stdin
+
+      # Mirrors rate-limit anonymous pulls now and then, so pull the test image up front with
+      # retries instead of letting the first test fail on it.
+      - name: Pull the test image
+        run: |
+          for attempt in 1 2 3 4; do
+            docker pull public.ecr.aws/docker/library/mongo:8.0.17 && exit 0
+            echo "pull attempt $attempt failed, retrying in 30 s"
+            sleep 30
+          done
+          exit 1
+
       # GitHub's shared runners hit Docker Hub's anonymous pull limit. Testcontainers pulls
       # the same official images from the AWS public mirror of the Docker library instead.
       - name: Run end-to-end tests
