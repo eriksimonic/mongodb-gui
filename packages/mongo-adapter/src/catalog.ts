@@ -1,4 +1,4 @@
-import { Binary, type MongoClient } from 'mongodb';
+import { BSON, Binary, type MongoClient } from 'mongodb';
 import type {
   CollectionInfo,
   CollectionStats,
@@ -18,6 +18,7 @@ import {
   readArray,
   type PlainObject,
 } from './documents';
+import { stringifyEjson } from './management/ejson';
 
 export interface ListCollectionsOptions {
   readonly includeSystem?: boolean;
@@ -83,7 +84,12 @@ export async function listIndexes(
   if (info?.type === 'view') {
     return [];
   }
-  const descriptors: unknown[] = await client.db(db).collection(coll).indexes();
+  // Raw BSON values keep Long, Date and Decimal128 types for the EJSON output.
+  const descriptors: unknown[] = await client
+    .db(db)
+    .collection(coll)
+    .listIndexes({ promoteLongs: false, promoteValues: false })
+    .toArray();
   const [usage, storage] = await Promise.all([
     readUsage(client, db, coll),
     readStorageStats(client, db, coll),
@@ -256,10 +262,13 @@ function toIndexInfo(
       ...definedEntry('unique', readBoolean(descriptor, 'unique')),
       ...definedEntry('sparse', readBoolean(descriptor, 'sparse')),
       ...definedEntry('hidden', readBoolean(descriptor, 'hidden')),
-      ...definedEntry('expireAfterSeconds', readNumber(descriptor, 'expireAfterSeconds')),
-      ...definedEntry('partialFilterExpression', readRecord(descriptor, 'partialFilterExpression')),
-      ...definedEntry('collation', readRecord(descriptor, 'collation')),
-      ...definedEntry('wildcardProjection', readRecord(descriptor, 'wildcardProjection')),
+      ...definedEntry('expireAfterSeconds', numericField(descriptor, 'expireAfterSeconds')),
+      ...definedEntry(
+        'partialFilterExpressionEjson',
+        ejsonField(descriptor, 'partialFilterExpression'),
+      ),
+      ...definedEntry('collationEjson', ejsonField(descriptor, 'collation')),
+      ...definedEntry('wildcardProjectionEjson', ejsonField(descriptor, 'wildcardProjection')),
       ...definedEntry('size', sizes[name]),
       ...definedEntry('usage', usage.get(name)),
     },
@@ -272,11 +281,40 @@ function toKeySpec(key: PlainObject | undefined): Record<string, number | string
   }
   const spec: Record<string, number | string> = {};
   for (const [field, direction] of Object.entries(key)) {
-    if (typeof direction === 'number' || typeof direction === 'string') {
+    if (typeof direction === 'string') {
       spec[field] = direction;
+      continue;
+    }
+    const numeric = numericValue(direction);
+    if (numeric !== undefined) {
+      spec[field] = numeric;
     }
   }
   return spec;
+}
+
+// Raw descriptors hold BSON wrappers for numbers. Plain numbers and wrappers both count here.
+function numericField(source: unknown, key: string): number | undefined {
+  return readNumber(source, key) ?? numericValue(readField(source, key));
+}
+
+function numericValue(value: unknown): number | undefined {
+  if (typeof value === 'number') {
+    return value;
+  }
+  if (value instanceof BSON.Int32 || value instanceof BSON.Double) {
+    return value.valueOf();
+  }
+  if (value instanceof BSON.Long) {
+    return value.toNumber();
+  }
+  return undefined;
+}
+
+// Canonical EJSON text for an index option document, so BSON types survive the RPC boundary.
+function ejsonField(source: unknown, key: string): string | undefined {
+  const value = readRecord(source, key);
+  return value === undefined ? undefined : stringifyEjson(value);
 }
 
 function byName(a: { readonly name: string }, b: { readonly name: string }): number {

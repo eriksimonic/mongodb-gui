@@ -169,6 +169,9 @@ importers:
       '@eslint/js':
         specifier: ^9.39.5
         version: 9.39.5
+      '@playwright/test':
+        specifier: ^1.64.0
+        version: 1.64.0
       '@types/node':
         specifier: ^24.19.1
         version: 24.19.1
@@ -181,9 +184,15 @@ importers:
       eslint-plugin-react-refresh:
         specifier: ^0.5.7
         version: 0.5.7(eslint@9.39.5(supports-color@7.2.0))
+      mongodb:
+        specifier: ^7.7.0
+        version: 7.7.0(@aws-sdk/credential-providers@3.1148.0)(gcp-metadata@7.0.1(supports-color@7.2.0))(kerberos@7.0.0)(mongodb-client-encryption@7.2.1)(socks@2.8.10)
       prettier:
         specifier: ^3.9.9
         version: 3.9.9
+      testcontainers:
+        specifier: ^12.2.0
+        version: 12.2.0(supports-color@7.2.0)
       typescript:
         specifier: ^6.0.3
         version: 6.0.3
@@ -250,7 +259,7 @@ importers:
         version: link:../core
       mongodb:
         specifier: ^7.7.0
-        version: 7.7.0
+        version: 7.7.0(@aws-sdk/credential-providers@3.1148.0)(gcp-metadata@7.0.1(supports-color@7.2.0))(kerberos@7.0.0)(mongodb-client-encryption@7.2.1)(socks@2.8.10)
     devDependencies:
       testcontainers:
         specifier: ^12.2.0
@@ -1137,8 +1146,8 @@ packages:
       mongodb: ^6.9.0 || ^7.0.0
       mongodb-log-writer: ^2.5.16
 
-  '@mongodb-js/devtools-proxy-support@0.7.25':
-    resolution: {integrity: sha512-plTpS+pBeyySnqo910TJtnb1ApKxCWfFCzlfFEJur5KCnwFmBJOP99zOxnQZpcQJo0HT5KbsiWf0hMKUrnXvYg==}
+  '@mongodb-js/devtools-proxy-support@0.7.26':
+    resolution: {integrity: sha512-u+NWggUMO+O0M0KOBCwy0yYzfwMEMVEhXtsGmVfZbiOe8+PtL1CyLczpzZYwWC9Ua+T/o77x8TYlupt3mRdAOg==}
 
   '@mongodb-js/mongodb-constants@0.33.0':
     resolution: {integrity: sha512-eCglRNhukKReQTv8BfHP2wne+rBbmF4M4s5hexfJM4/oRTk7IF5tuvfP0qEDxbNps9arGwYGuFCd3hPxZfp52Q==}
@@ -1476,6 +1485,11 @@ packages:
   '@pkgjs/parseargs@0.11.0':
     resolution: {integrity: sha512-+1VkjdD0QBLPodGrJUeqarH8VAIvQODIbwh9XpP5Syisf7YoQgsJKPNFoqqLQlu+VQ/tVSshMR6loPMn8U+dPg==}
     engines: {node: '>=14'}
+
+  '@playwright/test@1.64.0':
+    resolution: {integrity: sha512-oTN9FNYuN6bqQMwiho6jJKLCG2/QOYCixGXuCjRmzOq23eODeukuY2XiAVoVpAECbuezMt1MHQjAiQxK8F+Y+g==}
+    engines: {node: '>=20'}
+    hasBin: true
 
   '@protobufjs/aspromise@1.1.2':
     resolution: {integrity: sha512-j+gKExEuLmKwvz3OgROXtrJ2UG2x8Ch2YZUxahh+s1F2HZ+wAceUNLkvy6zKCPVRkU++ZWQrdxsUeQXmcg4uoQ==}
@@ -3558,6 +3572,16 @@ packages:
     resolution: {integrity: sha512-qcJu88Q2IWqJsDD529JKMdwGm/dvInW4HvQnRwiH9JtihJvzGOscDtHE3x1pBKeUOTysQ8kVmLnJ2kJu7yhcGA==}
     engines: {node: '>=12'}
 
+  playwright-core@1.64.0:
+    resolution: {integrity: sha512-T9r+MZkTECl2+oUcZ26YgZzTrYidTsIhYYkJix+6iDOymOb1FB2RLLSOxRGnZGv5DStt+aduIVbt+E8WygXYpg==}
+    engines: {node: '>=20'}
+    hasBin: true
+
+  playwright@1.64.0:
+    resolution: {integrity: sha512-kVzTnYFYEyQ9RGzBjNCd2+yEqWmVbxl3AHPynv3qQ6JTjv4a+kwRcnqQwIpuP3NnrnIrE/Q6wWAIAvMfIE2/Yg==}
+    engines: {node: '>=20'}
+    hasBin: true
+
   possible-typed-array-names@1.1.0:
     resolution: {integrity: sha512-/+5VFTchJDoVj3bhoqi6UeymcD00DAwb1nJwamzPvHEszJ4FpF6SNNbUbOS8yI56qHzdV8eK0qEfOSiodkTdxg==}
     engines: {node: '>= 0.4'}
@@ -5307,7 +5331,7 @@ snapshots:
 
   '@mongodb-js/devtools-connect@3.17.15(@mongodb-js/oidc-plugin@2.2.0(supports-color@7.2.0))(mongodb-log-writer@2.5.16(bson@7.3.3))(mongodb@7.7.0(@aws-sdk/credential-providers@3.1148.0)(gcp-metadata@7.0.1(supports-color@7.2.0))(kerberos@7.0.0)(mongodb-client-encryption@7.2.1)(socks@2.8.10))(supports-color@7.2.0)':
     dependencies:
-      '@mongodb-js/devtools-proxy-support': 0.7.25(supports-color@7.2.0)
+      '@mongodb-js/devtools-proxy-support': 0.7.26(supports-color@7.2.0)
       '@mongodb-js/oidc-http-server-pages': 1.2.22
       '@mongodb-js/oidc-plugin': 2.2.0(supports-color@7.2.0)
       lodash.merge: 4.6.2
@@ -5323,7 +5347,7 @@ snapshots:
     transitivePeerDependencies:
       - supports-color
 
-  '@mongodb-js/devtools-proxy-support@0.7.25(supports-color@7.2.0)':
+  '@mongodb-js/devtools-proxy-support@0.7.26(supports-color@7.2.0)':
     dependencies:
       '@mongodb-js/socksv5': 0.0.11
       agent-base: 7.1.4
@@ -5732,6 +5756,10 @@ snapshots:
 
   '@pkgjs/parseargs@0.11.0':
     optional: true
+
+  '@playwright/test@1.64.0':
+    dependencies:
+      playwright: 1.64.0
 
   '@protobufjs/aspromise@1.1.2': {}
 
@@ -7736,12 +7764,6 @@ snapshots:
       mongodb-connection-string-url: 7.0.2
       regexp.escape: 2.0.1
 
-  mongodb@7.7.0:
-    dependencies:
-      '@mongodb-js/saslprep': 1.6.0
-      bson: 7.3.3
-      mongodb-connection-string-url: 7.0.2
-
   mongodb@7.7.0(@aws-sdk/credential-providers@3.1148.0)(gcp-metadata@7.0.1(supports-color@7.2.0))(kerberos@7.0.0)(mongodb-client-encryption@7.2.1)(socks@2.8.10):
     dependencies:
       '@mongodb-js/saslprep': 1.6.0
@@ -7971,6 +7993,12 @@ snapshots:
   picocolors@1.1.1: {}
 
   picomatch@4.0.7: {}
+
+  playwright-core@1.64.0: {}
+
+  playwright@1.64.0:
+    dependencies:
+      playwright-core: 1.64.0
 
   possible-typed-array-names@1.1.0: {}
 
