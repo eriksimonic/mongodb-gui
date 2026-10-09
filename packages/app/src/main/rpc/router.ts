@@ -154,6 +154,14 @@ export function createRouter(deps: RouterDeps): Router {
     await deps.docker?.releaseProfile(profile);
   };
 
+  /** Frees the forwarder of a docker profile. Locked vault or unknown profile means nothing to do. */
+  async function releaseDockerForwarder(connectionId: string): Promise<void> {
+    const profile = profileById(connectionId);
+    if (profile?.source === 'docker') {
+      await deps.docker?.releaseProfile(profile);
+    }
+  }
+
   const operations = new Map<string, Operation>([
     entry('vault.status', rpcContract.vault.status, () => deps.vault.status()),
     entry('vault.initialise', rpcContract.vault.initialise, (input) => {
@@ -164,6 +172,7 @@ export function createRouter(deps: RouterDeps): Router {
       await deps.vault.unlock(input.password);
       applyStoredIdleLock();
       void deps.docker?.autoConnect();
+      deps.docker?.resume();
     }),
     entry('vault.lock', rpcContract.vault.lock, () => {
       deps.vault.lock();
@@ -283,9 +292,16 @@ export function createRouter(deps: RouterDeps): Router {
 
   deps.connections.onStatusChange((connectionId, status) => {
     deps.onEvent({ type: 'connection:status', connectionId, status });
+    // A docker connection that errors (for example, the socket closed) gives its forwarder back.
+    // A disconnect is not handled here, because a superseded attempt also reports disconnected
+    // while the next attempt may be using the same forwarder.
+    if (status.state === 'error') {
+      void releaseDockerForwarder(connectionId);
+    }
   });
   deps.lockEvents?.subscribe(() => {
     void deps.connections.disconnectAll();
+    deps.docker?.suspend();
     void deps.docker?.cleanupAll();
     deps.onEvent({ type: 'vault:locked' });
   });
@@ -387,11 +403,11 @@ export function createAppServices(options: AppServicesOptions): AppServices {
   };
   let handles = openStore();
   const connections = new ConnectionManager();
-  const engine = createDockerEngineClient({
-    socketPath: defaultDockerSocket(process.env, process.platform),
-  });
+  const socketPath = defaultDockerSocket(process.env, process.platform);
+  const engine = createDockerEngineClient({ socketPath });
   const docker = createDockerRuntime({
     engine,
+    socketPath,
     forwarders: createForwarderManager({ client: engine }),
     connections,
     repos: () => handles.repos,

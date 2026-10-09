@@ -213,3 +213,18 @@ export function fixtureDockerContainers(): DockerMongoContainerSummary[] {
     },
   ];
 }
+
+/** The saved profile of the shop-mongo container. It is connected in the unlocked preset. */
+export const DOCKER_PROFILE_ID = '0d6f3b2a-9c1e-4f7a-8b5d-2e4c6a1f9b30';
+
+export function fixtureDockerProfile(): ConnectionProfile {
+  return {
+    id: DOCKER_PROFILE_ID,
+    name: 'shop-mongo',
+    uri: 'mongodb://app:secret@localhost:27017/?authSource=admin&directConnection=true',
+    source: 'docker',
+    dockerContainerId: '6c1e0b9d4f2a7e83c5d1b0a9f8e7d6c5b4a39281706f5e4d3c2b1a0f9e8d7c6b',
+    createdAt: CREATED_AT,
+    updatedAt: CREATED_AT,
+  };
+}

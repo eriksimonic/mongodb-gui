@@ -345,6 +345,19 @@ export function createAppStore(api: UiApi, initial: Partial<AppData> = {}): AppS
               autoConnect: settings.dockerAutoConnect,
             },
           });
+          // Docker profiles show their live state, so their status is read on each load.
+          const connections = get().connections;
+          if (connections.state === 'ready') {
+            for (const profile of connections.data) {
+              if (profile.source === 'docker') {
+                try {
+                  setStatus(profile.id, await rpc.connections.status({ id: profile.id }));
+                } catch {
+                  // The row keeps its previous status. A failed read must not hide the containers.
+                }
+              }
+            }
+          }
         } catch (error) {
           set((state) => ({
             docker: { ...state.docker, containers: { state: 'error', error: toAppError(error) } },

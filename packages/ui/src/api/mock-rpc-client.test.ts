@@ -62,7 +62,7 @@ describe('mock vault', () => {
     const api = createMockUiApi({ preset: 'unlocked' });
     const events = collectEvents(api);
     await api.rpc.vault.lock();
-    expect(events).toEqual([{ type: 'vault:locked' }]);
+    expect(events).toContainEqual({ type: 'vault:locked' });
   });
 
   it('changes the password only with the current one', async () => {
@@ -97,7 +97,11 @@ describe('mock connections', () => {
   it('lists the two fixture connections with redacted URIs only', async () => {
     const api = createMockUiApi({ preset: 'unlocked' });
     const summaries = await api.rpc.connections.list();
-    expect(summaries.map((summary) => summary.name)).toEqual(['Local dev', 'Staging']);
+    expect(summaries.map((summary) => summary.name)).toEqual([
+      'Local dev',
+      'Staging',
+      'shop-mongo',
+    ]);
     expect(summaries[0]?.uriRedacted).toBe('mongodb://app:***@localhost:27017/?authSource=admin');
     expect(summaries.every((summary) => !('uri' in summary))).toBe(true);
   });

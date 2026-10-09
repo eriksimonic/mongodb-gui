@@ -16,7 +16,6 @@ import {
   dialHost,
   discoverMongoContainers,
   dockerStatus,
-  toMongoContainer,
   type DockerEngineClient,
   type ForwarderManager,
 } from '@mongo-gui/docker';
@@ -41,6 +40,8 @@ export interface DockerConnections {
 
 export interface DockerRuntimeDeps {
   readonly engine: DockerEngineClient;
+  /** The socket the engine client talks to. Named in the status reason. */
+  readonly socketPath: string;
   readonly forwarders: ForwarderManager;
   readonly connections: DockerConnections;
   /** Read at each call, because a vault reset replaces the repositories. */
@@ -64,9 +65,13 @@ export interface DockerRuntime {
   setAutoConnect(enabled: boolean): Settings;
   /** Starts or stops the poll. Each change pushes a `docker:containers` event. */
   watch(enabled: boolean, emit: (event: RpcEvent) => void): void;
+  /** Stops the poll timer while the vault is locked. The watch setting is kept. */
+  suspend(): void;
+  /** Starts the poll timer again after unlock, when the watch setting is on. */
+  resume(): void;
   /** Connects every running container when the setting is on. Called after unlock. */
   autoConnect(): Promise<void>;
-  /** Releases the forwarder of a docker profile after it disconnects. Other profiles are ignored. */
+  /** Releases the forwarder of a docker profile. Other profiles are ignored. */
   releaseProfile(profile: ConnectionProfile | undefined): Promise<void>;
   /** Removes every forwarder the app labelled. Failures are logged, not thrown. */
   cleanupAll(): Promise<void>;
@@ -90,6 +95,7 @@ export function createDockerRuntime(deps: DockerRuntimeDeps): DockerRuntime {
   const pollIntervalMs = deps.pollIntervalMs ?? DOCKER_POLL_INTERVAL_MS;
   let timer: ReturnType<typeof setInterval> | undefined;
   let emitter: ((event: RpcEvent) => void) | undefined;
+  let watching = false;
   let lastKey: string | undefined;
   let polling = false;
 
@@ -102,20 +108,19 @@ export function createDockerRuntime(deps: DockerRuntimeDeps): DockerRuntime {
       .connections.list()
       .find((profile) => profile.dockerContainerId === containerId);
 
-  async function inspectContainer(containerId: string): Promise<DockerMongoContainer> {
-    const json = await deps.engine.inspectContainer(containerId).catch((error: unknown) => {
-      if (isNotFound(error)) {
-        throw new AppErrorException(appError('VALIDATION', 'The container was not found.'));
-      }
-      throw error;
-    });
-    const container = toMongoContainer(json);
-    if (container === undefined) {
-      throw new AppErrorException(
-        appError('VALIDATION', 'The container is not a MongoDB container.'),
-      );
+  /**
+   * Resolves an id or name through the same discovery the list uses. A container that is not
+   * MongoDB and a container that does not exist get the same error, so names of other containers
+   * are not revealed.
+   */
+  async function resolveContainer(containerId: string): Promise<DockerMongoContainer> {
+    const found = (await discover()).find(
+      (container) => container.id === containerId || container.name === containerId,
+    );
+    if (found === undefined) {
+      throw new AppErrorException(appError('VALIDATION', 'The container was not found.'));
     }
-    return container;
+    return found;
   }
 
   async function endpointFor(container: DockerMongoContainer): Promise<Endpoint> {
@@ -149,17 +154,25 @@ export function createDockerRuntime(deps: DockerRuntimeDeps): DockerRuntime {
   }
 
   async function connect(containerId: string): Promise<DockerConnectResult> {
-    const container = await inspectContainer(containerId);
+    const container = await resolveContainer(containerId);
     if (container.state !== 'running') {
       throw new AppErrorException(appError('COMMAND_FAILED', 'The container is not running.'));
     }
     const endpoint = await endpointFor(container);
-    const profile = saveProfile(container, buildUri(container, endpoint));
-    const status = await deps.connections.connect(profile);
-    if (status.state !== 'connected' && endpoint.forwarded) {
-      await deps.forwarders.release(container.id);
+    try {
+      const profile = saveProfile(container, buildUri(container, endpoint));
+      const status = await deps.connections.connect(profile);
+      if (status.state !== 'connected' && endpoint.forwarded) {
+        await deps.forwarders.release(container.id);
+      }
+      return { connectionId: profile.id, status };
+    } catch (error) {
+      // A failure after the forwarder started would leave it running with no owner.
+      if (endpoint.forwarded) {
+        await deps.forwarders.release(container.id).catch(() => undefined);
+      }
+      throw error;
     }
-    return { connectionId: profile.id, status };
   }
 
   async function tick(): Promise<void> {
@@ -192,9 +205,28 @@ export function createDockerRuntime(deps: DockerRuntimeDeps): DockerRuntime {
     }
   }
 
+  function startTimer(): void {
+    if (timer !== undefined || !watching) {
+      return;
+    }
+    lastKey = undefined;
+    timer = setInterval(() => {
+      void tick();
+    }, pollIntervalMs);
+    void tick();
+  }
+
+  function stopTimer(): void {
+    if (timer !== undefined) {
+      clearInterval(timer);
+      timer = undefined;
+    }
+    lastKey = undefined;
+  }
+
   return {
     status() {
-      return dockerStatus(deps.engine);
+      return dockerStatus(deps.engine, deps.socketPath);
     },
 
     async list() {
@@ -217,22 +249,20 @@ export function createDockerRuntime(deps: DockerRuntimeDeps): DockerRuntime {
 
     watch(enabled, emit) {
       emitter = emit;
+      watching = enabled;
       if (!enabled) {
-        if (timer !== undefined) {
-          clearInterval(timer);
-          timer = undefined;
-        }
-        lastKey = undefined;
+        stopTimer();
         return;
       }
-      if (timer !== undefined) {
-        return;
-      }
-      lastKey = undefined;
-      timer = setInterval(() => {
-        void tick();
-      }, pollIntervalMs);
-      void tick();
+      startTimer();
+    },
+
+    suspend() {
+      stopTimer();
+    },
+
+    resume() {
+      startTimer();
     },
 
     async autoConnect() {
@@ -265,10 +295,8 @@ export function createDockerRuntime(deps: DockerRuntimeDeps): DockerRuntime {
     cleanupAll: () => cleanupForwarders(deps.forwarders, deps.log),
 
     async dispose() {
-      if (timer !== undefined) {
-        clearInterval(timer);
-        timer = undefined;
-      }
+      stopTimer();
+      watching = false;
       await cleanupForwarders(deps.forwarders, deps.log);
     },
   };
@@ -298,12 +326,6 @@ export function buildUri(container: DockerMongoContainer, endpoint: Endpoint): s
   const host = endpoint.host.includes(IPV6_HOST_MARKER) ? `[${endpoint.host}]` : endpoint.host;
   const query = auth === '' ? 'directConnection=true' : 'directConnection=true&authSource=admin';
   return `mongodb://${auth}${host}:${endpoint.port}/?${query}`;
-}
-
-function isNotFound(error: unknown): boolean {
-  return (
-    typeof error === 'object' && error !== null && 'statusCode' in error && error.statusCode === 404
-  );
 }
 
 function errorText(error: unknown): string {

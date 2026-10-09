@@ -276,9 +276,11 @@ describe('discoverMongoContainers', () => {
   });
 });
 
+const SOCKET = '/var/run/docker.sock';
+
 describe('dockerStatus', () => {
   it('reports the engine version when the engine answers', async () => {
-    expect(await dockerStatus(fakeClient({ list: [], inspect: {} }))).toEqual({
+    expect(await dockerStatus(fakeClient({ list: [], inspect: {} }), SOCKET)).toEqual({
       available: true,
       engineVersion: '27.3.1',
     });
@@ -293,9 +295,9 @@ describe('dockerStatus', () => {
       },
     });
 
-    expect(await dockerStatus(client)).toEqual({
+    expect(await dockerStatus(client, SOCKET)).toEqual({
       available: false,
-      reason: 'Docker is not reachable. (ENOENT)',
+      reason: 'Docker is not reachable at /var/run/docker.sock (ENOENT).',
     });
   });
 
@@ -308,9 +310,25 @@ describe('dockerStatus', () => {
       },
     });
 
-    expect(await dockerStatus(client)).toEqual({
+    expect(await dockerStatus(client, SOCKET)).toEqual({
       available: false,
-      reason: 'Docker is not available.',
+      reason: 'Docker is not available at /var/run/docker.sock.',
+    });
+  });
+
+  it('explains a permission error and suggests the docker group', async () => {
+    const client = fakeClient({
+      list: [],
+      inspect: {},
+      version: async () => {
+        throw new DockerEngineError('Docker is not reachable.', 'EACCES');
+      },
+    });
+
+    expect(await dockerStatus(client, SOCKET)).toEqual({
+      available: false,
+      reason:
+        'Permission denied on /var/run/docker.sock. Add your user to the docker group, then sign in again.',
     });
   });
 });

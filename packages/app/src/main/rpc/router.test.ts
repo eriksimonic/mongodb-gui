@@ -771,6 +771,12 @@ function fakeDocker(): DockerRuntime & { readonly calls: string[] } {
     watch(enabled) {
       calls.push(`watch:${enabled}`);
     },
+    suspend() {
+      calls.push('suspend');
+    },
+    resume() {
+      calls.push('resume');
+    },
     async autoConnect() {
       calls.push('autoConnect');
     },
@@ -876,7 +882,7 @@ describe('docker calls', () => {
     expectValue(await router.handle('vault.lock', undefined));
     expectValue(await router.handle('vault.unlock', { password: PASSWORD }));
 
-    expect(docker.calls).toEqual(['cleanupAll', 'autoConnect']);
+    expect(docker.calls).toEqual(['suspend', 'cleanupAll', 'autoConnect', 'resume']);
   });
 });
 

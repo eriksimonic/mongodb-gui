@@ -1,13 +1,14 @@
 import { Alert, Button, Loader, Stack, Text } from '@mantine/core';
 import { IconPlus } from '@tabler/icons-react';
 import { useEffect, useMemo, useRef, useState, type KeyboardEvent, type MouseEvent } from 'react';
-import type { ConnectionStatus } from '@mongo-gui/core';
+import type { ConnectionProfileSummary, ConnectionStatus } from '@mongo-gui/core';
 import type { Selection } from '../../state/app-store';
 import { useAppStore } from '../../state/app-store-context';
 import { catalogKey, connectionNodeId, databaseNodeId } from '../../state/node-ids';
 import { runReported } from '../notify-error';
 import { ConnectionContextMenu } from './ConnectionContextMenu';
 import { DockerContainerContextMenu } from './DockerContainerContextMenu';
+import { DockerLinkedContextMenu } from './DockerLinkedContextMenu';
 import { DockerNodeContextMenu } from './DockerNodeContextMenu';
 import { TreeMessage, TreeRow } from './TreeRow';
 import {
@@ -24,6 +25,7 @@ const DISCONNECTED: ConnectionStatus = { state: 'disconnected' };
 
 type MenuTarget =
   | { readonly kind: 'connection'; readonly connectionId: string }
+  | { readonly kind: 'linked'; readonly connectionId: string }
   | { readonly kind: 'container'; readonly containerId: string }
   | { readonly kind: 'docker' };
 
@@ -61,10 +63,18 @@ function canConnect(status: ConnectionStatus | undefined): boolean {
   return status === undefined || status.state === 'disconnected' || status.state === 'error';
 }
 
-function menuTargetFor(row: TreeRowModel): MenuTarget | undefined {
+function menuTargetFor(
+  row: TreeRowModel,
+  connections: readonly ConnectionProfileSummary[],
+): MenuTarget | undefined {
   switch (row.kind) {
-    case 'connection':
-      return { kind: 'connection', connectionId: row.connectionId };
+    case 'connection': {
+      // A docker profile gets the combined menu: connection actions plus container details.
+      const profile = connections.find((item) => item.id === row.connectionId);
+      return profile?.source === 'docker'
+        ? { kind: 'linked', connectionId: row.connectionId }
+        : { kind: 'connection', connectionId: row.connectionId };
+    }
     case 'container':
       return row.container === undefined
         ? undefined
@@ -232,7 +242,7 @@ export function ConnectionTree() {
   }
 
   function openMenuFor(row: TreeRowModel) {
-    const target = menuTargetFor(row);
+    const target = menuTargetFor(row, readyConnections);
     if (target === undefined) {
       return;
     }
@@ -290,7 +300,7 @@ export function ConnectionTree() {
 
   function handleContextMenu(row: TreeRowModel, event: MouseEvent<HTMLDivElement>) {
     event.preventDefault();
-    const target = menuTargetFor(row);
+    const target = menuTargetFor(row, readyConnections);
     if (target !== undefined) {
       setMenu({ target, x: event.clientX, y: event.clientY });
     }
@@ -311,6 +321,25 @@ export function ConnectionTree() {
       return (
         <ConnectionContextMenu
           connection={connection}
+          status={statuses[connection.id] ?? DISCONNECTED}
+          position={position}
+          onClose={closeMenu}
+        />
+      );
+    }
+    if (target.kind === 'linked') {
+      const connection = readyConnections.find((item) => item.id === target.connectionId);
+      if (connection === undefined) {
+        return null;
+      }
+      const container =
+        docker.containers.state === 'ready'
+          ? docker.containers.data.find((item) => item.id === connection.dockerContainerId)
+          : undefined;
+      return (
+        <DockerLinkedContextMenu
+          connection={connection}
+          container={container}
           status={statuses[connection.id] ?? DISCONNECTED}
           position={position}
           onClose={closeMenu}

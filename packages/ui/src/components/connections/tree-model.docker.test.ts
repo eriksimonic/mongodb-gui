@@ -108,26 +108,58 @@ describe('buildTreeRows for the Docker node', () => {
     });
   });
 
-  it('shows the engine reason when Docker is not available', () => {
+  it('shows the engine reason when Docker is not available, and keeps the profiles visible', () => {
     const rows = buildTreeRows(
       dockerInput({
         docker: {
-          status: { available: false, reason: 'Docker is not reachable. (ENOENT)' },
+          status: {
+            available: false,
+            reason: 'Docker is not reachable at /var/run/docker.sock (ENOENT).',
+          },
           containers: { state: 'ready', data: [] },
         },
       }),
     );
 
-    expect(rows.slice(-2).map((row) => row.label)).toEqual([
+    expect(rows.slice(-3).map((row) => row.label)).toEqual([
       'Docker not available',
-      'Docker is not reachable. (ENOENT)',
+      'Docker is not reachable at /var/run/docker.sock (ENOENT).',
+      'shop-mongo',
     ]);
+    expect(rows.find((row) => row.label === 'shop-mongo')).toMatchObject({
+      note: 'Docker not reachable',
+      depth: 1,
+    });
   });
 
   it('shows a checking line before the Docker state is read', () => {
     const rows = buildTreeRows(dockerInput({ docker: undefined }));
 
-    expect(rows[rows.length - 1]).toMatchObject({ kind: 'message', label: 'Checking Docker' });
+    expect(rows.find((row) => row.label === 'Checking Docker')).toMatchObject({
+      kind: 'message',
+      depth: 1,
+    });
+  });
+
+  it('keeps a profile whose container is gone, and marks it missing', () => {
+    const rows = buildTreeRows(
+      dockerInput({
+        docker: {
+          status: { available: true },
+          containers: { state: 'ready', data: [orders] },
+        },
+      }),
+    );
+
+    expect(rows.find((row) => row.label === 'shop-mongo')).toMatchObject({
+      kind: 'connection',
+      expandable: false,
+      container: undefined,
+    });
+    expect(rows.find((row) => row.label === 'Container not found')).toMatchObject({
+      kind: 'message',
+      tone: 'red',
+    });
   });
 
   it('shows the error when the container list fails', () => {
@@ -143,9 +175,8 @@ describe('buildTreeRows for the Docker node', () => {
       }),
     );
 
-    expect(rows[rows.length - 1]).toMatchObject({
+    expect(rows.find((row) => row.label === 'Docker did not respond in time.')).toMatchObject({
       kind: 'message',
-      label: 'Docker did not respond in time.',
       tone: 'red',
     });
   });

@@ -234,20 +234,35 @@ async function inspectOrSkip(
   }
 }
 
-/** Reports whether the engine answers. The reason names the failure for the status row. */
-export async function dockerStatus(client: DockerEngineClient): Promise<DockerStatus> {
+/**
+ * Reports whether the engine answers. The reason names the socket that was tried, so a wrong
+ * DOCKER_HOST or a missing daemon is easy to spot. Permission errors get a hint about the group.
+ */
+export async function dockerStatus(
+  client: DockerEngineClient,
+  socketPath: string,
+): Promise<DockerStatus> {
   try {
     const version = await client.version();
     return { available: true, engineVersion: version.version };
   } catch (error) {
-    return { available: false, reason: describeFailure(error) };
+    return { available: false, reason: describeFailure(error, socketPath) };
   }
 }
 
-function describeFailure(error: unknown): string {
+const PERMISSION_CODES: readonly string[] = ['EACCES', 'EPERM'];
+
+function describeFailure(error: unknown, socketPath: string): string {
   if (error instanceof DockerEngineError) {
-    const { message, detail } = error.error;
+    const detail = error.error.detail;
+    if (detail !== undefined && PERMISSION_CODES.includes(detail)) {
+      return `Permission denied on ${socketPath}. Add your user to the docker group, then sign in again.`;
+    }
+    if (error.error.message === 'Docker is not reachable.') {
+      return `Docker is not reachable at ${socketPath}${detail === undefined ? '' : ` (${detail})`}.`;
+    }
+    const { message } = error.error;
     return detail === undefined ? message : `${message} (${detail})`;
   }
-  return 'Docker is not available.';
+  return `Docker is not available at ${socketPath}.`;
 }

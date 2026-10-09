@@ -2,7 +2,12 @@ import { createServer, type Server } from 'node:net';
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 import { AppErrorException, type DockerMongoContainer } from '@mongo-gui/core';
 import { FORWARDER_LABEL } from './discovery';
-import { createForwarderManager, forwarderLabelFor, type ForwarderManager } from './forwarder';
+import {
+  FORWARDER_IMAGE,
+  createForwarderManager,
+  forwarderLabelFor,
+  type ForwarderManager,
+} from './forwarder';
 import type { ContainerCreateSpec, ContainerListItem, DockerEngineClient } from './engine-client';
 
 interface FakeContainer {
@@ -56,7 +61,7 @@ function fakeEngine(listenPort: () => number, targetInspect: unknown = {}): Fake
     [...containers.values()].map((container) => ({
       id: container.id,
       names: [],
-      image: 'alpine/socat:latest',
+      image: FORWARDER_IMAGE,
       state: container.state,
       labels: container.labels,
       ports: [],
@@ -151,7 +156,7 @@ describe('ForwarderManager', () => {
     expect(handle).toEqual({ hostPort: listenPort, forwarderId: 'fwd-1' });
     const spec = engine.containers.get('fwd-1')?.spec;
     expect(spec).toMatchObject({
-      image: 'alpine/socat:latest',
+      image: FORWARDER_IMAGE,
       cmd: ['tcp-listen:27017,fork,reuseaddr', 'tcp-connect:shop-db:27017'],
       labels: { [FORWARDER_LABEL]: TARGET_ID },
       networkMode: 'app_net',
@@ -167,7 +172,7 @@ describe('ForwarderManager', () => {
 
     await managerFor(engine).ensure(target());
 
-    expect(engine.pulled).toEqual(['alpine/socat:latest']);
+    expect(engine.pulled).toEqual([FORWARDER_IMAGE]);
   });
 
   it('reuses a running forwarder for the same target', async () => {
@@ -256,6 +261,29 @@ describe('ForwarderManager', () => {
     const engine = fakeEngine(() => listenPort);
 
     await expect(managerFor(engine).release(TARGET_ID)).resolves.toBeUndefined();
+  });
+
+  it('does not remove a container that carries the label but is not the forwarder image', async () => {
+    const engine = fakeEngine(() => listenPort);
+    engine.containers.set('imposter', {
+      id: 'imposter',
+      labels: { [FORWARDER_LABEL]: TARGET_ID },
+      state: 'running',
+      hostPort: 1,
+      spec: undefined,
+    });
+    const imposter = engine.containers.get('imposter');
+    expect(imposter).toBeDefined();
+    const original = engine.client.listContainersByLabel.bind(engine.client);
+    engine.client.listContainersByLabel = async (label) =>
+      (await original(label)).map((item) =>
+        item.id === 'imposter' ? { ...item, image: 'nginx:1' } : item,
+      );
+
+    await managerFor(engine).release(TARGET_ID);
+
+    expect(engine.removed).toEqual([]);
+    expect(engine.containers.has('imposter')).toBe(true);
   });
 
   it('removes every labelled forwarder at cleanup and leaves other containers alone', async () => {

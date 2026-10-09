@@ -1,5 +1,6 @@
 import { z } from 'zod';
 import { AppErrorSchema } from './errors';
+import { DockerContainerIdSchema } from '../docker/types';
 
 export const ClusterTopologySchema = z.enum([
   'standalone',
@@ -28,7 +29,7 @@ export const ConnectionProfileSchema = z.object({
   connectTimeoutMs: z.number().int().positive().optional(),
   /** `docker` profiles come from a Docker container and are reused for that container. */
   source: z.enum(['manual', 'docker']).optional(),
-  dockerContainerId: z.string().min(1).optional(),
+  dockerContainerId: DockerContainerIdSchema.optional(),
   createdAt: z.iso.datetime(),
   updatedAt: z.iso.datetime(),
 });

@@ -43,6 +43,7 @@ export function TreeRow({
       role="treeitem"
       className="mg-tree-item"
       data-key={row.key}
+      title={row.note}
       aria-level={row.depth + 1}
       aria-expanded={row.expandable ? row.expanded : undefined}
       aria-selected={selected}

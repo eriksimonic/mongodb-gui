@@ -3,9 +3,12 @@ import { randomBytes } from 'node:crypto';
 import { z } from 'zod';
 import { AppErrorException, appError, type DockerMongoContainer } from '@mongo-gui/core';
 import { FORWARDER_LABEL, MONGO_PORT, MONGO_PORT_KEY, networkAddress } from './discovery';
-import type { DockerEngineClient } from './engine-client';
+import type { ContainerListItem, DockerEngineClient } from './engine-client';
 
-export const FORWARDER_IMAGE = 'alpine/socat:latest';
+// Pinned to the newest versioned tag on Docker Hub when plan P1-7 was implemented (2026-10-09).
+// The `latest` tag moves, so bump this constant on purpose, after a check that the tag still
+// accepts the socat arguments used below.
+export const FORWARDER_IMAGE = 'alpine/socat:1.8.1.3';
 export const DEFAULT_READY_TIMEOUT_MS = 3_000;
 const PROBE_INTERVAL_MS = 100;
 const PROBE_TIMEOUT_MS = 500;
@@ -106,11 +109,17 @@ export function createForwarderManager(options: ForwarderManagerOptions): Forwar
     },
 
     async release(targetId) {
-      await removeAll(client, await client.listContainersByLabel(forwarderLabelFor(targetId)));
+      // A start still in flight would create a forwarder after this call, so wait for it first.
+      await pending.get(targetId)?.catch(() => undefined);
+      await removeOwned(
+        client,
+        await client.listContainersByLabel(forwarderLabelFor(targetId)),
+        targetId,
+      );
     },
 
     async cleanupAll() {
-      await removeAll(client, await client.listContainersByLabel(FORWARDER_LABEL));
+      await removeOwned(client, await client.listContainersByLabel(FORWARDER_LABEL), undefined);
     },
   };
 }
@@ -121,23 +130,43 @@ async function reuseOrStart(
   start: (target: DockerMongoContainer) => Promise<ForwarderHandle>,
 ): Promise<ForwarderHandle> {
   const existing = await client.listContainersByLabel(forwarderLabelFor(target.id));
-  const running = existing.find((item) => item.state === 'running');
+  const running = existing.find(
+    (item) => item.state === 'running' && isOwnedForwarder(item, target.id),
+  );
   if (running !== undefined) {
     return {
       hostPort: hostPortOf(await client.inspectContainer(running.id)),
       forwarderId: running.id,
     };
   }
-  await removeAll(client, existing);
+  await removeOwned(client, existing, target.id);
   return start(target);
 }
 
-async function removeAll(
+/**
+ * A container is removed only when it is a forwarder this app made. The label alone is not
+ * enough, because a user container could carry the same label. The image must match too.
+ */
+function isOwnedForwarder(container: ContainerListItem, targetId: string | undefined): boolean {
+  if (container.image !== FORWARDER_IMAGE) {
+    return false;
+  }
+  const owner = container.labels[FORWARDER_LABEL];
+  if (owner === undefined) {
+    return false;
+  }
+  return targetId === undefined || owner === targetId;
+}
+
+async function removeOwned(
   client: DockerEngineClient,
-  containers: readonly { readonly id: string }[],
+  containers: readonly ContainerListItem[],
+  targetId: string | undefined,
 ): Promise<void> {
   for (const container of containers) {
-    await client.removeContainer(container.id, true);
+    if (isOwnedForwarder(container, targetId)) {
+      await client.removeContainer(container.id, true);
+    }
   }
 }
 

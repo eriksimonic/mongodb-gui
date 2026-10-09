@@ -1,6 +1,6 @@
 // @vitest-environment jsdom
 import { fireEvent, screen, waitFor, within } from '@testing-library/react';
-import { describe, expect, it } from 'vitest';
+import { describe, expect, it, vi } from 'vitest';
 import { createMockUiApi } from '../../api/mock-rpc-client';
 import { renderWithApp } from '../../test-support/render';
 import { ConnectionTree } from './ConnectionTree';
@@ -23,7 +23,8 @@ describe('ConnectionTree Docker node', () => {
     fireEvent.click(await screen.findByRole('treeitem', { name: 'orders-mongo' }));
 
     // The container row is replaced by the connection row, so the element is read again after the wait.
-    await waitFor(() => expect(screen.getByLabelText('Connected')).toBeInTheDocument());
+    // shop-mongo is connected in the mock too, so two connected icons appear after this click.
+    await waitFor(() => expect(screen.getAllByLabelText('Connected')).toHaveLength(2));
     const connection = screen.getByRole('treeitem', { name: 'orders-mongo' });
     expect(connection).toHaveAttribute('aria-level', '2');
 
@@ -37,19 +38,54 @@ describe('ConnectionTree Docker node', () => {
 
   it('connects a container with Enter from the keyboard', async () => {
     renderWithApp(<ConnectionTree />, { mock: { preset: 'unlocked' } });
-    const shop = await screen.findByRole('treeitem', { name: 'shop-mongo' });
-    shop.focus();
-    fireEvent.keyDown(shop, { key: 'Enter' });
+    const orders = await screen.findByRole('treeitem', { name: 'orders-mongo' });
+    orders.focus();
+    fireEvent.keyDown(orders, { key: 'Enter' });
 
-    expect(await screen.findByLabelText('Connected')).toBeInTheDocument();
+    await waitFor(() => expect(screen.getAllByLabelText('Connected')).toHaveLength(2));
   });
 
-  it('shows Docker not available with the reason when the engine is unreachable', async () => {
+  it('keeps the container meta and menu on a connected container', async () => {
+    renderWithApp(<ConnectionTree />, { mock: { preset: 'unlocked' } });
+    const shop = await screen.findByRole('treeitem', { name: 'shop-mongo' });
+
+    expect(shop).toHaveAttribute('aria-level', '2');
+    expect(within(shop).getByLabelText('Published port')).toBeInTheDocument();
+    expect(within(shop).getByLabelText('Running')).toBeInTheDocument();
+  });
+
+  it('copies the redacted URI and opens the container details from a connected container', async () => {
+    const api = createMockUiApi({ preset: 'unlocked' });
+    const writeText = vi.fn<(text: string) => Promise<void>>(async () => undefined);
+    Object.defineProperty(navigator, 'clipboard', { value: { writeText }, configurable: true });
+    renderWithApp(<ConnectionTree />, { api });
+    fireEvent.contextMenu(await screen.findByRole('treeitem', { name: 'shop-mongo' }));
+    fireEvent.click(
+      await screen.findByRole('menuitem', { name: 'Copy URI (redacted)', hidden: true }),
+    );
+
+    const summary = (await api.rpc.connections.list()).find((item) => item.name === 'shop-mongo');
+    await waitFor(() => expect(writeText).toHaveBeenCalledWith(summary?.uriRedacted));
+    expect(summary?.uriRedacted).not.toContain('secret');
+
+    fireEvent.contextMenu(await screen.findByRole('treeitem', { name: 'shop-mongo' }));
+    fireEvent.click(
+      await screen.findByRole('menuitem', { name: 'Open container details', hidden: true }),
+    );
+    expect(await screen.findByText('Container details')).toBeInTheDocument();
+    expect(screen.getByText('MONGO_INITDB_ROOT_PASSWORD')).toBeInTheDocument();
+  });
+
+  it('shows Docker not available with the reason and keeps saved docker connections', async () => {
     renderWithApp(<ConnectionTree />, { mock: { preset: 'unlocked', docker: 'unavailable' } });
 
     expect(await screen.findByText('Docker not available')).toBeInTheDocument();
     expect(screen.getByText('Docker is not reachable. (ENOENT)')).toBeInTheDocument();
-    expect(screen.queryByRole('treeitem', { name: 'shop-mongo' })).not.toBeInTheDocument();
+    expect(screen.queryByRole('treeitem', { name: 'orders-mongo' })).not.toBeInTheDocument();
+    expect(screen.getByRole('treeitem', { name: 'shop-mongo' })).toHaveAttribute(
+      'title',
+      'Docker not reachable',
+    );
   });
 
   it('opens the container menu and lists the environment variable names only', async () => {

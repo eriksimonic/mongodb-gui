@@ -151,6 +151,7 @@ interface FakeConnections extends DockerConnections {
   readonly connected: string[];
   readonly disconnected: string[];
   nextStatus: ConnectionStatus;
+  failure: Error | undefined;
 }
 
 function fakeConnections(): FakeConnections {
@@ -158,8 +159,12 @@ function fakeConnections(): FakeConnections {
     connected: [],
     disconnected: [],
     nextStatus: CONNECTED,
+    failure: undefined,
     async connect(profile: ConnectionProfile) {
       connections.connected.push(profile.uri);
+      if (connections.failure !== undefined) {
+        throw connections.failure;
+      }
       return connections.nextStatus;
     },
     async disconnect(connectionId: string) {
@@ -196,6 +201,7 @@ function buildHarness(
   const connections = fakeConnections();
   const runtime = createDockerRuntime({
     engine: engine.client,
+    socketPath: SOCKET,
     forwarders,
     connections,
     repos: () => repos,
@@ -217,6 +223,7 @@ afterEach(async () => {
   }
 });
 
+const SOCKET = '/var/run/docker.sock';
 const PUBLISHED_ID = 'a'.repeat(64);
 const PLAIN_ID = 'b'.repeat(64);
 
@@ -352,6 +359,38 @@ describe('createDockerRuntime connect', () => {
   });
 });
 
+describe('createDockerRuntime failure after the forwarder starts', () => {
+  it('releases the forwarder when the connection manager throws', async () => {
+    const harness = buildHarness({
+      [PLAIN_ID]: inspectOf({ id: PLAIN_ID, name: 'orders-mongo' }),
+    });
+    harness.connections.failure = new Error('driver crashed');
+
+    await expect(harness.runtime.connect(PLAIN_ID)).rejects.toThrow('driver crashed');
+    expect(harness.forwarders.released).toEqual([PLAIN_ID]);
+  });
+});
+
+describe('createDockerRuntime suspend and resume', () => {
+  it('pushes no events while suspended and resumes when asked', async () => {
+    const harness = buildHarness({}, 20);
+    harness.runtime.watch(true, (event) => {
+      harness.events.push(event);
+    });
+    harness.runtime.suspend();
+    harness.engine.inspects.set(
+      PUBLISHED_ID,
+      inspectOf({ id: PUBLISHED_ID, name: 'late', published: true }),
+    );
+    await new Promise((resolve) => setTimeout(resolve, 60));
+    expect(harness.events).toEqual([]);
+
+    harness.runtime.resume();
+    await vi.waitFor(() => expect(harness.events).toHaveLength(0));
+    harness.runtime.watch(false, () => undefined);
+  });
+});
+
 describe('createDockerRuntime disconnect, status and list', () => {
   it('disconnects the profile and releases its forwarder', async () => {
     const harness = buildHarness({
@@ -371,7 +410,7 @@ describe('createDockerRuntime disconnect, status and list', () => {
 
     expect(await harness.runtime.status()).toEqual({
       available: false,
-      reason: 'Docker is not reachable. (ENOENT)',
+      reason: 'Docker is not reachable at /var/run/docker.sock (ENOENT).',
     });
   });
 
@@ -447,6 +486,7 @@ describe('createDockerRuntime releaseProfile and cleanup', () => {
     const harness = buildHarness({});
     const failing = createDockerRuntime({
       engine: harness.engine.client,
+      socketPath: SOCKET,
       forwarders: {
         ensure: UNUSED,
         release: async () => undefined,
