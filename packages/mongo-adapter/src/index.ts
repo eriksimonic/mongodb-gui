@@ -32,3 +32,13 @@ export {
   type ProfileCollectionInfo,
   type ProfileTail,
 } from './profiler/profiler';
+export {
+  addMember,
+  applyReconfig,
+  planReconfig,
+  removeMember,
+  updateMember,
+  type ApplyOptions,
+} from './replication/reconfig';
+export { freeze, initiate, stepDown } from './replication/operations';
+export { getReplicaSetConfig, getReplicaSetStatus, isReplicaSet } from './replication/status';
