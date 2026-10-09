@@ -79,6 +79,8 @@ jobs:
         run: xvfb-run -a pnpm test:e2e
         env:
           TESTCONTAINERS_HUB_IMAGE_NAME_PREFIX: public.ecr.aws/docker/library/
+          # The ryuk cleanup helper lives only on Docker Hub; the runner discards containers anyway.
+          TESTCONTAINERS_RYUK_DISABLED: 'true'
 
       - name: Upload e2e output
         if: failure()
