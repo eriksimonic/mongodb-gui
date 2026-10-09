@@ -15,6 +15,7 @@ export * from './explain/explain-text';
 export * from './explain/normalise';
 export * from './explain/plan-tree';
 export * from './explain/warnings';
+export * from './gridfs/types';
 export * from './management/types';
 export * from './ids';
 export * from './monitor/derive';
