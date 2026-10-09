@@ -4,6 +4,7 @@ import {
   AppErrorException,
   ConnectionProfileSummarySchema,
   appError,
+  groupByShape,
   redactUri,
   rpcContract,
   toAppError,
@@ -11,9 +12,15 @@ import {
   type CallInput,
   type ConnectionProfile,
   type ConnectionProfileInput,
+  type ProfileCollectionInfo,
+  type ProfileEntry,
+  type ProfileFilter,
+  type ProfilingLevel,
   type RpcCall,
   type RpcEvent,
   type RpcResult,
+  type SetProfilingLevelInput,
+  type TailProfileOptions,
   type UpdateState,
 } from '@mongo-gui/core';
 import {
@@ -34,10 +41,12 @@ import {
   findDocumentById,
   getValidation,
   insertDocument,
+  getProfilingLevel,
   listCollections,
   listDatabases,
   listIndexBuilds,
   listIndexes,
+  listProfileEntries,
   mapDriverError,
   renameCollection,
   replaceDocument,
@@ -45,6 +54,11 @@ import {
   setIndexHidden,
   setValidation,
   updateDocumentFields,
+  profileCollectionInfo,
+  setProfilingLevel,
+  tailProfileEntries,
+  toCanonicalEjson,
+  type ProfileTail,
 } from '@mongo-gui/mongo-adapter';
 import {
   createDockerEngineClient,
@@ -124,6 +138,8 @@ export interface RouterDeps {
   readonly createSampler?: SamplerFactory;
   /** Receives failures as method, code and message. Inputs and raw driver text stay out. */
   readonly log?: Logger;
+  /** The profiler reads and writes. Defaults to the adapter functions; tests pass a fake. */
+  readonly profiler?: ProfilerPort;
   /** Local Docker discovery and forwarders. Calls to the docker namespace fail without it. */
   readonly docker?: DockerRuntime;
   /** The in-app updater. Without it, the updates calls fail with INTERNAL. */
@@ -132,8 +148,46 @@ export interface RouterDeps {
   readonly openExternal?: (url: string) => Promise<void>;
 }
 
+/** The driver client type, named without importing the driver into the main process. */
+export type DriverClient = ReturnType<ConnectionRegistry['getClient']>;
+
+/** The adapter's profiler functions, as the router calls them. */
+export interface ProfilerPort {
+  level(client: DriverClient, database: string): Promise<ProfilingLevel>;
+  setLevel(
+    client: DriverClient,
+    database: string,
+    input: SetProfilingLevelInput,
+  ): Promise<ProfilingLevel>;
+  list(client: DriverClient, database: string, filter: ProfileFilter): Promise<ProfileEntry[]>;
+  info(client: DriverClient, database: string): Promise<ProfileCollectionInfo>;
+  tail(client: DriverClient, database: string, options: TailProfileOptions): ProfileTail;
+}
+
+const adapterProfilerPort: ProfilerPort = {
+  level: getProfilingLevel,
+  setLevel: setProfilingLevel,
+  list: listProfileEntries,
+  info: profileCollectionInfo,
+  tail: tailProfileEntries,
+};
+
+interface ActiveTail {
+  readonly connectionId: string;
+  readonly database: string;
+  readonly tail: ProfileTail;
+}
+
 export interface Router {
   handle(method: string, input: unknown): Promise<RpcResult>;
+  /**
+   * Drops every subscription held for the renderer: profiler tails now, and whatever services
+   * register with onRendererReset later. Called when the page reloads, its process dies or the
+   * window closes while the app stays alive.
+   */
+  resetRenderer(): void;
+  /** Registers a cleanup that runs on resetRenderer. Returns the unregister function. */
+  onRendererReset(listener: () => void): () => void;
 }
 
 /** What the updater needs from Electron. Omitted in tests, where the updater stays inert. */
@@ -182,6 +236,58 @@ const STORE_FILE_NAME = 'store.sqlite';
 export function createRouter(deps: RouterDeps): Router {
   let active: StoreHandles = { store: deps.store, repos: deps.repos };
   const repos = (): RouterRepos => active.repos;
+  const profiler = deps.profiler ?? adapterProfilerPort;
+  // At most one tail per connection and database, keyed by both.
+  const tails = new Map<string, ActiveTail>();
+  // Per-renderer cleanups. Tails register first; other services join the same registry.
+  const rendererResets = new Set<() => void>();
+  const profilerClient = (connectionId: string): DriverClient =>
+    deps.connections.getClient(connectionId);
+
+  /** Stops and forgets every tail that matches. */
+  const stopTails = (matches: (active: ActiveTail) => boolean): void => {
+    for (const [key, candidate] of [...tails]) {
+      if (matches(candidate)) {
+        candidate.tail.stop();
+        tails.delete(key);
+      }
+    }
+  };
+
+  rendererResets.add(() => {
+    stopTails(() => true);
+  });
+
+  const startTail = (
+    connectionId: string,
+    database: string,
+    pollMs: number,
+    filter: ProfileFilter | undefined,
+  ): void => {
+    const client = profilerClient(connectionId);
+    const options: TailProfileOptions = {
+      since: new Date().toISOString(),
+      pollMs,
+      ...(filter === undefined ? {} : { filter }),
+    };
+    const tail = profiler.tail(client, database, options);
+    tail.onEntries((entries) => {
+      deps.onEvent({
+        type: 'profiler:entries',
+        connectionId,
+        database,
+        entries: entries.map(canonicalEntry),
+      });
+    });
+    tail.onError((error) => {
+      deps.onEvent({ type: 'profiler:error', connectionId, database, error });
+    });
+    tails.set(tailKey(connectionId, database), { connectionId, database, tail });
+  };
+
+  const stopTail = (connectionId: string, database: string): void => {
+    stopTails((active) => active.connectionId === connectionId && active.database === database);
+  };
 
   const updatesService = (): UpdatesService => {
     if (deps.updates === undefined) {
@@ -529,6 +635,44 @@ export function createRouter(deps: RouterDeps): Router {
       repos().favourites.remove(input.id);
     }),
 
+    entry('profiler.level', rpcContract.profiler.level, (input) =>
+      driverCall(() => profiler.level(profilerClient(input.connectionId), input.database)),
+    ),
+    entry('profiler.setLevel', rpcContract.profiler.setLevel, (input) =>
+      driverCall(() =>
+        profiler.setLevel(profilerClient(input.connectionId), input.database, {
+          level: input.level,
+          ...(input.slowMs === undefined ? {} : { slowMs: input.slowMs }),
+          ...(input.sampleRate === undefined ? {} : { sampleRate: input.sampleRate }),
+        }),
+      ),
+    ),
+    entry('profiler.list', rpcContract.profiler.list, (input) =>
+      driverCall(async () =>
+        (await profiler.list(profilerClient(input.connectionId), input.database, input.filter)).map(
+          canonicalEntry,
+        ),
+      ),
+    ),
+    entry('profiler.shapes', rpcContract.profiler.shapes, (input) =>
+      driverCall(async () => {
+        const entries = await profiler.list(
+          profilerClient(input.connectionId),
+          input.database,
+          input.filter,
+        );
+        return groupByShape(entries.map(canonicalEntry));
+      }),
+    ),
+    entry('profiler.info', rpcContract.profiler.info, (input) =>
+      driverCall(() => profiler.info(profilerClient(input.connectionId), input.database)),
+    ),
+    entry('profiler.tail', rpcContract.profiler.tail, (input) => {
+      stopTail(input.connectionId, input.database);
+      if (input.enabled) {
+        startTail(input.connectionId, input.database, input.pollMs, input.filter);
+      }
+    }),
     entry('docker.status', rpcContract.docker.status, () => docker().status()),
     entry('docker.list', rpcContract.docker.list, () => docker().list()),
     entry('docker.connect', rpcContract.docker.connect, (input) =>
@@ -567,7 +711,15 @@ export function createRouter(deps: RouterDeps): Router {
     emit: deps.onEvent,
   });
 
+  // A reload or a closed window must not leave samplers running for a page that is gone.
+  rendererResets.add(() => {
+    monitor.stopAll();
+  });
+
   deps.connections.onStatusChange((connectionId, status) => {
+    if (status.state !== 'connected') {
+      stopTails((active) => active.connectionId === connectionId);
+    }
     deps.onEvent({ type: 'connection:status', connectionId, status });
     // A docker connection that errors (for example, the socket closed) gives its forwarder back.
     // A disconnect is not handled here, because a superseded attempt also reports disconnected
@@ -581,6 +733,7 @@ export function createRouter(deps: RouterDeps): Router {
     }
   });
   deps.lockEvents?.subscribe(() => {
+    stopTails(() => true);
     monitor.stopAll();
     void deps.connections.disconnectAll();
     deps.docker?.suspend();
@@ -593,6 +746,23 @@ export function createRouter(deps: RouterDeps): Router {
   });
 
   return {
+    resetRenderer() {
+      for (const listener of [...rendererResets]) {
+        try {
+          listener();
+        } catch (error) {
+          deps.log?.error('renderer reset failed', {
+            error: toAppError(error).message,
+          });
+        }
+      }
+    },
+    onRendererReset(listener) {
+      rendererResets.add(listener);
+      return () => {
+        rendererResets.delete(listener);
+      };
+    },
     async handle(method, input) {
       const op = operations.get(method);
       if (op === undefined) {
@@ -780,6 +950,24 @@ export function createRepos(store: EncryptedStore): RouterRepos {
     favourites: new FavouritesRepository(store),
     settings,
     layout: new LayoutRepository(store),
+  };
+}
+
+function tailKey(connectionId: string, database: string): string {
+  return `${connectionId}\u0000${database}`;
+}
+
+/**
+ * Profile entries carry BSON values in command, locks, storage and raw. They are sent in
+ * canonical extended JSON, so the renderer gets plain data with $oid and $date markers.
+ */
+function canonicalEntry(entry: ProfileEntry): ProfileEntry {
+  return {
+    ...entry,
+    raw: toCanonicalEjson(entry.raw),
+    ...(entry.command === undefined ? {} : { command: toCanonicalEjson(entry.command) }),
+    ...(entry.locks === undefined ? {} : { locks: toCanonicalEjson(entry.locks) }),
+    ...(entry.storage === undefined ? {} : { storage: toCanonicalEjson(entry.storage) }),
   };
 }
 

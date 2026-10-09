@@ -109,6 +109,7 @@ describe('buildTreeRows', () => {
       '1:Monitoring',
       '1:Operations',
       '1:shop',
+      '2:Profiler',
       '2:orders',
       '1:logs',
       '0:Staging',

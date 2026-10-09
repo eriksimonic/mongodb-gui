@@ -11,7 +11,11 @@ if (container === null) {
 // ?preset=unlocked starts unlocked with fixtures. Any other value starts on the first-run screen.
 const preset =
   new URLSearchParams(window.location.search).get('preset') === 'unlocked' ? 'unlocked' : 'fresh';
-const api = createMockUiApi({ preset, latencyMs: 120 });
+// ?profilerRows=5000 replaces the shop profiler fixtures with generated rows, for performance checks.
+const profilerRowsParam = Number(new URLSearchParams(window.location.search).get('profilerRows'));
+const profilerRows =
+  Number.isInteger(profilerRowsParam) && profilerRowsParam > 0 ? profilerRowsParam : undefined;
+const api = createMockUiApi({ preset, latencyMs: 120, profilerRows });
 
 createRoot(container).render(
   <StrictMode>

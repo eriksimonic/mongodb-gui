@@ -2,12 +2,16 @@ import { toAppError } from '@mongo-gui/core';
 import { notifications } from '@mantine/notifications';
 
 /**
- * The text to show for a thrown error. The server's reason (`detail`) is what tells the user what
- * to change, for example a validator rejection, so it is shown when present. Otherwise the message.
+ * The text to show for a thrown error. The server's reason (`detail`) says what to change, for
+ * example a validator rejection, so it follows the message. A detail that already starts with the
+ * message is shown alone, so the message is not repeated.
  */
 export function errorText(error: unknown): string {
-  const appError = toAppError(error);
-  return appError.detail ?? appError.message;
+  const { message, detail } = toAppError(error);
+  if (detail === undefined || detail === '') {
+    return message;
+  }
+  return detail.startsWith(message) ? detail : `${message}: ${detail}`;
 }
 
 /** Shows a red notification with the text of a thrown error. */

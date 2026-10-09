@@ -59,6 +59,32 @@ describe('DropDatabaseDialog', () => {
   });
 });
 
+describe('DropDatabaseDialog reporting', () => {
+  it('reports the drop once the server has dropped the database', async () => {
+    const api = await connectedMockApi();
+    const onDropped = vi.fn();
+    const onClose = vi.fn();
+    renderWithApp(
+      <DropDatabaseDialog
+        connectionId={localConnectionId}
+        database="logs"
+        onClose={onClose}
+        onDropped={onDropped}
+      />,
+      { api },
+    );
+    fireEvent.change(screen.getByLabelText('Type logs to confirm'), { target: { value: 'logs' } });
+    fireEvent.click(screen.getByRole('button', { name: 'Drop database' }));
+
+    await waitFor(() => expect(onDropped).toHaveBeenCalledTimes(1));
+    expect(onClose).toHaveBeenCalledTimes(1);
+    const names = (await api.rpc.databases.list({ connectionId: localConnectionId })).map(
+      (item) => item.name,
+    );
+    expect(names).not.toContain('logs');
+  });
+});
+
 describe('ClearCollectionDialog', () => {
   it('shows the current document count from the stats before it allows the clear', async () => {
     const api = await connectedMockApi();

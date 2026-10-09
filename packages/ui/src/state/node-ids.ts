@@ -30,3 +30,13 @@ export function operationsNodeId(connectionId: string): string {
 export function databaseNodeId(connectionId: string, database: string): string {
   return `db:${catalogKey(connectionId, database)}`;
 }
+
+/** Tree key of the profiler node under a database. */
+export function profilerNodeId(connectionId: string, database: string): string {
+  return `prof:${catalogKey(connectionId, database)}`;
+}
+
+/** Dockview panel id of a database's profiler. One panel per database. */
+export function profilerPanelId(connectionId: string, database: string): string {
+  return `profiler:${catalogKey(connectionId, database)}`;
+}

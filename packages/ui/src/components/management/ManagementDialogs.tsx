@@ -4,8 +4,13 @@ import { CreateCollectionDialog } from './CreateCollectionDialog';
 import { CreateDatabaseDialog } from './CreateDatabaseDialog';
 import { RenameCollectionDialog } from './RenameCollectionDialog';
 
+export interface ManagementDialogsProps {
+  /** Called once a database is dropped, so the shell can close the panels that show it. */
+  readonly onDatabaseDropped?: ((connectionId: string, database: string) => void) | undefined;
+}
+
 /** Shows the management dialog the store names, if one is open. The tree opens them. */
-export function ManagementDialogs() {
+export function ManagementDialogs({ onDatabaseDropped }: ManagementDialogsProps) {
   const dialog = useAppStore((state) => state.managementDialog);
   const setManagementDialog = useAppStore((state) => state.setManagementDialog);
   if (dialog === undefined) {
@@ -56,6 +61,7 @@ export function ManagementDialogs() {
           connectionId={dialog.connectionId}
           database={dialog.database}
           onClose={onClose}
+          onDropped={() => onDatabaseDropped?.(dialog.connectionId, dialog.database)}
         />
       );
   }

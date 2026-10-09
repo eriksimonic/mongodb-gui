@@ -51,7 +51,9 @@ describe('CreateDatabaseDialog', () => {
       screen.getByLabelText('Initial collection name').closest('form') as HTMLFormElement,
     );
 
-    expect(await screen.findByText('Namespace not allowed')).toBeInTheDocument();
+    expect(
+      await screen.findByText('The server rejected the command: Namespace not allowed'),
+    ).toBeInTheDocument();
     expect(screen.queryByText('The server rejected the command')).not.toBeInTheDocument();
   });
 });

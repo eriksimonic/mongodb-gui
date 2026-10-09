@@ -1,6 +1,11 @@
 // The editor core and only the parts the JSON editors use. The full `monaco-editor` entry bundles
 // every language and contribution, which made the renderer several megabytes larger.
 import * as monaco from 'monaco-editor/editor/editor.api';
+// The JSON worker manager imports this module lazily, on the first JSON diagnostics. Its import
+// registers the singleton services that the editor's contributions need. Loaded after the first
+// editor exists, those services are missing and every later editor throws. Loading it here, before
+// any editor is created, keeps every editor on the same service set.
+import 'monaco-editor/internal/common/workers';
 import 'monaco-editor/language/json/monaco.contribution';
 import 'monaco-editor/editor/contrib/find/browser/findController';
 import 'monaco-editor/editor/contrib/folding/browser/folding';

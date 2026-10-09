@@ -67,7 +67,7 @@ describe('CreateCollectionDialog', () => {
     fireEvent.change(screen.getByLabelText('Collection name'), { target: { value: 'orders' } });
     fireEvent.click(screen.getByRole('button', { name: 'Create collection' }));
 
-    expect(await screen.findByText('shop.orders')).toBeInTheDocument();
+    expect(await screen.findByText('Collection already exists: shop.orders')).toBeInTheDocument();
     expect(onClose).not.toHaveBeenCalled();
   });
 });

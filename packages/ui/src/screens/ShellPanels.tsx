@@ -9,6 +9,7 @@ import { ConnectionTree } from '../components/connections/ConnectionTree';
 import { DocumentsPanel } from '../components/management/DocumentsPanel';
 import { IndexesPanel } from '../components/management/IndexesPanel';
 import { ValidationPanel } from '../components/management/ValidationPanel';
+import { ProfilerPanel } from '../profiler/ProfilerPanel';
 import { MonitorDashboard } from '../monitor/MonitorDashboard';
 import { OperationsPanel } from '../monitor/OperationsPanel';
 
@@ -17,6 +18,17 @@ export interface CollectionPanelParams {
   readonly connectionId: string;
   readonly database: string;
   readonly collection: string;
+}
+
+/** Params of a profiler panel. The shell sets them when it opens the panel. */
+export interface ProfilerPanelParams {
+  readonly connectionId: string;
+  readonly database: string;
+}
+
+/** A profiler panel of one database. Closing the tab drops its state and stops its tail. */
+export function ProfilerDockPanel({ params }: IDockviewPanelProps<ProfilerPanelParams>) {
+  return <ProfilerPanel connectionId={params.connectionId} database={params.database} />;
 }
 
 /** Tab for the three fixed panels. Same as dockview's default tab without the close button. */

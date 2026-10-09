@@ -11,7 +11,8 @@ import { FAST_KDF, TEST_PASSWORD, openTestStore, type TestStore } from './fixtur
 const cleanups: Array<() => void> = [];
 
 afterEach(() => {
-  for (const cleanup of cleanups.splice(0)) {
+  // Reverse order: a store opened later must close before the directory it lives in is removed.
+  for (const cleanup of cleanups.splice(0).reverse()) {
     cleanup();
   }
 });

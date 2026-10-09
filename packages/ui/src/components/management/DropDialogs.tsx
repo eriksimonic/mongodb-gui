@@ -35,10 +35,17 @@ export interface DropDatabaseDialogProps {
   readonly connectionId: string;
   readonly database: string;
   readonly onClose: () => void;
+  /** Runs after the server has dropped the database. */
+  readonly onDropped?: (() => void) | undefined;
 }
 
 /** Drops a database and everything in it, after the user types its name. */
-export function DropDatabaseDialog({ connectionId, database, onClose }: DropDatabaseDialogProps) {
+export function DropDatabaseDialog({
+  connectionId,
+  database,
+  onClose,
+  onDropped,
+}: DropDatabaseDialogProps) {
   const { rpc } = useUiApi();
   return (
     <DestructiveDialog
@@ -46,7 +53,10 @@ export function DropDatabaseDialog({ connectionId, database, onClose }: DropData
       description={`Drop the database ${database}? Every collection and index in it is deleted. This cannot be undone.`}
       confirmLabel="Drop database"
       typedConfirmation={database}
-      onConfirm={() => rpc.management.dropDatabase({ connectionId, database })}
+      onConfirm={async () => {
+        await rpc.management.dropDatabase({ connectionId, database });
+        onDropped?.();
+      }}
       onClose={onClose}
     />
   );

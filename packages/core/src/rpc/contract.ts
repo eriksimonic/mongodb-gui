@@ -55,6 +55,17 @@ import {
   ValidationRulesSchema,
 } from '../management/types';
 import {
+  DEFAULT_TAIL_POLL_MS,
+  MAX_TAIL_POLL_MS,
+  MIN_TAIL_POLL_MS,
+  ProfileCollectionInfoSchema,
+  ProfileEntrySchema,
+  ProfileFilterSchema,
+  ProfilingLevelSchema,
+  QueryShapeSchema,
+  SetProfilingLevelInputSchema,
+} from '../profiler/types';
+import {
   DockerContainerIdSchema,
   DockerMongoContainerSummarySchema,
   DockerStatusSchema,
@@ -219,6 +230,35 @@ export const rpcContract = {
     list: defineCall(z.void(), z.array(FavouriteSchema)),
     save: defineCall(FavouriteInputSchema, FavouriteSchema),
     remove: defineCall(idParam, z.void()),
+  },
+  profiler: {
+    level: defineCall(databaseParam, ProfilingLevelSchema),
+    setLevel: defineCall(
+      databaseParam.extend(SetProfilingLevelInputSchema.omit({ filter: true }).shape),
+      ProfilingLevelSchema,
+    ),
+    list: defineCall(
+      databaseParam.extend({ filter: ProfileFilterSchema }),
+      z.array(ProfileEntrySchema),
+    ),
+    shapes: defineCall(
+      databaseParam.extend({ filter: ProfileFilterSchema }),
+      z.array(QueryShapeSchema),
+    ),
+    info: defineCall(databaseParam, ProfileCollectionInfoSchema),
+    tail: defineCall(
+      databaseParam.extend({
+        enabled: z.boolean(),
+        pollMs: z
+          .number()
+          .int()
+          .min(MIN_TAIL_POLL_MS)
+          .max(MAX_TAIL_POLL_MS)
+          .default(DEFAULT_TAIL_POLL_MS),
+        filter: ProfileFilterSchema.optional(),
+      }),
+      z.void(),
+    ),
   },
   docker: {
     status: defineCall(z.void(), DockerStatusSchema),

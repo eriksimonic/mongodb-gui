@@ -26,12 +26,18 @@ release.
 | -------------------------------------------------------------------------------- | --------------------------------------------------------------------------------- | ---------------------------------------------------------------------------- |
 | ![Indexes panel with the create index dialog open](docs/screenshots/indexes.png) | ![Validation panel with a JSON schema validator](docs/screenshots/validation.png) | ![Documents panel with one sampled document](docs/screenshots/documents.png) |
 
+| Profiler                                                                               | Top query shapes                                                        |
+| -------------------------------------------------------------------------------------- | ----------------------------------------------------------------------- |
+| ![Profiler panel with slow queries and the detail pane](docs/screenshots/profiler.png) | ![Profiler top query shapes view](docs/screenshots/profiler-shapes.png) |
+
 | Docker node in the connection tree                                                    |
 | ------------------------------------------------------------------------------------- |
 | ![Docker node listing local MongoDB containers](docs/screenshots/docker-tree.png)     |
 | Monitor dashboard                                                                     | Running operations                                                                         |
 | ------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------ |
 | ![Live monitoring dashboard with stat tiles and charts](docs/screenshots/monitor.png) | ![Running operations with filters and a long aggregation](docs/screenshots/operations.png) |
+
+>
 
 ## Prerequisites
 

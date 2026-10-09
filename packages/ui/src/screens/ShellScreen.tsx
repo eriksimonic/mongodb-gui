@@ -3,7 +3,7 @@ import 'dockview/dist/styles/dockview.css';
 import '../theme/dockview-theme.css';
 import { Box, Button, Flex, Group, Text } from '@mantine/core';
 import { IconDatabase, IconLock, IconPlus, IconServer, IconSettings } from '@tabler/icons-react';
-import { useCallback, useEffect, useRef, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import {
   DockviewReact,
   themeDark,
@@ -17,10 +17,12 @@ import { ManagementDialogs } from '../components/management/ManagementDialogs';
 import { runReported } from '../components/notify-error';
 import { SettingsModal } from '../components/settings/SettingsModal';
 import { UpdateBanner } from '../components/updates/UpdateBanner';
+import { ProfilerOpenerContext, type ProfilerOpener } from '../profiler/profiler-opener';
 import type { PanelRequest } from '../state/app-store';
 import { useAppStore } from '../state/app-store-context';
-import { catalogKey } from '../state/node-ids';
 import { PanelOpenerContext, type OpenPanel } from '../state/panel-opener';
+import { profilerPanelId } from '../state/node-ids';
+import { databasePanelIds, stalePanelIds } from './collection-panels';
 import {
   ConnectionsPanel,
   DocumentsDockPanel,
@@ -29,6 +31,7 @@ import {
   MonitorPanel,
   OperationsPanelView,
   OutputPanel,
+  ProfilerDockPanel,
   ValidationDockPanel,
   WelcomePanel,
 } from './ShellPanels';
@@ -37,6 +40,7 @@ const PANEL_COMPONENTS = {
   connections: ConnectionsPanel,
   welcome: WelcomePanel,
   output: OutputPanel,
+  profiler: ProfilerDockPanel,
   monitor: MonitorPanel,
   operations: OperationsPanelView,
   indexes: IndexesDockPanel,
@@ -93,6 +97,26 @@ function handleDockReady({ api }: DockviewReadyEvent) {
 }
 
 /**
+ * Adds the profiler panel of a database next to the welcome panel, or focuses it when it is open.
+ * One panel per database, titled "<database> profiler".
+ */
+function openProfilerPanel(api: DockviewApi, connectionId: string, database: string): void {
+  const id = profilerPanelId(connectionId, database);
+  const existing = api.getPanel(id);
+  if (existing !== undefined) {
+    existing.api.setActive();
+    return;
+  }
+  api.addPanel({
+    id,
+    component: 'profiler',
+    title: `${database} profiler`,
+    params: { connectionId, database },
+    position: { referencePanel: 'welcome', direction: 'within' },
+  });
+}
+
+/**
  * Opens a connection's monitor or operations panel in the centre group. A panel that is already
  * open is brought to the front, so each connection has at most one of each.
  */
@@ -120,7 +144,10 @@ function panelId(request: PanelRequest): string {
   return `${request.panel}:${request.connectionId}:${request.database}.${request.collection}`;
 }
 
-/** Focuses the panel for the request, or adds it. One panel exists per collection and kind. */
+/**
+ * Focuses the panel for the request, or adds it. One panel exists per collection and kind. The
+ * shell remembers the request, so a rename or a drop can close the panel later.
+ */
 function openCollectionPanel(
   api: DockviewApi,
   request: PanelRequest,
@@ -146,6 +173,27 @@ function openCollectionPanel(
     },
     position: { referencePanel: 'welcome' },
   });
+}
+
+function removePanelById(api: DockviewApi, id: string): void {
+  const panel = api.getPanel(id);
+  if (panel !== undefined) {
+    api.removePanel(panel);
+  }
+}
+
+/** Closes every collection and profiler panel of one database. Runs when the database is dropped. */
+function closeDatabasePanels(
+  api: DockviewApi,
+  open: Map<string, PanelRequest>,
+  connectionId: string,
+  database: string,
+): void {
+  for (const id of databasePanelIds(open, connectionId, database)) {
+    removePanelById(api, id);
+    open.delete(id);
+  }
+  removePanelById(api, profilerPanelId(connectionId, database));
 }
 
 /**
@@ -182,17 +230,27 @@ export function ShellScreen() {
   const setSettingsOpen = useAppStore((state) => state.setSettingsOpen);
   const panelRequest = useAppStore((state) => state.panelRequest);
   const clearPanelRequest = useAppStore((state) => state.clearPanelRequest);
+  const databases = useAppStore((state) => state.databases);
+  const collections = useAppStore((state) => state.collections);
   const dockApi = useRef<DockviewApi | undefined>(undefined);
   const [dock, setDock] = useState<DockviewApi | undefined>(undefined);
-  const collections = useAppStore((state) => state.collections);
-  // The collection panels this shell opened, by panel id. A rename or drop closes the ones whose
-  // collection is gone.
+  // The collection panels this shell opened, by panel id.
   const collectionPanels = useRef(new Map<string, PanelRequest>());
   const openPanel = useCallback<OpenPanel>((request) => {
     if (dockApi.current !== undefined) {
       openConnectionPanel(dockApi.current, request);
     }
   }, []);
+  const profilerOpener = useMemo<ProfilerOpener>(
+    () => ({
+      open(connectionId, database) {
+        if (dockApi.current !== undefined) {
+          openProfilerPanel(dockApi.current, connectionId, database);
+        }
+      },
+    }),
+    [],
+  );
 
   // A request can arrive before the dock is ready, so the effect also runs when the dock appears.
   useEffect(() => {
@@ -203,105 +261,109 @@ export function ShellScreen() {
     clearPanelRequest();
   }, [dock, panelRequest, clearPanelRequest]);
 
-  // Closes a collection panel once its database lists loaded without the collection.
+  // Closes a collection panel once its database or collection is gone from a loaded list. A
+  // database that was never expanded still counts, because the database list is loaded first.
   useEffect(() => {
     if (dock === undefined) {
       return;
     }
-    for (const [id, request] of collectionPanels.current) {
-      const loaded = collections[catalogKey(request.connectionId, request.database)];
-      if (
-        loaded?.state !== 'ready' ||
-        loaded.data.some((item) => item.name === request.collection)
-      ) {
-        continue;
-      }
-      const panel = dock.getPanel(id);
-      if (panel !== undefined) {
-        dock.removePanel(panel);
-      }
+    for (const id of stalePanelIds(collectionPanels.current, databases, collections)) {
+      removePanelById(dock, id);
       collectionPanels.current.delete(id);
     }
-  }, [dock, collections]);
+  }, [dock, databases, collections]);
 
   return (
     <PanelOpenerContext.Provider value={openPanel}>
-      <Flex direction="column" h="100vh" style={{ overflow: 'hidden' }}>
-        <Group
-          h={40}
-          px={8}
-          justify="space-between"
-          wrap="nowrap"
-          gap={8}
-          style={{ borderBottom: '1px solid var(--mantine-color-dark-4)', flex: '0 0 auto' }}
-        >
-          <Group gap={8} wrap="nowrap">
-            <IconDatabase size={18} color="var(--mantine-color-blue-5)" aria-hidden="true" />
-            <Text fw={600} size="sm">
-              Mongo GUI
-            </Text>
-            <Button
-              variant="light"
-              leftSection={<IconPlus size={14} />}
-              onClick={() => setDialog({ kind: 'create' })}
-            >
-              New connection
-            </Button>
-            <Button
-              variant="default"
-              leftSection={<IconServer size={14} />}
-              onClick={() => setManagerOpen(true)}
-            >
-              Connections
-            </Button>
-            <UpdateBanner />
+      <ProfilerOpenerContext.Provider value={profilerOpener}>
+        <Flex direction="column" h="100vh" style={{ overflow: 'hidden' }}>
+          <Group
+            h={40}
+            px={8}
+            justify="space-between"
+            wrap="nowrap"
+            gap={8}
+            style={{ borderBottom: '1px solid var(--mantine-color-dark-4)', flex: '0 0 auto' }}
+          >
+            <Group gap={8} wrap="nowrap">
+              <IconDatabase size={18} color="var(--mantine-color-blue-5)" aria-hidden="true" />
+              <Text fw={600} size="sm">
+                Mongo GUI
+              </Text>
+              <Button
+                variant="light"
+                leftSection={<IconPlus size={14} />}
+                onClick={() => setDialog({ kind: 'create' })}
+              >
+                New connection
+              </Button>
+              <Button
+                variant="default"
+                leftSection={<IconServer size={14} />}
+                onClick={() => setManagerOpen(true)}
+              >
+                Connections
+              </Button>
+              <UpdateBanner />
+            </Group>
+            <Group gap={8} wrap="nowrap">
+              <Button
+                variant="default"
+                leftSection={<IconSettings size={14} />}
+                onClick={() => setSettingsOpen(true)}
+              >
+                Settings
+              </Button>
+              <Button
+                variant="default"
+                leftSection={<IconLock size={14} />}
+                onClick={() => void runReported(() => lock())}
+              >
+                Lock
+              </Button>
+            </Group>
           </Group>
-          <Group gap={8} wrap="nowrap">
-            <Button
-              variant="default"
-              leftSection={<IconSettings size={14} />}
-              onClick={() => setSettingsOpen(true)}
-            >
-              Settings
-            </Button>
-            <Button
-              variant="default"
-              leftSection={<IconLock size={14} />}
-              onClick={() => void runReported(() => lock())}
-            >
-              Lock
-            </Button>
-          </Group>
-        </Group>
-        <Box style={{ flex: 1, minHeight: 0 }}>
-          <div style={{ height: '100%' }}>
-            <DockviewReact
-              theme={MONGO_THEME}
-              components={PANEL_COMPONENTS}
-              tabComponents={TAB_COMPONENTS}
-              onReady={(event) => {
-                dockApi.current = event.api;
-                setDock(event.api);
-                handleDockReady(event);
-                event.api.onDidRemovePanel((panel) => {
-                  collectionPanels.current.delete(panel.id);
-                  stopSamplerWhenUnused(event.api, panel.id, stopMonitor);
-                });
-              }}
+          <Box style={{ flex: 1, minHeight: 0 }}>
+            <div style={{ height: '100%' }}>
+              <DockviewReact
+                theme={MONGO_THEME}
+                components={PANEL_COMPONENTS}
+                tabComponents={TAB_COMPONENTS}
+                onReady={(event) => {
+                  dockApi.current = event.api;
+                  setDock(event.api);
+                  handleDockReady(event);
+                  event.api.onDidRemovePanel((panel) => {
+                    collectionPanels.current.delete(panel.id);
+                    stopSamplerWhenUnused(event.api, panel.id, stopMonitor);
+                  });
+                }}
+              />
+            </div>
+          </Box>
+          {dialog.kind === 'closed' ? null : (
+            <ConnectionDialog
+              key={dialog.kind === 'edit' ? dialog.connectionId : 'create'}
+              connectionId={dialog.kind === 'edit' ? dialog.connectionId : undefined}
+              onClose={() => setDialog({ kind: 'closed' })}
             />
-          </div>
-        </Box>
-        {dialog.kind === 'closed' ? null : (
-          <ConnectionDialog
-            key={dialog.kind === 'edit' ? dialog.connectionId : 'create'}
-            connectionId={dialog.kind === 'edit' ? dialog.connectionId : undefined}
-            onClose={() => setDialog({ kind: 'closed' })}
+          )}
+          <ManagementDialogs
+            onDatabaseDropped={(connectionId, database) => {
+              if (dockApi.current !== undefined) {
+                closeDatabasePanels(
+                  dockApi.current,
+                  collectionPanels.current,
+                  connectionId,
+                  database,
+                );
+              }
+            }}
           />
-        )}
-        <ManagementDialogs />
-        <ConnectionManager />
-        <SettingsModal />
-      </Flex>
+          <ConnectionManager />
+          <SettingsModal />
+        </Flex>
+      </ProfilerOpenerContext.Provider>
     </PanelOpenerContext.Provider>
   );
 }

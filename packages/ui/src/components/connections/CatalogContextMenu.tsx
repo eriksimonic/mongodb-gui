@@ -1,3 +1,4 @@
+import { useProfilerOpener } from '../../profiler/profiler-opener';
 import { useAppStore } from '../../state/app-store-context';
 import { TreeMenu, type TreeMenuEntry } from './TreeMenu';
 
@@ -20,11 +21,17 @@ export function DatabaseContextMenu({
 }: DatabaseContextMenuProps) {
   const setManagementDialog = useAppStore((state) => state.setManagementDialog);
   const refreshDatabase = useAppStore((state) => state.refreshDatabase);
+  const profilerOpener = useProfilerOpener();
   const entries: TreeMenuEntry[] = [
     {
       kind: 'item',
       label: 'New collection',
       onSelect: () => setManagementDialog({ kind: 'createCollection', connectionId, database }),
+    },
+    {
+      kind: 'item',
+      label: 'Open profiler',
+      onSelect: () => profilerOpener?.open(connectionId, database),
     },
     {
       kind: 'item',
