@@ -7,8 +7,12 @@ export const DEFAULT_SCHEMA_SAMPLE_SIZE = 1000;
 export const SCHEMA_EXAMPLE_LIMIT = 5;
 /** Longest example text kept. Longer text is cut, and the cut text ends with an ellipsis. */
 export const SCHEMA_EXAMPLE_MAX_CHARS = 80;
-/** Most distinct values tracked per field. Above this, the distinct ratio is a lower bound. */
-export const SCHEMA_DISTINCT_CAP = 1000;
+/**
+ * Most distinct value hashes tracked per field. A sample never holds more documents than
+ * this, so the cap only binds when array elements push a field past the sample size. Above
+ * it, the distinct ratio is a lower bound.
+ */
+export const SCHEMA_DISTINCT_CAP = MAX_SCHEMA_SAMPLE_SIZE;
 
 export const SchemaSampleStrategySchema = z.enum(['random', 'first', 'last']);
 export type SchemaSampleStrategy = z.infer<typeof SchemaSampleStrategySchema>;
@@ -50,7 +54,10 @@ export const SchemaFieldSchema = z.object({
   stringLengths: z.object({ min: CountSchema, max: CountSchema }).optional(),
   /** Distinct scalar values over scalar values seen. A lower bound once the distinct cap is hit. */
   uniqueRatio: z.number().min(0).max(1).optional(),
-  /** True when the name looks like an identifier and nearly every value is distinct. */
+  /**
+   * True when every scalar value is an ObjectId or a 24-character hex string and no value
+   * repeats. A cap on tracked values can hide a repeat but never sets this flag off.
+   */
   isIdLike: z.boolean().optional(),
 });
 

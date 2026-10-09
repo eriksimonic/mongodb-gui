@@ -8,6 +8,7 @@ import {
   DEFAULT_SORT,
   depthByPath,
   examplesText,
+  formatPercent,
   formatRatio,
   missingFieldQuery,
   parentPath,
@@ -251,6 +252,14 @@ describe('type colours', () => {
   });
 });
 
+describe('formatPercent', () => {
+  it('shows a share above zero that rounds to zero as under one percent', () => {
+    expect(formatPercent(0.004)).toBe('<1%');
+    expect(formatPercent(0)).toBe('0%');
+    expect(formatPercent(0.37)).toBe('37%');
+  });
+});
+
 describe('formatRatio', () => {
   it('shows whole percents from 10% up and one decimal below', () => {
     expect(formatRatio(0.003)).toBe('0.3%');
@@ -291,5 +300,12 @@ describe('query and label helpers', () => {
 
   it('joins examples for a tooltip', () => {
     expect(examplesText(field('x', { examples: ['"a"', '"b"'] }))).toBe('"a", "b"');
+  });
+
+  it('shows examples in mongosh notation instead of EJSON wrappers', () => {
+    const text = examplesText(
+      field('x', { examples: ['{"$numberInt":"1856"}', '{"$oid":"64b7f0c2a1b2c3d4e5f60718"}'] }),
+    );
+    expect(text).toBe('1856, ObjectId("64b7f0c2a1b2c3d4e5f60718")');
   });
 });

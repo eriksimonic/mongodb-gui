@@ -84,6 +84,19 @@ import {
 } from '../docker/types';
 import { UpdateStateSchema } from '../updates/types';
 import { SchemaAnalyseInputSchema, SchemaReportSchema } from '../schema/types';
+import {
+  DialogResultSchema,
+  OpenDialogInputSchema,
+  PreviewImportInputSchema,
+  SaveDialogInputSchema,
+  ShowItemInFolderInputSchema,
+  StartExportInputSchema,
+  StartImportInputSchema,
+  StartTransferOutputSchema,
+  TransferIdInputSchema,
+  TransferListOutputSchema,
+} from '../transfer/calls';
+import { ImportPreviewSchema, TransferProgressSchema } from '../transfer/types';
 import { defineCall, type RpcContract } from './define';
 
 const idParam = z.object({ id: z.uuid() });
@@ -298,6 +311,14 @@ export const rpcContract = {
     /** Starts or stops the 10 second poll that pushes `docker:containers` events. */
     watch: defineCall(z.object({ enabled: z.boolean() }), z.void()),
   },
+  transfer: {
+    previewImport: defineCall(PreviewImportInputSchema, ImportPreviewSchema),
+    startImport: defineCall(StartImportInputSchema, StartTransferOutputSchema),
+    startExport: defineCall(StartExportInputSchema, StartTransferOutputSchema),
+    cancel: defineCall(TransferIdInputSchema, z.void()),
+    status: defineCall(TransferIdInputSchema, TransferProgressSchema),
+    list: defineCall(z.void(), TransferListOutputSchema),
+  },
   updates: {
     state: defineCall(z.void(), UpdateStateSchema),
     check: defineCall(z.void(), UpdateStateSchema),
@@ -307,5 +328,10 @@ export const rpcContract = {
   },
   app: {
     openExternal: defineCall(z.object({ url: externalUrl }), z.void()),
+    /** Shows the native open dialog. The renderer gets only the path the user picked. */
+    showOpenDialog: defineCall(OpenDialogInputSchema, DialogResultSchema),
+    showSaveDialog: defineCall(SaveDialogInputSchema, DialogResultSchema),
+    /** Reveals a file this session exported. Other paths are refused by the router. */
+    showItemInFolder: defineCall(ShowItemInFolderInputSchema, z.void()),
   },
 } satisfies RpcContract;

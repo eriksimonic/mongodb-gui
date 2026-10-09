@@ -104,7 +104,9 @@ export function SchemaPanel({ connectionId, database, collection }: SchemaTarget
         <Group gap="xs" align="center" wrap="nowrap">
           {report === undefined ? null : (
             <Text size="sm" c="dimmed" role="status">
-              {`Sampled ${formatCount(report.sampled)} of ${formatCount(report.total)} documents`}
+              {report.total < report.sampled
+                ? `Sampled ${formatCount(report.sampled)} documents (collection count unknown)`
+                : `Sampled ${formatCount(report.sampled)} of ${formatCount(report.total)} documents`}
               {elapsedMs === undefined ? '' : `, in ${formatElapsed(elapsedMs)}`}
             </Text>
           )}

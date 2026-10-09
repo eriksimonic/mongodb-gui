@@ -92,6 +92,63 @@ describe('addFieldToValidator', () => {
     });
   });
 
+  it('reads each array marker of a nested array path as one array level', () => {
+    const result = addFieldToValidator('{}', 'tags[][]', ['String']);
+    expect(result.ok && JSON.parse(result.validatorEjson)).toEqual({
+      $jsonSchema: {
+        bsonType: 'object',
+        properties: {
+          tags: {
+            bsonType: 'array',
+            items: { bsonType: 'array', items: { bsonType: 'string' } },
+          },
+        },
+      },
+    });
+  });
+
+  it('nests an array of arrays inside an object path', () => {
+    const result = addFieldToValidator('{}', 'grid[][].cell', ['Int32']);
+    expect(result.ok && JSON.parse(result.validatorEjson)).toEqual({
+      $jsonSchema: {
+        bsonType: 'object',
+        properties: {
+          grid: {
+            bsonType: 'array',
+            items: {
+              bsonType: 'array',
+              items: { bsonType: 'object', properties: { cell: { bsonType: 'int' } } },
+            },
+          },
+        },
+      },
+    });
+  });
+
+  it('reports a new rule as not existing', () => {
+    const result = addFieldToValidator('{}', 'qty', ['Int32']);
+    expect(result.ok && result.ruleExisted).toBe(false);
+  });
+
+  it('reports a rule the validator already has at the path, including nested arrays', () => {
+    const validator = JSON.stringify({
+      $jsonSchema: {
+        bsonType: 'object',
+        properties: {
+          qty: { bsonType: 'long' },
+          tags: { bsonType: 'array', items: { bsonType: 'array', items: { bsonType: 'string' } } },
+        },
+      },
+    });
+    expect(addFieldToValidator(validator, 'qty', ['Int32'])).toMatchObject({ ruleExisted: true });
+    expect(addFieldToValidator(validator, 'tags[][]', ['String'])).toMatchObject({
+      ruleExisted: true,
+    });
+    expect(addFieldToValidator(validator, 'tags[][][]', ['String'])).toMatchObject({
+      ruleExisted: false,
+    });
+  });
+
   it('keeps other validator keys such as $or', () => {
     const result = addFieldToValidator('{"$or":[{"a":1}]}', 'b', ['Boolean']);
     expect(result.ok && JSON.parse(result.validatorEjson)).toMatchObject({

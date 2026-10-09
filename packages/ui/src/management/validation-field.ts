@@ -21,23 +21,32 @@ const JSON_SCHEMA_TYPES: Readonly<Record<string, string>> = {
 };
 
 export type AddFieldResult =
-  | { readonly ok: true; readonly validatorEjson: string }
+  | {
+      readonly ok: true;
+      readonly validatorEjson: string;
+      /** True when the validator already had a rule at this path. */
+      readonly ruleExisted: boolean;
+    }
   | { readonly ok: false; readonly message: string };
 
 interface Segment {
   readonly name: string;
-  /** True when the path reads through an array, so the value is an array of this shape. */
-  readonly array: boolean;
+  /** Array levels after the name. "tags[][]" has two, so the value is an array of arrays. */
+  readonly depth: number;
 }
 
 type JsonRecord = Record<string, unknown>;
 
 function segmentsOf(path: string): Segment[] {
-  return path
-    .split('.')
-    .map((part) =>
-      part.endsWith('[]') ? { name: part.slice(0, -2), array: true } : { name: part, array: false },
-    );
+  return path.split('.').map((part) => {
+    let name = part;
+    let depth = 0;
+    while (name.endsWith('[]')) {
+      name = name.slice(0, -2);
+      depth += 1;
+    }
+    return { name, depth };
+  });
 }
 
 /** The bsonType value for a field's types. One type is a string, several are a list. */
@@ -55,11 +64,31 @@ function bsonTypeOf(types: readonly string[]): string | string[] | undefined {
 function propertySchema(segments: readonly Segment[], index: number, leaf: JsonRecord): JsonRecord {
   const segment = segments[index];
   const last = index === segments.length - 1;
-  const inner = last ? leaf : objectSchema(segments, index + 1, leaf);
-  if (segment?.array === true) {
-    return { bsonType: 'array', items: inner };
+  let schema = last ? leaf : objectSchema(segments, index + 1, leaf);
+  for (let level = 0; level < (segment?.depth ?? 0); level += 1) {
+    schema = { bsonType: 'array', items: schema };
   }
-  return inner;
+  return schema;
+}
+
+/** True when the schema already has a rule at the path. Each array level is read through items. */
+function hasRule(jsonSchema: JsonRecord, segments: readonly Segment[]): boolean {
+  let scope: unknown = jsonSchema;
+  for (const [index, segment] of segments.entries()) {
+    const properties: unknown = isRecord(scope) ? scope.properties : undefined;
+    if (!isRecord(properties)) {
+      return false;
+    }
+    let child: unknown = properties[segment.name];
+    for (let level = 0; level < segment.depth; level += 1) {
+      child = isRecord(child) ? child.items : undefined;
+    }
+    if (index === segments.length - 1) {
+      return child !== undefined;
+    }
+    scope = child;
+  }
+  return false;
 }
 
 /** An object schema that names the segment at `index` as one of its properties. */
@@ -102,10 +131,12 @@ export function addFieldToValidator(
     return { ok: false, message: 'The validator has no $jsonSchema object to add to.' };
   }
   const jsonSchema: JsonRecord = isRecord(existing) ? { ...existing } : { bsonType: 'object' };
-  const snippet = objectSchema(segmentsOf(path), 0, { bsonType: leafType });
+  const segments = segmentsOf(path);
+  const ruleExisted = hasRule(jsonSchema, segments);
+  const snippet = objectSchema(segments, 0, { bsonType: leafType });
   mergeRules(jsonSchema, snippet);
   validator.$jsonSchema = jsonSchema;
-  return { ok: true, validatorEjson: formatJson(validator) };
+  return { ok: true, validatorEjson: formatJson(validator), ruleExisted };
 }
 
 function mergeRules(target: JsonRecord, source: JsonRecord): void {

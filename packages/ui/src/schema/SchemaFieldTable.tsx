@@ -47,6 +47,9 @@ const SCHEMA_SCROLLER = 'mg-schema-scroll';
 const COLUMNS =
   'minmax(200px, 2fr) minmax(170px, 1.5fr) 150px 70px minmax(150px, 1.2fr) minmax(170px, 2fr) 36px';
 
+/** Header text shared by the sortable and the plain column headers. */
+const HEADER_TEXT_STYLE: CSSProperties = { fontSize: 12, fontWeight: 600 };
+
 const SORT_LABELS: Readonly<Record<SchemaSortKey, string>> = {
   name: 'Path',
   types: 'Types',
@@ -106,9 +109,15 @@ export function SchemaFieldTable({ rows, sort, target, onSort, onToggle }: Schem
           <SortHeader label="Path" sortKey="name" sort={sort} onSort={onSort} />
           <SortHeader label="Types" sortKey="types" sort={sort} onSort={onSort} />
           <SortHeader label="Presence" sortKey="presence" sort={sort} onSort={onSort} />
-          <div role="columnheader">Distinct</div>
-          <div role="columnheader">Range</div>
-          <div role="columnheader">Examples</div>
+          <div role="columnheader" style={HEADER_TEXT_STYLE}>
+            Distinct
+          </div>
+          <div role="columnheader" style={HEADER_TEXT_STYLE}>
+            Range
+          </div>
+          <div role="columnheader" style={HEADER_TEXT_STYLE}>
+            Examples
+          </div>
           <div role="columnheader">
             <VisuallyHidden>Actions</VisuallyHidden>
           </div>
@@ -179,7 +188,7 @@ function SortHeader({ label, sortKey, sort, onSort }: SortHeaderProps) {
       <UnstyledButton
         onClick={() => onSort(sortKey)}
         aria-label={`Sort by ${SORT_LABELS[sortKey]}`}
-        style={{ display: 'flex', alignItems: 'center', gap: 4, fontSize: 12, fontWeight: 600 }}
+        style={{ display: 'flex', alignItems: 'center', gap: 4, ...HEADER_TEXT_STYLE }}
       >
         {label}
         <Icon size={12} aria-hidden="true" />

@@ -20,6 +20,7 @@ describe('rpcContract', () => {
         'profiler',
         'schema',
         'settings',
+        'transfer',
         'shell',
         'updates',
         'vault',

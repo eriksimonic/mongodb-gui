@@ -20,6 +20,7 @@ export function DatabaseContextMenu({
   onClose,
 }: DatabaseContextMenuProps) {
   const setManagementDialog = useAppStore((state) => state.setManagementDialog);
+  const setTransferDialog = useAppStore((state) => state.setTransferDialog);
   const refreshDatabase = useAppStore((state) => state.refreshDatabase);
   const profilerOpener = useProfilerOpener();
   const entries: TreeMenuEntry[] = [
@@ -27,6 +28,12 @@ export function DatabaseContextMenu({
       kind: 'item',
       label: 'New collection',
       onSelect: () => setManagementDialog({ kind: 'createCollection', connectionId, database }),
+    },
+    {
+      kind: 'item',
+      label: 'Import data into new collection',
+      onSelect: () =>
+        setTransferDialog({ kind: 'import', connectionId, database, collection: undefined }),
     },
     {
       kind: 'item',
@@ -64,6 +71,7 @@ export function CollectionContextMenu({
 }: CollectionContextMenuProps) {
   const requestPanel = useAppStore((state) => state.requestPanel);
   const setManagementDialog = useAppStore((state) => state.setManagementDialog);
+  const setTransferDialog = useAppStore((state) => state.setTransferDialog);
   const refreshDatabase = useAppStore((state) => state.refreshDatabase);
   const target = { connectionId, database, collection };
   const entries: TreeMenuEntry[] = [
@@ -86,6 +94,16 @@ export function CollectionContextMenu({
       kind: 'item',
       label: 'Analyse schema',
       onSelect: () => requestPanel({ panel: 'schema', ...target }),
+    },
+    {
+      kind: 'item',
+      label: 'Import data',
+      onSelect: () => setTransferDialog({ kind: 'import', connectionId, database, collection }),
+    },
+    {
+      kind: 'item',
+      label: 'Export data',
+      onSelect: () => setTransferDialog({ kind: 'export', connectionId, database, collection }),
     },
     {
       kind: 'item',

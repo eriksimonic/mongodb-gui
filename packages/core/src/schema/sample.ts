@@ -15,8 +15,7 @@ export interface SchemaSummary {
 
 const INT32_MIN = -2_147_483_648;
 const INT32_MAX = 2_147_483_647;
-const ID_NAME = /(^|_)(id|_id)$|Id$/;
-const ID_MIN_UNIQUE_RATIO = 0.95;
+const OBJECT_ID_HEX = /^[0-9a-f]{24}$/i;
 
 // Canonical EJSON wrapper keys and the BSON type each one names.
 const WRAPPER_TYPES: Readonly<Record<string, string>> = {
@@ -42,7 +41,12 @@ interface PathStats {
   documents: number;
   typeCounts: Map<string, number>;
   scalarOccurrences: number;
-  distinct: Set<string>;
+  /** Hashes of the distinct canonical scalar values, capped at SCHEMA_DISTINCT_CAP. */
+  distinct: Set<number>;
+  /** True once a scalar value repeats a hash already tracked. */
+  repeated: boolean;
+  /** True while every scalar value is an ObjectId or a 24-character hex string. */
+  objectIdShaped: boolean;
   examples: string[];
   arrayCount: number;
   arrayMin: number;
@@ -129,6 +133,8 @@ function statsFor(stats: Map<string, PathStats>, path: string): PathStats {
     typeCounts: new Map(),
     scalarOccurrences: 0,
     distinct: new Set(),
+    repeated: false,
+    objectIdShaped: true,
     examples: [],
     arrayCount: 0,
     arrayMin: Number.POSITIVE_INFINITY,
@@ -145,6 +151,10 @@ function statsFor(stats: Map<string, PathStats>, path: string): PathStats {
   return created;
 }
 
+/**
+ * Walks the keys of one object. A literal key that contains a dot, such as "a.b", reports under
+ * the same path as the nested field a then b, because MongoDB paths are ambiguous there.
+ */
 function walkFields(
   object: Record<string, unknown>,
   prefix: string,
@@ -190,11 +200,18 @@ function recordArray(entry: PathStats, length: number): void {
 function recordScalar(entry: PathStats, value: unknown, typeName: string): void {
   entry.scalarOccurrences += 1;
   const canonical = JSON.stringify(value) ?? 'null';
-  if (entry.distinct.size <= SCHEMA_DISTINCT_CAP) {
-    entry.distinct.add(canonical);
+  entry.objectIdShaped = entry.objectIdShaped && isObjectIdShaped(value);
+  const hash = hashText(canonical);
+  if (entry.distinct.has(hash)) {
+    entry.repeated = true;
+  } else if (entry.distinct.size < SCHEMA_DISTINCT_CAP) {
+    entry.distinct.add(hash);
   }
-  if (entry.examples.length < SCHEMA_EXAMPLE_LIMIT && !entry.examples.includes(canonical)) {
-    entry.examples.push(truncate(canonical));
+  if (entry.examples.length < SCHEMA_EXAMPLE_LIMIT) {
+    const example = truncate(canonical);
+    if (!entry.examples.includes(example)) {
+      entry.examples.push(example);
+    }
   }
   if (NUMERIC_TYPES.has(typeName)) {
     const number = numericValue(value, typeName);
@@ -246,10 +263,8 @@ function toField(path: string, entry: PathStats | undefined, sampled: number): S
     field.stringLengths = lengths;
   }
   if (entry.scalarOccurrences > 0) {
-    const distinct = Math.min(entry.distinct.size, SCHEMA_DISTINCT_CAP);
-    const uniqueRatio = Math.min(1, distinct / entry.scalarOccurrences);
-    field.uniqueRatio = uniqueRatio;
-    field.isIdLike = isIdLike(path, uniqueRatio);
+    field.uniqueRatio = entry.distinct.size / entry.scalarOccurrences;
+    field.isIdLike = entry.objectIdShaped && !entry.repeated;
   }
   return field;
 }
@@ -276,10 +291,29 @@ function toDateRange(min: number | undefined, max: number | undefined): DateRang
   return { min: new Date(min).toISOString(), max: new Date(max).toISOString() };
 }
 
-function isIdLike(path: string, uniqueRatio: number): boolean {
-  const last = path.split('.').pop() ?? '';
-  const name = last.endsWith('[]') ? last.slice(0, -2) : last;
-  return ID_NAME.test(name) && uniqueRatio >= ID_MIN_UNIQUE_RATIO;
+function isObjectIdShaped(value: unknown): boolean {
+  if (typeof value === 'string') {
+    return OBJECT_ID_HEX.test(value);
+  }
+  return OBJECT_ID_HEX.test(readWrapper(value, '$oid') ?? '');
+}
+
+/**
+ * Hashes canonical text to 53 bits (cyrb53). The sample keeps hashes instead of full strings to
+ * bound memory. Collisions are negligible at this set size. The hash is pure JavaScript, so the
+ * browser mock can use it too.
+ */
+function hashText(text: string): number {
+  let high = 0xdeadbeef;
+  let low = 0x41c6ce57;
+  for (let index = 0; index < text.length; index += 1) {
+    const code = text.charCodeAt(index);
+    high = Math.imul(high ^ code, 2654435761);
+    low = Math.imul(low ^ code, 1597334677);
+  }
+  high = Math.imul(high ^ (high >>> 16), 2246822507) ^ Math.imul(low ^ (low >>> 13), 3266489909);
+  low = Math.imul(low ^ (low >>> 16), 2246822507) ^ Math.imul(high ^ (high >>> 13), 3266489909);
+  return 4294967296 * (2097151 & low) + (high >>> 0);
 }
 
 /** Cuts text to the example length, ending with an ellipsis when it is longer. */

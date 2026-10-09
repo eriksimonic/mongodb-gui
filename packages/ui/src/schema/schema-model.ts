@@ -1,4 +1,4 @@
-import type { SchemaField } from '@mongo-gui/core';
+import { formatMongoshSyntax, type SchemaField } from '@mongo-gui/core';
 import { CHART_INK, seriesColor } from '../monitor/palette';
 
 /** Sample sizes the panel offers. */
@@ -336,8 +336,10 @@ export function missingFieldQuery(collection: string, path: string): string {
   return `${collectionExpression(collection)}.find({ ${JSON.stringify(queryPath(path))}: { $exists: false } })`;
 }
 
+/** A share as a whole percent. A share above zero that rounds to zero reads as "<1%". */
 export function formatPercent(share: number): string {
-  return `${Math.round(share * 100)}%`;
+  const percent = Math.round(share * 100);
+  return share > 0 && percent === 0 ? '<1%' : `${percent}%`;
 }
 
 /** A distinct ratio. Below 10% it keeps one decimal, so 0.3% does not read as 0%. */
@@ -379,7 +381,12 @@ export function rangeLabels(field: SchemaField): string[] {
   return labels;
 }
 
-/** Text of the examples, separated for a tooltip. */
+/**
+ * The examples in mongosh notation, separated for a cell and a tooltip. An example cut to the
+ * example length no longer parses, so it shows as stored.
+ */
 export function examplesText(field: SchemaField): string {
-  return (field.examples ?? []).join(', ');
+  return (field.examples ?? [])
+    .map((example) => formatMongoshSyntax(example, { indent: 0 }))
+    .join(', ');
 }

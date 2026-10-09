@@ -51,7 +51,11 @@ interface Stored {
 }
 
 function isSuccessMessage(message: string): boolean {
-  return message === 'Saved' || message.startsWith('Added a rule for ');
+  return (
+    message === 'Saved' ||
+    message.startsWith('Added a rule for ') ||
+    message.startsWith('Updated the rule for ')
+  );
 }
 
 function parseLevel(value: string | null): ValidationLevel {
@@ -98,7 +102,11 @@ export function ValidationPanel({ connectionId, database, collection }: Collecti
       if (result.ok) {
         setDraft({ ...draft, validatorEjson: result.validatorEjson });
         setCheck(undefined);
-        setMessage(`Added a rule for ${fieldRequest.path}. Save to keep it.`);
+        setMessage(
+          result.ruleExisted
+            ? `Updated the rule for ${fieldRequest.path}. Save to keep it.`
+            : `Added a rule for ${fieldRequest.path}. Save to keep it.`,
+        );
       } else {
         setMessage(result.message);
       }

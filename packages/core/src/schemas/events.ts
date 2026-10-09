@@ -5,6 +5,8 @@ import { ProfileEntrySchema } from '../profiler/types';
 import { UpdateStateSchema } from '../updates/types';
 import { AppErrorSchema } from './errors';
 import { ConnectionStatusSchema } from './connection';
+import { TransferIdSchema, TransferKindSchema } from '../transfer/calls';
+import { TransferProgressSchema } from '../transfer/types';
 import { ShellRuntimeStateSchema } from '../shell/rpc-schemas';
 
 export const RpcEventSchema = z.discriminatedUnion('type', [
@@ -59,5 +61,11 @@ export const RpcEventSchema = z.discriminatedUnion('type', [
     type: z.literal('monitor:error'),
     connectionId: z.uuid(),
     error: AppErrorSchema,
+  }),
+  z.object({
+    type: z.literal('transfer:progress'),
+    transferId: TransferIdSchema,
+    kind: TransferKindSchema,
+    progress: TransferProgressSchema,
   }),
 ]);

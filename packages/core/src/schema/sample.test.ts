@@ -170,10 +170,48 @@ describe('summarizeCanonicalSample', () => {
     expect(field(fields, 'code').uniqueRatio).toBe(0.75);
   });
 
-  it('caps distinct tracking at 1000 values', () => {
-    const documents = Array.from({ length: 1200 }, (_, index) => ({ n: index }));
+  it('gives a ratio of 1 for 3000 unique values, past the old 1000 cap', () => {
+    const documents = Array.from({ length: 3000 }, (_, index) => ({ n: index }));
     const { fields } = summarizeCanonicalSample(documents);
-    expect(field(fields, 'n').uniqueRatio).toBeCloseTo(1000 / 1200);
+    expect(field(fields, 'n').uniqueRatio).toBe(1);
+  });
+
+  it('does not repeat an example that is longer than the example length', () => {
+    const long = 'y'.repeat(120);
+    const { fields } = summarizeCanonicalSample(Array.from({ length: 5 }, () => ({ body: long })));
+    expect(field(fields, 'body').examples).toEqual([`"${'y'.repeat(78)}…`]);
+  });
+
+  it('flags a field of distinct ObjectIds as id-like whatever its name', () => {
+    const { fields } = summarizeCanonicalSample([
+      { ref: oid('64b7f0c2a1b2c3d4e5f60718') },
+      { ref: oid('64b7f0c2a1b2c3d4e5f60719') },
+      { ref: '64B7F0C2A1B2C3D4E5F6071A' },
+    ]);
+    expect(field(fields, 'ref').isIdLike).toBe(true);
+  });
+
+  it('does not flag an Int32 id field', () => {
+    const { fields } = summarizeCanonicalSample([
+      { userId: { $numberInt: '1' } },
+      { userId: { $numberInt: '2' } },
+      { userId: { $numberInt: '3' } },
+    ]);
+    expect(field(fields, 'userId').isIdLike).toBe(false);
+  });
+
+  it('does not flag a field of short strings named like an id', () => {
+    const { fields } = summarizeCanonicalSample([{ code_id: 'x1' }, { code_id: 'x2' }]);
+    expect(field(fields, 'code_id').isIdLike).toBe(false);
+  });
+
+  it('does not flag an ObjectId field that repeats a value', () => {
+    const { fields } = summarizeCanonicalSample([
+      { owner: oid('64b7f0c2a1b2c3d4e5f60718') },
+      { owner: oid('64b7f0c2a1b2c3d4e5f60718') },
+    ]);
+    expect(field(fields, 'owner').isIdLike).toBe(false);
+    expect(field(fields, 'owner').uniqueRatio).toBe(0.5);
   });
 
   it('marks id-like fields with nearly distinct values', () => {

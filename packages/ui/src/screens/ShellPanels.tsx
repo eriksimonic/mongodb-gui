@@ -6,6 +6,7 @@ import {
   type IDockviewPanelProps,
 } from 'dockview-react';
 import { ConnectionTree } from '../components/connections/ConnectionTree';
+import { TransfersPanel } from '../components/transfers/TransfersPanel';
 import { DocumentsPanel } from '../components/management/DocumentsPanel';
 import { IndexesPanel } from '../components/management/IndexesPanel';
 import { ValidationPanel } from '../components/management/ValidationPanel';
@@ -97,13 +98,11 @@ function usePanelVisible(api: IDockviewPanelProps['api']): boolean {
   return visible;
 }
 
-/** Bottom panel placeholder. Command output will appear here. */
+/** Bottom panel. Command output will appear here. Transfers are listed until then. */
 export function OutputPanel() {
   return (
-    <Box p={8}>
-      <Text size="sm" c="dimmed">
-        No output yet.
-      </Text>
+    <Box p={8} h="100%" style={{ overflow: 'auto' }}>
+      <TransfersPanel />
     </Box>
   );
 }

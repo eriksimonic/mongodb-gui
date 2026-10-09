@@ -1,6 +1,8 @@
 import { once } from 'node:events';
 import { createWriteStream, type WriteStream } from 'node:fs';
-import { rm } from 'node:fs/promises';
+import { rename, rm } from 'node:fs/promises';
+import { randomBytes } from 'node:crypto';
+import { basename, dirname, join } from 'node:path';
 import { finished } from 'node:stream/promises';
 import {
   Binary,
@@ -46,6 +48,7 @@ export async function exportCollection(
   const tracker = new ProgressTracker(hooks);
   let error: AppError | undefined;
   let path: string | undefined;
+  let tempPath: string | undefined;
   let stream: WriteStream | undefined;
   let cursor: FindCursor<Document> | undefined;
   try {
@@ -57,7 +60,13 @@ export async function exportCollection(
       .collection<Document>(parsed.collection)
       .find(find.filter, find.options);
     throwIfCancelled(hooks.signal);
-    stream = createWriteStream(parsed.path, { encoding: 'utf8' });
+    // The text goes to a temporary file next to the target. It replaces the target only when the
+    // whole export succeeded, so a cancelled or failed export never touches an existing file.
+    tempPath = join(
+      dirname(parsed.path),
+      `${basename(parsed.path)}.${randomBytes(6).toString('hex')}.tmp`,
+    );
+    stream = createWriteStream(tempPath, { encoding: 'utf8' });
     // A listener is attached before anything else can fail. Without it, a write error such as
     // ENOSPC would be an uncaught exception. The error stays on stream.errored, where the write
     // loop checks it.
@@ -65,8 +74,11 @@ export async function exportCollection(
     await once(stream, 'open');
     // Only a file this export opened is ever removed on failure, so an existing file survives a
     // failure that happens before the open.
-    path = parsed.path;
+    path = tempPath;
     await writeExport(cursor, stream, tracker, parsed.options, hooks.signal);
+    await rename(tempPath, parsed.path);
+    // The temporary file is now the target, so a later failure must not remove it.
+    path = undefined;
   } catch (failure) {
     error = toFailure(failure);
     await discardFile(cursor, stream, path);
