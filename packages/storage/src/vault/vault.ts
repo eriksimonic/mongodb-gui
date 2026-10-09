@@ -37,7 +37,7 @@ export class Vault {
 
   readonly #dir: string;
   readonly #kdf: KdfParams;
-  readonly #idleLockMs: number;
+  #idleLockMs: number;
   readonly #failureDelayMs: number;
   readonly #now: () => number;
   readonly #onLocked: (() => void) | undefined;
@@ -134,6 +134,26 @@ export class Vault {
       throw new AppErrorException(appError('INTERNAL', 'withDek callbacks must be synchronous.'));
     }
     return result as T;
+  }
+
+  /**
+   * Changes the idle timeout. When the vault is unlocked the timer is re-armed against the
+   * time already idle, so a shorter timeout can lock the vault at once.
+   */
+  setIdleLockMs(ms: number): void {
+    if (!Number.isSafeInteger(ms) || ms < 1) {
+      throw new AppErrorException(appError('VALIDATION', 'The idle lock must be at least 1 ms.'));
+    }
+    this.#idleLockMs = ms;
+    if (this.#dek === undefined) {
+      return;
+    }
+    if (this.#idleTimer !== undefined) {
+      clearTimeout(this.#idleTimer);
+      this.#idleTimer = undefined;
+    }
+    const idleFor = this.#now() - this.#lastActivity;
+    this.#armIdleTimer(Math.max(0, ms - idleFor));
   }
 
   /** Records activity and arms the idle timer. Does nothing while the vault is locked. */

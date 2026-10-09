@@ -489,6 +489,82 @@ describe('settings, history and favourites', () => {
   });
 });
 
+describe('uninitialised vault', () => {
+  let harness: Harness | undefined;
+  afterEach(() => {
+    harness?.dispose();
+    harness = undefined;
+  });
+
+  it('returns VAULT_NOT_INITIALISED for repository calls before setup', async () => {
+    harness = buildHarness();
+    const { router } = harness;
+
+    expectError(await router.handle('connections.list', undefined), 'VAULT_NOT_INITIALISED');
+    expectError(await router.handle('settings.get', undefined), 'VAULT_NOT_INITIALISED');
+  });
+});
+
+describe('idle lock setting', () => {
+  afterEach(() => {
+    vi.useRealTimers();
+  });
+
+  it('applies idleLockMinutes to the vault on settings.update', async () => {
+    vi.useFakeTimers();
+    const harness = buildHarness();
+    try {
+      const { router, events } = harness;
+      expectValue(await router.handle('vault.initialise', { password: PASSWORD }));
+
+      expectValue(await router.handle('settings.update', { idleLockMinutes: 1 }));
+      vi.advanceTimersByTime(59_000);
+      expect(expectValue(await router.handle('vault.status', undefined))).toEqual({
+        state: 'unlocked',
+      });
+
+      vi.advanceTimersByTime(1_000);
+      expect(expectValue(await router.handle('vault.status', undefined))).toEqual({
+        state: 'locked',
+      });
+      expect(events).toContainEqual({ type: 'vault:locked' });
+    } finally {
+      harness.dispose();
+    }
+  });
+
+  it('applies the stored idleLockMinutes when the vault is unlocked after a restart', async () => {
+    vi.useFakeTimers();
+    const dir = mkdtempSync(join(tmpdir(), 'idle-restart-'));
+    const first = createAppServices({ userDataDir: dir, kdf: FAST_KDF, failureDelayMs: 0 });
+    const firstRouter = createRouter({ ...first, onEvent: () => undefined });
+    try {
+      expectValue(await firstRouter.handle('vault.initialise', { password: PASSWORD }));
+      expectValue(await firstRouter.handle('settings.update', { idleLockMinutes: 2 }));
+      expectValue(await firstRouter.handle('vault.lock', undefined));
+    } finally {
+      await first.dispose();
+    }
+
+    const second = createAppServices({ userDataDir: dir, kdf: FAST_KDF, failureDelayMs: 0 });
+    const secondRouter = createRouter({ ...second, onEvent: () => undefined });
+    try {
+      expectValue(await secondRouter.handle('vault.unlock', { password: PASSWORD }));
+      vi.advanceTimersByTime(119_000);
+      expect(expectValue(await secondRouter.handle('vault.status', undefined))).toEqual({
+        state: 'unlocked',
+      });
+      vi.advanceTimersByTime(1_000);
+      expect(expectValue(await secondRouter.handle('vault.status', undefined))).toEqual({
+        state: 'locked',
+      });
+    } finally {
+      await second.dispose();
+      rmSync(dir, { recursive: true, force: true });
+    }
+  });
+});
+
 describe('createAppServices', () => {
   it('builds services over a temp directory and disposes them', async () => {
     const dir = mkdtempSync(join(tmpdir(), 'services-'));

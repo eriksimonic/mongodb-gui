@@ -14,6 +14,7 @@ import {
   type RpcCall,
   type RpcEvent,
   type RpcResult,
+  type Settings,
 } from '@mongo-gui/core';
 import {
   ConnectionManager,
@@ -95,6 +96,7 @@ interface Operation {
 }
 
 const KEYRING_DIR_MODE = 0o700;
+const MS_PER_MINUTE = 60_000;
 const STORE_FILE_NAME = 'store.sqlite';
 
 export function createRouter(deps: RouterDeps): Router {
@@ -115,9 +117,11 @@ export function createRouter(deps: RouterDeps): Router {
     entry('vault.status', rpcContract.vault.status, () => deps.vault.status()),
     entry('vault.initialise', rpcContract.vault.initialise, (input) => {
       deps.vault.initialise(input.password);
+      applyIdleLock(repos().settings.get());
     }),
     entry('vault.unlock', rpcContract.vault.unlock, async (input) => {
       await deps.vault.unlock(input.password);
+      applyIdleLock(repos().settings.get());
     }),
     entry('vault.lock', rpcContract.vault.lock, () => {
       deps.vault.lock();
@@ -195,9 +199,11 @@ export function createRouter(deps: RouterDeps): Router {
     // Vault has no setter for its idle timeout, so idleLockMinutes is stored but not applied
     // yet. The vault keeps the 30 minute default it was constructed with.
     entry('settings.get', rpcContract.settings.get, () => repos().settings.get()),
-    entry('settings.update', rpcContract.settings.update, (input) =>
-      repos().settings.update(input),
-    ),
+    entry('settings.update', rpcContract.settings.update, (input) => {
+      const updated = repos().settings.update(input);
+      applyIdleLock(updated);
+      return updated;
+    }),
 
     entry('history.list', rpcContract.history.list, (input) => repos().history.list(input)),
     entry('history.clear', rpcContract.history.clear, () => {
@@ -239,10 +245,27 @@ export function createRouter(deps: RouterDeps): Router {
         }
         return { ok: true, value: parsedOutput.data };
       } catch (error) {
-        return failure(sanitize(toAppError(error)));
+        return failure(sanitize(describeFailure(error)));
       }
     },
   };
+
+  /** Pushes the idle timeout from settings into the vault. */
+  function applyIdleLock(settings: Settings): void {
+    deps.vault.setIdleLockMs(settings.idleLockMinutes * MS_PER_MINUTE);
+  }
+
+  /**
+   * Repository calls report VAULT_LOCKED whether the vault is locked or was never set up.
+   * When no keyring exists, the caller needs the setup message instead.
+   */
+  function describeFailure(error: unknown): AppError {
+    const mapped = toAppError(error);
+    if (mapped.code === 'VAULT_LOCKED' && deps.vault.status().state === 'uninitialised') {
+      return appError('VAULT_NOT_INITIALISED', 'The vault has not been set up yet.');
+    }
+    return mapped;
+  }
 }
 
 /**

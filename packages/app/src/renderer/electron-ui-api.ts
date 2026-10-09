@@ -21,7 +21,7 @@ export function createElectronUiApi(): ElectronUiApi {
 }
 
 function readBridge(): PreloadBridge {
-  const candidate: unknown = Reflect.get(window, 'mongoGui');
+  const candidate: unknown = window.mongoGui;
   if (!isPreloadBridge(candidate)) {
     throw new Error('window.mongoGui is missing. The preload script did not load.');
   }
