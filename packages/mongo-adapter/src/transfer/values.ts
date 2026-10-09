@@ -48,7 +48,13 @@ export function jsonValueToBson(value: unknown, type: FieldType): unknown {
   if (type === 'auto' || value === null || value === undefined) {
     return value ?? null;
   }
-  if (type === 'json' && (Array.isArray(value) || isPlainObject(value))) {
+  // A value that already has the requested BSON class is kept as it is. This is what an NDJSON
+  // export read back with canonical EJSON gives, so a round trip keeps Long, Decimal128 and friends.
+  if (matchesBsonClass(value, type)) {
+    return value;
+  }
+  // Any object or array is a valid json value, including BSON classes such as Binary.
+  if (type === 'json' && typeof value === 'object') {
     return value;
   }
   if (type === 'string' && typeof value === 'string') {
@@ -67,6 +73,31 @@ export function jsonValueToBson(value: unknown, type: FieldType): unknown {
     return toBsonValue(coerce(String(value), type));
   }
   throw new CoercionError(`A value of this kind cannot be converted to ${type}`);
+}
+
+function matchesBsonClass(value: unknown, type: FieldType): boolean {
+  switch (type) {
+    case 'int':
+      return value instanceof Int32;
+    case 'long':
+      return value instanceof Long;
+    case 'double':
+      return value instanceof Double;
+    case 'decimal':
+      return value instanceof Decimal128;
+    case 'date':
+      return value instanceof Date;
+    case 'objectId':
+      return value instanceof ObjectId;
+    case 'string':
+      return typeof value === 'string';
+    case 'boolean':
+      return typeof value === 'boolean';
+    case 'json':
+      return typeof value === 'object';
+    default:
+      return false;
+  }
 }
 
 export function splitPath(path: string): string[] {

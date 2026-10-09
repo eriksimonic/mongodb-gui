@@ -45,6 +45,9 @@ export function errorFields(value: unknown): ErrorFields | undefined {
 export function toEvaluationError(error: unknown): AppError {
   const fields = errorFields(error);
   if (fields !== undefined) {
+    if (isRequireUnavailable(fields.message)) {
+      return appError('VALIDATION', REQUIRE_UNAVAILABLE_MESSAGE);
+    }
     if (fields.name === 'MongoServerError') {
       return withMessage('COMMAND_FAILED', fields.message);
     }
@@ -56,6 +59,15 @@ export function toEvaluationError(error: unknown): AppError {
     }
   }
   return redactAppError(toAppError(error));
+}
+
+// The query editor has no module loader. A script that calls require gets this message, whichever
+// way the runtime reports the missing binding (a ReferenceError, or the bundler's dynamic require
+// stub).
+const REQUIRE_UNAVAILABLE_MESSAGE = 'require is not available in the query editor';
+
+function isRequireUnavailable(message: string): boolean {
+  return /\brequire\b/.test(message) && /is not defined|dynamic(ally)? require/i.test(message);
 }
 
 // Errors from opening the connection. Authentication failures are reported as AUTH_FAILED even

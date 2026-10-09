@@ -37,7 +37,9 @@ release.
 | ------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------ |
 | ![Live monitoring dashboard with stat tiles and charts](docs/screenshots/monitor.png) | ![Running operations with filters and a long aggregation](docs/screenshots/operations.png) |
 
->
+| Import wizard, preview and field mapping                                      | Export dialog                                                                     |
+| ----------------------------------------------------------------------------- | --------------------------------------------------------------------------------- |
+| ![Import wizard at the preview and mapping step](docs/screenshots/import.png) | ![Export dialog with a filter and the NDJSON format](docs/screenshots/export.png) |
 
 ## Prerequisites
 
