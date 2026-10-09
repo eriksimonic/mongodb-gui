@@ -29,3 +29,4 @@ export * from './schemas/events';
 export * from './schemas/history';
 export * from './schemas/settings';
 export * from './schemas/vault';
+export * from './updates/types';

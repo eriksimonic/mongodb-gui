@@ -7,12 +7,14 @@ describe('rpcContract', () => {
   it('declares the namespaces required by P1-1', () => {
     expect(Object.keys(rpcContract).sort()).toEqual(
       [
+        'app',
         'collections',
         'connections',
         'databases',
         'favourites',
         'history',
         'settings',
+        'updates',
         'vault',
       ].sort(),
     );

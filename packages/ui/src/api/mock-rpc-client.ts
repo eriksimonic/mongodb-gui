@@ -21,6 +21,7 @@ import {
   type RpcEvent,
   type Settings,
   type SettingsPatch,
+  type UpdateState,
   type VaultStatus,
 } from '@mongo-gui/core';
 import type { z } from 'zod';
@@ -39,12 +40,24 @@ import type { UiApi } from './ui-api';
 
 export type MockPreset = 'fresh' | 'unlocked';
 
+/**
+ * A scripted sequence of update states. The first state is the starting state. Each check,
+ * download or dismiss moves to the next state, and the last state then stays put.
+ */
+export interface MockUpdatesOptions {
+  readonly states: readonly UpdateState[];
+}
+
 export interface MockUiApiOptions {
   /** `fresh` starts uninitialised with no connections. `unlocked` starts unlocked with fixtures. */
   readonly preset?: MockPreset;
   /** Delay added to every call, in milliseconds. Defaults to 0. */
   readonly latencyMs?: number;
+  /** Scripted update states. Defaults to an idle updater on version 0.1.0. */
+  readonly updates?: MockUpdatesOptions;
 }
+
+const DEFAULT_UPDATE_STATE: UpdateState = { phase: 'idle', current: '0.1.0', canInstall: true };
 
 type VaultState = VaultStatus['state'];
 
@@ -56,6 +69,8 @@ interface MockState {
   settings: Settings;
   history: HistoryEntry[];
   favourites: Favourite[];
+  updateStates: readonly UpdateState[];
+  updateIndex: number;
 }
 
 const SERVER_VERSION = '8.0.4';
@@ -71,6 +86,8 @@ function initialState(preset: MockPreset): MockState {
     settings: { ...defaultSettings },
     history: [],
     favourites: [],
+    updateStates: [DEFAULT_UPDATE_STATE],
+    updateIndex: 0,
   };
   if (preset === 'fresh') {
     return base;
@@ -149,6 +166,7 @@ function mergeSettings(current: Settings, patch: SettingsPatch): Settings {
     historyLimit: patch.historyLimit ?? current.historyLimit,
     editorFontSize: patch.editorFontSize ?? current.editorFontSize,
     sampleSize: patch.sampleSize ?? current.sampleSize,
+    checkForUpdates: patch.checkForUpdates ?? current.checkForUpdates,
   };
 }
 
@@ -229,11 +247,26 @@ export function createMockUiApi(options: MockUiApiOptions = {}): UiApi {
   const latencyMs = options.latencyMs ?? 0;
   const state = initialState(options.preset ?? 'fresh');
   const listeners = new Set<(event: RpcEvent) => void>();
+  if (options.updates !== undefined && options.updates.states.length > 0) {
+    state.updateStates = options.updates.states;
+  }
 
   function emit(event: RpcEvent): void {
     for (const listener of listeners) {
       listener(event);
     }
+  }
+
+  function currentUpdate(): UpdateState {
+    return state.updateStates[state.updateIndex] ?? DEFAULT_UPDATE_STATE;
+  }
+
+  /** Moves to the next scripted state and tells the listeners. */
+  function advanceUpdate(): UpdateState {
+    state.updateIndex = Math.min(state.updateIndex + 1, state.updateStates.length - 1);
+    const next = currentUpdate();
+    emit({ type: 'updates:state', state: next });
+    return next;
   }
 
   function statusOf(connectionId: string): ConnectionStatus {
@@ -289,6 +322,31 @@ export function createMockUiApi(options: MockUiApiOptions = {}): UiApi {
   }
 
   const rpc: RpcClient = {
+    updates: {
+      state: method(rpcContract.updates.state, latencyMs, () => currentUpdate()),
+      check: method(rpcContract.updates.check, latencyMs, () => advanceUpdate()),
+      download: method(rpcContract.updates.download, latencyMs, () => advanceUpdate()),
+      install: method(rpcContract.updates.install, latencyMs, () => undefined),
+      dismiss: method(rpcContract.updates.dismiss, latencyMs, ({ version }) => {
+        const current = currentUpdate();
+        if (current.available?.version !== version) {
+          return current;
+        }
+        const next: UpdateState = {
+          phase: 'idle',
+          current: current.current,
+          canInstall: current.canInstall,
+          ...(current.lastCheckedAt === undefined ? {} : { lastCheckedAt: current.lastCheckedAt }),
+        };
+        state.updateStates = [next];
+        state.updateIndex = 0;
+        emit({ type: 'updates:state', state: next });
+        return next;
+      }),
+    },
+    app: {
+      openExternal: method(rpcContract.app.openExternal, latencyMs, () => undefined),
+    },
     vault: {
       status: method(rpcContract.vault.status, latencyMs, () => ({ state: state.vault })),
       initialise: method(rpcContract.vault.initialise, latencyMs, ({ password }) => {

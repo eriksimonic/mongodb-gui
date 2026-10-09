@@ -9,6 +9,7 @@ import {
   type ConnectionTestResult,
   type DatabaseInfo,
   type RpcEvent,
+  type UpdateState,
   type VaultStatus,
 } from '@mongo-gui/core';
 import { createStore, type StoreApi } from 'zustand/vanilla';
@@ -48,6 +49,9 @@ export interface AppData {
   readonly selection: Selection | undefined;
   readonly dialog: DialogState;
   readonly managerOpen: boolean;
+  readonly settingsOpen: boolean;
+  /** The updater state, pushed by the backend and read on start. */
+  readonly updates: UpdateState;
 }
 
 export interface AppActions {
@@ -73,6 +77,12 @@ export interface AppActions {
   select(selection: Selection | undefined): void;
   setDialog(dialog: DialogState): void;
   setManagerOpen(open: boolean): void;
+  setSettingsOpen(open: boolean): void;
+  refreshUpdates(): Promise<void>;
+  checkForUpdates(): Promise<void>;
+  downloadUpdate(): Promise<void>;
+  installUpdate(): Promise<void>;
+  dismissUpdate(version: string): Promise<void>;
   applyEvent(event: RpcEvent): void;
 }
 
@@ -89,6 +99,7 @@ const SESSION_RESET: Pick<
   | 'selection'
   | 'dialog'
   | 'managerOpen'
+  | 'settingsOpen'
 > = {
   connections: { state: 'loading' },
   statuses: {},
@@ -98,9 +109,13 @@ const SESSION_RESET: Pick<
   selection: undefined,
   dialog: { kind: 'closed' },
   managerOpen: false,
+  settingsOpen: false,
 };
 
-const INITIAL_DATA: AppData = { vault: 'loading', ...SESSION_RESET };
+/** Replaced by the first state the backend reports. */
+const NO_UPDATE_STATE: UpdateState = { phase: 'idle', current: '', canInstall: false };
+
+const INITIAL_DATA: AppData = { vault: 'loading', ...SESSION_RESET, updates: NO_UPDATE_STATE };
 
 function withoutConnectionCatalog(
   data: Pick<AppData, 'databases' | 'collections'>,
@@ -313,7 +328,35 @@ export function createAppStore(api: UiApi, initial: Partial<AppData> = {}): AppS
         set({ managerOpen: open });
       },
 
+      setSettingsOpen(open) {
+        set({ settingsOpen: open });
+      },
+
+      async refreshUpdates() {
+        set({ updates: await rpc.updates.state() });
+      },
+
+      async checkForUpdates() {
+        set({ updates: await rpc.updates.check() });
+      },
+
+      async downloadUpdate() {
+        set({ updates: await rpc.updates.download() });
+      },
+
+      async installUpdate() {
+        await rpc.updates.install();
+      },
+
+      async dismissUpdate(version) {
+        set({ updates: await rpc.updates.dismiss({ version }) });
+      },
+
       applyEvent(event) {
+        if (event.type === 'updates:state') {
+          set({ updates: event.state });
+          return;
+        }
         if (event.type === 'vault:locked') {
           clearSession();
           set({ vault: 'locked' });

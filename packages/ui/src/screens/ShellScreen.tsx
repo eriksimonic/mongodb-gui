@@ -2,7 +2,7 @@
 import 'dockview/dist/styles/dockview.css';
 import '../theme/dockview-theme.css';
 import { Box, Button, Flex, Group, Text } from '@mantine/core';
-import { IconDatabase, IconLock, IconPlus, IconServer } from '@tabler/icons-react';
+import { IconDatabase, IconLock, IconPlus, IconServer, IconSettings } from '@tabler/icons-react';
 import {
   DockviewReact,
   themeDark,
@@ -12,6 +12,8 @@ import {
 import { ConnectionDialog } from '../components/connections/ConnectionDialog';
 import { ConnectionManager } from '../components/connections/ConnectionManager';
 import { runReported } from '../components/notify-error';
+import { SettingsModal } from '../components/settings/SettingsModal';
+import { UpdateBanner } from '../components/updates/UpdateBanner';
 import { useAppStore } from '../state/app-store-context';
 import { ConnectionsPanel, FixedTab, OutputPanel, WelcomePanel } from './ShellPanels';
 
@@ -70,6 +72,7 @@ export function ShellScreen() {
   const dialog = useAppStore((state) => state.dialog);
   const setDialog = useAppStore((state) => state.setDialog);
   const setManagerOpen = useAppStore((state) => state.setManagerOpen);
+  const setSettingsOpen = useAppStore((state) => state.setSettingsOpen);
 
   return (
     <Flex direction="column" h="100vh" style={{ overflow: 'hidden' }}>
@@ -100,14 +103,24 @@ export function ShellScreen() {
           >
             Connections
           </Button>
+          <UpdateBanner />
         </Group>
-        <Button
-          variant="default"
-          leftSection={<IconLock size={14} />}
-          onClick={() => void runReported(() => lock())}
-        >
-          Lock
-        </Button>
+        <Group gap={8} wrap="nowrap">
+          <Button
+            variant="default"
+            leftSection={<IconSettings size={14} />}
+            onClick={() => setSettingsOpen(true)}
+          >
+            Settings
+          </Button>
+          <Button
+            variant="default"
+            leftSection={<IconLock size={14} />}
+            onClick={() => void runReported(() => lock())}
+          >
+            Lock
+          </Button>
+        </Group>
       </Group>
       <Box style={{ flex: 1, minHeight: 0 }}>
         <div style={{ height: '100%' }}>
@@ -127,6 +140,7 @@ export function ShellScreen() {
         />
       )}
       <ConnectionManager />
+      <SettingsModal />
     </Flex>
   );
 }

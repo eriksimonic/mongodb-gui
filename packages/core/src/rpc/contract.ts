@@ -16,6 +16,7 @@ import {
 import { SettingsPatchSchema, SettingsSchema } from '../schemas/settings';
 import { FavouriteInputSchema, FavouriteSchema, HistoryEntrySchema } from '../schemas/history';
 import { VaultStatusSchema } from '../schemas/vault';
+import { UpdateStateSchema } from '../updates/types';
 import { defineCall, type RpcContract } from './define';
 
 const idParam = z.object({ id: z.uuid() });
@@ -24,6 +25,13 @@ const databaseParam = connectionParam.extend({ database: z.string().min(1) });
 const collectionParam = databaseParam.extend({ collection: z.string().min(1) });
 const password = z.string().min(1);
 const newPassword = z.string().min(10);
+
+/** Links the app may open: the project's GitHub pages only, without path traversal. */
+export const EXTERNAL_LINK_PREFIX = 'https://github.com/eriksimonic/mongodb-mager/';
+const externalUrl = z
+  .url()
+  .startsWith(EXTERNAL_LINK_PREFIX)
+  .refine((value) => !value.includes('..'), 'The link may not contain "..".');
 
 export const rpcContract = {
   vault: {
@@ -76,5 +84,15 @@ export const rpcContract = {
     list: defineCall(z.void(), z.array(FavouriteSchema)),
     save: defineCall(FavouriteInputSchema, FavouriteSchema),
     remove: defineCall(idParam, z.void()),
+  },
+  updates: {
+    state: defineCall(z.void(), UpdateStateSchema),
+    check: defineCall(z.void(), UpdateStateSchema),
+    download: defineCall(z.void(), UpdateStateSchema),
+    install: defineCall(z.void(), z.void()),
+    dismiss: defineCall(z.object({ version: z.string().min(1).max(64) }), UpdateStateSchema),
+  },
+  app: {
+    openExternal: defineCall(z.object({ url: externalUrl }), z.void()),
   },
 } satisfies RpcContract;

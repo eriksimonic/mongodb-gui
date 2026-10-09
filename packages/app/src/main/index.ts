@@ -1,4 +1,5 @@
-import { app, BrowserWindow, session } from 'electron';
+import { app, BrowserWindow, session, shell } from 'electron';
+import { autoUpdater } from 'electron-updater';
 import { join } from 'node:path';
 import { devServerUrl, isAppUrl, rendererDirectory } from './app-origin';
 import { log } from './log';
@@ -84,6 +85,12 @@ function createMainWindow(): void {
     window.show();
   });
 
+  // The first update check runs ten seconds after the page loads and never blocks startup.
+  // The check is armed here rather than on ready-to-show, which did not fire in testing.
+  window.webContents.once('did-finish-load', () => {
+    services?.updates.start();
+  });
+
   window.on('closed', () => {
     if (mainWindow === window) {
       mainWindow = undefined;
@@ -124,7 +131,15 @@ app
   .whenReady()
   .then(() => {
     installContentSecurityPolicy();
-    const appServices = createAppServices({ userDataDir: app.getPath('userData') });
+    const appServices = createAppServices({
+      userDataDir: app.getPath('userData'),
+      updates: {
+        autoUpdater,
+        platform: process.platform,
+        isPackaged: app.isPackaged,
+        appVersion: app.getVersion(),
+      },
+    });
     services = appServices;
     router = createRouter({
       ...appServices,
@@ -133,6 +148,7 @@ app
           sendEvent(mainWindow, event);
         }
       },
+      openExternal: (url) => shell.openExternal(url),
     });
     createMainWindow();
 

@@ -14,6 +14,7 @@ import {
   type RpcCall,
   type RpcEvent,
   type RpcResult,
+  type UpdateState,
 } from '@mongo-gui/core';
 import {
   ConnectionManager,
@@ -38,6 +39,12 @@ import {
 } from '@mongo-gui/storage';
 import { log, type Logger } from '../log';
 import { redactText } from '../redact';
+import {
+  createUpdater,
+  noopUpdaterBackend,
+  type Updater,
+  type UpdaterBackend,
+} from '../updates/updater';
 
 /** The subset of ConnectionManager that the router uses. The real class satisfies it. */
 export type ConnectionRegistry = Pick<
@@ -63,6 +70,11 @@ export interface LockEvents {
   subscribe(listener: () => void): () => void;
 }
 
+/** The updater plus a subscription for its state changes. */
+export interface UpdatesService extends Updater {
+  subscribe(listener: (state: UpdateState) => void): () => void;
+}
+
 export interface RouterDeps {
   readonly vault: Vault;
   readonly store: EncryptedStore;
@@ -78,19 +90,35 @@ export interface RouterDeps {
   readonly lockEvents?: LockEvents;
   /** Receives failures as method, code and message. Inputs and raw driver text stay out. */
   readonly log?: Logger;
+  /** The in-app updater. Without it, the updates calls fail with INTERNAL. */
+  readonly updates?: UpdatesService;
+  /** Opens a link in the user's browser. The caller checks the link before it gets here. */
+  readonly openExternal?: (url: string) => Promise<void>;
 }
 
 export interface Router {
   handle(method: string, input: unknown): Promise<RpcResult>;
 }
 
+/** What the updater needs from Electron. Omitted in tests, where the updater stays inert. */
+export interface UpdatesRuntime {
+  readonly autoUpdater: UpdaterBackend;
+  readonly platform: string;
+  readonly isPackaged: boolean;
+  readonly appVersion: string;
+}
+
 export interface AppServicesOptions {
   readonly userDataDir: string;
   readonly kdf?: KdfParams;
   readonly failureDelayMs?: number;
+  readonly updates?: UpdatesRuntime;
 }
 
-export type AppServices = Omit<RouterDeps, 'onEvent'> & { dispose(): Promise<void> };
+export type AppServices = Omit<RouterDeps, 'onEvent' | 'updates'> & {
+  readonly updates: UpdatesService;
+  dispose(): Promise<void>;
+};
 
 interface Operation {
   readonly call: RpcCall;
@@ -104,6 +132,13 @@ const STORE_FILE_NAME = 'store.sqlite';
 export function createRouter(deps: RouterDeps): Router {
   let active: StoreHandles = { store: deps.store, repos: deps.repos };
   const repos = (): RouterRepos => active.repos;
+
+  const updatesService = (): UpdatesService => {
+    if (deps.updates === undefined) {
+      throw new AppErrorException(appError('INTERNAL', 'Updates are not available.'));
+    }
+    return deps.updates;
+  };
 
   const resetVault = async (): Promise<void> => {
     if (deps.reopenStore === undefined) {
@@ -120,10 +155,12 @@ export function createRouter(deps: RouterDeps): Router {
     entry('vault.initialise', rpcContract.vault.initialise, (input) => {
       deps.vault.initialise(input.password);
       applyStoredIdleLock();
+      deps.updates?.refreshSchedule();
     }),
     entry('vault.unlock', rpcContract.vault.unlock, async (input) => {
       await deps.vault.unlock(input.password);
       applyStoredIdleLock();
+      deps.updates?.refreshSchedule();
     }),
     entry('vault.lock', rpcContract.vault.lock, () => {
       deps.vault.lock();
@@ -204,7 +241,11 @@ export function createRouter(deps: RouterDeps): Router {
       if (input.idleLockMinutes !== undefined) {
         applyIdleLock(input.idleLockMinutes);
       }
-      return repos().settings.update(input);
+      const saved = repos().settings.update(input);
+      if (input.checkForUpdates !== undefined) {
+        deps.updates?.refreshSchedule();
+      }
+      return saved;
     }),
 
     entry('history.list', rpcContract.history.list, (input) => repos().history.list(input)),
@@ -219,6 +260,23 @@ export function createRouter(deps: RouterDeps): Router {
     entry('favourites.remove', rpcContract.favourites.remove, (input) => {
       repos().favourites.remove(input.id);
     }),
+
+    entry('updates.state', rpcContract.updates.state, () => updatesService().state()),
+    entry('updates.check', rpcContract.updates.check, () => updatesService().check()),
+    entry('updates.download', rpcContract.updates.download, () => updatesService().download()),
+    entry('updates.install', rpcContract.updates.install, () => {
+      updatesService().install();
+    }),
+    entry('updates.dismiss', rpcContract.updates.dismiss, (input) =>
+      updatesService().dismiss(input.version),
+    ),
+
+    entry('app.openExternal', rpcContract.app.openExternal, async (input) => {
+      if (deps.openExternal === undefined) {
+        throw new AppErrorException(appError('INTERNAL', 'Links cannot be opened.'));
+      }
+      await deps.openExternal(input.url);
+    }),
   ]);
 
   deps.connections.onStatusChange((connectionId, status) => {
@@ -226,7 +284,11 @@ export function createRouter(deps: RouterDeps): Router {
   });
   deps.lockEvents?.subscribe(() => {
     void deps.connections.disconnectAll();
+    deps.updates?.refreshSchedule();
     deps.onEvent({ type: 'vault:locked' });
+  });
+  deps.updates?.subscribe((state) => {
+    deps.onEvent({ type: 'updates:state', state });
   });
 
   return {
@@ -326,6 +388,7 @@ export function createAppServices(options: AppServicesOptions): AppServices {
   };
   let handles = openStore();
   const connections = new ConnectionManager();
+  const updates = createUpdatesService(options.updates, () => handles);
 
   return {
     vault,
@@ -345,9 +408,52 @@ export function createAppServices(options: AppServicesOptions): AppServices {
         };
       },
     },
+    updates,
     async dispose() {
+      updates.stop();
       await connections.disconnectAll();
       handles.store.close();
+    },
+  };
+}
+
+/**
+ * Builds the updater. The saved setting is encrypted, so it reads as undefined while the
+ * vault is locked, and the updater waits for the next refreshSchedule call.
+ */
+function createUpdatesService(
+  runtime: UpdatesRuntime | undefined,
+  currentHandles: () => StoreHandles,
+): UpdatesService {
+  const listeners = new Set<(state: UpdateState) => void>();
+  const updater = createUpdater({
+    log,
+    settings: {
+      readCheckForUpdates: () => {
+        try {
+          return currentHandles().repos.settings.get().checkForUpdates;
+        } catch {
+          return undefined;
+        }
+      },
+    },
+    onState: (state) => {
+      for (const listener of [...listeners]) {
+        listener(state);
+      }
+    },
+    autoUpdater: runtime?.autoUpdater ?? noopUpdaterBackend,
+    platform: runtime?.platform ?? process.platform,
+    isPackaged: runtime?.isPackaged ?? false,
+    appVersion: runtime?.appVersion ?? '0.0.0',
+  });
+  return {
+    ...updater,
+    subscribe(listener) {
+      listeners.add(listener);
+      return () => {
+        listeners.delete(listener);
+      };
     },
   };
 }
