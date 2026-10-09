@@ -39,3 +39,6 @@ export * from './schemas/vault';
 export * from './updates/types';
 export * from './shell/protocol';
 export * from './shell/result-type';
+export * from './transfer/csv';
+export * from './transfer/infer';
+export * from './transfer/types';
