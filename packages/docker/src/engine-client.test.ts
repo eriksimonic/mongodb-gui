@@ -1,3 +1,4 @@
+import { randomUUID } from 'node:crypto';
 import { mkdtempSync, rmSync, writeFileSync } from 'node:fs';
 import { createServer, type IncomingMessage, type Server, type ServerResponse } from 'node:http';
 import { tmpdir } from 'node:os';
@@ -29,7 +30,7 @@ function json(response: ServerResponse, status: number, value: unknown): void {
   response.end(JSON.stringify(value));
 }
 
-/** Starts a fake Engine API on a temporary Unix socket. Each request goes to the handler. */
+/** Starts a fake Engine API on the test socket. Each request goes to the handler. */
 function startServer(handler: Handler): Promise<void> {
   server = createServer((request, response) => {
     let body = '';
@@ -55,7 +56,12 @@ function clientWith(timeoutMs?: number): DockerEngineClient {
 
 beforeEach(() => {
   dir = mkdtempSync(join(tmpdir(), 'docker-engine-'));
-  socketPath = join(dir, 'docker.sock');
+  // Windows has no Unix domain sockets. Its equivalent is a named pipe, so a file path
+  // cannot be listened on there.
+  socketPath =
+    process.platform === 'win32'
+      ? `\\\\.\\pipe\\mongo-gui-test-${randomUUID()}`
+      : join(dir, 'docker.sock');
   recorded = [];
 });
 
@@ -325,13 +331,18 @@ describe('DockerEngineClient without an engine', () => {
     });
   });
 
-  it('reports the socket as not reachable when nothing listens on it', async () => {
-    writeFileSync(socketPath, '');
+  // A named pipe with no server is ENOENT on Windows, and a plain file cannot stand in for a
+  // pipe there. The ENOENT case above still covers the unreachable path on Windows.
+  it.skipIf(process.platform === 'win32')(
+    'reports the socket as not reachable when nothing listens on it',
+    async () => {
+      writeFileSync(socketPath, '');
 
-    await expect(clientWith().ping()).rejects.toMatchObject({
-      error: { message: 'Docker is not reachable.', detail: 'ECONNREFUSED' },
-    });
-  });
+      await expect(clientWith().ping()).rejects.toMatchObject({
+        error: { message: 'Docker is not reachable.', detail: 'ECONNREFUSED' },
+      });
+    },
+  );
 });
 
 describe('defaultDockerSocket', () => {
