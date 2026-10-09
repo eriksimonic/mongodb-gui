@@ -9,6 +9,10 @@
     ".": "./src/index.ts"
   },
   "dependencies": {
-    "@mongo-gui/core": "workspace:*"
+    "@mongo-gui/core": "workspace:*",
+    "mongodb": "^7.7.0"
+  },
+  "devDependencies": {
+    "testcontainers": "^12.2.0"
   }
 }
