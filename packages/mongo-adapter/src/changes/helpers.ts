@@ -19,7 +19,34 @@ import {
 const EJSON_OPTIONS = { relaxed: false } as const;
 const UNKNOWN_OPERATION = 'unknown';
 const TRUNCATED_FIELDS = ['_id', 'operationType', 'ns', 'documentKey'] as const;
-const REFUSED_STAGES = ['$out', '$merge'] as const;
+const REFUSED_STAGES: readonly string[] = ['$out', '$merge'];
+
+// Finds $out or $merge at any depth. They are also refused inside $facet, $unionWith and $lookup
+// sub-pipelines, where they would write to another collection.
+function findRefusedStage(value: unknown): string | undefined {
+  if (Array.isArray(value)) {
+    for (const item of value) {
+      const found = findRefusedStage(item);
+      if (found !== undefined) {
+        return found;
+      }
+    }
+    return undefined;
+  }
+  if (!isPlainObject(value)) {
+    return undefined;
+  }
+  for (const [key, child] of Object.entries(value)) {
+    if (REFUSED_STAGES.includes(key)) {
+      return key;
+    }
+    const found = findRefusedStage(child);
+    if (found !== undefined) {
+      return found;
+    }
+  }
+  return undefined;
+}
 
 // Canonical EJSON of a driver value, or undefined when the field is absent.
 export function toEjson(value: unknown): string | undefined {
@@ -74,7 +101,7 @@ export function parsePipeline(ejson: string): Document[] {
     if (!isPlainObject(stage)) {
       throw validation('Every pipeline stage must be an object');
     }
-    const refused = REFUSED_STAGES.find((name) => name in stage);
+    const refused = findRefusedStage(stage);
     if (refused !== undefined) {
       throw validation(`${refused} is not allowed in a change stream pipeline`);
     }

@@ -1,8 +1,11 @@
 import { z } from 'zod';
 import { AppErrorSchema } from '../schemas/errors';
 
+// The server holds an idle getMore for up to this long, and closing a watch cannot end that
+// getMore early. The cap keeps close and server-side cursor cleanup under two seconds.
+// Events are still delivered as soon as they arrive, so the cap only sets the idle poll rate.
 export const DEFAULT_CHANGE_MAX_AWAIT_MS = 1000;
-export const MAX_CHANGE_MAX_AWAIT_MS = 60_000;
+export const MAX_CHANGE_MAX_AWAIT_MS = 1000;
 export const DEFAULT_CHANGE_BATCH_SIZE = 100;
 export const MAX_CHANGE_BATCH_SIZE = 1000;
 // Events whose BSON size exceeds this keep only their key fields and are flagged as truncated.

@@ -229,6 +229,25 @@ describe('parsePipeline', () => {
     expect(() => parsePipeline('[{"$merge":{"into":"copy"}}]')).toThrow(/\$merge is not allowed/);
   });
 
+  it('refuses $out and $merge nested in $facet, $unionWith and $lookup sub-pipelines', () => {
+    const nested = [
+      '[{"$facet":{"a":[{"$match":{}},{"$out":"copy"}]}}]',
+      '[{"$facet":{"a":[{"$group":{"_id":1}}],"b":[{"$merge":{"into":"copy"}}]}}]',
+      '[{"$unionWith":{"coll":"other","pipeline":[{"$out":"copy"}]}}]',
+      '[{"$lookup":{"from":"other","pipeline":[{"$merge":{"into":"copy"}}],"as":"x"}}]',
+      '[{"$match":{"a":{"$nested":[{"$out":"deep"}]}}}]',
+    ];
+    for (const ejson of nested) {
+      expect(() => parsePipeline(ejson)).toThrow(/is not allowed/);
+    }
+  });
+
+  it('accepts nested stages that do not write', () => {
+    const safe =
+      '[{"$facet":{"a":[{"$match":{"x":1}}]}},{"$lookup":{"from":"o","pipeline":[{"$project":{"x":1}}],"as":"y"}}]';
+    expect(parsePipeline(safe)).toHaveLength(2);
+  });
+
   it('reports text that is not extended JSON as a validation error', () => {
     try {
       parsePipeline('[{"$match":');

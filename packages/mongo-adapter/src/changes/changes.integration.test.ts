@@ -3,6 +3,7 @@ import type { MongoClient } from 'mongodb';
 import { afterAll, afterEach, beforeAll, describe, expect, it } from 'vitest';
 import {
   AppErrorException,
+  MAX_CHANGE_MAX_AWAIT_MS,
   type ChangeEvent,
   type ChangeTarget,
   type ChangeWatchOptions,
@@ -73,6 +74,21 @@ function sequenceOf(event: ChangeEvent): unknown {
   return typeof document === 'object' && document !== null && 'sequence' in document
     ? document.sequence
     : undefined;
+}
+
+// Open cursors the server counts, from serverStatus.
+async function openCursorTotal(client: MongoClient): Promise<number> {
+  const status = await client.db('admin').command({ serverStatus: 1 });
+  return Number(status.metrics.cursor.open.total);
+}
+
+// Operations on the namespace that are running or hold an idle cursor, from $currentOp.
+async function cursorsOn(client: MongoClient, ns: string): Promise<number> {
+  const ops = await client
+    .db('admin')
+    .aggregate([{ $currentOp: { allUsers: true, idleCursors: true } }])
+    .toArray();
+  return ops.filter((op) => op.ns === ns).length;
 }
 
 function operationTypes(events: readonly ChangeEvent[]): string[] {
@@ -407,6 +423,37 @@ describe.each(IMAGES)('change streams on %s', (image) => {
   });
 
   describe('lifecycle', () => {
+    it(
+      'kills the server cursor when closed while a getMore is pending',
+      async () => {
+        const db = freshDb();
+        const ns = `${db}.orders`;
+        const before = await openCursorTotal(client);
+        const { watch } = await record(
+          client,
+          { kind: 'collection', database: db, collection: 'orders' },
+          { maxAwaitTimeMs: MAX_CHANGE_MAX_AWAIT_MS },
+        );
+        await new Promise((resolve) => setTimeout(resolve, 2000));
+        expect(await cursorsOn(client, ns)).toBeGreaterThan(0);
+
+        const started = Date.now();
+        await watch.close();
+        expect(Date.now() - started).toBeLessThan(CLOSE_BUDGET_MS);
+        await waitUntil(
+          async () => (await cursorsOn(client, ns)) === 0,
+          CLOSE_BUDGET_MS,
+          'the watch cursor to leave $currentOp',
+        );
+        await waitUntil(
+          async () => (await openCursorTotal(client)) <= before,
+          CLOSE_BUDGET_MS,
+          'the open cursor count to return to its prior value',
+        );
+      },
+      TEST_TIMEOUT_MS,
+    );
+
     it(
       'closes within two seconds',
       async () => {

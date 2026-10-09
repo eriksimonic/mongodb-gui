@@ -3,7 +3,9 @@ import {
   type ChangeStream,
   type ChangeStreamOptions,
   type Document,
+  type Long,
   type MongoClient,
+  type MongoDBNamespace,
   type Timestamp,
 } from 'mongodb';
 import {
@@ -30,6 +32,9 @@ import { parseOperationTime, parsePipeline, parseResumeToken, toChangeEvent } fr
 const CHANGE_STREAM_HISTORY_LOST = 286;
 const RESUMABLE_LABEL = 'ResumableChangeStreamError';
 const INVALIDATE = 'invalidate';
+const AGGREGATE_REPLY = 'init';
+// Database-level and deployment-level cursors have no collection; the driver names them this way.
+const AGGREGATE_COMMAND_COLLECTION = '$cmd.aggregate';
 
 export interface ChangeWatchHandlers {
   readonly onEvent: (event: ChangeEvent) => void;
@@ -83,6 +88,8 @@ export function openChangeWatch(
   let resumeUsed = false;
   const pending: ChangeEvent[] = [];
   let pendingBytes = 0;
+  let pumping: Promise<void> = Promise.resolve();
+  let activeCursor: CursorHandle | undefined;
 
   function snapshot(): ChangeWatchState {
     return {
@@ -114,7 +121,16 @@ export function openChangeWatch(
     if (point.startAtOperationTime !== undefined) {
       streamOptions.startAtOperationTime = point.startAtOperationTime;
     }
-    return watchTarget(client, session.target, session.pipeline, streamOptions);
+    const opened = watchTarget(client, session.target, session.pipeline, streamOptions);
+    activeCursor = cursorOf(opened);
+    // The watch is live once the server has answered the aggregate, not on the first batch.
+    // On an idle collection the first batch can take a whole maxAwaitTimeMS to arrive.
+    onAggregateReply(opened, () => {
+      if (phase === 'opening') {
+        setPhase('live');
+      }
+    });
+    return opened;
   }
 
   function closeStream(): Promise<void> {
@@ -184,6 +200,10 @@ export function openChangeWatch(
   // could not be opened; the watch has failed by then.
   async function tryResume(): Promise<boolean> {
     await closeStream();
+    // close() may have run while the old stream was closing. Opening now would leak a cursor.
+    if (finished) {
+      return false;
+    }
     const point: ResumePoint =
       lastResume === undefined
         ? session.origin
@@ -253,24 +273,37 @@ export function openChangeWatch(
     }
   }
 
+  // A function call keeps TypeScript from narrowing `phase` to the value it had before a handler
+  // ran, so the flush loop sees a pause made by a handler.
+  function isLive(): boolean {
+    return phase === 'live';
+  }
+
   function resume(): void {
     if (finished || phase !== 'paused') {
       return;
     }
-    phase = 'live';
-    while (pending.length > 0) {
+    // Delivery stops as soon as a handler pauses or closes the watch. The rest stays buffered
+    // in order, so the next resume continues from the event after the one that paused it.
+    setPhase('live');
+    while (!finished && isLive()) {
       const event = pending.shift();
-      if (event !== undefined) {
-        handlers.onEvent(event);
+      if (event === undefined) {
+        break;
       }
+      pendingBytes -= event.sizeBytes;
+      handlers.onEvent(event);
     }
-    pendingBytes = 0;
-    emitState();
   }
 
+  // Marks the watch finished and closes the driver stream. The driver's close does not send
+  // killCursors while a getMore is pending, so the read loop is awaited first: its getMore ends
+  // within maxAwaitTimeMs. The server cursor is then killed explicitly, so it does not stay idle.
   async function close(): Promise<void> {
     finish('closed');
     await closeStream();
+    await pumping;
+    await killCursor(client, activeCursor);
   }
 
   try {
@@ -283,7 +316,7 @@ export function openChangeWatch(
   } else {
     handlers.signal?.addEventListener('abort', onAbort, { once: true });
   }
-  void pump();
+  pumping = pump();
 
   return { pause, resume, close, state: snapshot };
 }
@@ -301,6 +334,58 @@ function watchTarget(
       return client.db(target.database).watch(pipeline, options);
     case 'deployment':
       return client.watch(pipeline, options);
+  }
+}
+
+// The driver's cursor. Its id is zero once the cursor is exhausted, and it has no id before the
+// aggregate has been answered. Both getters are public on the driver's cursor type.
+interface CursorHandle {
+  readonly id: Long | undefined;
+  readonly namespace: MongoDBNamespace;
+}
+
+function cursorOf(stream: ChangeStream<Document>): CursorHandle | undefined {
+  const cursor: unknown = readField(stream, 'cursor');
+  return isCursorHandle(cursor) ? cursor : undefined;
+}
+
+function isCursorHandle(value: unknown): value is CursorHandle {
+  return typeof value === 'object' && value !== null && 'id' in value && 'namespace' in value;
+}
+
+// Kills the server cursor with killCursors. Errors are ignored: the cursor may already be gone,
+// and close must not fail for it.
+async function killCursor(client: MongoClient, cursor: CursorHandle | undefined): Promise<void> {
+  const id = cursor?.id;
+  if (cursor === undefined || id === undefined || id.isZero()) {
+    return;
+  }
+  const collection = cursor.namespace.collection ?? AGGREGATE_COMMAND_COLLECTION;
+  await client
+    .db(cursor.namespace.db)
+    .command({ killCursors: collection, cursors: [id] })
+    .catch(() => undefined);
+}
+
+interface Emitter {
+  once(event: string, listener: () => void): unknown;
+}
+
+function isEmitter(value: unknown): value is Emitter {
+  return (
+    typeof value === 'object' &&
+    value !== null &&
+    'once' in value &&
+    typeof value.once === 'function'
+  );
+}
+
+// The driver emits 'init' when the aggregate has been answered. It emits it on its internal
+// cursor, which the stream does not re-emit, so the cursor is reached through the stream.
+function onAggregateReply(stream: ChangeStream<Document>, listener: () => void): void {
+  const cursor: unknown = readField(stream, 'cursor');
+  if (isEmitter(cursor)) {
+    cursor.once(AGGREGATE_REPLY, listener);
   }
 }
 
