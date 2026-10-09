@@ -1,3 +1,4 @@
+import { randomUUID } from 'node:crypto';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { MongoClient } from 'mongodb';
 import {
@@ -8,8 +9,13 @@ import {
   type StartedTestContainer,
 } from 'testcontainers';
 import type { DockerMongoContainer } from '@mongo-gui/core';
-import { FORWARDER_LABEL, discoverMongoContainers } from './discovery';
-import { createForwarderManager, forwarderLabelFor, type ForwarderManager } from './forwarder';
+import { discoverMongoContainers } from './discovery';
+import {
+  createForwarderManager,
+  forwarderLabelFor,
+  type ForwarderHandle,
+  type ForwarderManager,
+} from './forwarder';
 import {
   createDockerEngineClient,
   defaultDockerSocket,
@@ -19,6 +25,12 @@ import {
 const SETUP_TIMEOUT_MS = 240_000;
 const TEST_TIMEOUT_MS = 120_000;
 const MONGO_IMAGE = 'mongo:8.0.17';
+// Several worktrees can run this suite against one engine at once. A unique scope per run keeps
+// each run's cleanup away from the forwarders of the others.
+const SCOPE = `forwarder-test-${randomUUID()}`;
+const OTHER_SCOPE = `forwarder-test-${randomUUID()}`;
+const GONE_TIMEOUT_MS = 10_000;
+const GONE_POLL_MS = 100;
 
 // No published ports: the only route in is the forwarder on the shared network.
 describe('Docker discovery and forwarder against a real engine', () => {
@@ -38,7 +50,7 @@ describe('Docker discovery and forwarder against a real engine', () => {
     engine = createDockerEngineClient({
       socketPath: defaultDockerSocket(process.env, process.platform),
     });
-    manager = createForwarderManager({ client: engine });
+    manager = createForwarderManager({ client: engine, scope: SCOPE });
     const found = (await discoverMongoContainers(engine)).find(
       (container) => container.id === mongo.getId(),
     );
@@ -97,15 +109,37 @@ describe('Docker discovery and forwarder against a real engine', () => {
   );
 
   it(
-    'removes stale forwarders with cleanupAll',
+    'removes stale forwarders of its own scope with cleanupAll and leaves other scopes alone',
     async () => {
-      await manager.ensure(target);
-      expect(await engine.listContainersByLabel(FORWARDER_LABEL)).not.toHaveLength(0);
+      // A manager that dies without release leaves its forwarder running.
+      const crashed = createForwarderManager({ client: engine, scope: SCOPE });
+      const stale: ForwarderHandle = await crashed.ensure(target);
 
-      await manager.cleanupAll();
+      await createForwarderManager({ client: engine, scope: OTHER_SCOPE }).cleanupAll();
+      expect(await forwarderIds(engine, target.id)).toContain(stale.forwarderId);
 
-      expect(await engine.listContainersByLabel(FORWARDER_LABEL)).toEqual([]);
+      await createForwarderManager({ client: engine, scope: SCOPE }).cleanupAll();
+      // A removal another party already started returns at once, so the container can still be
+      // listed for a moment. Wait for it to finish before asserting.
+      await waitUntilGone(engine, target.id, stale.forwarderId);
+      expect(await forwarderIds(engine, target.id)).not.toContain(stale.forwarderId);
     },
     TEST_TIMEOUT_MS,
   );
 });
+
+async function forwarderIds(engine: DockerEngineClient, targetId: string): Promise<string[]> {
+  const items = await engine.listContainersByLabel(forwarderLabelFor(targetId));
+  return items.map((item) => item.id);
+}
+
+async function waitUntilGone(
+  engine: DockerEngineClient,
+  targetId: string,
+  containerId: string,
+): Promise<void> {
+  const deadline = Date.now() + GONE_TIMEOUT_MS;
+  while ((await forwarderIds(engine, targetId)).includes(containerId) && Date.now() < deadline) {
+    await new Promise((resolve) => setTimeout(resolve, GONE_POLL_MS));
+  }
+}

@@ -23,6 +23,14 @@ const HostPortSchema = z.object({
     Ports: z.record(z.string(), z.array(z.object({ HostPort: z.string() })).nullish()).nullish(),
   }),
 });
+const StateSchema = z.object({ State: z.object({ Status: z.string().optional() }).nullish() });
+
+/**
+ * The label that scopes forwarders to one app instance. Forwarders without it count as the
+ * default scope, so forwarders from before scopes existed are still cleaned up.
+ */
+export const FORWARDER_SCOPE_LABEL = `${FORWARDER_LABEL}.scope`;
+export const DEFAULT_FORWARDER_SCOPE = 'app';
 
 export interface ForwarderHandle {
   readonly hostPort: number;
@@ -35,6 +43,11 @@ export interface ForwarderManagerOptions {
   readonly image?: string;
   /** How long a new forwarder may take to accept connections. Defaults to 3 seconds. */
   readonly readyTimeoutMs?: number;
+  /**
+   * Instance scope. Reuse, release and cleanup see only forwarders with this scope. The app keeps
+   * the default. Tests pass a unique value so parallel runs do not touch each other's forwarders.
+   */
+  readonly scope?: string;
 }
 
 export interface ForwarderManager {
@@ -57,6 +70,7 @@ export function createForwarderManager(options: ForwarderManagerOptions): Forwar
   const { client } = options;
   const image = options.image ?? FORWARDER_IMAGE;
   const readyTimeoutMs = options.readyTimeoutMs ?? DEFAULT_READY_TIMEOUT_MS;
+  const scope = options.scope ?? DEFAULT_FORWARDER_SCOPE;
   // Concurrent ensure calls for one target share a single start.
   const pending = new Map<string, Promise<ForwarderHandle>>();
 
@@ -78,7 +92,7 @@ export function createForwarderManager(options: ForwarderManagerOptions): Forwar
       name: forwarderName(target.id),
       image,
       cmd: [`tcp-listen:${MONGO_PORT},fork,reuseaddr`, `tcp-connect:${address}:${MONGO_PORT}`],
-      labels: { [FORWARDER_LABEL]: target.id },
+      labels: { [FORWARDER_LABEL]: target.id, [FORWARDER_SCOPE_LABEL]: scope },
       exposedPorts: [MONGO_PORT_KEY],
       networkMode: network,
       portBindings: { [MONGO_PORT_KEY]: [{ hostIp: LOOPBACK, hostPort: '0' }] },
@@ -101,7 +115,7 @@ export function createForwarderManager(options: ForwarderManagerOptions): Forwar
       if (inFlight !== undefined) {
         return inFlight;
       }
-      const attempt = reuseOrStart(client, target, start).finally(() => {
+      const attempt = reuseOrStart(client, target, scope, start).finally(() => {
         pending.delete(target.id);
       });
       pending.set(target.id, attempt);
@@ -111,25 +125,43 @@ export function createForwarderManager(options: ForwarderManagerOptions): Forwar
     async release(targetId) {
       // A start still in flight would create a forwarder after this call, so wait for it first.
       await pending.get(targetId)?.catch(() => undefined);
-      await removeOwned(
-        client,
-        await client.listContainersByLabel(forwarderLabelFor(targetId)),
-        targetId,
-      );
+      await removeOwned(client, await listOwned(client, scope, targetId), targetId);
     },
 
     async cleanupAll() {
-      await removeOwned(client, await client.listContainersByLabel(FORWARDER_LABEL), undefined);
+      await removeOwned(client, await listOwned(client, scope), undefined);
     },
   };
+}
+
+/**
+ * Lists the forwarders of one scope. The engine filters on the forwarder label. The scope label
+ * is checked here, because the engine filter cannot match a missing label. With a target, only
+ * that target's forwarders are listed.
+ */
+async function listOwned(
+  client: DockerEngineClient,
+  scope: string,
+  targetId?: string,
+): Promise<ContainerListItem[]> {
+  const label = targetId === undefined ? FORWARDER_LABEL : forwarderLabelFor(targetId);
+  const listed = await client.listContainersByLabel(label);
+  return listed.filter((item) => inScope(item, scope));
+}
+
+/** A forwarder without the scope label belongs to the default scope. */
+function inScope(container: ContainerListItem, scope: string): boolean {
+  const owner = container.labels[FORWARDER_SCOPE_LABEL] ?? DEFAULT_FORWARDER_SCOPE;
+  return owner === scope;
 }
 
 async function reuseOrStart(
   client: DockerEngineClient,
   target: DockerMongoContainer,
+  scope: string,
   start: (target: DockerMongoContainer) => Promise<ForwarderHandle>,
 ): Promise<ForwarderHandle> {
-  const existing = await client.listContainersByLabel(forwarderLabelFor(target.id));
+  const existing = await listOwned(client, scope, target.id);
   const pinned = await client.imageId(FORWARDER_IMAGE);
   const running = existing.find(
     (item) => item.state === 'running' && isOwnedForwarder(item, target.id, pinned),
@@ -207,9 +239,19 @@ function hostPortOf(inspectJson: unknown): number {
     : undefined;
   const port = binding === undefined ? Number.NaN : Number(binding.HostPort);
   if (!Number.isInteger(port) || port <= 0) {
-    throw new AppErrorException(appError('INTERNAL', 'The forwarder has no host port.'));
+    throw new AppErrorException(
+      appError('INTERNAL', 'The forwarder has no host port.', `state: ${stateOf(inspectJson)}`),
+    );
   }
   return port;
+}
+
+function stateOf(inspectJson: unknown): string {
+  const parsed = StateSchema.safeParse(inspectJson);
+  if (!parsed.success) {
+    return 'unreadable inspect';
+  }
+  return parsed.data.State?.Status ?? 'unknown';
 }
 
 function forwarderName(targetId: string): string {
