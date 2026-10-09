@@ -2,22 +2,31 @@ import js from '@eslint/js';
 import { builtinModules } from 'node:module';
 import tseslint from 'typescript-eslint';
 
-const nodeBuiltinNames = builtinModules.filter((name) => !name.startsWith('_'));
+const SOURCE_GLOB = '**/*.{ts,tsx,mts,cts}';
+
+function escapeRegExp(text) {
+  return text.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+}
+
+const nodeBuiltinNames = builtinModules.filter((name) => !name.includes(':'));
+const nodeBuiltinRegex = `^(node:.*|(${nodeBuiltinNames.map(escapeRegExp).join('|')})(/.*)?)$`;
+
+function packageRegex(names) {
+  return `^(${names.map(escapeRegExp).join('|')})(/.*)?$`;
+}
 
 function importBoundary({ packages, nodeBuiltins }) {
-  const patterns = packages.map((name) => ({
-    group: [name, `${name}/**`],
-    message: `Package boundary: this package may not import "${name}". See docs/PLAN.md section 2.2.`,
-  }));
+  const patterns = [
+    {
+      regex: packageRegex(packages),
+      message: `Package boundary: this package may not import ${packages.join(', ')}. See docs/PLAN.md section 2.2.`,
+    },
+  ];
   if (nodeBuiltins) {
     patterns.push({
-      group: [
-        'node:*',
-        'node:*/**',
-        ...nodeBuiltinNames,
-        ...nodeBuiltinNames.map((name) => `${name}/**`),
-      ],
-      message: 'Package boundary: this package may not import Node built-in modules.',
+      regex: nodeBuiltinRegex,
+      message:
+        'Package boundary: this package may not import Node built-in modules. See docs/PLAN.md section 2.2.',
     });
   }
   return ['error', { patterns }];
@@ -30,8 +39,8 @@ export default [
   js.configs.recommended,
   ...tseslint.configs.strict,
   {
-    files: ['**/*.ts'],
-    ignores: ['**/*.config.ts'],
+    files: [SOURCE_GLOB],
+    ignores: ['**/*.config.{ts,mts,js,mjs}'],
     rules: {
       'no-restricted-exports': [
         'error',
@@ -48,7 +57,7 @@ export default [
     },
   },
   {
-    files: ['packages/core/src/**/*.ts'],
+    files: ['packages/core/src/' + SOURCE_GLOB],
     rules: {
       'no-restricted-imports': importBoundary({
         packages: ['electron', 'mongodb', 'bson', 'react'],
@@ -57,7 +66,7 @@ export default [
     },
   },
   {
-    files: ['packages/ui/src/**/*.ts'],
+    files: ['packages/ui/src/' + SOURCE_GLOB],
     rules: {
       'no-restricted-imports': importBoundary({
         packages: ['electron', 'mongodb', 'bson'],
@@ -66,7 +75,7 @@ export default [
     },
   },
   {
-    files: ['packages/storage/src/**/*.ts'],
+    files: ['packages/storage/src/' + SOURCE_GLOB],
     rules: {
       'no-restricted-imports': importBoundary({
         packages: ['electron', 'mongodb', 'react'],
@@ -75,7 +84,16 @@ export default [
     },
   },
   {
-    files: ['packages/mongo-adapter/src/**/*.ts'],
+    files: ['packages/mongo-adapter/src/' + SOURCE_GLOB],
+    rules: {
+      'no-restricted-imports': importBoundary({
+        packages: ['electron', 'react'],
+        nodeBuiltins: false,
+      }),
+    },
+  },
+  {
+    files: ['packages/shell-runtime/src/' + SOURCE_GLOB],
     rules: {
       'no-restricted-imports': importBoundary({
         packages: ['electron', 'react'],

@@ -1,12 +1,44 @@
 {
   "files": [],
   "references": [
-    { "path": "./packages/core" },
-    { "path": "./packages/mongo-adapter" },
-    { "path": "./packages/shell-runtime" },
-    { "path": "./packages/storage" },
-    { "path": "./packages/ui" },
-    { "path": "./packages/app" },
-    { "path": "./tsconfig.tooling.json" }
+    {
+      "path": "./packages/core"
+    },
+    {
+      "path": "./packages/core/tsconfig.test.json"
+    },
+    {
+      "path": "./packages/mongo-adapter"
+    },
+    {
+      "path": "./packages/mongo-adapter/tsconfig.test.json"
+    },
+    {
+      "path": "./packages/shell-runtime"
+    },
+    {
+      "path": "./packages/shell-runtime/tsconfig.test.json"
+    },
+    {
+      "path": "./packages/storage"
+    },
+    {
+      "path": "./packages/storage/tsconfig.test.json"
+    },
+    {
+      "path": "./packages/ui"
+    },
+    {
+      "path": "./packages/ui/tsconfig.test.json"
+    },
+    {
+      "path": "./packages/app"
+    },
+    {
+      "path": "./packages/app/tsconfig.test.json"
+    },
+    {
+      "path": "./tsconfig.tooling.json"
+    }
   ]
 }

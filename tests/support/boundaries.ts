@@ -37,11 +37,20 @@ export const packageBoundaries: readonly PackageBoundary[] = [
     forbidsNodeBuiltins: false,
   },
   {
+    packageName: 'shell-runtime',
+    forbiddenPackages: ['electron', 'react'],
+    forbidsNodeBuiltins: false,
+  },
+  {
     packageName: 'mongo-adapter',
     forbiddenPackages: ['electron', 'react'],
     forbidsNodeBuiltins: false,
   },
 ];
+
+export function isSourceFileName(fileName: string): boolean {
+  return /\.(c|m)?tsx?$/.test(fileName);
+}
 
 const bareBuiltins = new Set(builtinModules.filter((name) => !name.startsWith('_')));
 
@@ -120,7 +129,7 @@ export async function readPackageSources(repoRoot: string): Promise<SourceFile[]
     const srcDir = join(packagesDir, entry.name, 'src');
     const relativePaths = await readdir(srcDir, { recursive: true });
     for (const relativePath of relativePaths) {
-      if (!relativePath.endsWith('.ts')) {
+      if (!isSourceFileName(relativePath)) {
         continue;
       }
       const path = `packages/${entry.name}/src/${relativePath.split(sep).join('/')}`;

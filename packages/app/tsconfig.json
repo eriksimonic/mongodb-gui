@@ -6,11 +6,22 @@
     "outDir": "dist"
   },
   "include": ["src"],
+  "exclude": ["src/**/*.test.ts", "src/**/*.test.tsx"],
   "references": [
-    { "path": "../core" },
-    { "path": "../mongo-adapter" },
-    { "path": "../shell-runtime" },
-    { "path": "../storage" },
-    { "path": "../ui" }
+    {
+      "path": "../core"
+    },
+    {
+      "path": "../mongo-adapter"
+    },
+    {
+      "path": "../shell-runtime"
+    },
+    {
+      "path": "../storage"
+    },
+    {
+      "path": "../ui"
+    }
   ]
 }
