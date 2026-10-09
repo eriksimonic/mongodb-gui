@@ -1,4 +1,5 @@
 import { z } from 'zod';
+import type { ParsedUrl, ParsedUrlConstructor } from '../types/url';
 import {
   ConnectionProfileInputSchema,
   ConnectionProfileSchema,
@@ -27,6 +28,7 @@ import {
 } from '../schemas/monitor';
 import { FavouriteInputSchema, FavouriteSchema, HistoryEntrySchema } from '../schemas/history';
 import { VaultStatusSchema } from '../schemas/vault';
+import { UpdateStateSchema } from '../updates/types';
 import { defineCall, type RpcContract } from './define';
 
 const idParam = z.object({ id: z.uuid() });
@@ -35,6 +37,53 @@ const databaseParam = connectionParam.extend({ database: z.string().min(1) });
 const collectionParam = databaseParam.extend({ collection: z.string().min(1) });
 const password = z.string().min(1);
 const newPassword = z.string().min(10);
+
+/** The runtime URL class. Declared at module scope so no other package sees a changed global. */
+declare const URL: ParsedUrlConstructor;
+
+const PROJECT_PATH_PREFIX = '/eriksimonic/mongodb-mager/';
+const MAX_LINK_LENGTH = 2048;
+const ENCODED_DOT_OR_SLASH = /%2e|%2f/i;
+
+/** Spaces, tabs, line breaks and other control characters. */
+function hasWhitespaceOrControl(value: string): boolean {
+  for (const char of value) {
+    const code = char.codePointAt(0) ?? 0;
+    if (code <= 0x20 || code === 0x7f || /\s/.test(char)) {
+      return true;
+    }
+  }
+  return false;
+}
+
+/**
+ * True only for an https link to a page of the project on github.com. The check runs on the
+ * parsed URL, so a traversal segment, a user name or a look-alike host cannot pass.
+ */
+export function isProjectLink(value: string): boolean {
+  if (hasWhitespaceOrControl(value) || ENCODED_DOT_OR_SLASH.test(value)) {
+    return false;
+  }
+  let url: ParsedUrl;
+  try {
+    url = new URL(value);
+  } catch {
+    return false;
+  }
+  return (
+    url.protocol === 'https:' &&
+    url.hostname === 'github.com' &&
+    url.port === '' &&
+    url.username === '' &&
+    url.password === '' &&
+    url.pathname.startsWith(PROJECT_PATH_PREFIX)
+  );
+}
+
+const externalUrl = z
+  .string()
+  .max(MAX_LINK_LENGTH)
+  .refine(isProjectLink, 'The link must point to a page of the project on GitHub.');
 
 export const rpcContract = {
   vault: {
@@ -95,5 +144,15 @@ export const rpcContract = {
     list: defineCall(z.void(), z.array(FavouriteSchema)),
     save: defineCall(FavouriteInputSchema, FavouriteSchema),
     remove: defineCall(idParam, z.void()),
+  },
+  updates: {
+    state: defineCall(z.void(), UpdateStateSchema),
+    check: defineCall(z.void(), UpdateStateSchema),
+    download: defineCall(z.void(), UpdateStateSchema),
+    install: defineCall(z.void(), z.void()),
+    dismiss: defineCall(z.object({ version: z.string().min(1).max(64) }), UpdateStateSchema),
+  },
+  app: {
+    openExternal: defineCall(z.object({ url: externalUrl }), z.void()),
   },
 } satisfies RpcContract;

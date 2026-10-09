@@ -14,7 +14,11 @@ const bundledWorkspacePackages = [
 
 export default defineConfig({
   main: {
-    plugins: [externalizeDepsPlugin({ exclude: bundledWorkspacePackages })],
+    // electron-updater is bundled into the main bundle. It reads app-update.yml from the
+    // resources directory at run time, which works inside the asar.
+    plugins: [
+      externalizeDepsPlugin({ exclude: [...bundledWorkspacePackages, 'electron-updater'] }),
+    ],
     build: {
       outDir: join(appRoot, 'out/main'),
     },
