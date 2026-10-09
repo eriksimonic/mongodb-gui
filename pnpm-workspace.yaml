@@ -8,3 +8,6 @@ allowBuilds:
   cpu-features: false
   protobufjs: false
   electron-winstaller: false
+  kerberos: false
+  mongodb-client-encryption: false
+  os-dns-native: false
