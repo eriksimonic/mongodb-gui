@@ -72,6 +72,7 @@ import {
 } from '../docker/types';
 import { UpdateStateSchema } from '../updates/types';
 import { defineCall, type RpcContract } from './define';
+import { LAYOUT_VALUE_LIMIT_BYTES, layoutValueBytes } from '../monitor/dashboard-layout';
 
 const idParam = z.object({ id: z.uuid() });
 const connectionParam = z.object({ connectionId: z.uuid() });
@@ -131,6 +132,17 @@ const externalUrl = z
   .string()
   .max(MAX_LINK_LENGTH)
   .refine(isProjectLink, 'The link must point to a page of the project on GitHub.');
+
+/** Layout keys name one saved setting, such as `layout:dashboard:<connection id>`. */
+const layoutKey = z.string().min(1).max(200);
+// Layout values have no core schema. The store checks their size, and the router checks the shape
+// of the dashboard layout when it reads one back.
+const layoutValue = z
+  .unknown()
+  .refine(
+    (value) => value !== undefined && layoutValueBytes(value) <= LAYOUT_VALUE_LIMIT_BYTES,
+    'The layout value must be a JSON value under 256 KB.',
+  );
 
 export const rpcContract = {
   vault: {
@@ -281,5 +293,9 @@ export const rpcContract = {
   },
   app: {
     openExternal: defineCall(z.object({ url: externalUrl }), z.void()),
+  },
+  layout: {
+    get: defineCall(z.object({ key: layoutKey }), z.object({ value: z.unknown().nullable() })),
+    set: defineCall(z.object({ key: layoutKey, value: layoutValue }), z.void()),
   },
 } satisfies RpcContract;

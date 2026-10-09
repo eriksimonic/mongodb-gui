@@ -1,5 +1,4 @@
-/** What a metric measures. Drives how values are written in tooltips, legends and axes. */
-export type MetricUnit = 'perSecond' | 'count' | 'bytesPerSecond' | 'megabytes' | 'seconds';
+import type { SeriesUnit } from '@mongo-gui/core';
 
 const SECONDS_PER_MINUTE = 60;
 const SECONDS_PER_HOUR = 3600;
@@ -7,9 +6,7 @@ const SECONDS_PER_DAY = 86_400;
 const BYTE_STEP = 1024;
 const BYTE_UNITS = ['B', 'KB', 'MB', 'GB', 'TB'] as const;
 
-const MEGABYTE_WHOLE_FROM = 100;
 const exactFormat = new Intl.NumberFormat('en-US', { maximumFractionDigits: 1 });
-const wholeFormat = new Intl.NumberFormat('en-US', { maximumFractionDigits: 0 });
 const compactFormat = new Intl.NumberFormat('en-US', {
   notation: 'compact',
   maximumFractionDigits: 1,
@@ -55,27 +52,57 @@ export function formatDuration(totalSeconds: number): string {
   return `${seconds} s`;
 }
 
-/** A value with its unit, for tooltips and legend readouts. */
-export function formatValue(value: number, unit: MetricUnit): string {
+/** A value with its unit, for tooltips, legend readouts and stat tiles. */
+export function formatValue(value: number, unit: SeriesUnit): string {
   switch (unit) {
-    case 'perSecond':
-      return `${formatExact(value)} ops/s`;
     case 'count':
       return formatExact(value);
-    case 'bytesPerSecond':
+    case 'per-second':
+      return `${formatExact(value)}/s`;
+    case 'bytes':
+      return formatBytes(value);
+    case 'bytes-per-second':
       return `${formatBytes(value)}/s`;
-    case 'megabytes':
-      return value >= MEGABYTE_WHOLE_FROM
-        ? `${wholeFormat.format(Math.round(value))} MB`
-        : `${formatExact(value)} MB`;
+    case 'ms':
+      return `${formatExact(value)} ms`;
+    case 'percent':
+      return `${formatExact(value)}%`;
     case 'seconds':
       return value < SECONDS_PER_MINUTE ? `${formatExact(value)} s` : formatDuration(value);
   }
 }
 
-/** Axis tick label. Shorter than the tooltip form, with the unit left to the card title. */
-export function formatAxisValue(value: number, unit: MetricUnit): string {
-  return unit === 'bytesPerSecond' ? formatBytes(value) : formatCompact(value);
+/** The unit's name, written under a chart title. */
+export function unitCaption(unit: SeriesUnit): string {
+  switch (unit) {
+    case 'count':
+      return 'Count';
+    case 'per-second':
+      return 'Per second';
+    case 'bytes':
+      return 'Bytes';
+    case 'bytes-per-second':
+      return 'Bytes per second';
+    case 'ms':
+      return 'Milliseconds';
+    case 'percent':
+      return 'Percent';
+    case 'seconds':
+      return 'Seconds';
+  }
+}
+
+/** Axis tick label. Shorter than the tooltip form, with the unit left to the card caption. */
+export function formatAxisValue(value: number, unit: SeriesUnit): string {
+  switch (unit) {
+    case 'bytes':
+    case 'bytes-per-second':
+      return formatBytes(value);
+    case 'percent':
+      return `${formatCompact(value)}%`;
+    default:
+      return formatCompact(value);
+  }
 }
 
 /** Clock time in local time, hours, minutes and seconds. */

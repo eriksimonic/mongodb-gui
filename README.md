@@ -5,6 +5,9 @@ editor, shows results in a grid, and will draw explain plans, indexes, live moni
 and the profiler. It runs on Linux, Windows and macOS and is released under the MIT
 license.
 
+The monitoring dashboard is configurable. Pick panels from a catalogue of 30 server metrics,
+close, resize and reorder them, and the layout is saved for each connection.
+
 Everything the app stores on disk (saved connections, query history, favourites,
 settings) is encrypted with a key derived from a master password you type at launch.
 See the security section of [docs/PLAN.md](docs/PLAN.md).
@@ -36,6 +39,10 @@ release.
 | Monitor dashboard                                                                     | Running operations                                                                         |
 | ------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------ |
 | ![Live monitoring dashboard with stat tiles and charts](docs/screenshots/monitor.png) | ![Running operations with filters and a long aggregation](docs/screenshots/operations.png) |
+
+| Add panel picker, grouped by category                                                    |
+| ---------------------------------------------------------------------------------------- |
+| ![Add panel picker with panels grouped by category](docs/screenshots/monitor-picker.png) |
 
 >
 

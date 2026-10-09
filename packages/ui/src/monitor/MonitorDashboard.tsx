@@ -2,6 +2,7 @@ import {
   Alert,
   Button,
   Group,
+  Modal,
   Paper,
   SegmentedControl,
   SimpleGrid,
@@ -10,25 +11,35 @@ import {
 } from '@mantine/core';
 import {
   DEFAULT_MONITOR_INTERVAL_MS,
+  findPanel,
   type ConnectionStatus,
   type MonitorSample,
+  type PanelSpec,
+  type SeriesUnit,
+  type ServerCapabilities,
 } from '@mongo-gui/core';
 import { useEffect, useMemo, useState } from 'react';
 import { runReported } from '../components/notify-error';
 import { useAppStore } from '../state/app-store-context';
 import { EMPTY_MONITOR_VIEW } from '../state/monitor-state';
+import { EMPTY_DASHBOARD_VIEW, visiblePanels } from '../state/dashboard-state';
 import { chartSeries } from './chart-series';
-import { ChartCard } from './ChartCard';
-import { formatCompact, formatDuration, formatExact, formatInterval } from './format';
+import type { ChartMode, ChartWindow } from './chart-types';
+import { AddPanelPicker } from './AddPanelPicker';
+import { ChartBody, PanelCard, PanelMenu, StatBody } from './PanelCard';
+import { formatCompact, formatDuration, formatExact, formatInterval, unitCaption } from './format';
 import {
   headlineOf,
+  latestSeriesValue,
   MONITOR_RANGES,
+  panelLines,
   RANGE_LABELS,
   RANGE_MS,
   RANGE_TICK_SECONDS,
   rangeSamples,
-  seriesFromSamples,
+  timelineOf,
   type MonitorRange,
+  type Timeline,
 } from './series';
 import './monitor.css';
 
@@ -92,8 +103,23 @@ function headerSubtitle(status: ConnectionStatus): string {
 }
 
 /**
+ * What the connected server offers, read from the status and the newest sample. Unknown values
+ * never disable a panel, so a panel stays available until the server says it cannot run.
+ */
+function capabilitiesOf(
+  status: ConnectionStatus,
+  latest: MonitorSample | undefined,
+): ServerCapabilities {
+  return {
+    wiredTiger: latest === undefined ? undefined : latest.wiredTiger !== undefined,
+    replicaSet: status.state === 'connected' ? status.topology === 'replicaSet' : undefined,
+  };
+}
+
+/**
  * Live server metrics for one connection. The store holds the samples, and this view slices them
  * to the chosen range. Pause freezes the view. Samples keep arriving in the store meanwhile.
+ * The panels come from the saved layout of the connection, and each one draws from the catalogue.
  */
 export function MonitorDashboard({ connectionId }: MonitorDashboardProps) {
   const connectionName = useAppStore((state) =>
@@ -103,12 +129,22 @@ export function MonitorDashboard({ connectionId }: MonitorDashboardProps) {
   );
   const status = useAppStore((state) => state.statuses[connectionId] ?? DISCONNECTED);
   const view = useAppStore((state) => state.monitors[connectionId] ?? EMPTY_MONITOR_VIEW);
+  const dashboard = useAppStore((state) => state.dashboards[connectionId] ?? EMPTY_DASHBOARD_VIEW);
   const startMonitor = useAppStore((state) => state.startMonitor);
   const setMonitorInterval = useAppStore((state) => state.setMonitorInterval);
   const retryMonitor = useAppStore((state) => state.retryMonitor);
   const connect = useAppStore((state) => state.connect);
+  const loadDashboard = useAppStore((state) => state.loadDashboard);
+  const addDashboardPanel = useAppStore((state) => state.addDashboardPanel);
+  const removeDashboardPanel = useAppStore((state) => state.removeDashboardPanel);
+  const moveDashboardPanel = useAppStore((state) => state.moveDashboardPanel);
+  const resizeDashboardPanel = useAppStore((state) => state.resizeDashboardPanel);
+  const resetDashboard = useAppStore((state) => state.resetDashboard);
   const [range, setRange] = useState<MonitorRange>('5m');
   const [frozen, setFrozen] = useState<readonly MonitorSample[] | undefined>(undefined);
+  const [pickerOpen, setPickerOpen] = useState(false);
+  const [aboutId, setAboutId] = useState<string | undefined>(undefined);
+  const [dragId, setDragId] = useState<string | undefined>(undefined);
 
   const connected = status.state === 'connected';
   const running = view.config !== undefined;
@@ -119,30 +155,29 @@ export function MonitorDashboard({ connectionId }: MonitorDashboardProps) {
     }
   }, [connected, running, connectionId, startMonitor]);
 
+  useEffect(() => {
+    void loadDashboard(connectionId);
+  }, [connectionId, loadDashboard]);
+
   // While stopped, the selector still shows the interval the user chose, so it matches what a reconnect uses.
   const intervalMs =
     view.config?.intervalMs ?? view.preferredIntervalMs ?? DEFAULT_MONITOR_INTERVAL_MS;
   const source = frozen ?? view.samples;
   const windowed = useMemo(() => rangeSamples(source, range), [source, range]);
-  const series = useMemo(() => seriesFromSamples(windowed, intervalMs), [windowed, intervalMs]);
+  const timeline = useMemo(() => timelineOf(windowed, intervalMs), [windowed, intervalMs]);
   const chartWindow = useMemo(
     () => ({ windowSeconds: RANGE_MS[range] / 1000, tickSeconds: RANGE_TICK_SECONDS[range] }),
     [range],
   );
-  const cards = useMemo(
-    () => ({
-      operations: chartSeries(series.operations),
-      connections: chartSeries(series.connections),
-      connectionsReadout: chartSeries(series.connectionsReadout),
-      network: chartSeries(series.network),
-      memory: chartSeries(series.memory),
-      queues: chartSeries(series.queues),
-      replicationLag: chartSeries(series.replicationLag),
-    }),
-    [series],
+  const capabilities = capabilitiesOf(status, view.samples.at(-1));
+  const { wiredTiger, replicaSet } = capabilities;
+  const layout = dashboard.layout;
+  const panels = useMemo(
+    () => visiblePanels(layout, { wiredTiger, replicaSet }),
+    [layout, wiredTiger, replicaSet],
   );
+  const addedIds = useMemo(() => new Set(layout.panels.map((panel) => panel.id)), [layout]);
   const headline = headlineOf(windowed.at(-1));
-  const hasReplication = windowed.at(-1)?.replication !== undefined;
   const syncKey = `monitor:${connectionId}`;
 
   const subtitle = headerSubtitle(status);
@@ -177,6 +212,14 @@ export function MonitorDashboard({ connectionId }: MonitorDashboardProps) {
   ];
 
   const summary = statusSummary(status);
+  const aboutPanel: PanelSpec | undefined = aboutId === undefined ? undefined : findPanel(aboutId);
+
+  function dropOn(targetId: string): void {
+    if (dragId !== undefined && dragId !== targetId) {
+      moveDashboardPanel(connectionId, dragId, targetId);
+    }
+    setDragId(undefined);
+  }
 
   return (
     <Stack gap="sm" p="sm" data-testid="monitor-dashboard">
@@ -218,6 +261,18 @@ export function MonitorDashboard({ connectionId }: MonitorDashboardProps) {
             onClick={() => setFrozen(frozen === undefined ? view.samples : undefined)}
           >
             {frozen === undefined ? 'Pause' : 'Resume'}
+          </Button>
+          <Button size="xs" variant="light" onClick={() => setPickerOpen(true)}>
+            Add panel
+          </Button>
+          <Button
+            size="xs"
+            variant="default"
+            onClick={() => {
+              resetDashboard(connectionId);
+            }}
+          >
+            Reset to default
           </Button>
         </Group>
       </Group>
@@ -261,6 +316,12 @@ export function MonitorDashboard({ connectionId }: MonitorDashboardProps) {
         </Alert>
       )}
 
+      {dashboard.error === undefined ? null : (
+        <Alert color="yellow" variant="light" title="The dashboard layout is not saved">
+          <Text size="sm">{dashboard.error.message}</Text>
+        </Alert>
+      )}
+
       <div className="mg-dashboard-frame" data-stale={connected ? 'false' : 'true'}>
         <Stack gap="sm">
           <SimpleGrid cols={{ base: 2, sm: 3, lg: tiles.length }} spacing="xs">
@@ -273,75 +334,145 @@ export function MonitorDashboard({ connectionId }: MonitorDashboardProps) {
             <Text size="sm" c="dimmed">
               Waiting for the first sample. Sampling runs every {formatInterval(intervalMs)}.
             </Text>
+          ) : panels.length === 0 ? (
+            <Paper withBorder p="lg" radius="sm" data-testid="dashboard-empty">
+              <Stack gap="sm" align="flex-start">
+                <Text size="sm">
+                  No panels to show. Add a panel, or reset the dashboard to the default panels.
+                </Text>
+                <Group gap="xs">
+                  <Button size="xs" variant="light" onClick={() => setPickerOpen(true)}>
+                    Add panel
+                  </Button>
+                  <Button size="xs" variant="default" onClick={() => resetDashboard(connectionId)}>
+                    Reset to default
+                  </Button>
+                </Group>
+              </Stack>
+            </Paper>
           ) : (
-            <div className="mg-chart-grid">
-              <ChartCard
-                title="Operations"
-                caption="Per second, by type"
-                times={series.times}
-                series={cards.operations}
-                yUnit="perSecond"
-                syncKey={syncKey}
-                window={chartWindow}
-                emptyText="No samples in this range."
-              />
-              <ChartCard
-                title="Connections"
-                caption="Open"
-                times={series.times}
-                series={cards.connections}
-                readouts={cards.connectionsReadout}
-                yUnit="count"
-                syncKey={syncKey}
-                window={chartWindow}
-                emptyText="No samples in this range."
-              />
-              <ChartCard
-                title="Network"
-                caption="Bytes per second"
-                times={series.times}
-                series={cards.network}
-                yUnit="bytesPerSecond"
-                syncKey={syncKey}
-                window={chartWindow}
-                emptyText="No samples in this range."
-              />
-              <ChartCard
-                title="Memory"
-                caption="Megabytes"
-                times={series.times}
-                series={cards.memory}
-                yUnit="megabytes"
-                syncKey={syncKey}
-                window={chartWindow}
-                emptyText="No samples in this range."
-              />
-              <ChartCard
-                title="Queued operations"
-                caption="Waiting for the lock"
-                times={series.times}
-                series={cards.queues}
-                yUnit="count"
-                syncKey={syncKey}
-                window={chartWindow}
-                emptyText="This server does not report the global lock."
-              />
-              {hasReplication ? (
-                <ChartCard
-                  title="Replication lag"
-                  caption="Seconds behind the primary"
-                  times={series.times}
-                  series={cards.replicationLag}
-                  yUnit="seconds"
-                  syncKey={syncKey}
-                  window={chartWindow}
-                  emptyText="No secondary has reported a lag yet."
-                />
-              ) : null}
+            <div className="mg-panel-grid" data-testid="panel-grid">
+              {panels.map(({ placed, spec }) => {
+                const tall = placed.h === 2;
+                const title = spec.title;
+                const menu = (
+                  <PanelMenu
+                    title={title}
+                    width={placed.w}
+                    tall={tall}
+                    onClose={() => removeDashboardPanel(connectionId, placed.id)}
+                    onWidth={(width) => resizeDashboardPanel(connectionId, placed.id, { w: width })}
+                    onHeight={(next) =>
+                      resizeDashboardPanel(connectionId, placed.id, { h: next ? 2 : 1 })
+                    }
+                    onAbout={() => setAboutId(placed.id)}
+                  />
+                );
+                const firstUnit = spec.series[0]?.unit;
+                // A stat panel shows one series. Its value comes from the newest sample.
+                const statSeries = spec.chart === 'stat' ? spec.series[0] : undefined;
+                return (
+                  <PanelCard
+                    key={placed.id}
+                    id={placed.id}
+                    title={title}
+                    caption={firstUnit === undefined ? '' : unitCaption(firstUnit)}
+                    width={placed.w}
+                    tall={tall}
+                    dragging={dragId === placed.id}
+                    menu={menu}
+                    onDragStart={() => setDragId(placed.id)}
+                    onDragEnd={() => setDragId(undefined)}
+                    onDropHere={() => dropOn(placed.id)}
+                  >
+                    {statSeries === undefined ? (
+                      <PanelChartBody
+                        spec={spec}
+                        timeline={timeline}
+                        mode={chartModeOf(spec)}
+                        syncKey={syncKey}
+                        chartWindow={chartWindow}
+                        tall={tall}
+                        yUnit={firstUnit ?? 'count'}
+                      />
+                    ) : (
+                      <StatBody
+                        value={latestSeriesValue(windowed, statSeries)}
+                        unit={statSeries.unit}
+                      />
+                    )}
+                  </PanelCard>
+                );
+              })}
             </div>
           )}
         </Stack>
       </div>
+
+      <AddPanelPicker
+        opened={pickerOpen}
+        onClose={() => setPickerOpen(false)}
+        addedIds={addedIds}
+        capabilities={capabilities}
+        onAdd={(panel) => addDashboardPanel(connectionId, panel)}
+      />
+
+      <Modal
+        opened={aboutPanel !== undefined}
+        onClose={() => setAboutId(undefined)}
+        title={aboutPanel?.title ?? 'About this panel'}
+        size="md"
+        centered
+      >
+        <Text size="sm">{aboutPanel?.description}</Text>
+      </Modal>
     </Stack>
+  );
+}
+
+function chartModeOf(spec: PanelSpec): ChartMode {
+  switch (spec.chart) {
+    case 'area':
+      return 'area';
+    case 'stacked':
+      return 'stacked';
+    default:
+      return 'lines';
+  }
+}
+
+interface PanelChartBodyProps {
+  readonly spec: PanelSpec;
+  readonly timeline: Timeline;
+  readonly mode: ChartMode;
+  readonly syncKey: string;
+  readonly chartWindow: ChartWindow;
+  readonly tall: boolean;
+  readonly yUnit: SeriesUnit;
+}
+
+/** A chart panel's body, with its lines built from the catalogue entry. */
+function PanelChartBody({
+  spec,
+  timeline,
+  mode,
+  syncKey,
+  chartWindow,
+  tall,
+  yUnit,
+}: PanelChartBodyProps) {
+  const series = useMemo(() => chartSeries(panelLines(timeline, spec)), [timeline, spec]);
+  return (
+    <ChartBody
+      label={`${spec.title}, ${unitCaption(yUnit)}`}
+      times={timeline.times}
+      series={series}
+      yUnit={yUnit}
+      mode={mode}
+      syncKey={syncKey}
+      window={chartWindow}
+      tall={tall}
+      emptyText="No samples in this range."
+    />
   );
 }

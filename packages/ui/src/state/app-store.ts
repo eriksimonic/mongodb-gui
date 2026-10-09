@@ -1,4 +1,5 @@
 import {
+  dashboardLayoutKey,
   toAppError,
   type AppError,
   type CollectionInfo,
@@ -7,15 +8,30 @@ import {
   type ConnectionProfileSummary,
   type ConnectionStatus,
   type ConnectionTestResult,
+  type DashboardLayout,
   type DatabaseInfo,
   type DockerMongoContainerSummary,
   type DockerStatus,
+  type PanelSpec,
   type RpcEvent,
   type UpdateState,
   type VaultStatus,
 } from '@mongo-gui/core';
 import { createStore, type StoreApi } from 'zustand/vanilla';
 import type { UiApi } from '../api/ui-api';
+import {
+  addPanel,
+  DASHBOARD_SAVE_DELAY_MS,
+  EMPTY_DASHBOARD_VIEW,
+  layoutFromStored,
+  movePanel,
+  removePanel,
+  resetLayout,
+  resizePanel,
+  type DashboardHeight,
+  type DashboardView,
+  type DashboardWidth,
+} from './dashboard-state';
 import {
   applyError,
   applyIntervalChange,
@@ -99,6 +115,8 @@ export interface AppData {
   readonly collections: Readonly<Record<string, Loadable<readonly CollectionInfo[]>>>;
   /** Monitor samples and sampler state per connection, fed by monitor events. */
   readonly monitors: Readonly<Record<string, MonitorView>>;
+  /** Dashboard layout per connection. A connection without an entry shows the default layout. */
+  readonly dashboards: Readonly<Record<string, DashboardView>>;
   readonly selection: Selection | undefined;
   readonly dialog: DialogState;
   readonly managerOpen: boolean;
@@ -132,6 +150,17 @@ export interface AppActions {
   setMonitorInterval(connectionId: string, intervalMs: number): Promise<void>;
   /** Restarts the sampler after an error. Failures show in the monitor view, not as a throw. */
   retryMonitor(connectionId: string): Promise<void>;
+  /** Reads the saved dashboard layout. A failed read keeps the default and blocks saves. */
+  loadDashboard(connectionId: string): Promise<void>;
+  addDashboardPanel(connectionId: string, panel: PanelSpec): void;
+  removeDashboardPanel(connectionId: string, id: string): void;
+  moveDashboardPanel(connectionId: string, fromId: string, toId: string): void;
+  resizeDashboardPanel(
+    connectionId: string,
+    id: string,
+    size: { readonly w?: DashboardWidth; readonly h?: DashboardHeight },
+  ): void;
+  resetDashboard(connectionId: string): void;
   /** Stops the server sampler and clears the sampler state. Samples are kept for the view. */
   stopMonitor(connectionId: string): Promise<void>;
   loadDatabases(connectionId: string): Promise<void>;
@@ -176,6 +205,7 @@ const SESSION_RESET: Pick<
   | 'databases'
   | 'collections'
   | 'monitors'
+  | 'dashboards'
   | 'selection'
   | 'dialog'
   | 'managerOpen'
@@ -190,6 +220,7 @@ const SESSION_RESET: Pick<
   databases: {},
   collections: {},
   monitors: {},
+  dashboards: {},
   selection: undefined,
   dialog: { kind: 'closed' },
   managerOpen: false,
@@ -262,6 +293,9 @@ export function createAppStore(api: UiApi, initial: Partial<AppData> = {}): AppS
   const { rpc } = api;
   // Outside the state on purpose: these only matter to in-flight calls, not to rendering.
   const monitorGenerations = new Map<string, number>();
+  // Pending saves and in-flight reads per connection. Like the generations, they stay out of state.
+  const dashboardSaves = new Map<string, ReturnType<typeof setTimeout>>();
+  const dashboardReads = new Set<string>();
 
   return createStore<AppState>()((set, get) => {
     function clearSession(): void {
@@ -289,6 +323,64 @@ export function createAppStore(api: UiApi, initial: Partial<AppData> = {}): AppS
           [connectionId]: update(state.monitors[connectionId] ?? EMPTY_MONITOR_VIEW),
         },
       }));
+    }
+
+    function updateDashboardView(
+      connectionId: string,
+      update: (view: DashboardView) => DashboardView,
+    ): void {
+      set((state) => ({
+        dashboards: {
+          ...state.dashboards,
+          [connectionId]: update(state.dashboards[connectionId] ?? EMPTY_DASHBOARD_VIEW),
+        },
+      }));
+    }
+
+    /** Applies a layout change. The change saves after a quiet period, but only once the saved layout is read. */
+    function changeDashboard(
+      connectionId: string,
+      change: (layout: DashboardLayout) => DashboardLayout,
+    ): void {
+      const view = get().dashboards[connectionId] ?? EMPTY_DASHBOARD_VIEW;
+      const layout = change(view.layout);
+      if (layout === view.layout) {
+        return;
+      }
+      updateDashboardView(connectionId, (current) => ({ ...current, layout }));
+      if (view.loaded) {
+        scheduleDashboardSave(connectionId);
+      }
+    }
+
+    function scheduleDashboardSave(connectionId: string): void {
+      const pending = dashboardSaves.get(connectionId);
+      if (pending !== undefined) {
+        clearTimeout(pending);
+      }
+      dashboardSaves.set(
+        connectionId,
+        setTimeout(() => {
+          dashboardSaves.delete(connectionId);
+          void saveDashboard(connectionId);
+        }, DASHBOARD_SAVE_DELAY_MS),
+      );
+    }
+
+    async function saveDashboard(connectionId: string): Promise<void> {
+      const view = get().dashboards[connectionId];
+      if (view === undefined || !view.loaded) {
+        return;
+      }
+      try {
+        await rpc.layout.set({ key: dashboardLayoutKey(connectionId), value: view.layout });
+        updateDashboardView(connectionId, (current) => ({ ...current, error: undefined }));
+      } catch (error) {
+        updateDashboardView(connectionId, (current) => ({
+          ...current,
+          error: toAppError(error),
+        }));
+      }
     }
 
     return {
@@ -428,6 +520,48 @@ export function createAppStore(api: UiApi, initial: Partial<AppData> = {}): AppS
       async setMonitorInterval(connectionId, intervalMs) {
         const config = await rpc.monitor.setInterval({ connectionId, intervalMs });
         updateMonitor(connectionId, (view) => applyIntervalChange(view, config));
+      },
+
+      async loadDashboard(connectionId) {
+        if (get().dashboards[connectionId]?.loaded === true || dashboardReads.has(connectionId)) {
+          return;
+        }
+        dashboardReads.add(connectionId);
+        try {
+          const { value } = await rpc.layout.get({ key: dashboardLayoutKey(connectionId) });
+          // Edits made before the read finished are kept on top of the stored layout.
+          updateDashboardView(connectionId, (view) => ({
+            ...view,
+            layout:
+              view.layout === EMPTY_DASHBOARD_VIEW.layout ? layoutFromStored(value) : view.layout,
+            loaded: true,
+            error: undefined,
+          }));
+        } catch (error) {
+          updateDashboardView(connectionId, (view) => ({ ...view, error: toAppError(error) }));
+        } finally {
+          dashboardReads.delete(connectionId);
+        }
+      },
+
+      addDashboardPanel(connectionId, panel) {
+        changeDashboard(connectionId, (layout) => addPanel(layout, panel));
+      },
+
+      removeDashboardPanel(connectionId, id) {
+        changeDashboard(connectionId, (layout) => removePanel(layout, id));
+      },
+
+      moveDashboardPanel(connectionId, fromId, toId) {
+        changeDashboard(connectionId, (layout) => movePanel(layout, fromId, toId));
+      },
+
+      resizeDashboardPanel(connectionId, id, size) {
+        changeDashboard(connectionId, (layout) => resizePanel(layout, id, size));
+      },
+
+      resetDashboard(connectionId) {
+        changeDashboard(connectionId, () => resetLayout());
       },
 
       async stopMonitor(connectionId) {

@@ -5,6 +5,7 @@ import {
   formatDuration,
   formatInterval,
   formatValue,
+  unitCaption,
 } from './format';
 
 describe('formatBytes', () => {
@@ -26,22 +27,31 @@ describe('formatDuration', () => {
 });
 
 describe('formatValue', () => {
-  it('writes each unit with its label', () => {
-    expect(formatValue(12.34, 'perSecond')).toBe('12.3 ops/s');
+  it('writes each catalogue unit with its label', () => {
+    expect(formatValue(12.34, 'per-second')).toBe('12.3/s');
     expect(formatValue(7, 'count')).toBe('7');
-    expect(formatValue(2048, 'bytesPerSecond')).toBe('2.0 KB/s');
-    expect(formatValue(512, 'megabytes')).toBe('512 MB');
-    expect(formatValue(1816.44, 'megabytes')).toBe('1,816 MB');
-    expect(formatValue(64.25, 'megabytes')).toBe('64.3 MB');
+    expect(formatValue(2048, 'bytes-per-second')).toBe('2.0 KB/s');
+    expect(formatValue(5 * 1024 ** 2, 'bytes')).toBe('5.0 MB');
+    expect(formatValue(37, 'ms')).toBe('37 ms');
+    expect(formatValue(40.25, 'percent')).toBe('40.3%');
     expect(formatValue(0.4, 'seconds')).toBe('0.4 s');
     expect(formatValue(300, 'seconds')).toBe('5 min 0 s');
   });
 });
 
+describe('unitCaption', () => {
+  it('names each unit for the card caption', () => {
+    expect(unitCaption('per-second')).toBe('Per second');
+    expect(unitCaption('bytes-per-second')).toBe('Bytes per second');
+    expect(unitCaption('ms')).toBe('Milliseconds');
+  });
+});
+
 describe('formatAxisValue', () => {
-  it('shortens big counts and byte rates for ticks', () => {
+  it('shortens big counts for ticks and writes byte ticks with binary prefixes', () => {
     expect(formatAxisValue(12_900, 'count')).toBe('12.9K');
-    expect(formatAxisValue(3 * 1024 ** 2, 'bytesPerSecond')).toBe('3.0 MB');
+    expect(formatAxisValue(3 * 1024 ** 2, 'bytes-per-second')).toBe('3.0 MB');
+    expect(formatAxisValue(80, 'percent')).toBe('80%');
   });
 });
 

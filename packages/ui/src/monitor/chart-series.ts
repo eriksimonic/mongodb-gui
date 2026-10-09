@@ -10,6 +10,20 @@ export function chartSeries(lines: readonly SeriesLine[]): ChartSeries[] {
     unit: line.unit,
     color: seriesColor(index),
     values: line.values,
-    ...(line.reference === true ? { dashed: true } : {}),
   }));
+}
+
+/**
+ * The values a stacked chart draws: each series holds its own value plus the ones below it. A gap
+ * in one series is a gap in its own line, and it counts as zero in the stack above it.
+ */
+export function stackedValues(series: readonly ChartSeries[]): (number | null)[][] {
+  const length = series[0]?.values.length ?? 0;
+  const running = new Array<number>(length).fill(0);
+  return series.map((item) =>
+    item.values.map((value, index) => {
+      running[index] = (running[index] ?? 0) + (value ?? 0);
+      return value === null ? null : (running[index] ?? 0);
+    }),
+  );
 }

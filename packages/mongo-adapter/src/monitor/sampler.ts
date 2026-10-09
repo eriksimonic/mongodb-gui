@@ -4,6 +4,7 @@ import {
   appError,
   createRingBuffer,
   deriveSample,
+  serverStatusSections,
   MonitorIntervalMsSchema,
   type AppError,
   type MonitorConfig,
@@ -25,15 +26,34 @@ export interface SamplerOptions {
 
 type Database = ReturnType<MongoClient['db']>;
 
-// Top-level exclusions that serverStatus accepts on 4.4 through 8.0. Nested exclusions inside
-// wiredTiger are ignored by the server, so that section is returned whole.
-const SERVER_STATUS_COMMAND = {
-  serverStatus: 1,
-  metrics: 0,
-  logicalSessionRecordCache: 0,
-  tcmalloc: 0,
-};
+// Only the sections the catalogue reads are requested. Nested exclusions are not possible, so
+// `metrics` comes back whole and `metrics.commands` is dropped in withoutCommandMetrics. tcmalloc is
+// large and no series reads it, so it stays excluded.
+const SERVER_STATUS_COMMAND: Record<string, number> = serverStatusCommand(serverStatusSections());
 const REPL_SET_STATUS_COMMAND = { replSetGetStatus: 1 };
+
+/** serverStatus command that includes the given top-level sections and excludes tcmalloc. */
+function serverStatusCommand(sections: readonly string[]): Record<string, number> {
+  const command: Record<string, number> = { serverStatus: 1, tcmalloc: 0 };
+  for (const section of sections) {
+    command[section] = 1;
+  }
+  return command;
+}
+
+// metrics.commands holds one counter per command name. No series reads it, so it is not kept.
+function withoutCommandMetrics(status: unknown): unknown {
+  if (typeof status !== 'object' || status === null || !('metrics' in status)) {
+    return status;
+  }
+  const metrics = status.metrics;
+  if (typeof metrics !== 'object' || metrics === null) {
+    return status;
+  }
+  const kept: Record<string, unknown> = { ...metrics };
+  delete kept['commands'];
+  return { ...status, metrics: kept };
+}
 const ASCENDING = 1;
 const DESCENDING = -1;
 const HELLO_COMMAND = { hello: 1 };
@@ -142,7 +162,7 @@ export class Sampler {
     try {
       const admin = this.client.db('admin');
       const replicaSet = await this.isReplicaSet(admin);
-      const serverStatus: unknown = await admin.command(SERVER_STATUS_COMMAND);
+      const serverStatus = withoutCommandMetrics(await admin.command(SERVER_STATUS_COMMAND));
       const replSetStatus: unknown = replicaSet
         ? await admin.command(REPL_SET_STATUS_COMMAND)
         : undefined;

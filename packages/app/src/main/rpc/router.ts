@@ -609,6 +609,13 @@ export function createRouter(deps: RouterDeps): Router {
       monitor.setInterval(input.connectionId, input.intervalMs),
     ),
 
+    entry('layout.get', rpcContract.layout.get, (input) => ({
+      value: repos().layout.get(input.key) ?? null,
+    })),
+    entry('layout.set', rpcContract.layout.set, (input) => {
+      repos().layout.set(input.key, input.value);
+    }),
+
     entry('settings.get', rpcContract.settings.get, () => repos().settings.get()),
     entry('settings.update', rpcContract.settings.update, (input) => {
       // The timeout is applied before the value is stored, so a value the vault rejects is never saved.

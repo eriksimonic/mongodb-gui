@@ -1,5 +1,10 @@
-import type { MonitorSample } from '@mongo-gui/core';
-import type { MetricUnit } from './format';
+import {
+  REPLICA_MEMBER_SEGMENT,
+  type MonitorSample,
+  type PanelSpec,
+  type SeriesSpec,
+  type SeriesUnit,
+} from '@mongo-gui/core';
 
 export const MONITOR_RANGES = ['5m', '15m', '1h'] as const;
 export type MonitorRange = (typeof MONITOR_RANGES)[number];
@@ -8,9 +13,10 @@ const MS_PER_MINUTE = 60_000;
 const MS_PER_SECOND = 1000;
 // A gap longer than this many intervals is an outage. The line breaks there instead of bridging it.
 const GAP_FACTOR = 2.5;
-// Replication lag gets one line per member, up to this many. Further members fold into "Other".
-const MAX_LAG_LINES = 8;
-const OTHER_LAG_LABEL = 'Other';
+// A chart draws at most this many lines. Replica lag past the cap folds into "Other".
+const MAX_LINES = 8;
+const OTHER_LABEL = 'Other';
+const MEMBER_KEY_SEPARATOR = '@';
 
 export const RANGE_MS: Readonly<Record<MonitorRange, number>> = {
   '5m': 5 * MS_PER_MINUTE,
@@ -31,39 +37,19 @@ export const RANGE_TICK_SECONDS: Readonly<Record<MonitorRange, number>> = {
   '1h': 600,
 };
 
-type OpCode = keyof MonitorSample['opcounters'];
-
-const OP_CODES: readonly (readonly [OpCode, string])[] = [
-  ['insert', 'Insert'],
-  ['query', 'Query'],
-  ['update', 'Update'],
-  ['delete', 'Delete'],
-  ['getmore', 'Get more'],
-  ['command', 'Command'],
-];
-
 /** One line in a chart. `values` holds null where the server reported nothing or a gap starts. */
 export interface SeriesLine {
   readonly key: string;
   readonly label: string;
-  readonly unit: MetricUnit;
+  readonly unit: SeriesUnit;
   readonly values: readonly (number | null)[];
-  /** A reference line is drawn dashed. It sets the scale but is not a measured series. */
-  readonly reference?: boolean;
 }
 
-/** Every chart on the dashboard, built from one run of samples on a shared time axis. */
-export interface MonitorSeries {
-  /** Epoch seconds, oldest first. Gap breaks add a point with null values. */
+/** The shared time axis of a run of samples. Gap breaks add a point with no sample. */
+export interface Timeline {
+  /** Epoch seconds, oldest first. */
   readonly times: readonly number[];
-  readonly operations: readonly SeriesLine[];
-  /** Plotted lines. Available connections are a readout, not a line, so the scale stays readable. */
-  readonly connections: readonly SeriesLine[];
-  readonly connectionsReadout: readonly SeriesLine[];
-  readonly network: readonly SeriesLine[];
-  readonly memory: readonly SeriesLine[];
-  readonly queues: readonly SeriesLine[];
-  readonly replicationLag: readonly SeriesLine[];
+  readonly points: readonly Point[];
 }
 
 /** The headline numbers for the stat tiles, taken from one sample. */
@@ -170,141 +156,118 @@ function pointsOf(samples: readonly MonitorSample[], intervalMs: number): Point[
   return points;
 }
 
-/**
- * Turns samples into the lines of every chart. A gap longer than 2.5 intervals gets a break point,
- * so lines do not bridge an outage. Replication lag keeps up to eight lines and folds the rest into
- * "Other", which takes the largest lag among the folded members.
- */
-export function seriesFromSamples(
+/** The shared time axis for every chart on the dashboard, with a break at each outage. */
+export function timelineOf(
   samples: readonly MonitorSample[],
   intervalMs: number = inferIntervalMs(samples),
-): MonitorSeries {
+): Timeline {
   const points = pointsOf(samples, intervalMs);
-  const line = (
-    key: string,
-    label: string,
-    unit: MetricUnit,
-    pick: (sample: MonitorSample) => number | undefined,
-    reference = false,
-  ): SeriesLine => ({
+  return { times: points.map((point) => point.time), points };
+}
+
+/**
+ * The lines of one panel. A series with a replica member segment yields one line per member
+ * that reports it, and the members past the cap fold into "Other". A line the window never has a
+ * value for is left out, so an absent series does not show an empty legend entry.
+ */
+export function panelLines(timeline: Timeline, panel: PanelSpec): SeriesLine[] {
+  return panel.series.flatMap((spec) => {
+    if (isReplicaLag(spec)) {
+      return memberLines(timeline, spec);
+    }
+    const line = lineOf(
+      timeline,
+      spec.id,
+      spec.label,
+      spec.unit,
+      (sample) => sample.series[spec.id],
+    );
+    return hasValue(line) ? [line] : [];
+  });
+}
+
+function isReplicaLag(spec: SeriesSpec): boolean {
+  return spec.path[0] === 'repl' && spec.path[2] === REPLICA_MEMBER_SEGMENT;
+}
+
+function lineOf(
+  timeline: Timeline,
+  key: string,
+  label: string,
+  unit: SeriesUnit,
+  pick: (sample: MonitorSample) => number | undefined,
+): SeriesLine {
+  return {
     key,
     label,
     unit,
-    values: points.map((point) =>
+    values: timeline.points.map((point) =>
       point.sample === undefined ? null : (pick(point.sample) ?? null),
     ),
-    ...(reference ? { reference: true } : {}),
-  });
-
-  const hasCache = samples.some((sample) => sample.wiredTiger !== undefined);
-  const hasLock = samples.some((sample) => sample.globalLock !== undefined);
-  const hasActive = samples.some((sample) => sample.connections.active !== undefined);
-  const latest = samples.at(-1);
-  const lagLines = replicationLagLines(points, latest);
-
-  return {
-    times: points.map((point) => point.time),
-    operations: OP_CODES.map(([code, label]) =>
-      line(`op:${code}`, label, 'perSecond', (sample) => sample.opcounters[code]),
-    ),
-    connections: [
-      line('connections:current', 'Current', 'count', (sample) => sample.connections.current),
-      ...(hasActive
-        ? [line('connections:active', 'Active', 'count', (sample) => sample.connections.active)]
-        : []),
-    ],
-    connectionsReadout: [
-      line('connections:available', 'Available', 'count', (sample) => sample.connections.available),
-    ],
-    network: [
-      line('network:in', 'Bytes in', 'bytesPerSecond', (sample) => sample.network.bytesInPerSec),
-      line('network:out', 'Bytes out', 'bytesPerSecond', (sample) => sample.network.bytesOutPerSec),
-    ],
-    memory: [
-      line('memory:resident', 'Resident', 'megabytes', (sample) => sample.memory.residentMb),
-      line('memory:virtual', 'Virtual', 'megabytes', (sample) => sample.memory.virtualMb),
-      ...(hasCache
-        ? [
-            line(
-              'cache:used',
-              'Cache used',
-              'megabytes',
-              (sample) => sample.wiredTiger?.cacheUsedMb,
-            ),
-            line(
-              'cache:max',
-              'Cache max',
-              'megabytes',
-              (sample) => sample.wiredTiger?.cacheMaxMb,
-              true,
-            ),
-          ]
-        : []),
-    ],
-    queues: hasLock
-      ? [
-          line(
-            'queue:readers',
-            'Queued readers',
-            'count',
-            (sample) => sample.globalLock?.currentQueueReaders,
-          ),
-          line(
-            'queue:writers',
-            'Queued writers',
-            'count',
-            (sample) => sample.globalLock?.currentQueueWriters,
-          ),
-        ]
-      : [],
-    replicationLag: lagLines.map((item) => ({
-      key: item.key,
-      label: item.label,
-      unit: 'seconds' as const,
-      values: points.map((point) => (point.sample === undefined ? null : item.pick(point.sample))),
-    })),
   };
 }
 
-interface LagLine {
-  readonly key: string;
-  readonly label: string;
-  readonly pick: (sample: MonitorSample) => number | null;
+function hasValue(line: SeriesLine): boolean {
+  return line.values.some((value) => value !== null);
 }
 
-function lagOf(sample: MonitorSample, name: string): number | undefined {
-  return sample.replication?.members.find((member) => member.name === name)?.lagSeconds;
-}
-
-/** One line per member up to the cap. Past the cap, the first seven stay and the rest fold into "Other". */
-function replicationLagLines(
-  points: readonly Point[],
-  latest: MonitorSample | undefined,
-): LagLine[] {
-  const names = (latest?.replication?.members ?? []).map((member) => member.name);
-  const folded = names.length > MAX_LAG_LINES ? names.slice(MAX_LAG_LINES - 1) : [];
-  const shown = folded.length > 0 ? names.slice(0, MAX_LAG_LINES - 1) : names;
-  const lines: LagLine[] = shown.map((name) => ({
-    key: `lag:${name}`,
-    label: name,
-    pick: (sample) => lagOf(sample, name) ?? null,
-  }));
+/** One line per member that reports the series, in the order the newest sample lists them. */
+function memberLines(timeline: Timeline, spec: SeriesSpec): SeriesLine[] {
+  const prefix = `${spec.id}${MEMBER_KEY_SEPARATOR}`;
+  const names = memberNames(timeline, prefix);
+  const folded = names.length > MAX_LINES ? names.slice(MAX_LINES - 1) : [];
+  const shown = folded.length > 0 ? names.slice(0, MAX_LINES - 1) : names;
+  const lines = shown.map((name) =>
+    lineOf(
+      timeline,
+      `${prefix}${name}`,
+      name,
+      spec.unit,
+      (sample) => sample.series[`${prefix}${name}`],
+    ),
+  );
   if (folded.length > 0) {
     lines.push({
-      key: 'lag:other',
-      label: OTHER_LAG_LABEL,
-      pick: (sample) => {
+      key: `${spec.id}${MEMBER_KEY_SEPARATOR}${OTHER_LABEL}`,
+      label: OTHER_LABEL,
+      unit: spec.unit,
+      values: timeline.points.map((point) => {
+        if (point.sample === undefined) {
+          return null;
+        }
         const values = folded.flatMap((name) => {
-          const value = lagOf(sample, name);
+          const value = point.sample?.series[`${prefix}${name}`];
           return value === undefined ? [] : [value];
         });
         return values.length === 0 ? null : Math.max(...values);
-      },
+      }),
     });
   }
-  return lines.filter((item) =>
-    points.some((point) => point.sample !== undefined && item.pick(point.sample) !== null),
-  );
+  return lines.filter(hasValue);
+}
+
+/** Member names with a value in the window, the newest sample's order first, then the older ones. */
+function memberNames(timeline: Timeline, prefix: string): string[] {
+  const names: string[] = [];
+  for (const point of [...timeline.points].reverse()) {
+    for (const key of Object.keys(point.sample?.series ?? {})) {
+      if (key.startsWith(prefix)) {
+        const name = key.slice(prefix.length);
+        if (!names.includes(name)) {
+          names.push(name);
+        }
+      }
+    }
+  }
+  return names;
+}
+
+/** The value of a stat panel's series in the newest sample. Undefined when that sample lacks it. */
+export function latestSeriesValue(
+  samples: readonly MonitorSample[],
+  spec: SeriesSpec,
+): number | undefined {
+  return samples.at(-1)?.series[spec.id];
 }
 
 /** The stat tile values for one sample. Missing sections give undefined, not zero. */
