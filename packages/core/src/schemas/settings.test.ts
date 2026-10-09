@@ -11,6 +11,14 @@ describe('SettingsSchema', () => {
     expect(SettingsSchema.safeParse({ ...defaultSettings, theme: 'blue' }).success).toBe(false);
   });
 
+  it('accepts an idle lock of up to 24 hours and rejects more', () => {
+    const idle = (idleLockMinutes: number) =>
+      SettingsSchema.safeParse({ ...defaultSettings, idleLockMinutes }).success;
+    expect(idle(24 * 60)).toBe(true);
+    expect(idle(24 * 60 + 1)).toBe(false);
+    expect(idle(1e15)).toBe(false);
+  });
+
   it('rejects a zero idle lock timeout', () => {
     expect(SettingsSchema.safeParse({ ...defaultSettings, idleLockMinutes: 0 }).success).toBe(
       false,

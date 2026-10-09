@@ -200,6 +200,21 @@ issues.
   for every screen using `MockRpcClient`.
 - **P1-6 e2e smoke.** Playwright launches the built app, sets a master password, adds a
   Testcontainers connection, expands the tree and sees a collection.
+- **P1-7 Docker discovery.** Talk to the Docker Engine API over its socket (Unix socket
+  on Linux and macOS, named pipe on Windows; plain Node `http`, no native code). List
+  running containers whose image is `mongo`, `mongodb/*`, `bitnami/mongodb` or
+  `percona/percona-server-mongodb`, or that listen on 27017. Show them under a "Docker"
+  node in the connection tree with container name, image tag and state, refreshed every
+  10 seconds while the panel is visible. One click connects. Credentials are prefilled
+  from `MONGO_INITDB_ROOT_USERNAME` and `MONGO_INITDB_ROOT_PASSWORD` when the container
+  has them. A container with a published 27017 port connects through the host port.
+  A container without a published port connects through a throwaway forwarder: the app
+  starts an `alpine/socat` container on the same Docker network that publishes a random
+  loopback port and forwards to the Mongo container, labels it `mongo-gui.forwarder`,
+  reuses it while the connection is open, and removes it on disconnect and on quit (and
+  removes stale labelled forwarders on start). Connecting through the container IP is
+  not used because it fails on Docker Desktop. A setting "connect to Docker instances
+  automatically" (off by default) connects every discovered container on startup.
 
 ### Phase 2: editor and results
 
@@ -275,9 +290,14 @@ issues.
   field mapping and type inference, export of a collection or query result.
 - **P7-2 schema analysis.** Sample N documents, report fields, types, presence
   percentage, example values, nested paths.
-- **P7-3 packaging.** electron-builder targets (AppImage, deb, NSIS, dmg), release
-  workflow on tag, `electron-updater` against GitHub Releases, unsigned until there are
-  users.
+- **P7-3a packaging.** electron-builder targets (AppImage, deb, NSIS, dmg, zip),
+  release workflow on tag `v*` building on Linux, Windows and macOS runners and
+  attaching installers to a GitHub Release, unsigned until there are users.
+- **P7-3b updater.** `electron-updater` against GitHub Releases. Checks 10 seconds
+  after start and every 6 hours, never blocks startup. Where the platform supports
+  unsigned updates (AppImage, NSIS) the app downloads in the background and offers
+  "Restart to update". Where it does not (deb, unsigned macOS) it shows a notice with
+  the version, release notes and a download link. A setting turns checks off.
 - **P7-4 polish.** Light theme, settings screen, keyboard shortcut reference, idle
   lock, crash recovery of editor contents.
 

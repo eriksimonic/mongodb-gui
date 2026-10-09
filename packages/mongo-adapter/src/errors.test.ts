@@ -118,8 +118,35 @@ describe('mapDriverError', () => {
     expect(mapDriverError(error).code).toBe('AUTH_FAILED');
   });
 
-  it('maps other server errors to CONNECTION_FAILED', () => {
+  it('maps an unauthorized server reply to COMMAND_FAILED with the server message as detail', () => {
     const error = serverError(13, 'Unauthorized');
+    expect(mapDriverError(error)).toEqual({
+      code: 'COMMAND_FAILED',
+      message: 'The server rejected the command',
+      detail: 'driver says no',
+    });
+  });
+
+  it('maps a bad value server reply to COMMAND_FAILED', () => {
+    const error = serverError(2, 'BadValue');
+    expect(mapDriverError(error).code).toBe('COMMAND_FAILED');
+  });
+
+  it('redacts a connection string in a server reply message', () => {
+    const error = new MongoServerError({
+      message: 'bad uri mongodb://admin:secret@db.example.com/app',
+      code: 2,
+      codeName: 'BadValue',
+    });
+    const mapped = mapDriverError(error);
+    expect(mapped.code).toBe('COMMAND_FAILED');
+    expect(JSON.stringify(mapped)).not.toContain('secret');
+  });
+
+  it('keeps a server error inside a selection error as CONNECTION_FAILED', () => {
+    const error = selectionError('Server selection timed out after 2000 ms', [
+      serverError(13, 'Unauthorized'),
+    ]);
     expect(mapDriverError(error).code).toBe('CONNECTION_FAILED');
   });
 

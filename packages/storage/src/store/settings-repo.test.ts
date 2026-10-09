@@ -24,6 +24,39 @@ describe('SettingsRepository.get', () => {
   });
 });
 
+/** Writes a payload straight to the settings row, bypassing the repository's validation. */
+function writeRawSettings(payload: unknown): void {
+  test.store.db
+    .prepare(
+      'INSERT INTO settings (key, payload) VALUES (?, ?) ON CONFLICT(key) DO UPDATE SET payload = excluded.payload',
+    )
+    .run('app', test.store.encryptPayload('settings', 'app', payload));
+}
+
+describe('SettingsRepository.get with invalid stored fields', () => {
+  it('falls back to the default for an out-of-range stored idle lock and keeps valid fields', () => {
+    test = openTestStore();
+    writeRawSettings({ idleLockMinutes: 1e15, theme: 'light' });
+    expect(test.settings.get()).toEqual({ ...defaultSettings, theme: 'light' });
+  });
+
+  it('falls back to the default for a field with the wrong type', () => {
+    test = openTestStore();
+    writeRawSettings({ sampleSize: 'many' });
+    expect(test.settings.get()).toEqual(defaultSettings);
+  });
+
+  it('drops the invalid field on the next update, so the stored row heals', () => {
+    test = openTestStore();
+    writeRawSettings({ idleLockMinutes: 1e15, theme: 'light' });
+    expect(test.settings.update({ sampleSize: 250 })).toEqual({
+      ...defaultSettings,
+      theme: 'light',
+      sampleSize: 250,
+    });
+  });
+});
+
 describe('SettingsRepository.update', () => {
   it('merges the patch over the stored settings and returns the result', () => {
     test = openTestStore();

@@ -7,7 +7,7 @@ import {
 } from '@mongo-gui/core';
 import type { EncryptedStore } from './encrypted-store';
 import { blobColumn } from './columns';
-import { parseInput, parseStored } from './validation';
+import { parseInput, parseStored, type PayloadSchema } from './validation';
 
 const SETTINGS_KEY = 'app';
 
@@ -46,11 +46,40 @@ export class SettingsRepository {
     if (row === undefined) {
       return {};
     }
-    return this.#store.decryptPayload<SettingsPatch>(
+    const stored = this.#store.decryptPayload(
       'settings',
       SETTINGS_KEY,
       blobColumn(row, 'payload'),
-      SettingsPatchSchema,
+      ANY_OBJECT,
     );
+    return keepValidFields(stored);
   }
+}
+
+const ANY_OBJECT: PayloadSchema<Record<string, unknown>> = {
+  safeParse: (data) =>
+    typeof data === 'object' && data !== null && !Array.isArray(data)
+      ? { success: true, data: data as Record<string, unknown> }
+      : { success: false },
+};
+
+const PATCH_KEYS = Object.keys(SettingsPatchSchema.shape) as (keyof SettingsPatch)[];
+
+/**
+ * Keeps each stored field that still passes the current schema and drops the rest. The
+ * dropped fields fall back to defaultSettings, so a schema change can never make settings
+ * unreadable.
+ */
+function keepValidFields(stored: Record<string, unknown>): SettingsPatch {
+  const kept: Record<string, unknown> = {};
+  for (const key of PATCH_KEYS) {
+    if (!Object.prototype.hasOwnProperty.call(stored, key)) {
+      continue;
+    }
+    const result = SettingsPatchSchema.shape[key].safeParse(stored[key]);
+    if (result.success) {
+      kept[key] = result.data;
+    }
+  }
+  return kept as SettingsPatch;
 }
