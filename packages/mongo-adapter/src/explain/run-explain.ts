@@ -20,6 +20,9 @@ export interface ExplainCommandResult {
   readonly elapsedMs: number;
 }
 
+// The profiler's op for a write that the profile stores as a bare statement.
+export type ProfiledWriteOp = 'update' | 'remove';
+
 // Parses a command captured as EJSON. Returns undefined when the text is not an EJSON object.
 export function parseCommandEjson(text: string): Document | undefined {
   try {
@@ -30,6 +33,23 @@ export function parseCommandEjson(text: string): Document | undefined {
   } catch {
     return undefined;
   }
+}
+
+// The profiler stores an update or remove as its statement alone, for example { q, u, multi }.
+// This puts the statement in the command that carries it, so explain can run it. The collection
+// comes from the profile entry's namespace.
+export function wrapWriteCommand(
+  statement: Document,
+  op: ProfiledWriteOp,
+  collection: string,
+): Document {
+  if (op === 'update') {
+    return { update: collection, updates: [statement] };
+  }
+  return {
+    delete: collection,
+    deletes: [{ q: statement['q'] ?? {}, limit: statement['limit'] ?? 0 }],
+  };
 }
 
 // Runs the explain command for a captured command on the database. The command runs with explain

@@ -1,10 +1,10 @@
 // @vitest-environment jsdom
 import { fireEvent, screen, waitFor, within } from '@testing-library/react';
 import { describe, expect, it, vi } from 'vitest';
-import { appError, AppErrorException } from '@mongo-gui/core';
+import { appError, AppErrorException, normaliseExplain } from '@mongo-gui/core';
 import { localConnectionId } from '../api/mock-fixtures';
 import { createMockUiApi, type MockUiApiOptions } from '../api/mock-rpc-client';
-import { mockExplainPanel } from '../api/mock-explain';
+import { mockExplainPanel } from '../api/explain-fixture-panels';
 import type { UiApi } from '../api/ui-api';
 import type { ExplainPanelState } from './explain-model';
 import { renderWithApp } from '../test-support/render';
@@ -181,6 +181,39 @@ describe('ExplainPanel raw tab', () => {
     }
     expect((raw as HTMLTextAreaElement).value).toBe(panel.outcome.result.rawEjson);
     expect((raw as HTMLTextAreaElement).value).toContain('"executionStats"');
+  });
+});
+
+describe('ExplainPanel unknown plan shape', () => {
+  it('shows the exact server document on the Raw tab when the plan is not recognised', async () => {
+    const api = await connectedApi();
+    // A hand-made document with no queryPlanner or stages, so the normaliser returns UNKNOWN.
+    const serverDocument = { ok: 1, weirdShape: { nested: [1, 2, { deep: true }] } };
+    const rawEjson = JSON.stringify(serverDocument, null, 2);
+    const tree = normaliseExplain(serverDocument);
+    expect(tree.command).toBe('unknown');
+    const panel: ExplainPanelState = {
+      ...panelFor(SORT_FIXTURE),
+      outcome: {
+        state: 'ready',
+        result: { requestId: '6f1b2c3d-4e5f-4a6b-8c7d-9e0f1a2b3c4d', tree, rawEjson, elapsedMs: 4 },
+      },
+    };
+    renderPanel(api, panel);
+    expect(screen.getByText('No plan for this result')).toBeInTheDocument();
+    fireEvent.click(screen.getByRole('tab', { name: 'Raw' }));
+    const raw = await screen.findByLabelText('Raw explain output');
+    expect((raw as HTMLTextAreaElement).value).toBe(rawEjson);
+  });
+});
+
+describe('ExplainPanel loading state', () => {
+  it('shows that the explain is running and no plan yet', async () => {
+    const api = await connectedApi();
+    const panel: ExplainPanelState = { ...panelFor(SORT_FIXTURE), outcome: { state: 'loading' } };
+    renderPanel(api, panel);
+    expect(screen.getByText('Running explain')).toBeInTheDocument();
+    expect(document.querySelector('.mg-explain-tree')).toBeNull();
   });
 });
 

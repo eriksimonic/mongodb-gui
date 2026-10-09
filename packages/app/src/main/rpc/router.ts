@@ -35,6 +35,7 @@ import {
   explainableCommand,
   parseCommandEjson,
   runExplainCommand,
+  wrapWriteCommand,
   checkDocumentsAgainstValidator,
   clearCollection,
   collectionStats,
@@ -893,7 +894,11 @@ export function createRouter(deps: RouterDeps): Router {
     if (deps.connections.status(input.connectionId).state !== 'connected') {
       throw new AppErrorException(appError('NOT_CONNECTED', 'Connect to the server first.'));
     }
-    const command = parseCommandEjson(input.commandEjson);
+    const parsed = parseCommandEjson(input.commandEjson);
+    const command =
+      parsed !== undefined && input.profileOp !== undefined && input.collection !== undefined
+        ? wrapWriteCommand(parsed, input.profileOp, input.collection)
+        : parsed;
     if (command === undefined || explainableCommand(command) === undefined) {
       throw new AppErrorException(appError('VALIDATION', 'This command cannot be explained.'));
     }
@@ -1138,7 +1143,8 @@ function explainResult(requestId: string, printable: string, elapsedMs: number):
     requestId,
     tree: normaliseExplain(raw),
     rawEjson: JSON.stringify(raw, null, 2),
-    elapsedMs,
+    // Whole milliseconds, so the header and the result do not show sub-millisecond noise.
+    elapsedMs: Math.round(elapsedMs),
   };
 }
 

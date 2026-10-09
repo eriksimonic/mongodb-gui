@@ -19,6 +19,7 @@ import {
   formatCommand,
   formatCommandJson,
   formatLocalTime,
+  explainTarget,
   isCollscan,
   userCommand,
 } from './profiler-model';
@@ -120,6 +121,8 @@ function EntryDetail({ connectionId, database, entry }: EntryDetailProps) {
   // Copy and the editor get the command without the driver's session fields.
   const runnable = userCommand(entry.command);
   const runnableText = formatCommand(runnable);
+  // A getMore without its originating command, and anything else the explain cannot run, is disabled.
+  const explainUnavailable = explainTarget(entry, runnable) === undefined;
 
   function explain() {
     profilerUiEvents.emit({
@@ -171,7 +174,7 @@ function EntryDetail({ connectionId, database, entry }: EntryDetailProps) {
         )}
       </Stack>
       <Group gap={6}>
-        <Button size="xs" onClick={explain}>
+        <Button size="xs" onClick={explain} disabled={explainUnavailable}>
           Explain this
         </Button>
         <Button size="xs" variant="default" onClick={openInEditor}>

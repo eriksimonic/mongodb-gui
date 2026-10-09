@@ -10,7 +10,7 @@ export interface ProfilerEntryRef {
 
 /**
  * UI-level events from the profiler. The explain phase subscribes to `profiler:explain` and the
- * editor phase subscribes to `profiler:open`..
+ * editor phase subscribes to `profiler:open`.
  */
 export type ProfilerUiEvent =
   | { readonly type: 'profiler:explain'; readonly ref: ProfilerEntryRef }

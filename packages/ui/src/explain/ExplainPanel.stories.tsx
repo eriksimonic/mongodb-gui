@@ -1,6 +1,11 @@
 import type { Decorator, Meta, StoryObj } from '@storybook/react-vite';
 import { localConnectionId } from '../api/mock-fixtures';
-import { mockExplainPanel } from '../api/mock-explain';
+import {
+  errorExplainPanel,
+  loadingExplainPanel,
+  mockExplainPanel,
+  refusedExplainPanel,
+} from '../api/explain-fixture-panels';
 import { connectedMockApi } from '../api/connected-mock';
 import type { UiApi } from '../api/ui-api';
 import { AppRoot } from '../AppRoot';
@@ -91,4 +96,67 @@ const collscan = mockExplainPanel({
 export const CollscanWithWarnings: Story = {
   args: { panelId: collscan.id },
   decorators: [withPanel(collscan)],
+};
+
+/** The explain is still running. The panel shows the loading state. */
+const loading = loadingExplainPanel({
+  id: 'explain:loading',
+  connectionId: localConnectionId,
+  database: 'shop',
+  code: FIND,
+  collection: 'orders',
+});
+
+export const Loading: Story = {
+  args: { panelId: loading.id },
+  decorators: [withPanel(loading)],
+};
+
+/** The server refused the explain. The panel shows the error text. */
+const failed = errorExplainPanel({
+  id: 'explain:error',
+  connectionId: localConnectionId,
+  database: 'shop',
+  code: FIND,
+  collection: 'orders',
+  error: {
+    code: 'COMMAND_FAILED',
+    message: 'The explain failed.',
+    detail: 'Index build in progress on orders.',
+  },
+});
+
+export const ExplainError: Story = {
+  args: { panelId: failed.id },
+  decorators: [withPanel(failed)],
+};
+
+/** A statement with two writes is refused before it runs. The panel shows the reason. */
+const refused = refusedExplainPanel({
+  id: 'explain:refused',
+  connectionId: localConnectionId,
+  database: 'shop',
+  code: 'db.orders.find({}); db.orders.find({})',
+  message: 'Explain needs one collection query',
+});
+
+export const Refused: Story = {
+  args: { panelId: refused.id },
+  decorators: [withPanel(refused)],
+};
+
+/** Two indexes compete for the query. The rejected plan is listed under its own heading. */
+const rejected = mockExplainPanel({
+  id: 'explain:rejected',
+  connectionId: localConnectionId,
+  database: 'shop',
+  code: `db.orders.find({ customerId: 7, status: 'paid' })`,
+  fixture: '8.0.17/competing',
+  verbosity: 'allPlansExecution',
+  collection: 'orders',
+});
+
+export const RejectedPlans: Story = {
+  args: { panelId: rejected.id },
+  decorators: [withPanel(rejected)],
 };

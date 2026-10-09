@@ -20,6 +20,9 @@ export interface ExplainActions {
     readonly connectionId: string;
     readonly database: string;
     readonly commandEjson: string;
+    // Set for a profiler update or remove entry, with the collection it names.
+    readonly profileOp?: 'update' | 'remove';
+    readonly collection?: string;
   }): Promise<string>;
   /** Runs the panel's request again. A verbosity replaces the last one and the rest stays. */
   rerunExplain(panelId: string, verbosity?: PlanVerbosity): Promise<void>;
@@ -82,6 +85,8 @@ export function createExplainActions(
               database,
               commandEjson: source.commandEjson,
               verbosity,
+              ...(source.profileOp === undefined ? {} : { profileOp: source.profileOp }),
+              ...(source.collection === undefined ? {} : { collection: source.collection }),
             });
       if (generations.get(id) === generation) {
         patchPanel(id, { outcome: { state: 'ready', result } });
@@ -141,7 +146,13 @@ export function createExplainActions(
       return id;
     },
 
-    async openExplainCommand({ connectionId, database, commandEjson }) {
+    async openExplainCommand({
+      connectionId,
+      database,
+      commandEjson,
+      profileOp,
+      collection: named,
+    }) {
       const existing = findPanel(
         connectionId,
         database,
@@ -153,7 +164,7 @@ export function createExplainActions(
         return existing.id;
       }
       const id = nextId();
-      const collection = commandCollection(commandEjson);
+      const collection = named ?? commandCollection(commandEjson);
       addPanel({
         id,
         title: explainTitle(collection),
@@ -161,7 +172,12 @@ export function createExplainActions(
         request: {
           connectionId,
           database,
-          source: { kind: 'command', commandEjson },
+          source: {
+            kind: 'command',
+            commandEjson,
+            ...(profileOp === undefined ? {} : { profileOp }),
+            ...(named === undefined ? {} : { collection: named }),
+          },
           verbosity: 'executionStats',
         },
         outcome: { state: 'loading' },

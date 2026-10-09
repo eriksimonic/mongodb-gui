@@ -3,7 +3,12 @@ import type { AppError, ExplainResult, KeyEntry, PlanStage, PlanVerbosity } from
 /** What the explain runs: a statement from the editor, or a command captured by the profiler. */
 export type ExplainSource =
   | { readonly kind: 'statement'; readonly code: string }
-  | { readonly kind: 'command'; readonly commandEjson: string };
+  | {
+      readonly kind: 'command';
+      readonly commandEjson: string;
+      readonly profileOp?: 'update' | 'remove';
+      readonly collection?: string;
+    };
 
 export interface ExplainRequest {
   readonly connectionId: string;

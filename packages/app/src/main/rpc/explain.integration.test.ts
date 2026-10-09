@@ -295,6 +295,50 @@ describe('explain namespace through the router against MongoDB 8.0', () => {
     CALL_TIMEOUT_MS,
   );
 
+  it(
+    'explains a profiled update statement through runCommand without changing data',
+    async () => {
+      const before = await countWhere('{ x: { $exists: true } }');
+      const result = valueOf(
+        await call('explain.runCommand', {
+          connectionId,
+          database: DATABASE,
+          commandEjson: JSON.stringify({
+            q: { status: 'open' },
+            u: { $set: { x: 5 } },
+            multi: true,
+          }),
+          verbosity: 'executionStats',
+          profileOp: 'update',
+          collection: 'orders',
+        }),
+      ) as ExplainResult;
+      expect(result.tree.command).toBe('update');
+      expect(await countWhere('{ x: { $exists: true } }')).toBe(before);
+      expect(await countWhere('{ x: 5 }')).toBe(0);
+    },
+    CALL_TIMEOUT_MS,
+  );
+
+  it(
+    'explains a profiled remove statement through runCommand without deleting',
+    async () => {
+      const result = valueOf(
+        await call('explain.runCommand', {
+          connectionId,
+          database: DATABASE,
+          commandEjson: JSON.stringify({ q: { status: 'cancelled' }, limit: 0 }),
+          verbosity: 'queryPlanner',
+          profileOp: 'remove',
+          collection: 'orders',
+        }),
+      ) as ExplainResult;
+      expect(result.tree.command).toBe('delete');
+      expect(await countWhere('{}')).toBe(ORDER_COUNT);
+    },
+    CALL_TIMEOUT_MS,
+  );
+
   it('refuses a getMore command through runCommand', async () => {
     expect(
       errorOf(

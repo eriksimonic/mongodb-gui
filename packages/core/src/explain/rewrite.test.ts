@@ -198,6 +198,44 @@ describe('rewriteForExplain on collection access and layout', () => {
   });
 });
 
+describe('rewriteForExplain bracket and prefix forms', () => {
+  it('reads db["orders"] as db.getCollection("orders")', () => {
+    expect(codeOf('db["orders"].find({ status: "paid" })')).toBe(
+      'db.getCollection("orders").find({ status: "paid" }).explain("executionStats")',
+    );
+  });
+
+  it("reads db['orders'] with single quotes too", () => {
+    const result = rewriteForExplain("db['order-items'].count({})", 'queryPlanner');
+    expect(result).toEqual({
+      ok: true,
+      code: 'db.getCollection(\'order-items\').explain("queryPlanner").count({})',
+      collection: 'order-items',
+      operation: 'count',
+    });
+  });
+
+  it('refuses a bracket name that is not a string literal', () => {
+    expect(refusalOf('db[name].find({})')).toBe(EXPLAIN_NEEDS_ONE_QUERY);
+  });
+
+  it('replaces the verbosity of the prefix form db.<coll>.explain(v).find(...)', () => {
+    expect(codeOf('db.orders.explain("queryPlanner").find({ status: "paid" })')).toBe(
+      'db.orders.find({ status: "paid" }).explain("executionStats")',
+    );
+  });
+
+  it('replaces the verbosity of the prefix form with a write method', () => {
+    expect(codeOf('db.orders.explain().deleteMany({ status: "cancelled" })', 'queryPlanner')).toBe(
+      'db.orders.explain("queryPlanner").remove({ status: "cancelled" }, { justOne: false })',
+    );
+  });
+
+  it('refuses an explain with no method after it', () => {
+    expect(refusalOf('db.orders.explain("queryPlanner")')).toBe(EXPLAIN_NEEDS_ONE_QUERY);
+  });
+});
+
 describe('rewriteForExplain refusals', () => {
   it.each([
     ['two statements on one line', 'db.orders.find({}); db.orders.find({})'],

@@ -128,10 +128,8 @@ function suggestionFor(warning: PlanWarning, tree: PlanTree): string | undefined
           ? 'avoid scanning the whole collection'
           : `avoid scanning ${tree.summary.docsExamined} documents`;
       const keys = indexKeyFor(stage?.filter, []);
-      if (keys.length === 0) {
-        return `Add an index on the fields in the filter to ${scope}.`;
-      }
-      return `Add an index on ${formatKeys(keys)} to ${scope}.`;
+      const target = keys.length === 0 ? 'the fields in the filter' : formatKeys(keys);
+      return `Add an index on ${target} to ${scope}.`;
     }
     case 'IN_MEMORY_SORT':
       return sortAdvice(stages, tree);

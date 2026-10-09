@@ -14,6 +14,10 @@ export const ExplainRunCommandInputSchema = z.object({
   // The captured command as canonical or relaxed EJSON, for example a profiler entry's command.
   commandEjson: z.string().min(1),
   verbosity: PlanVerbositySchema,
+  // Set for a profiler update or remove entry, whose command is a bare statement. The router
+  // wraps the statement in the command that carries it, using the collection named here.
+  profileOp: z.enum(['update', 'remove']).optional(),
+  collection: z.string().min(1).optional(),
 });
 
 export const ExplainResultSchema = z.object({

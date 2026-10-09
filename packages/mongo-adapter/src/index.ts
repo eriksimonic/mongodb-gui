@@ -16,6 +16,7 @@ export {
   parseCommandEjson,
   runExplainCommand,
   type ExplainCommandResult,
+  wrapWriteCommand,
 } from './explain/run-explain';
 export { mapDriverError } from './errors';
 export { exportCollection } from './transfer/export';

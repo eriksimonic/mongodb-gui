@@ -103,11 +103,15 @@ export function rewriteForExplain(code: string, verbosity: PlanVerbosity): Expla
     return refused;
   }
   const collection = collectionSegment(segments[0]);
-  const method = segments[1];
+  // The prefix form db.<coll>.explain(<verbosity>).<method>(...) is the same query. Its own
+  // verbosity is dropped, and the requested one takes its place.
+  const hasPrefix = segments[1]?.name === 'explain' && segments.length > 2;
+  const afterCollection = hasPrefix ? segments.slice(2) : segments.slice(1);
+  const method = afterCollection[0];
   if (collection === undefined || method === undefined || method.args === undefined) {
     return refused;
   }
-  const rest = segments.slice(2);
+  const rest = afterCollection.slice(1);
   const explain = `.explain("${verbosity}")`;
   const operation = method.name;
 
@@ -227,6 +231,9 @@ function prefixExplain(
     case 'update':
     case 'remove':
       return `${head}.${operation}(${args.join(', ')})`;
+    // The caller's options are spread into the legacy options object, so each option is kept as
+    // written. mongosh's legacy update reads only some of them, though. An option it ignores, such
+    // as arrayFilters on a path it does not read, can give a different plan from the real call.
     case 'updateOne':
     case 'updateMany': {
       if (second === undefined) {
@@ -338,6 +345,17 @@ function parseChain(text: string): Segment[] | undefined {
   let pos = 2;
   for (;;) {
     pos = skipWhitespace(text, pos);
+    // db["orders"] names the collection like db.getCollection("orders"). It may only come first.
+    if (segments.length === 0 && text.charAt(pos) === '[') {
+      const close = matchingClose(text, pos);
+      const inner = close === undefined ? undefined : text.slice(pos + 1, close).trim();
+      if (close === undefined || inner === undefined || unquote(inner) === undefined) {
+        return undefined;
+      }
+      segments.push({ name: 'getCollection', args: inner });
+      pos = close + 1;
+      continue;
+    }
     if (text.charAt(pos) !== '.') {
       break;
     }
