@@ -5,7 +5,7 @@ const namespaces = Object.entries(rpcContract);
 const CONNECTION_ID = '3f2b8c1e-5d4a-4b7e-9c1f-2a6d8e0b7f10';
 
 describe('rpcContract', () => {
-  it('declares the namespaces required by P1-1, the P4-B management calls and the P6-2 profiler', () => {
+  it('declares the namespaces required by P1-1, P2-2, the P4-B management calls and the P6-2 profiler', () => {
     expect(Object.keys(rpcContract).sort()).toEqual(
       [
         'app',
@@ -19,6 +19,7 @@ describe('rpcContract', () => {
         'monitor',
         'profiler',
         'settings',
+        'shell',
         'updates',
         'vault',
       ].sort(),

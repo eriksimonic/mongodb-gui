@@ -80,6 +80,8 @@ import {
 import { createDockerRuntime, type DockerRuntime } from '../docker/runtime';
 import { log, type Logger } from '../log';
 import { redactText } from '../redact';
+import type { ForkFunction } from '../shell/child';
+import { RuntimeSupervisor } from '../shell/supervisor';
 import {
   createUpdater,
   noopUpdaterBackend,
@@ -116,6 +118,20 @@ export interface LockEvents {
   subscribe(listener: () => void): () => void;
 }
 
+/** The subset of RuntimeSupervisor that the router uses. The real class satisfies it. */
+export type ShellRegistry = Pick<
+  RuntimeSupervisor,
+  | 'evaluate'
+  | 'next'
+  | 'cancel'
+  | 'complete'
+  | 'sampleSchema'
+  | 'restart'
+  | 'state'
+  | 'stop'
+  | 'stopAll'
+  | 'onEvent'
+>;
 /** The updater plus a subscription for its state changes. */
 export interface UpdatesService extends Updater {
   subscribe(listener: (state: UpdateState) => void): () => void;
@@ -138,6 +154,8 @@ export interface RouterDeps {
   readonly createSampler?: SamplerFactory;
   /** Receives failures as method, code and message. Inputs and raw driver text stay out. */
   readonly log?: Logger;
+  /** One runtime process per connection. Without it every shell call fails with INTERNAL. */
+  readonly shell?: ShellRegistry;
   /** The profiler reads and writes. Defaults to the adapter functions; tests pass a fake. */
   readonly profiler?: ProfilerPort;
   /** Local Docker discovery and forwarders. Calls to the docker namespace fail without it. */
@@ -202,6 +220,14 @@ export interface AppServicesOptions {
   readonly userDataDir: string;
   readonly kdf?: KdfParams;
   readonly failureDelayMs?: number;
+  /**
+   * How the shell runtime processes start. The app passes the built bundle and a utility process
+   * fork. Without it the shell refuses to start.
+   */
+  readonly shell?: {
+    readonly entryPath: string;
+    readonly fork: ForkFunction;
+  };
   /** Engine socket for docker support. Tests point it at a missing socket to stay off the host engine. */
   readonly dockerSocketPath?: string;
   readonly updates?: UpdatesRuntime;
@@ -585,6 +611,28 @@ export function createRouter(deps: RouterDeps): Router {
       ),
     ),
 
+    entry('shell.evaluate', rpcContract.shell.evaluate, (input) =>
+      shellCall(input.connectionId, (shell) => shell.evaluate(input)),
+    ),
+    entry('shell.next', rpcContract.shell.next, (input) =>
+      shellCall(input.connectionId, (shell) => shell.next(input)),
+    ),
+    entry('shell.cancel', rpcContract.shell.cancel, async (input) => {
+      // Nothing runs on a connection that is not open, so cancel needs no connection check.
+      await deps.shell?.cancel(input.connectionId, input.requestId);
+    }),
+    entry('shell.complete', rpcContract.shell.complete, (input) =>
+      shellCall(input.connectionId, (shell) => shell.complete(input)),
+    ),
+    entry('shell.sampleSchema', rpcContract.shell.sampleSchema, (input) =>
+      shellCall(input.connectionId, (shell) => shell.sampleSchema(input)),
+    ),
+    entry('shell.restart', rpcContract.shell.restart, (input) =>
+      shellCall(input.connectionId, (shell) => shell.restart(input.connectionId)),
+    ),
+    entry('shell.state', rpcContract.shell.state, (input) => ({
+      state: deps.shell?.state(input.connectionId) ?? 'stopped',
+    })),
     ...managementOperations(),
 
     entry('monitor.start', rpcContract.monitor.start, (input) =>
@@ -716,11 +764,20 @@ export function createRouter(deps: RouterDeps): Router {
     monitor.stopAll();
   });
 
+  // A reload or a closed window ends the runtime processes too. The next page starts them again.
+  rendererResets.add(() => {
+    void deps.shell?.stopAll();
+  });
+
   deps.connections.onStatusChange((connectionId, status) => {
     if (status.state !== 'connected') {
       stopTails((active) => active.connectionId === connectionId);
     }
     deps.onEvent({ type: 'connection:status', connectionId, status });
+    // A runtime serves only an open connection, so any other state ends its process.
+    if (status.state !== 'connected') {
+      void deps.shell?.stop(connectionId);
+    }
     // A docker connection that errors (for example, the socket closed) gives its forwarder back.
     // A disconnect is not handled here, because a superseded attempt also reports disconnected
     // while the next attempt may be using the same forwarder.
@@ -736,10 +793,14 @@ export function createRouter(deps: RouterDeps): Router {
     stopTails(() => true);
     monitor.stopAll();
     void deps.connections.disconnectAll();
+    void deps.shell?.stopAll();
     deps.docker?.suspend();
     void deps.docker?.cleanupAll();
     deps.updates?.refreshSchedule();
     deps.onEvent({ type: 'vault:locked' });
+  });
+  deps.shell?.onEvent((event) => {
+    deps.onEvent(event);
   });
   deps.updates?.subscribe((state) => {
     deps.onEvent({ type: 'updates:state', state });
@@ -786,6 +847,24 @@ export function createRouter(deps: RouterDeps): Router {
       }
     },
   };
+
+  /**
+   * Runs a shell call for an open connection. A connection that is not open is refused before
+   * any runtime process starts.
+   */
+  async function shellCall<T>(
+    connectionId: string,
+    action: (shell: ShellRegistry) => Promise<T>,
+  ): Promise<T> {
+    const shell = deps.shell;
+    if (shell === undefined) {
+      throw new AppErrorException(appError('INTERNAL', 'The shell is not available.'));
+    }
+    if (deps.connections.status(connectionId).state !== 'connected') {
+      throw new AppErrorException(appError('NOT_CONNECTED', 'Connect to the server first.'));
+    }
+    return action(shell);
+  }
 
   /** Pushes an idle timeout (in minutes) from settings into the vault. */
   function applyIdleLock(minutes: number): void {
@@ -859,6 +938,12 @@ export function createAppServices(options: AppServicesOptions): AppServices {
   };
   let handles = openStore();
   const connections = new ConnectionManager();
+  const shell = new RuntimeSupervisor({
+    entryPath: options.shell?.entryPath ?? '',
+    fork: options.shell?.fork ?? refuseFork,
+    profileOf: (connectionId) => handles.repos.connections.get(connectionId),
+    isConnected: (connectionId) => connections.status(connectionId).state === 'connected',
+  });
   const socketPath = options.dockerSocketPath ?? defaultDockerSocket(process.env, process.platform);
   const engine = createDockerEngineClient({ socketPath });
   const docker = createDockerRuntime({
@@ -877,6 +962,7 @@ export function createAppServices(options: AppServicesOptions): AppServices {
     store: handles.store,
     repos: handles.repos,
     connections,
+    shell,
     docker,
     log,
     reopenStore: () => {
@@ -893,6 +979,7 @@ export function createAppServices(options: AppServicesOptions): AppServices {
     },
     updates,
     async dispose() {
+      shell.dispose();
       updates.stop();
       await connections.disconnectAll();
       await docker.dispose();
@@ -953,6 +1040,9 @@ export function createRepos(store: EncryptedStore): RouterRepos {
   };
 }
 
+const refuseFork: ForkFunction = () => {
+  throw new Error('no shell runtime is configured');
+};
 function tailKey(connectionId: string, database: string): string {
   return `${connectionId}\u0000${database}`;
 }
