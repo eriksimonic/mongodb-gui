@@ -52,6 +52,7 @@ import { createMockShell } from './mock-shell';
 import { delay, fail, method } from './mock-support';
 import { createMockMonitor } from './mock-monitor';
 import { createMockProfiler } from './mock-profiler';
+import { createMockExplain } from './mock-explain';
 import type { UiApi } from './ui-api';
 
 export type MockPreset = 'fresh' | 'unlocked';
@@ -439,6 +440,8 @@ export function createMockUiApi(options: MockUiApiOptions = {}): UiApi {
     emit,
   });
 
+  const explain = createMockExplain({ wrap: wrapCall, requireUnlocked, requireConnected });
+
   const rpc: RpcClient = {
     updates: {
       state: method(rpcContract.updates.state, latencyMs, () => currentUpdate()),
@@ -769,6 +772,7 @@ export function createMockUiApi(options: MockUiApiOptions = {}): UiApi {
       }),
     },
     profiler,
+    explain,
     docker: {
       status: method(rpcContract.docker.status, latencyMs, (): DockerStatus => {
         return state.dockerAvailable

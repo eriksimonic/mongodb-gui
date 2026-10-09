@@ -25,6 +25,8 @@ import {
   EMPTY_MONITOR_VIEW,
   type MonitorView,
 } from './monitor-state';
+import { createExplainActions, type ExplainActions } from '../explain/explain-actions';
+import type { ExplainPanelState } from '../explain/explain-model';
 import { catalogKey, connectionNodeId } from './node-ids';
 
 export type VaultState = VaultStatus['state'];
@@ -109,9 +111,13 @@ export interface AppData {
   readonly settingsOpen: boolean;
   /** The updater state, pushed by the backend and read on start. */
   readonly updates: UpdateState;
+  /** Explain panels by panel id. A panel is removed when its tab closes. */
+  readonly explainPanels: Readonly<Record<string, ExplainPanelState>>;
+  /** The explain panel the shell should show. `serial` moves on each request, so a repeat counts. */
+  readonly explainFocus: { readonly id: string; readonly serial: number } | undefined;
 }
 
-export interface AppActions {
+export interface AppActions extends ExplainActions {
   refreshVault(): Promise<void>;
   initialise(password: string): Promise<void>;
   unlock(password: string): Promise<void>;
@@ -182,6 +188,8 @@ const SESSION_RESET: Pick<
   | 'managementDialog'
   | 'panelRequest'
   | 'settingsOpen'
+  | 'explainPanels'
+  | 'explainFocus'
 > = {
   connections: { state: 'loading' },
   statuses: {},
@@ -196,6 +204,8 @@ const SESSION_RESET: Pick<
   managementDialog: undefined,
   panelRequest: undefined,
   settingsOpen: false,
+  explainPanels: {},
+  explainFocus: undefined,
 };
 
 /** Replaced by the first state the backend reports. */
@@ -294,6 +304,7 @@ export function createAppStore(api: UiApi, initial: Partial<AppData> = {}): AppS
     return {
       ...INITIAL_DATA,
       ...initial,
+      ...createExplainActions(rpc, set, get),
 
       async refreshVault() {
         try {

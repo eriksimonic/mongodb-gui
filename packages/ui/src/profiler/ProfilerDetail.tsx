@@ -126,7 +126,6 @@ function EntryDetail({ connectionId, database, entry }: EntryDetailProps) {
       type: 'profiler:explain',
       ref: { connectionId, database, entry, command: runnable },
     });
-    notifications.show({ title: 'Explain this', message: 'Explain arrives in phase 3.' });
   }
 
   function openInEditor() {

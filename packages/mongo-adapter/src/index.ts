@@ -11,6 +11,12 @@ export {
   type ListCollectionsOptions,
 } from './catalog';
 export { toCanonicalEjson } from './ejson';
+export {
+  explainableCommand,
+  parseCommandEjson,
+  runExplainCommand,
+  type ExplainCommandResult,
+} from './explain/run-explain';
 export { mapDriverError } from './errors';
 export { exportCollection } from './transfer/export';
 export { importFile, previewImport } from './transfer/import';

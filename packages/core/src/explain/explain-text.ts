@@ -21,7 +21,7 @@ const COUNTERS: Readonly<Record<string, { verb: string; key: string }>> = {
   COUNT: { verb: 'counted', key: 'nCounted' },
 };
 
-type KeyEntry = readonly [field: string, direction: number];
+export type KeyEntry = readonly [field: string, direction: number];
 
 // Plain sentences that describe a normalised plan: the plan itself, the sharding and engine
 // facts, and one sentence per warning with a suggestion.
@@ -155,28 +155,67 @@ function suggestionFor(warning: PlanWarning, tree: PlanTree): string | undefined
 // Advice for an in-memory sort. Nothing is advised when the sort follows a stage that changes the
 // documents, and nothing when an index already used starts with the advised keys.
 function sortAdvice(stages: PlanStage[], tree: PlanTree): string | undefined {
-  const sort = stages.find((candidate) => isSortStage(candidate.name));
+  const plan = sortIndexPlan(stages, tree);
   const generic =
     'Add an index on the sort fields so the server can return sorted documents without an in-memory sort.';
+  switch (plan.kind) {
+    case 'blocked':
+      return `The $sort follows a ${plan.blocker} stage, so an index cannot return the documents in sorted order.`;
+    case 'generic':
+      return generic;
+    case 'covered':
+      return undefined;
+    case 'keys':
+      return `Add an index on ${formatKeys(plan.keys)} so the server can return sorted documents without an in-memory sort.`;
+  }
+}
+
+type SortIndexPlan =
+  | { readonly kind: 'blocked'; readonly blocker: string }
+  | { readonly kind: 'generic' }
+  | { readonly kind: 'covered' }
+  | { readonly kind: 'keys'; readonly keys: KeyEntry[] };
+
+// What an index for an in-memory sort would need. Nothing is needed when the sort follows a stage
+// that changes the documents, or when an index already used starts with the advised keys.
+function sortIndexPlan(stages: PlanStage[], tree: PlanTree): SortIndexPlan {
+  const sort = stages.find((candidate) => isSortStage(candidate.name));
   const blocker =
     sort === undefined
       ? undefined
       : precedingNames(sort).find((name) => SORT_BLOCKING_STAGES.has(name));
   if (blocker !== undefined) {
-    return `The $sort follows a ${blocker} stage, so an index cannot return the documents in sorted order.`;
+    return { kind: 'blocked', blocker };
   }
   const keys = indexKeyFor(tree.filter, sortEntries(sort));
   if (keys.length === 0) {
-    return generic;
+    return { kind: 'generic' };
   }
   const covered = stages.some((stage) => {
     const used = stage.indexKeys ?? [];
     return used.length >= keys.length && keys.every(([field], index) => used[index] === field);
   });
-  if (covered) {
+  return covered ? { kind: 'covered' } : { kind: 'keys', keys };
+}
+
+// The index key pattern that would remove the warning for the plan's first COLLSCAN or
+// IN_MEMORY_SORT warning, as field and direction pairs. Undefined when no index is advised or the
+// keys cannot be read from the query.
+export function suggestedIndexKeys(tree: PlanTree): KeyEntry[] | undefined {
+  const stages = flattenStages(tree.winning);
+  const warning = tree.warnings.find(
+    (candidate) => candidate.code === 'COLLSCAN' || candidate.code === 'IN_MEMORY_SORT',
+  );
+  if (warning === undefined) {
     return undefined;
   }
-  return `Add an index on ${formatKeys(keys)} so the server can return sorted documents without an in-memory sort.`;
+  if (warning.code === 'COLLSCAN') {
+    const stage = stages.find((candidate) => isCollectionScanStage(candidate.name));
+    const keys = indexKeyFor(stage?.filter, []);
+    return keys.length === 0 ? undefined : keys;
+  }
+  const plan = sortIndexPlan(stages, tree);
+  return plan.kind === 'keys' ? plan.keys : undefined;
 }
 
 // Names of the stages below a stage, following the first input.

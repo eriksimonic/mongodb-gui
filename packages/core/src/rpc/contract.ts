@@ -83,6 +83,11 @@ import {
   DockerStatusSchema,
 } from '../docker/types';
 import { UpdateStateSchema } from '../updates/types';
+import {
+  ExplainResultSchema,
+  ExplainRunCommandInputSchema,
+  ExplainRunInputSchema,
+} from '../explain/rpc-schemas';
 import { defineCall, type RpcContract } from './define';
 
 const idParam = z.object({ id: z.uuid() });
@@ -184,6 +189,12 @@ export const rpcContract = {
     sampleSchema: defineCall(ShellSampleSchemaInputSchema, ShellSchemaSampleSchema),
     restart: defineCall(ShellConnectionInputSchema, z.void()),
     state: defineCall(ShellConnectionInputSchema, ShellStateSchema),
+  },
+  // Explain runs the statement's single collection query with explain on the connection's
+  // runtime (run) or the connection's driver (runCommand). Nothing is written by explain.
+  explain: {
+    run: defineCall(ExplainRunInputSchema, ExplainResultSchema),
+    runCommand: defineCall(ExplainRunCommandInputSchema, ExplainResultSchema),
   },
   // Every input carries connectionId plus the adapter input. Mutating calls emit catalog:changed.
   management: {
