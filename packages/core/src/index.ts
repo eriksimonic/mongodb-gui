@@ -43,6 +43,7 @@ export * from './schemas/vault';
 export * from './updates/types';
 export * from './shell/protocol';
 export * from './shell/result-type';
+export * from './transfer/calls';
 export * from './shell/rpc-schemas';
 export * from './transfer/csv';
 export * from './transfer/infer';

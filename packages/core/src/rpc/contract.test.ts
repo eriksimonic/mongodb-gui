@@ -19,6 +19,7 @@ describe('rpcContract', () => {
         'monitor',
         'profiler',
         'settings',
+        'transfer',
         'shell',
         'updates',
         'vault',

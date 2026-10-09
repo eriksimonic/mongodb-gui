@@ -1,5 +1,5 @@
-import { mkdirSync } from 'node:fs';
-import { join } from 'node:path';
+import { existsSync, mkdirSync, statSync } from 'node:fs';
+import { dirname, join } from 'node:path';
 import {
   AppErrorException,
   ConnectionProfileSummarySchema,
@@ -12,6 +12,9 @@ import {
   type CallInput,
   type ConnectionProfile,
   type ConnectionProfileInput,
+  type DialogResult,
+  type OpenDialogInput,
+  type SaveDialogInput,
   type ProfileCollectionInfo,
   type ProfileEntry,
   type ProfileFilter,
@@ -48,6 +51,7 @@ import {
   listIndexes,
   listProfileEntries,
   mapDriverError,
+  previewImport,
   renameCollection,
   replaceDocument,
   sampleDocuments,
@@ -93,6 +97,14 @@ import {
   defaultSamplerFactory,
   type SamplerFactory,
 } from './monitor-service';
+import { createTransferService, type TransferAdapter } from './transfer-service';
+
+/** Native file dialogs and the shell reveal. The main window's dialogs live in index.ts. */
+export interface NativeDialogs {
+  showOpenDialog(input: OpenDialogInput): Promise<DialogResult>;
+  showSaveDialog(input: SaveDialogInput): Promise<DialogResult>;
+  showItemInFolder(path: string): void;
+}
 
 /** The subset of ConnectionManager that the router uses. The real class satisfies it. */
 export type ConnectionRegistry = Pick<
@@ -164,6 +176,10 @@ export interface RouterDeps {
   readonly updates?: UpdatesService;
   /** Opens a link in the user's browser. The caller checks the link before it gets here. */
   readonly openExternal?: (url: string) => Promise<void>;
+  /** File dialogs for import and export. Calls to them fail with INTERNAL without it. */
+  readonly dialogs?: NativeDialogs;
+  /** The transfer functions. Tests inject a fake. Defaults to the adapter. */
+  readonly transferAdapter?: TransferAdapter;
 }
 
 /** The driver client type, named without importing the driver into the main process. */
@@ -519,6 +535,21 @@ export function createRouter(deps: RouterDeps): Router {
     }
   }
 
+  // Paths the user picked in a save dialog this session. An export may replace only these.
+  const savePaths = new Set<string>();
+
+  const dialogs = (): NativeDialogs => {
+    if (deps.dialogs === undefined) {
+      throw new AppErrorException(appError('INTERNAL', 'File dialogs are not available.'));
+    }
+    return deps.dialogs;
+  };
+
+  /** Checks that a connection profile exists. A locked vault reports VAULT_LOCKED from the store. */
+  const requireConnectionProfile = (connectionId: string): void => {
+    repos().connections.get(connectionId);
+  };
+
   const operations = new Map<string, Operation>([
     entry('vault.status', rpcContract.vault.status, () => deps.vault.status()),
     entry('vault.initialise', rpcContract.vault.initialise, (input) => {
@@ -735,6 +766,30 @@ export function createRouter(deps: RouterDeps): Router {
     entry('docker.watch', rpcContract.docker.watch, (input) => {
       docker().watch(input.enabled, deps.onEvent);
     }),
+    entry('transfer.previewImport', rpcContract.transfer.previewImport, async (input) => {
+      const { connectionId, ...request } = input;
+      requireConnectionProfile(connectionId);
+      return previewImport(request);
+    }),
+    entry('transfer.startImport', rpcContract.transfer.startImport, (input) => {
+      const { connectionId, ...request } = input;
+      requireConnectionProfile(connectionId);
+      return { transferId: transfers.startImport(connectionId, request) };
+    }),
+    entry('transfer.startExport', rpcContract.transfer.startExport, (input) => {
+      const { connectionId, ...request } = input;
+      requireConnectionProfile(connectionId);
+      refuseMissingFolder(request.path);
+      refuseUnpickedFile(request.path, savePaths);
+      return { transferId: transfers.startExport(connectionId, request) };
+    }),
+    entry('transfer.cancel', rpcContract.transfer.cancel, (input) => {
+      transfers.cancel(input.transferId);
+    }),
+    entry('transfer.status', rpcContract.transfer.status, (input) =>
+      transfers.status(input.transferId),
+    ),
+    entry('transfer.list', rpcContract.transfer.list, () => transfers.list()),
     entry('updates.state', rpcContract.updates.state, () => updatesService().state()),
     entry('updates.check', rpcContract.updates.check, () => updatesService().check()),
     entry('updates.download', rpcContract.updates.download, () => updatesService().download()),
@@ -751,7 +806,32 @@ export function createRouter(deps: RouterDeps): Router {
       }
       await deps.openExternal(new URL(input.url).href);
     }),
+    entry('app.showOpenDialog', rpcContract.app.showOpenDialog, (input) =>
+      dialogs().showOpenDialog(input),
+    ),
+    entry('app.showSaveDialog', rpcContract.app.showSaveDialog, async (input) => {
+      const picked = await dialogs().showSaveDialog(input);
+      if (picked.path !== undefined) {
+        savePaths.add(picked.path);
+      }
+      return picked;
+    }),
+    entry('app.showItemInFolder', rpcContract.app.showItemInFolder, (input) => {
+      // Only a file this session exported is revealed, so the renderer cannot open arbitrary paths.
+      if (!transfers.wroteFile(input.path)) {
+        throw new AppErrorException(
+          appError('VALIDATION', 'Only a file exported in this session can be shown.'),
+        );
+      }
+      dialogs().showItemInFolder(input.path);
+    }),
   ]);
+
+  const transfers = createTransferService({
+    ...(deps.transferAdapter === undefined ? {} : { adapter: deps.transferAdapter }),
+    getClient: (connectionId) => deps.connections.getClient(connectionId),
+    emit: deps.onEvent,
+  });
 
   const monitor = createMonitorService({
     getClient: (connectionId) => deps.connections.getClient(connectionId),
@@ -762,6 +842,10 @@ export function createRouter(deps: RouterDeps): Router {
   // A reload or a closed window must not leave samplers running for a page that is gone.
   rendererResets.add(() => {
     monitor.stopAll();
+  });
+  // Transfers belong to the page that started them, so a reload or a closed window ends them.
+  rendererResets.add(() => {
+    transfers.cancelAll();
   });
 
   // A reload or a closed window ends the runtime processes too. The next page starts them again.
@@ -774,6 +858,10 @@ export function createRouter(deps: RouterDeps): Router {
       stopTails((active) => active.connectionId === connectionId);
     }
     deps.onEvent({ type: 'connection:status', connectionId, status });
+    // A transfer reads or writes through the client of its connection, so it ends with the connection.
+    if (status.state !== 'connected') {
+      transfers.cancelConnection(connectionId);
+    }
     // A runtime serves only an open connection, so any other state ends its process.
     if (status.state !== 'connected') {
       void deps.shell?.stop(connectionId);
@@ -792,6 +880,7 @@ export function createRouter(deps: RouterDeps): Router {
   deps.lockEvents?.subscribe(() => {
     stopTails(() => true);
     monitor.stopAll();
+    transfers.cancelAll();
     void deps.connections.disconnectAll();
     void deps.shell?.stopAll();
     deps.docker?.suspend();
@@ -1104,6 +1193,34 @@ function toSummary(profile: ConnectionProfile): unknown {
     ...profile,
     uriRedacted: redactUri(profile.uri),
   });
+}
+
+/** Refuses an export whose folder is missing, before any file is created. */
+function refuseMissingFolder(path: string): void {
+  const folder = dirname(path);
+  if (!isDirectory(folder)) {
+    throw new AppErrorException(appError('VALIDATION', 'The folder does not exist.', folder));
+  }
+}
+
+/**
+ * An export never replaces a file the user did not pick in a save dialog this session. A file the
+ * user did pick is replaced only when the export succeeds.
+ */
+function refuseUnpickedFile(path: string, picked: ReadonlySet<string>): void {
+  if (existsSync(path) && !picked.has(path)) {
+    throw new AppErrorException(
+      appError('VALIDATION', 'The file exists. Choose it with Save as to replace it.'),
+    );
+  }
+}
+
+function isDirectory(path: string): boolean {
+  try {
+    return statSync(path).isDirectory();
+  } catch {
+    return false;
+  }
 }
 
 function failure(error: AppError): RpcResult {
