@@ -26,6 +26,11 @@ import {
   mapDriverError,
 } from '@mongo-gui/mongo-adapter';
 import {
+  createDockerEngineClient,
+  createForwarderManager,
+  defaultDockerSocket,
+} from '@mongo-gui/docker';
+import {
   ConnectionsRepository,
   DEFAULT_KDF_PARAMS,
   EncryptedStore,
@@ -37,6 +42,7 @@ import {
   type KdfParams,
   type VaultOptions,
 } from '@mongo-gui/storage';
+import { createDockerRuntime, type DockerRuntime } from '../docker/runtime';
 import { log, type Logger } from '../log';
 import { redactText } from '../redact';
 import {
@@ -97,6 +103,8 @@ export interface RouterDeps {
   readonly createSampler?: SamplerFactory;
   /** Receives failures as method, code and message. Inputs and raw driver text stay out. */
   readonly log?: Logger;
+  /** Local Docker discovery and forwarders. Calls to the docker namespace fail without it. */
+  readonly docker?: DockerRuntime;
   /** The in-app updater. Without it, the updates calls fail with INTERNAL. */
   readonly updates?: UpdatesService;
   /** Opens a link in the user's browser. The caller checks the link before it gets here. */
@@ -119,10 +127,13 @@ export interface AppServicesOptions {
   readonly userDataDir: string;
   readonly kdf?: KdfParams;
   readonly failureDelayMs?: number;
+  /** Engine socket for docker support. Tests point it at a missing socket to stay off the host engine. */
+  readonly dockerSocketPath?: string;
   readonly updates?: UpdatesRuntime;
 }
 
-export type AppServices = Omit<RouterDeps, 'onEvent' | 'updates'> & {
+export type AppServices = Omit<RouterDeps, 'onEvent' | 'docker' | 'updates'> & {
+  readonly docker: DockerRuntime;
   readonly updates: UpdatesService;
   dispose(): Promise<void>;
 };
@@ -153,9 +164,45 @@ export function createRouter(deps: RouterDeps): Router {
     }
     deps.vault.reset();
     await deps.connections.disconnectAll();
+    await deps.docker?.cleanupAll();
     active.store.deleteFile();
     active = deps.reopenStore();
   };
+
+  const docker = (): DockerRuntime => {
+    if (deps.docker === undefined) {
+      throw new AppErrorException(appError('INTERNAL', 'Docker support is not available.'));
+    }
+    return deps.docker;
+  };
+
+  /** Reads a profile without failing. A locked vault or a missing id gives undefined. */
+  const profileById = (id: string): ConnectionProfile | undefined => {
+    try {
+      return repos()
+        .connections.list()
+        .find((profile) => profile.id === id);
+    } catch {
+      return undefined;
+    }
+  };
+
+  /** Disconnects a connection, then frees the forwarder when the connection was a docker profile. */
+  const disconnectConnection = async (
+    connectionId: string,
+    profile: ConnectionProfile | undefined,
+  ): Promise<void> => {
+    await deps.connections.disconnect(connectionId);
+    await deps.docker?.releaseProfile(profile);
+  };
+
+  /** Frees the forwarder of a docker profile. Locked vault or unknown profile means nothing to do. */
+  async function releaseDockerForwarder(connectionId: string): Promise<void> {
+    const profile = profileById(connectionId);
+    if (profile?.source === 'docker') {
+      await deps.docker?.releaseProfile(profile);
+    }
+  }
 
   const operations = new Map<string, Operation>([
     entry('vault.status', rpcContract.vault.status, () => deps.vault.status()),
@@ -167,6 +214,8 @@ export function createRouter(deps: RouterDeps): Router {
     entry('vault.unlock', rpcContract.vault.unlock, async (input) => {
       await deps.vault.unlock(input.password);
       applyStoredIdleLock();
+      void deps.docker?.autoConnect();
+      deps.docker?.resume();
       deps.updates?.refreshSchedule();
     }),
     entry('vault.lock', rpcContract.vault.lock, () => {
@@ -192,18 +241,23 @@ export function createRouter(deps: RouterDeps): Router {
       repos().connections.update(input.id, definedFields(input.patch)),
     ),
     entry('connections.remove', rpcContract.connections.remove, async (input) => {
+      const profile = profileById(input.id);
       repos().connections.remove(input.id);
-      await deps.connections.disconnect(input.id);
+      await disconnectConnection(input.id, profile);
     }),
     entry('connections.test', rpcContract.connections.test, (input) =>
       deps.connections.test(input),
     ),
     entry('connections.connect', rpcContract.connections.connect, async (input) => {
       const profile = repos().connections.get(input.id);
+      // A docker profile is rebuilt from its container, because its forwarder port changes.
+      if (profile.source === 'docker' && profile.dockerContainerId !== undefined) {
+        return (await docker().connect(profile.dockerContainerId)).status;
+      }
       return deps.connections.connect(profile);
     }),
     entry('connections.disconnect', rpcContract.connections.disconnect, (input) =>
-      deps.connections.disconnect(input.id),
+      disconnectConnection(input.id, profileById(input.id)),
     ),
     entry('connections.status', rpcContract.connections.status, (input) =>
       deps.connections.status(input.id),
@@ -290,6 +344,20 @@ export function createRouter(deps: RouterDeps): Router {
       repos().favourites.remove(input.id);
     }),
 
+    entry('docker.status', rpcContract.docker.status, () => docker().status()),
+    entry('docker.list', rpcContract.docker.list, () => docker().list()),
+    entry('docker.connect', rpcContract.docker.connect, (input) =>
+      docker().connect(input.containerId),
+    ),
+    entry('docker.disconnect', rpcContract.docker.disconnect, (input) =>
+      docker().disconnect(input.containerId),
+    ),
+    entry('docker.setAutoConnect', rpcContract.docker.setAutoConnect, (input) =>
+      docker().setAutoConnect(input.enabled),
+    ),
+    entry('docker.watch', rpcContract.docker.watch, (input) => {
+      docker().watch(input.enabled, deps.onEvent);
+    }),
     entry('updates.state', rpcContract.updates.state, () => updatesService().state()),
     entry('updates.check', rpcContract.updates.check, () => updatesService().check()),
     entry('updates.download', rpcContract.updates.download, () => updatesService().download()),
@@ -316,6 +384,12 @@ export function createRouter(deps: RouterDeps): Router {
 
   deps.connections.onStatusChange((connectionId, status) => {
     deps.onEvent({ type: 'connection:status', connectionId, status });
+    // A docker connection that errors (for example, the socket closed) gives its forwarder back.
+    // A disconnect is not handled here, because a superseded attempt also reports disconnected
+    // while the next attempt may be using the same forwarder.
+    if (status.state === 'error') {
+      void releaseDockerForwarder(connectionId);
+    }
     // A sampler holds the client it started with, so any drop ends monitoring for that connection.
     if (status.state !== 'connected') {
       monitor.stop(connectionId);
@@ -324,6 +398,8 @@ export function createRouter(deps: RouterDeps): Router {
   deps.lockEvents?.subscribe(() => {
     monitor.stopAll();
     void deps.connections.disconnectAll();
+    deps.docker?.suspend();
+    void deps.docker?.cleanupAll();
     deps.updates?.refreshSchedule();
     deps.onEvent({ type: 'vault:locked' });
   });
@@ -428,6 +504,17 @@ export function createAppServices(options: AppServicesOptions): AppServices {
   };
   let handles = openStore();
   const connections = new ConnectionManager();
+  const socketPath = options.dockerSocketPath ?? defaultDockerSocket(process.env, process.platform);
+  const engine = createDockerEngineClient({ socketPath });
+  const docker = createDockerRuntime({
+    engine,
+    socketPath,
+    forwarders: createForwarderManager({ client: engine }),
+    connections,
+    repos: () => handles.repos,
+    isUnlocked: () => vault.status().state === 'unlocked',
+    log,
+  });
   const updates = createUpdatesService(options.updates, () => handles);
 
   return {
@@ -435,6 +522,7 @@ export function createAppServices(options: AppServicesOptions): AppServices {
     store: handles.store,
     repos: handles.repos,
     connections,
+    docker,
     log,
     reopenStore: () => {
       handles = openStore();
@@ -452,6 +540,7 @@ export function createAppServices(options: AppServicesOptions): AppServices {
     async dispose() {
       updates.stop();
       await connections.disconnectAll();
+      await docker.dispose();
       handles.store.close();
     },
   };

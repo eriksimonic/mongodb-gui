@@ -5,6 +5,7 @@ import { afterEach, describe, expect, it, vi } from 'vitest';
 import {
   AppErrorException,
   appError,
+  defaultSettings,
   rpcContract,
   type AppError,
   type ConnectionProfile,
@@ -15,6 +16,7 @@ import {
   type Settings,
 } from '@mongo-gui/core';
 import { EncryptedStore, Vault } from '@mongo-gui/storage';
+import type { DockerRuntime } from '../docker/runtime';
 import type { Logger } from '../log';
 import {
   createAppServices,
@@ -100,7 +102,7 @@ interface Harness {
   dispose(): void;
 }
 
-function buildHarness(logger?: Logger): Harness {
+function buildHarness(logger?: Logger, docker?: DockerRuntime): Harness {
   const dir = mkdtempSync(join(tmpdir(), 'router-'));
   const lockListeners = new Set<() => void>();
   const vault = new Vault({
@@ -142,6 +144,7 @@ function buildHarness(logger?: Logger): Harness {
       },
     },
     ...(logger === undefined ? {} : { log: logger }),
+    ...(docker === undefined ? {} : { docker }),
   });
   return {
     router,
@@ -738,6 +741,148 @@ describe('failure logging and responses', () => {
       }),
     );
     expect(JSON.stringify(captured.records)).not.toContain('b8c1b2e0');
+  });
+});
+
+/** Records every docker call the router makes. The runtime itself is tested in docker/runtime.test.ts. */
+function fakeDocker(): DockerRuntime & { readonly calls: string[] } {
+  const calls: string[] = [];
+  return {
+    calls,
+    async status() {
+      calls.push('status');
+      return { available: true, engineVersion: '29.8.2' };
+    },
+    async list() {
+      calls.push('list');
+      return [];
+    },
+    async connect(containerId) {
+      calls.push(`connect:${containerId}`);
+      return { connectionId: '3f2b8c1e-5d4a-4b7e-9c1f-2a6d8e0b7f10', status: CONNECTED };
+    },
+    async disconnect(containerId) {
+      calls.push(`disconnect:${containerId}`);
+    },
+    setAutoConnect(enabled) {
+      calls.push(`setAutoConnect:${enabled}`);
+      return { ...defaultSettings, dockerAutoConnect: enabled };
+    },
+    watch(enabled) {
+      calls.push(`watch:${enabled}`);
+    },
+    suspend() {
+      calls.push('suspend');
+    },
+    resume() {
+      calls.push('resume');
+    },
+    async autoConnect() {
+      calls.push('autoConnect');
+    },
+    async releaseProfile(profile) {
+      calls.push(`release:${profile?.id ?? 'none'}`);
+    },
+    async cleanupAll() {
+      calls.push('cleanupAll');
+    },
+    async dispose() {
+      calls.push('dispose');
+    },
+  };
+}
+
+describe('docker calls', () => {
+  let harness: Harness | undefined;
+  afterEach(() => {
+    harness?.dispose();
+    harness = undefined;
+  });
+
+  it('reports the docker namespace as not available when no runtime is wired', async () => {
+    harness = buildHarness();
+
+    expectError(await harness.router.handle('docker.status', undefined), 'INTERNAL');
+  });
+
+  it('passes status, list, watch and auto connect through to the runtime', async () => {
+    const docker = fakeDocker();
+    harness = buildHarness(undefined, docker);
+    const { router } = harness;
+    expectValue(await router.handle('vault.initialise', { password: PASSWORD }));
+
+    expect(expectValue(await router.handle('docker.status', undefined))).toEqual({
+      available: true,
+      engineVersion: '29.8.2',
+    });
+    expectValue(await router.handle('docker.list', undefined));
+    expectValue(await router.handle('docker.watch', { enabled: true }));
+    expect(expectValue(await router.handle('docker.setAutoConnect', { enabled: true }))).toEqual(
+      expect.objectContaining({ dockerAutoConnect: true }),
+    );
+    expect(docker.calls).toEqual(['status', 'list', 'watch:true', 'setAutoConnect:true']);
+  });
+
+  it('rejects a container id that could change the request path', async () => {
+    harness = buildHarness(undefined, fakeDocker());
+
+    expectError(
+      await harness.router.handle('docker.connect', { containerId: '../containers' }),
+      'VALIDATION',
+    );
+  });
+
+  it('rebuilds a docker profile through the runtime instead of the stored uri', async () => {
+    const docker = fakeDocker();
+    harness = buildHarness(undefined, docker);
+    const { router, connections } = harness;
+    expectValue(await router.handle('vault.initialise', { password: PASSWORD }));
+    const created = expectValue(
+      await router.handle('connections.create', {
+        name: 'shop-db',
+        uri: URI,
+        source: 'docker',
+        dockerContainerId: 'abc123',
+      }),
+    ) as { id: string };
+
+    const status = expectValue(await router.handle('connections.connect', { id: created.id }));
+
+    expect(status).toEqual(CONNECTED);
+    expect(docker.calls).toEqual(['connect:abc123']);
+    expect(connections.connectCalls).toEqual([]);
+  });
+
+  it('frees the forwarder when a docker profile disconnects or is removed', async () => {
+    const docker = fakeDocker();
+    harness = buildHarness(undefined, docker);
+    const { router } = harness;
+    expectValue(await router.handle('vault.initialise', { password: PASSWORD }));
+    const created = expectValue(
+      await router.handle('connections.create', {
+        name: 'shop-db',
+        uri: URI,
+        source: 'docker',
+        dockerContainerId: 'abc123',
+      }),
+    ) as { id: string };
+
+    expectValue(await router.handle('connections.disconnect', { id: created.id }));
+    expectValue(await router.handle('connections.remove', { id: created.id }));
+
+    expect(docker.calls).toEqual([`release:${created.id}`, `release:${created.id}`]);
+  });
+
+  it('cleans up forwarders on lock and auto connects after unlock', async () => {
+    const docker = fakeDocker();
+    harness = buildHarness(undefined, docker);
+    const { router } = harness;
+    expectValue(await router.handle('vault.initialise', { password: PASSWORD }));
+
+    expectValue(await router.handle('vault.lock', undefined));
+    expectValue(await router.handle('vault.unlock', { password: PASSWORD }));
+
+    expect(docker.calls).toEqual(['suspend', 'cleanupAll', 'autoConnect', 'resume']);
   });
 });
 

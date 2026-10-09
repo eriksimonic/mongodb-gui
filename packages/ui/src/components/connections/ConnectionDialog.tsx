@@ -60,6 +60,7 @@ export function ConnectionDialog({
   const [status, setStatus] = useState<StatusLine | undefined>(undefined);
   const [testing, setTesting] = useState(false);
   const [saving, setSaving] = useState(false);
+  const [dockerManaged, setDockerManaged] = useState(false);
 
   useEffect(() => {
     if (connectionId === undefined) {
@@ -69,6 +70,7 @@ export function ConnectionDialog({
     rpc.connections.get({ id: connectionId }).then(
       (profile) => {
         if (active) {
+          setDockerManaged(profile.source === 'docker');
           setDraft(createDraft(initialMode, profile));
         }
       },
@@ -167,6 +169,13 @@ export function ConnectionDialog({
         <DialogLoading message={loadError} />
       ) : (
         <Stack gap="sm">
+          {dockerManaged ? (
+            <Alert color="blue" variant="light">
+              The host and port of a Docker connection are managed by the app. The URI is rebuilt on
+              every connect, so edits to the host and port are replaced. Name, colour and options
+              stay editable.
+            </Alert>
+          ) : null}
           <Group align="flex-end" wrap="nowrap">
             <TextInput
               label="Name"

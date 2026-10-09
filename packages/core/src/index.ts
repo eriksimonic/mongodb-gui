@@ -1,5 +1,6 @@
 export const corePackageName = '@mongo-gui/core';
 
+export * from './docker/types';
 export * from './domain/catalog';
 export * from './domain/connection';
 export * from './domain/errors';

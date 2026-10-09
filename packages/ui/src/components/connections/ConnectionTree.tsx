@@ -1,12 +1,16 @@
 import { Alert, Button, Loader, Stack, Text } from '@mantine/core';
 import { IconPlus } from '@tabler/icons-react';
 import { useEffect, useMemo, useRef, useState, type KeyboardEvent, type MouseEvent } from 'react';
-import type { ConnectionStatus } from '@mongo-gui/core';
+import type { ConnectionProfileSummary, ConnectionStatus } from '@mongo-gui/core';
 import type { Selection } from '../../state/app-store';
 import { useAppStore } from '../../state/app-store-context';
 import { usePanelOpener } from '../../state/panel-opener';
 import { catalogKey, connectionNodeId, databaseNodeId } from '../../state/node-ids';
+import { runReported } from '../notify-error';
 import { ConnectionContextMenu } from './ConnectionContextMenu';
+import { DockerContainerContextMenu } from './DockerContainerContextMenu';
+import { DockerLinkedContextMenu } from './DockerLinkedContextMenu';
+import { DockerNodeContextMenu } from './DockerNodeContextMenu';
 import { TreeMessage, TreeRow } from './TreeRow';
 import {
   buildTreeRows,
@@ -20,14 +24,20 @@ import {
 
 const DISCONNECTED: ConnectionStatus = { state: 'disconnected' };
 
+type MenuTarget =
+  | { readonly kind: 'connection'; readonly connectionId: string }
+  | { readonly kind: 'linked'; readonly connectionId: string }
+  | { readonly kind: 'container'; readonly containerId: string }
+  | { readonly kind: 'docker' };
+
 interface MenuAnchor {
-  readonly connectionId: string;
+  readonly target: MenuTarget;
   readonly x: number;
   readonly y: number;
 }
 
 function selectionFor(row: TreeRowModel): Selection | undefined {
-  if (row.kind === 'message') {
+  if (row.kind !== 'connection' && row.kind !== 'database' && row.kind !== 'collection') {
     return undefined;
   }
   return {
@@ -54,9 +64,33 @@ function canConnect(status: ConnectionStatus | undefined): boolean {
   return status === undefined || status.state === 'disconnected' || status.state === 'error';
 }
 
+function menuTargetFor(
+  row: TreeRowModel,
+  connections: readonly ConnectionProfileSummary[],
+): MenuTarget | undefined {
+  switch (row.kind) {
+    case 'connection': {
+      // A docker profile gets the combined menu: connection actions plus container details.
+      const profile = connections.find((item) => item.id === row.connectionId);
+      return profile?.source === 'docker'
+        ? { kind: 'linked', connectionId: row.connectionId }
+        : { kind: 'connection', connectionId: row.connectionId };
+    }
+    case 'container':
+      return row.container === undefined
+        ? undefined
+        : { kind: 'container', containerId: row.container.id };
+    case 'docker':
+      return { kind: 'docker' };
+    default:
+      return undefined;
+  }
+}
+
 /**
  * The Connections panel. A flat `role="tree"` with roving focus. Arrow keys move, Right and Left
- * expand and collapse, Enter opens, Shift+F10 or the menu key opens the context menu.
+ * expand and collapse, Enter opens, Shift+F10 or the menu key opens the context menu. The Docker
+ * node at the bottom lists discovered containers. A click or Enter on one connects it.
  */
 export function ConnectionTree() {
   const connections = useAppStore((state) => state.connections);
@@ -65,6 +99,7 @@ export function ConnectionTree() {
   const databases = useAppStore((state) => state.databases);
   const collections = useAppStore((state) => state.collections);
   const selection = useAppStore((state) => state.selection);
+  const docker = useAppStore((state) => state.docker);
   const setDialog = useAppStore((state) => state.setDialog);
   const setNodeExpanded = useAppStore((state) => state.setNodeExpanded);
   const expandConnection = useAppStore((state) => state.expandConnection);
@@ -72,18 +107,38 @@ export function ConnectionTree() {
   const loadDatabases = useAppStore((state) => state.loadDatabases);
   const loadCollections = useAppStore((state) => state.loadCollections);
   const select = useAppStore((state) => state.select);
+  const loadDocker = useAppStore((state) => state.loadDocker);
+  const watchDocker = useAppStore((state) => state.watchDocker);
+  const connectContainer = useAppStore((state) => state.connectContainer);
   const openPanel = usePanelOpener();
   const [focusKey, setFocusKey] = useState<string | undefined>(undefined);
   const [menu, setMenu] = useState<MenuAnchor | undefined>(undefined);
   const items = useRef(new Map<string, HTMLDivElement>());
+  // A double click sends two clicks. This set keeps one connect call per container in flight.
+  const connectingContainers = useRef(new Set<string>());
   const list = connections.state === 'ready' ? connections.data : undefined;
+
+  useEffect(() => {
+    void loadDocker();
+    void watchDocker(true);
+    return () => {
+      void watchDocker(false);
+    };
+  }, [loadDocker, watchDocker]);
 
   const rows = useMemo(
     () =>
       list === undefined
         ? []
-        : buildTreeRows({ connections: list, statuses, expanded, databases, collections }),
-    [list, statuses, expanded, databases, collections],
+        : buildTreeRows({
+            connections: list,
+            statuses,
+            expanded,
+            databases,
+            collections,
+            docker: { status: docker.status, containers: docker.containers },
+          }),
+    [list, statuses, expanded, databases, collections, docker],
   );
 
   useEffect(() => {
@@ -123,28 +178,10 @@ export function ConnectionTree() {
       </Alert>
     );
   }
-  if (connections.data.length === 0) {
-    return (
-      <Stack gap="xs" align="flex-start">
-        <Text size="sm" c="dimmed">
-          No connections yet.
-        </Text>
-        <Button
-          size="xs"
-          variant="light"
-          leftSection={<IconPlus size={14} />}
-          onClick={() => setDialog({ kind: 'create' })}
-        >
-          New connection
-        </Button>
-      </Stack>
-    );
-  }
 
+  const readyConnections = connections.data;
   const focusable = focusableRows(rows);
   const activeKey = focusable.some((row) => row.key === focusKey) ? focusKey : focusable[0]?.key;
-  const menuConnection =
-    menu === undefined ? undefined : connections.data.find((item) => item.id === menu.connectionId);
 
   function focusRow(key: string) {
     setFocusKey(key);
@@ -174,12 +211,24 @@ export function ConnectionTree() {
     }
   }
 
+  function connectRow(row: TreeRowModel) {
+    const container = row.container;
+    if (container === undefined || connectingContainers.current.has(container.id)) {
+      return;
+    }
+    connectingContainers.current.add(container.id);
+    void runReported(() => connectContainer(container.id)).finally(() => {
+      connectingContainers.current.delete(container.id);
+    });
+  }
+
   /** Monitoring and Operations children open their panel in the centre group. */
   function openToolRow(row: TreeRowModel) {
     if (row.kind !== 'monitor' && row.kind !== 'operations') {
       return;
     }
-    const connectionName = list?.find((item) => item.id === row.connectionId)?.name ?? '';
+    const connectionName =
+      readyConnections.find((item) => item.id === row.connectionId)?.name ?? '';
     openPanel({
       kind: row.kind === 'monitor' ? 'monitor' : 'operations',
       connectionId: row.connectionId,
@@ -189,6 +238,14 @@ export function ConnectionTree() {
 
   /** Enter opens a collapsed connection, which also connects it. On an open one it connects if needed. */
   function openRow(row: TreeRowModel) {
+    if (row.kind === 'docker') {
+      toggleRow(row);
+      return;
+    }
+    if (row.kind === 'container') {
+      connectRow(row);
+      return;
+    }
     selectRow(row);
     if (row.kind !== 'connection') {
       openToolRow(row);
@@ -202,12 +259,13 @@ export function ConnectionTree() {
   }
 
   function openMenuFor(row: TreeRowModel) {
-    if (row.kind !== 'connection') {
+    const target = menuTargetFor(row, readyConnections);
+    if (target === undefined) {
       return;
     }
     const rect = items.current.get(row.key)?.getBoundingClientRect();
     setMenu({
-      connectionId: row.connectionId,
+      target,
       x: rect === undefined ? 0 : rect.left + 12,
       y: rect === undefined ? 0 : rect.bottom,
     });
@@ -259,51 +317,138 @@ export function ConnectionTree() {
 
   function handleContextMenu(row: TreeRowModel, event: MouseEvent<HTMLDivElement>) {
     event.preventDefault();
-    if (row.kind === 'connection') {
-      setMenu({ connectionId: row.connectionId, x: event.clientX, y: event.clientY });
+    const target = menuTargetFor(row, readyConnections);
+    if (target !== undefined) {
+      setMenu({ target, x: event.clientX, y: event.clientY });
     }
   }
 
-  return (
-    <div role="tree" aria-label="Connections" className="mg-tree" onKeyDown={handleKeyDown}>
-      {rows.map((row) =>
-        row.kind === 'message' ? (
-          <TreeMessage key={row.key} row={row} />
-        ) : (
-          <TreeRow
-            key={row.key}
-            row={row}
-            focused={row.key === activeKey}
-            selected={isSelected(row, selection)}
-            setRef={(key, element) => {
-              if (element === null) {
-                items.current.delete(key);
-              } else {
-                items.current.set(key, element);
-              }
-            }}
-            onFocusRow={setFocusKey}
-            onToggle={() => toggleRow(row)}
-            onSelect={() => selectRow(row)}
-            onDoubleClick={() => {
-              if (row.kind !== 'connection') {
-                openToolRow(row);
-              } else if (canConnect(statuses[row.connectionId])) {
-                void connect(row.connectionId);
-              }
-            }}
-            onContextMenu={(event) => handleContextMenu(row, event)}
-          />
-        ),
-      )}
-      {menu === undefined || menuConnection === undefined ? null : (
+  function closeMenu() {
+    setMenu(undefined);
+  }
+
+  function renderMenu(anchor: MenuAnchor) {
+    const position = { x: anchor.x, y: anchor.y };
+    const target = anchor.target;
+    if (target.kind === 'connection') {
+      const connection = readyConnections.find((item) => item.id === target.connectionId);
+      if (connection === undefined) {
+        return null;
+      }
+      return (
         <ConnectionContextMenu
-          connection={menuConnection}
-          status={statuses[menu.connectionId] ?? DISCONNECTED}
-          position={{ x: menu.x, y: menu.y }}
-          onClose={() => setMenu(undefined)}
+          connection={connection}
+          status={statuses[connection.id] ?? DISCONNECTED}
+          position={position}
+          onClose={closeMenu}
         />
+      );
+    }
+    if (target.kind === 'linked') {
+      const connection = readyConnections.find((item) => item.id === target.connectionId);
+      if (connection === undefined) {
+        return null;
+      }
+      const container =
+        docker.containers.state === 'ready'
+          ? docker.containers.data.find((item) => item.id === connection.dockerContainerId)
+          : undefined;
+      return (
+        <DockerLinkedContextMenu
+          connection={connection}
+          container={container}
+          status={statuses[connection.id] ?? DISCONNECTED}
+          position={position}
+          onClose={closeMenu}
+        />
+      );
+    }
+    if (target.kind === 'docker') {
+      return (
+        <DockerNodeContextMenu
+          autoConnect={docker.autoConnect}
+          position={position}
+          onClose={closeMenu}
+        />
+      );
+    }
+    const container =
+      docker.containers.state === 'ready'
+        ? docker.containers.data.find((item) => item.id === target.containerId)
+        : undefined;
+    if (container === undefined) {
+      return null;
+    }
+    const profile = readyConnections.find((item) => item.dockerContainerId === container.id);
+    return (
+      <DockerContainerContextMenu
+        container={container}
+        profile={profile}
+        status={profile === undefined ? undefined : statuses[profile.id]}
+        position={position}
+        onClose={closeMenu}
+      />
+    );
+  }
+
+  const hasConnections = readyConnections.length > 0;
+
+  return (
+    <>
+      {hasConnections ? null : (
+        <Stack gap="xs" align="flex-start" mb="xs">
+          <Text size="sm" c="dimmed">
+            No connections yet.
+          </Text>
+          <Button
+            size="xs"
+            variant="light"
+            leftSection={<IconPlus size={14} />}
+            onClick={() => setDialog({ kind: 'create' })}
+          >
+            New connection
+          </Button>
+        </Stack>
       )}
-    </div>
+      <div role="tree" aria-label="Connections" className="mg-tree" onKeyDown={handleKeyDown}>
+        {rows.map((row) =>
+          row.kind === 'message' ? (
+            <TreeMessage key={row.key} row={row} />
+          ) : (
+            <TreeRow
+              key={row.key}
+              row={row}
+              focused={row.key === activeKey}
+              selected={isSelected(row, selection)}
+              setRef={(key, element) => {
+                if (element === null) {
+                  items.current.delete(key);
+                } else {
+                  items.current.set(key, element);
+                }
+              }}
+              onFocusRow={setFocusKey}
+              onToggle={() => toggleRow(row)}
+              onSelect={() => {
+                if (row.kind === 'container') {
+                  connectRow(row);
+                } else {
+                  selectRow(row);
+                }
+              }}
+              onDoubleClick={() => {
+                if (row.kind !== 'connection') {
+                  openToolRow(row);
+                } else if (canConnect(statuses[row.connectionId])) {
+                  void connect(row.connectionId);
+                }
+              }}
+              onContextMenu={(event) => handleContextMenu(row, event)}
+            />
+          ),
+        )}
+        {menu === undefined ? null : renderMenu(menu)}
+      </div>
+    </>
   );
 }

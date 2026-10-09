@@ -30,6 +30,7 @@
   },
   "devDependencies": {
     "@mongo-gui/core": "workspace:*",
+    "@mongo-gui/docker": "workspace:*",
     "@mongo-gui/mongo-adapter": "workspace:*",
     "@mongo-gui/shell-runtime": "workspace:*",
     "@mongo-gui/storage": "workspace:*",

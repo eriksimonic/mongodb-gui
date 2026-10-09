@@ -1,4 +1,5 @@
 import { z } from 'zod';
+import { DockerMongoContainerSummarySchema } from '../docker/types';
 import { MonitorSampleSchema } from '../monitor/schemas';
 import { AppErrorSchema } from './errors';
 import { ConnectionStatusSchema } from './connection';
@@ -11,6 +12,10 @@ export const RpcEventSchema = z.discriminatedUnion('type', [
     status: ConnectionStatusSchema,
   }),
   z.object({ type: z.literal('vault:locked') }),
+  z.object({
+    type: z.literal('docker:containers'),
+    containers: z.array(DockerMongoContainerSummarySchema),
+  }),
   z.object({ type: z.literal('updates:state'), state: UpdateStateSchema }),
   z.object({
     type: z.literal('monitor:sample'),

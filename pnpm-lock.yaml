@@ -212,6 +212,9 @@ importers:
       '@mongo-gui/core':
         specifier: workspace:*
         version: link:../core
+      '@mongo-gui/docker':
+        specifier: workspace:*
+        version: link:../docker
       '@mongo-gui/mongo-adapter':
         specifier: workspace:*
         version: link:../mongo-adapter
@@ -257,6 +260,22 @@ importers:
       zod:
         specifier: ^4.6.5
         version: 4.6.5
+
+  packages/docker:
+    dependencies:
+      '@mongo-gui/core':
+        specifier: workspace:*
+        version: link:../core
+      zod:
+        specifier: ^4.6.5
+        version: 4.6.5
+    devDependencies:
+      mongodb:
+        specifier: ^7.7.0
+        version: 7.7.0(@aws-sdk/credential-providers@3.1148.0)(gcp-metadata@7.0.1(supports-color@7.2.0))(kerberos@7.0.0)(mongodb-client-encryption@7.2.1)(socks@2.8.10)
+      testcontainers:
+        specifier: ^12.2.0
+        version: 12.2.0(supports-color@7.2.0)
 
   packages/mongo-adapter:
     dependencies:

@@ -28,6 +28,11 @@ import {
 } from '../schemas/monitor';
 import { FavouriteInputSchema, FavouriteSchema, HistoryEntrySchema } from '../schemas/history';
 import { VaultStatusSchema } from '../schemas/vault';
+import {
+  DockerContainerIdSchema,
+  DockerMongoContainerSummarySchema,
+  DockerStatusSchema,
+} from '../docker/types';
 import { UpdateStateSchema } from '../updates/types';
 import { defineCall, type RpcContract } from './define';
 
@@ -144,6 +149,18 @@ export const rpcContract = {
     list: defineCall(z.void(), z.array(FavouriteSchema)),
     save: defineCall(FavouriteInputSchema, FavouriteSchema),
     remove: defineCall(idParam, z.void()),
+  },
+  docker: {
+    status: defineCall(z.void(), DockerStatusSchema),
+    list: defineCall(z.void(), z.array(DockerMongoContainerSummarySchema)),
+    connect: defineCall(
+      z.object({ containerId: DockerContainerIdSchema }),
+      z.object({ connectionId: z.uuid(), status: ConnectionStatusSchema }),
+    ),
+    disconnect: defineCall(z.object({ containerId: DockerContainerIdSchema }), z.void()),
+    setAutoConnect: defineCall(z.object({ enabled: z.boolean() }), SettingsSchema),
+    /** Starts or stops the 10 second poll that pushes `docker:containers` events. */
+    watch: defineCall(z.object({ enabled: z.boolean() }), z.void()),
   },
   updates: {
     state: defineCall(z.void(), UpdateStateSchema),

@@ -3,26 +3,38 @@ import type {
   ConnectionProfileSummary,
   ConnectionStatus,
   DatabaseInfo,
+  DockerMongoContainerSummary,
+  DockerStatus,
 } from '@mongo-gui/core';
 import type { Loadable } from '../../state/app-store';
 import {
+  DOCKER_NODE_ID,
   catalogKey,
   connectionNodeId,
+  containerNodeId,
   databaseNodeId,
   monitorNodeId,
   operationsNodeId,
 } from '../../state/node-ids';
 
 export type TreeRowKind =
-  'connection' | 'database' | 'collection' | 'message' | 'monitor' | 'operations';
+  | 'connection'
+  | 'database'
+  | 'collection'
+  | 'message'
+  | 'docker'
+  | 'container'
+  | 'monitor'
+  | 'operations';
 
 /** One visible line of the tree, flattened. Children follow their parent in the list. */
 export interface TreeRow {
   readonly key: string;
   readonly kind: TreeRowKind;
-  /** Zero for connections. Each level down adds one. */
+  /** Zero for top-level nodes. Each level down adds one. */
   readonly depth: number;
   readonly label: string;
+  /** Empty for the Docker node and for containers without a connection. */
   readonly connectionId: string;
   readonly database: string | undefined;
   readonly collection: string | undefined;
@@ -32,7 +44,16 @@ export interface TreeRow {
   readonly expanded: boolean;
   readonly color: string | undefined;
   readonly status: ConnectionStatus | undefined;
+  /** Set on `container` rows only. */
+  readonly container: DockerMongoContainerSummary | undefined;
+  /** Tooltip text. Set when the row is shown without its container, for example with Docker down. */
+  readonly note: string | undefined;
   readonly tone: 'dimmed' | 'red';
+}
+
+export interface DockerTreeInput {
+  readonly status: DockerStatus | undefined;
+  readonly containers: Loadable<readonly DockerMongoContainerSummary[]>;
 }
 
 export interface TreeInput {
@@ -41,9 +62,13 @@ export interface TreeInput {
   readonly expanded: Readonly<Record<string, boolean>>;
   readonly databases: Readonly<Record<string, Loadable<readonly DatabaseInfo[]>>>;
   readonly collections: Readonly<Record<string, Loadable<readonly CollectionInfo[]>>>;
+  /** Omitted before the Docker state is read. The node then shows a checking line. */
+  readonly docker?: DockerTreeInput | undefined;
 }
 
 const DISCONNECTED: ConnectionStatus = { state: 'disconnected' };
+const TOP_LEVEL = 0;
+const CHILD = 1;
 
 type RowInit = Pick<TreeRow, 'key' | 'kind' | 'depth' | 'label' | 'connectionId'> &
   Partial<TreeRow>;
@@ -58,6 +83,8 @@ function makeRow(init: RowInit): TreeRow {
     expanded: false,
     color: undefined,
     status: undefined,
+    container: undefined,
+    note: undefined,
     tone: 'dimmed',
     ...init,
   };
@@ -71,7 +98,7 @@ function messageRow(
   tone: TreeRow['tone'] = 'dimmed',
 ): TreeRow {
   return makeRow({
-    key: `${parentKey}#message`,
+    key: `${parentKey}#message:${text}`,
     kind: 'message',
     depth,
     label: text,
@@ -86,8 +113,8 @@ function connectionChildren(
   connectionId: string,
   parentKey: string,
   status: ConnectionStatus,
+  depth: number,
 ): TreeRow[] {
-  const depth = 1;
   if (status.state === 'connecting') {
     return [messageRow(parentKey, connectionId, depth, 'Connecting')];
   }
@@ -108,7 +135,7 @@ function connectionChildren(
   return [
     ...tools,
     ...databases.data.flatMap((database) =>
-      databaseRows(input, connectionId, database.name, parentKey),
+      databaseRows(input, connectionId, database.name, parentKey, depth),
     ),
   ];
 }
@@ -140,13 +167,14 @@ function databaseRows(
   connectionId: string,
   database: string,
   parentKey: string,
+  depth: number,
 ): TreeRow[] {
   const key = databaseNodeId(connectionId, database);
   const expanded = input.expanded[key] === true;
   const row = makeRow({
     key,
     kind: 'database',
-    depth: 1,
+    depth,
     label: database,
     connectionId,
     database,
@@ -157,16 +185,16 @@ function databaseRows(
   if (!expanded) {
     return [row];
   }
-  const depth = 2;
+  const childDepth = depth + 1;
   const collections = input.collections[catalogKey(connectionId, database)];
   if (collections === undefined || collections.state === 'loading') {
-    return [row, messageRow(key, connectionId, depth, 'Loading collections')];
+    return [row, messageRow(key, connectionId, childDepth, 'Loading collections')];
   }
   if (collections.state === 'error') {
-    return [row, messageRow(key, connectionId, depth, collections.error.message, 'red')];
+    return [row, messageRow(key, connectionId, childDepth, collections.error.message, 'red')];
   }
   if (collections.data.length === 0) {
-    return [row, messageRow(key, connectionId, depth, 'No collections')];
+    return [row, messageRow(key, connectionId, childDepth, 'No collections')];
   }
   return [
     row,
@@ -174,7 +202,7 @@ function databaseRows(
       makeRow({
         key: `col:${catalogKey(connectionId, database)}/${collection.name}`,
         kind: 'collection',
-        depth,
+        depth: childDepth,
         label: collection.name,
         connectionId,
         database,
@@ -186,25 +214,150 @@ function databaseRows(
   ];
 }
 
-/** Flattens the connection tree into the rows the screen shows, in order. */
-export function buildTreeRows(input: TreeInput): TreeRow[] {
-  return input.connections.flatMap((connection) => {
-    const key = connectionNodeId(connection.id);
-    const status = input.statuses[connection.id] ?? DISCONNECTED;
-    const expanded = input.expanded[key] === true;
-    const row = makeRow({
-      key,
-      kind: 'connection',
-      depth: 0,
-      label: connection.name,
-      connectionId: connection.id,
-      expandable: true,
-      expanded,
-      color: connection.color,
-      status,
-    });
-    return expanded ? [row, ...connectionChildren(input, connection.id, key, status)] : [row];
+interface ConnectionRowExtras {
+  /** The container behind a docker profile, when it is in the current list. */
+  readonly container?: DockerMongoContainerSummary | undefined;
+  readonly note?: string | undefined;
+  /** The container is gone. The row says so and does not expand. */
+  readonly missing?: boolean;
+}
+
+/** A connection row and, when it is open, the rows under it. Depth sets the indent. */
+function connectionRows(
+  input: TreeInput,
+  connection: ConnectionProfileSummary,
+  depth: number,
+  parentKey: string | undefined,
+  extras: ConnectionRowExtras = {},
+): TreeRow[] {
+  const key = connectionNodeId(connection.id);
+  const status = input.statuses[connection.id] ?? DISCONNECTED;
+  const expanded = input.expanded[key] === true && extras.missing !== true;
+  const row = makeRow({
+    key,
+    kind: 'connection',
+    depth,
+    label: connection.name,
+    connectionId: connection.id,
+    parentKey,
+    expandable: extras.missing !== true,
+    expanded,
+    color: connection.color,
+    status,
+    container: extras.container,
+    note: extras.note,
   });
+  if (extras.missing === true) {
+    return [row, messageRow(key, connection.id, depth + CHILD, 'Container not found', 'red')];
+  }
+  if (!expanded) {
+    return [row];
+  }
+  return [row, ...connectionChildren(input, connection.id, key, status, depth + CHILD)];
+}
+
+function dockerProfiles(input: TreeInput): ConnectionProfileSummary[] {
+  return input.connections.filter((connection) => connection.source === 'docker');
+}
+
+function containerRows(
+  input: TreeInput,
+  container: DockerMongoContainerSummary,
+  parentKey: string,
+): TreeRow[] {
+  const depth = CHILD;
+  // A container with a connection keeps its container, so the row keeps its image, state and route.
+  const profile = dockerProfiles(input).find((item) => item.dockerContainerId === container.id);
+  if (profile !== undefined) {
+    return connectionRows(input, profile, depth, parentKey, { container });
+  }
+  return [
+    makeRow({
+      key: containerNodeId(container.id),
+      kind: 'container',
+      depth,
+      label: container.name,
+      connectionId: '',
+      parentKey,
+      container,
+    }),
+  ];
+}
+
+function dockerChildren(input: TreeInput, parentKey: string): TreeRow[] {
+  const depth = CHILD;
+  const docker = input.docker;
+  const rows: TreeRow[] = [];
+  const available = docker?.status?.available === true;
+  const containers = docker?.containers;
+  let listed: readonly DockerMongoContainerSummary[] | undefined;
+
+  if (docker?.status === undefined) {
+    rows.push(messageRow(parentKey, '', depth, 'Checking Docker'));
+  } else if (!docker.status.available) {
+    rows.push(messageRow(parentKey, '', depth, 'Docker not available'));
+    rows.push(
+      messageRow(parentKey, '', depth, docker.status.reason ?? 'The engine did not answer.'),
+    );
+  } else if (containers?.state === 'loading') {
+    rows.push(messageRow(parentKey, '', depth, 'Looking for containers'));
+  } else if (containers?.state === 'error') {
+    rows.push(messageRow(parentKey, '', depth, containers.error.message, 'red'));
+  } else if (containers?.state === 'ready') {
+    listed = containers.data;
+  }
+
+  for (const container of listed ?? []) {
+    rows.push(...containerRows(input, container, parentKey));
+  }
+  if (listed !== undefined && listed.length === 0 && dockerProfiles(input).length === 0) {
+    rows.push(messageRow(parentKey, '', depth, 'No MongoDB containers found'));
+  }
+
+  // Profiles the list above did not show: containers that are gone, and all profiles while the
+  // engine is unavailable or still loading. Each stays visible with the normal menu.
+  const listedIds = new Set((listed ?? []).map((container) => container.id));
+  for (const profile of dockerProfiles(input)) {
+    if (listed !== undefined && listedIds.has(profile.dockerContainerId ?? '')) {
+      continue;
+    }
+    const missing = listed !== undefined;
+    rows.push(
+      ...connectionRows(input, profile, depth, parentKey, {
+        missing,
+        note: !available && docker?.status !== undefined ? 'Docker not reachable' : undefined,
+      }),
+    );
+  }
+  return rows;
+}
+
+function dockerRows(input: TreeInput): TreeRow[] {
+  const key = DOCKER_NODE_ID;
+  // The node starts open. Only an explicit collapse hides the containers.
+  const expanded = input.expanded[key] !== false;
+  const row = makeRow({
+    key,
+    kind: 'docker',
+    depth: TOP_LEVEL,
+    label: 'Docker',
+    connectionId: '',
+    expandable: true,
+    expanded,
+  });
+  return expanded ? [row, ...dockerChildren(input, key)] : [row];
+}
+
+/**
+ * Flattens the tree into the rows the screen shows, in order. Manual connections come first,
+ * then the Docker node. Docker profiles appear under their container, not at the top.
+ */
+export function buildTreeRows(input: TreeInput): TreeRow[] {
+  const manual = input.connections.filter((connection) => connection.source !== 'docker');
+  return [
+    ...manual.flatMap((connection) => connectionRows(input, connection, TOP_LEVEL, undefined)),
+    ...dockerRows(input),
+  ];
 }
 
 /** Rows a user can focus. Message lines are skipped by the keyboard. */

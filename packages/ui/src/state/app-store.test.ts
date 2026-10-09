@@ -21,7 +21,7 @@ describe('createAppStore vault', () => {
     const store = await unlockedStore();
     const connections = store.getState().connections;
     expect(store.getState().vault).toBe('unlocked');
-    expect(connections.state === 'ready' && connections.data.length).toBe(2);
+    expect(connections.state === 'ready' && connections.data.length).toBe(3);
   });
 
   it('keeps the vault locked after a wrong password', async () => {
@@ -89,6 +89,7 @@ describe('createAppStore connections', () => {
     expect(connections.state === 'ready' && connections.data.map((item) => item.name)).toEqual([
       'Local dev',
       'Staging',
+      'shop-mongo',
       'Scratch',
     ]);
   });
@@ -99,6 +100,7 @@ describe('createAppStore connections', () => {
     const connections = store.getState().connections;
     expect(connections.state === 'ready' && connections.data.map((item) => item.name)).toEqual([
       'Local dev',
+      'shop-mongo',
     ]);
   });
 
