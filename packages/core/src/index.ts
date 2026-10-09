@@ -8,6 +8,7 @@ export * from './domain/connection';
 export * from './domain/errors';
 export * from './domain/history';
 export * from './domain/settings';
+export * from './diagnostics/types';
 export * from './domain/vault';
 export * from './ejson/canonical';
 export * from './ejson/format';
