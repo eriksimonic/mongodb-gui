@@ -321,12 +321,28 @@ export function createMockUiApi(options: MockUiApiOptions = {}): UiApi {
     state.statuses.set(connectionId, status);
     if (status.state !== 'connected') {
       monitor.stopConnection(connectionId);
+      shell.clearConnection(connectionId);
     }
     emit({ type: 'connection:status', connectionId, status });
+    // The runtime process follows the connection: it is ready when connected and stopped otherwise.
+    if (status.state === 'connected') {
+      emit({ type: 'shell:state', connectionId, state: 'ready' });
+    } else if (status.state !== 'connecting') {
+      emit({ type: 'shell:state', connectionId, state: 'stopped' });
+    }
+  }
+
+  // Runs one shell call with the busy state around it, as the supervisor reports it.
+  async function whileBusy<T>(connectionId: string, run: () => Promise<T>): Promise<T> {
+    emit({ type: 'shell:state', connectionId, state: 'busy' });
+    try {
+      return await run();
+    } finally {
+      emit({ type: 'shell:state', connectionId, state: 'ready' });
+    }
   }
 
   function disconnectAll(): void {
-    shell.clear();
     for (const connection of state.connections) {
       if (statusOf(connection.id).state !== 'disconnected') {
         setStatus(connection.id, { state: 'disconnected' });
@@ -589,18 +605,20 @@ export function createMockUiApi(options: MockUiApiOptions = {}): UiApi {
       evaluate: method(rpcContract.shell.evaluate, latencyMs, (input) => {
         requireUnlocked();
         requireConnected(input.connectionId);
-        return shell.evaluate({
-          connectionId: input.connectionId,
-          requestId: input.requestId ?? newId(),
-          database: input.database,
-          code: input.code,
-          batchSize: input.batchSize,
-        });
+        return whileBusy(input.connectionId, () =>
+          shell.evaluate({
+            connectionId: input.connectionId,
+            requestId: input.requestId ?? newId(),
+            database: input.database,
+            code: input.code,
+            batchSize: input.batchSize,
+          }),
+        );
       }),
       next: method(rpcContract.shell.next, latencyMs, (input) => {
         requireUnlocked();
         requireConnected(input.connectionId);
-        return shell.next(input);
+        return whileBusy(input.connectionId, async () => shell.next(input));
       }),
       cancel: method(rpcContract.shell.cancel, latencyMs, ({ requestId }) => {
         requireUnlocked();
@@ -619,7 +637,7 @@ export function createMockUiApi(options: MockUiApiOptions = {}): UiApi {
       restart: method(rpcContract.shell.restart, latencyMs, ({ connectionId }) => {
         requireUnlocked();
         requireConnected(connectionId);
-        shell.clear();
+        shell.clearConnection(connectionId);
       }),
       state: method(rpcContract.shell.state, latencyMs, ({ connectionId }) => {
         requireUnlocked();

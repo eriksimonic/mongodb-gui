@@ -95,7 +95,7 @@ export function createMockShell(emit: MockShellEmit) {
             .find((item) => item.name === input.database)
             ?.collections.find((item) => item.info.name === statement.collection)?.count ?? 0;
         return Promise.resolve(
-          value({ type: 'number', printableEjson: String(total), hasMore: false }),
+          value({ type: 'number', printableEjson: int32Text(total), hasMore: false }),
         );
       }
       case 'print': {
@@ -106,13 +106,13 @@ export function createMockShell(emit: MockShellEmit) {
           text: statement.args.join(' '),
         });
         return Promise.resolve(
-          value({ type: 'undefined', printableEjson: 'undefined', hasMore: false }),
+          value({ type: 'undefined', printableEjson: 'null', hasMore: false }),
         );
       }
       case 'sleep':
         return sleepUnlessCancelled(input.requestId, statement.ms).then((finished) =>
           finished
-            ? value({ type: 'undefined', printableEjson: 'undefined', hasMore: false })
+            ? value({ type: 'undefined', printableEjson: 'null', hasMore: false })
             : failure('CANCELLED', 'The operation was cancelled'),
         );
       case 'documents': {
@@ -241,8 +241,12 @@ export function createMockShell(emit: MockShellEmit) {
       return summariseDocuments(documents);
     },
 
-    clear(): void {
-      cursors.clear();
+    clearConnection(connectionId: string): void {
+      for (const [requestId, cursor] of cursors) {
+        if (cursor.connectionId === connectionId) {
+          cursors.delete(requestId);
+        }
+      }
     },
   };
 }
@@ -298,6 +302,11 @@ export function parseStatement(code: string): Statement {
     return { kind: 'getName' };
   }
   return { kind: 'echo' };
+}
+
+// Canonical EJSON writes an int32 with its wrapper, as the runtime does.
+function int32Text(value: number): string {
+  return JSON.stringify({ $numberInt: String(value) });
 }
 
 // A cursor batch has the same shape the runtime prints. It holds the documents and whether more

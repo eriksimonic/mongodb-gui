@@ -70,7 +70,11 @@ describe('mock shell', () => {
       code: `db.${COLLECTION}.countDocuments({})`,
       batchSize: 50,
     });
-    expect(outcome.result).toEqual({ type: 'number', printableEjson: '1200', hasMore: false });
+    expect(outcome.result).toEqual({
+      type: 'number',
+      printableEjson: '{"$numberInt":"1200"}',
+      hasMore: false,
+    });
   });
 
   it('emits print lines as shell:print events', async () => {
@@ -186,5 +190,47 @@ describe('mock shell', () => {
     expect(await api.rpc.shell.state({ connectionId: localConnectionId })).toEqual({
       state: 'ready',
     });
+  });
+  it('reports busy and ready around an evaluation and valid EJSON for every printable', async () => {
+    const { api, events } = connectedApi();
+    await api.rpc.connections.connect({ id: localConnectionId });
+    events.length = 0;
+    const printed = await api.rpc.shell.evaluate({
+      connectionId: localConnectionId,
+      database: DATABASE,
+      code: "print('x')",
+      batchSize: 50,
+    });
+    const states = events
+      .filter((event) => event.type === 'shell:state')
+      .map((event) => (event.type === 'shell:state' ? event.state : undefined));
+    expect(states).toEqual(['busy', 'ready']);
+    expect(JSON.parse(printed.result?.printableEjson ?? '')).toBeNull();
+    const count = await api.rpc.shell.evaluate({
+      connectionId: localConnectionId,
+      database: DATABASE,
+      code: 'db.orders.countDocuments({})',
+      batchSize: 50,
+    });
+    expect(JSON.parse(count.result?.printableEjson ?? '')).toEqual({ $numberInt: '1200' });
+  });
+
+  it('drops the cursors of a connection when it disconnects', async () => {
+    const { api } = connectedApi();
+    await api.rpc.connections.connect({ id: localConnectionId });
+    const first = await api.rpc.shell.evaluate({
+      connectionId: localConnectionId,
+      database: DATABASE,
+      code: `db.${COLLECTION}.find({})`,
+      batchSize: 5,
+    });
+    await api.rpc.connections.disconnect({ id: localConnectionId });
+    await api.rpc.connections.connect({ id: localConnectionId });
+    const continued = await api.rpc.shell.next({
+      connectionId: localConnectionId,
+      requestId: first.requestId,
+      batchSize: 5,
+    });
+    expect(continued.error?.code).toBe('VALIDATION');
   });
 });

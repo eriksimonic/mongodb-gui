@@ -1,7 +1,7 @@
 import { builtinModules } from 'node:module';
 import { join } from 'node:path';
 import { defineConfig, type Plugin } from 'vite';
-import { OPTIONAL_MODULES, isOptionalModule } from './build/optional-modules';
+import { isOptionalModule, optionalModuleNames } from './scripts/optional-modules';
 
 // The shell runtime is a second main-process bundle. It runs in a utility process or a forked
 // Node child, outside the app's own module graph, so it is built as one CommonJS file with its
@@ -39,7 +39,7 @@ function guardOptionalRequires(): Plugin {
     name: 'guard-optional-requires',
     renderChunk(code) {
       let next = code;
-      for (const name of OPTIONAL_MODULES) {
+      for (const name of optionalModuleNames()) {
         const pattern = new RegExp(
           `^(const [\\w$]+ = )require\\(['"]${escapeRegExp(name)}['"]\\);$`,
           'm',

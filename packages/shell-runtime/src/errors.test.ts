@@ -7,6 +7,23 @@ function driverError(name: string, message: string, code?: number): Error {
 }
 
 describe('toEvaluationError', () => {
+  it('reports require as unavailable in the editor, whichever way the runtime names it', () => {
+    expect(toEvaluationError(new ReferenceError('require is not defined'))).toEqual({
+      code: 'VALIDATION',
+      message: 'require is not available in the query editor',
+    });
+    expect(toEvaluationError(new Error('Dynamic require of "fs" is not supported'))).toEqual({
+      code: 'VALIDATION',
+      message: 'require is not available in the query editor',
+    });
+    const bundlerStub =
+      'Could not dynamically require "fs". Please configure the dynamicRequireTargets or/and ignoreDynamicRequires option of @rollup/plugin-commonjs appropriately for this require call to work.';
+    expect(toEvaluationError(new Error(bundlerStub))).toEqual({
+      code: 'VALIDATION',
+      message: 'require is not available in the query editor',
+    });
+  });
+
   it('maps a server command failure to COMMAND_FAILED', () => {
     const error = driverError('MongoServerError', 'unknown top level operator: $bad', 2);
     expect(toEvaluationError(error)).toEqual({

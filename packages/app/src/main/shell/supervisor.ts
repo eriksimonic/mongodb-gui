@@ -41,6 +41,10 @@ export interface SupervisorTimings {
   readonly stopGraceMs: number;
   readonly crashWindowMs: number;
   readonly maxCrashRestarts: number;
+  // Print lines that arrive within this window go out as one shell:print event.
+  readonly printFlushMs: number;
+  // Lines one evaluation may print. The next line says the output was truncated.
+  readonly maxPrintLines: number;
 }
 
 export const DEFAULT_TIMINGS: SupervisorTimings = {
@@ -53,7 +57,13 @@ export const DEFAULT_TIMINGS: SupervisorTimings = {
   stopGraceMs: 1_000,
   crashWindowMs: 60_000,
   maxCrashRestarts: 3,
+  printFlushMs: 50,
+  maxPrintLines: 10_000,
 };
+
+// Responses kept for one request. A script can send more messages than a request needs, so the
+// rest are dropped.
+const MAX_RESPONSES_PER_REQUEST = 100;
 
 export interface RuntimeSupervisorOptions {
   // The built shell runtime bundle that each process runs.
@@ -113,10 +123,19 @@ interface ExchangeOptions {
   readonly forwardPrints: boolean;
 }
 
+// Print lines waiting for their flush.
+interface PrintBuffer {
+  readonly lines: string[];
+  count: number;
+  truncated: boolean;
+  timer: ReturnType<typeof setTimeout> | undefined;
+}
+
 // One request sent to a runtime process and not yet answered with done.
 interface Exchange {
   readonly id: string;
   readonly forwardPrints: boolean;
+  readonly prints: PrintBuffer;
   readonly responses: ShellResponse[];
   abort: AppError | undefined;
   deadline: ReturnType<typeof setTimeout> | undefined;
@@ -143,6 +162,8 @@ interface Slot {
   tail: Promise<void>;
   queued: number;
   readonly queuedIds: Set<string>;
+  // Ids of work requests whose task runs now, including the spawn, connect and database switch.
+  readonly activeIds: Set<string>;
   readonly cancelledQueued: Set<string>;
   // Id of the request whose evaluation opened the current cursor. "next" is valid only for it.
   cursorOwner: string | undefined;
@@ -180,10 +201,17 @@ export class RuntimeSupervisor {
   async evaluate(input: EvaluateRequest): Promise<ShellEvaluation> {
     const slot = this.slotFor(input.connectionId);
     const requestId = input.requestId ?? randomUUID();
+    if (input.requestId !== undefined && this.isInUse(slot, input.requestId)) {
+      return failed(
+        requestId,
+        appError('VALIDATION', 'The request id is already in use.'),
+        performance.now(),
+      );
+    }
     const timeoutMs = input.timeoutMs ?? this.timings.defaultRequestTimeoutMs;
     return this.enqueue(slot, requestId, async () => {
       const started = performance.now();
-      if (slot.cancelledQueued.delete(requestId)) {
+      if (this.isCancelled(slot, requestId)) {
         return failed(requestId, cancelledError(), started);
       }
       await this.ensureReady(slot);
@@ -191,6 +219,11 @@ export class RuntimeSupervisor {
       const switched = await this.useDatabase(slot, input.database);
       if (switched !== undefined) {
         return failed(requestId, switched, started);
+      }
+      // A cancel that arrived while the process started or switched database is honoured here,
+      // before the evaluation is sent.
+      if (this.isCancelled(slot, requestId)) {
+        return failed(requestId, cancelledError(), started);
       }
       slot.cursorOwner = undefined;
       const outcome = await this.exchange(
@@ -219,7 +252,7 @@ export class RuntimeSupervisor {
     const requestId = input.requestId;
     return this.enqueue(slot, requestId, async () => {
       const started = performance.now();
-      if (slot.cancelledQueued.delete(requestId)) {
+      if (this.isCancelled(slot, requestId)) {
         return failed(requestId, cancelledError(), started);
       }
       if (slot.cursorOwner !== requestId) {
@@ -231,6 +264,9 @@ export class RuntimeSupervisor {
       }
       await this.ensureReady(slot);
       this.markBusy(slot);
+      if (this.isCancelled(slot, requestId)) {
+        return failed(requestId, cancelledError(), started);
+      }
       const outcome = await this.exchange(
         slot,
         { id: requestId, kind: 'next', batchSize: input.batchSize },
@@ -246,8 +282,9 @@ export class RuntimeSupervisor {
     });
   }
 
-  // Cancels the request with this id. A request that is still queued never starts. A running one
-  // is aborted through the watchdog, and the call returns once it has settled.
+  // Cancels the request with this id. A request that is queued or still starting never sends its
+  // evaluation. A running one is aborted through the watchdog, and the call returns once it has
+  // settled.
   async cancel(connectionId: string, requestId: string): Promise<void> {
     const slot = this.slots.get(connectionId);
     if (slot === undefined) {
@@ -259,7 +296,7 @@ export class RuntimeSupervisor {
       await exchange.done;
       return;
     }
-    if (slot.queuedIds.has(requestId)) {
+    if (slot.queuedIds.has(requestId) || slot.activeIds.has(requestId)) {
       slot.cancelledQueued.add(requestId);
     }
   }
@@ -370,6 +407,20 @@ export class RuntimeSupervisor {
     this.slots.clear();
   }
 
+  // True when the id names a request that is queued, running, or owns the open cursor.
+  private isInUse(slot: Slot, requestId: string): boolean {
+    return (
+      slot.queuedIds.has(requestId) ||
+      slot.activeIds.has(requestId) ||
+      slot.exchanges.has(requestId) ||
+      slot.cursorOwner === requestId
+    );
+  }
+
+  private isCancelled(slot: Slot, requestId: string): boolean {
+    return slot.cancelledQueued.has(requestId);
+  }
+
   private slotFor(connectionId: string): Slot {
     if (this.disposed) {
       throw new AppErrorException(appError('INTERNAL', 'The shell is shut down.'));
@@ -389,6 +440,7 @@ export class RuntimeSupervisor {
       tail: Promise.resolve(),
       queued: 0,
       queuedIds: new Set(),
+      activeIds: new Set(),
       cancelledQueued: new Set(),
       cursorOwner: undefined,
       restarts: [],
@@ -407,10 +459,15 @@ export class RuntimeSupervisor {
     const run = slot.tail.then(async () => {
       if (id !== undefined) {
         slot.queuedIds.delete(id);
+        slot.activeIds.add(id);
       }
       try {
         return await task();
       } finally {
+        if (id !== undefined) {
+          slot.activeIds.delete(id);
+          slot.cancelledQueued.delete(id);
+        }
         slot.queued -= 1;
         if (slot.queued === 0 && slot.state === 'busy') {
           this.setState(slot, slot.ready ? 'ready' : 'stopped');
@@ -553,12 +610,7 @@ export class RuntimeSupervisor {
     }
     if (message.kind === 'print') {
       if (exchange.forwardPrints) {
-        this.emit({
-          type: 'shell:print',
-          connectionId: slot.connectionId,
-          requestId: message.id,
-          text: message.text,
-        });
+        this.bufferPrint(slot, exchange, message.text);
       }
       return;
     }
@@ -566,7 +618,9 @@ export class RuntimeSupervisor {
       this.finish(slot, exchange, undefined);
       return;
     }
-    exchange.responses.push(message);
+    if (exchange.responses.length < MAX_RESPONSES_PER_REQUEST) {
+      exchange.responses.push(message);
+    }
   }
 
   private onProcessMessage(slot: Slot, message: ShellResponse): void {
@@ -667,6 +721,7 @@ export class RuntimeSupervisor {
       abort: undefined,
       deadline: undefined,
       escalation: undefined,
+      prints: { lines: [], count: 0, truncated: false, timer: undefined },
       settle,
       done,
     };
@@ -725,9 +780,46 @@ export class RuntimeSupervisor {
     }, this.timings.watchdogStepMs);
   }
 
+  // Adds one print line to the buffer. Lines past the cap are dropped, and one line says so.
+  private bufferPrint(slot: Slot, exchange: Exchange, text: string): void {
+    const buffer = exchange.prints;
+    if (buffer.truncated) {
+      return;
+    }
+    if (buffer.count >= this.timings.maxPrintLines) {
+      buffer.truncated = true;
+      buffer.lines.push('output truncated');
+    } else {
+      buffer.count += 1;
+      buffer.lines.push(text);
+    }
+    buffer.timer ??= setTimeout(() => {
+      this.flushPrints(slot, exchange);
+    }, this.timings.printFlushMs);
+  }
+
+  // Sends the buffered lines as one event. Lines of one window keep their order.
+  private flushPrints(slot: Slot, exchange: Exchange): void {
+    const buffer = exchange.prints;
+    clearTimeout(buffer.timer);
+    buffer.timer = undefined;
+    if (buffer.lines.length === 0) {
+      return;
+    }
+    const text = buffer.lines.join('\n');
+    buffer.lines.length = 0;
+    this.emit({
+      type: 'shell:print',
+      connectionId: slot.connectionId,
+      requestId: exchange.id,
+      text,
+    });
+  }
+
   private finish(slot: Slot, exchange: Exchange, fallback: AppError | undefined): void {
     clearTimeout(exchange.deadline);
     clearTimeout(exchange.escalation);
+    this.flushPrints(slot, exchange);
     slot.exchanges.delete(exchange.id);
     exchange.settle({ responses: exchange.responses, abort: exchange.abort ?? fallback });
   }
@@ -799,7 +891,12 @@ export class RuntimeSupervisor {
       return;
     }
     slot.state = state;
-    this.log.info('shell state changed', { connectionId: slot.connectionId, state });
+    const detail = state === 'busy' || state === 'ready';
+    if (detail) {
+      this.log.debug?.('shell state changed', { connectionId: slot.connectionId, state });
+    } else {
+      this.log.info('shell state changed', { connectionId: slot.connectionId, state });
+    }
     this.emit({ type: 'shell:state', connectionId: slot.connectionId, state });
   }
 

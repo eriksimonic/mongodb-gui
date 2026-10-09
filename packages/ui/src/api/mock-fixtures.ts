@@ -192,10 +192,10 @@ export function fixtureDocuments(collection: string, count: number): Record<stri
   const size = Math.min(count, MOCK_DOCUMENT_LIMIT);
   return Array.from({ length: size }, (_unused, index) => ({
     _id: { $oid: index.toString(16).padStart(24, '0') },
-    seq: index,
+    seq: { $numberInt: String(index) },
     collection,
     status: STATUSES[index % STATUSES.length],
-    total: (index * 37) % 500,
+    total: { $numberInt: String((index * 37) % 500) },
     customer: `customer-${index % 40}`,
     createdAt: { $date: new Date(FIRST_DOCUMENT_TIME + index * HOUR_MS).toISOString() },
   }));

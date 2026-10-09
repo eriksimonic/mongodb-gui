@@ -38,6 +38,8 @@ const TIMINGS: SupervisorTimings = {
   stopGraceMs: 20,
   crashWindowMs: 60_000,
   maxCrashRestarts: 3,
+  printFlushMs: 20,
+  maxPrintLines: 10_000,
 };
 
 // Decides how a fake process answers one request. The default answers the protocol normally.
@@ -712,6 +714,104 @@ describe('RuntimeSupervisor', () => {
     h.supervisor.dispose();
     expect(h.children[0]?.exited).toBe(true);
     await expect(h.supervisor.evaluate(evaluateInput())).rejects.toBeInstanceOf(AppErrorException);
+  });
+
+  it('honours a cancel that arrives while the process is still connecting', async () => {
+    const held: ShellRequest[] = [];
+    const h = track(
+      harness({
+        next: () => ({
+          respond: (child, request) => {
+            if (request.kind === 'connect') {
+              held.push(request);
+              return;
+            }
+            answerProtocol(child, request);
+          },
+        }),
+      }),
+    );
+    const requestId = randomUUID();
+    const running = h.supervisor.evaluate({ ...evaluateInput({ requestId }) });
+    await until(() => held.length === 1);
+    await h.supervisor.cancel(CONNECTION_ID, requestId);
+    const connect = held[0];
+    h.children[0]?.reply({
+      id: connect?.id,
+      kind: 'connected',
+      serverVersion: '8.0.17',
+      topology: 'standalone',
+    });
+    h.children[0]?.reply({ id: connect?.id, kind: 'done' });
+    const evaluation = await running;
+    expect(evaluation.error?.code).toBe('CANCELLED');
+    expect(h.children[0]?.sent.some((request) => request.id === requestId)).toBe(false);
+  });
+
+  it('rejects a caller request id that is already running', async () => {
+    const h = track(
+      harness({
+        next: () => ({
+          respond: (child, request) => {
+            if (request.kind === 'evaluate' && request.code === 'sleep(5000)') {
+              return;
+            }
+            answerProtocol(child, request);
+          },
+        }),
+      }),
+    );
+    const requestId = randomUUID();
+    const running = h.supervisor.evaluate({
+      ...evaluateInput({ requestId }),
+      code: 'sleep(5000)',
+    });
+    await until(() => h.children[0]?.sent.some((request) => request.id === requestId) === true);
+    const second = await h.supervisor.evaluate(evaluateInput({ requestId }));
+    expect(second.error?.code).toBe('VALIDATION');
+    await h.supervisor.cancel(CONNECTION_ID, requestId);
+    await running;
+  });
+
+  it('sends print lines of one window as one event and caps the lines of an evaluation', async () => {
+    const h = track(
+      harness({
+        timings: { printFlushMs: 20, maxPrintLines: 3 },
+        next: () => ({
+          respond: (child, request) => {
+            if (request.kind === 'evaluate') {
+              setImmediate(() => {
+                for (const text of ['a', 'b', 'c', 'd', 'e']) {
+                  child.reply({ id: request.id, kind: 'print', text });
+                }
+                child.reply({
+                  id: request.id,
+                  kind: 'result',
+                  type: 'undefined',
+                  printableEjson: 'null',
+                  hasMore: false,
+                  elapsedMs: 1,
+                });
+                child.reply({ id: request.id, kind: 'done' });
+              });
+              return;
+            }
+            answerProtocol(child, request);
+          },
+        }),
+      }),
+    );
+    const requestId = randomUUID();
+    await h.supervisor.evaluate(evaluateInput({ requestId }));
+    const prints = h.events.filter((event) => event.type === 'shell:print');
+    expect(prints).toEqual([
+      {
+        type: 'shell:print',
+        connectionId: CONNECTION_ID,
+        requestId,
+        text: 'a\nb\nc\noutput truncated',
+      },
+    ]);
   });
 
   it('keeps the minimal environment helper strict about names', () => {
