@@ -87,7 +87,11 @@ export function DockerLinkedContextMenu({
         />
       </Menu.Target>
       <Menu.Dropdown>
-        <Menu.Item disabled={!canConnect} onClick={() => runAndClose(() => connect(connection.id))}>
+        {/* A missing container has nothing to connect to, so Connect stays off until it is back. */}
+        <Menu.Item
+          disabled={!canConnect || container === undefined}
+          onClick={() => runAndClose(() => connect(connection.id))}
+        >
           Connect
         </Menu.Item>
         <Menu.Item

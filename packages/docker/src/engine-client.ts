@@ -46,6 +46,8 @@ export interface ContainerListItem {
   readonly id: string;
   readonly names: readonly string[];
   readonly image: string;
+  /** The image id, `sha256:...`. It stays the same when a tag moves or is removed. */
+  readonly imageId: string;
   readonly state: string;
   readonly labels: Readonly<Record<string, string>>;
   /** Private (container side) TCP ports the container exposes or publishes. */
@@ -81,9 +83,11 @@ export interface DockerEngineClient {
   inspectContainer(id: string): Promise<unknown>;
   createContainer(spec: ContainerCreateSpec): Promise<string>;
   startContainer(id: string): Promise<void>;
-  /** Removes a container. A container that is already gone counts as removed. */
+  /** Removes a container. A container that is already gone, or being removed, counts as removed. */
   removeContainer(id: string, force: boolean): Promise<void>;
   hasImage(reference: string): Promise<boolean>;
+  /** The image id a reference resolves to, or undefined when the image is not present. */
+  imageId(reference: string): Promise<string | undefined>;
   /** Pulls an image and resolves once the engine reports the pull is done. */
   pullImage(reference: string): Promise<void>;
 }
@@ -95,6 +99,7 @@ const ContainerListSchema = z.array(
     Id: z.string().min(1),
     Names: z.array(z.string()).nullish(),
     Image: z.string(),
+    ImageID: z.string().nullish(),
     State: z.string(),
     Labels: z.record(z.string(), z.string()).nullish(),
     Ports: z
@@ -142,6 +147,7 @@ export function createDockerEngineClient(options: DockerEngineClientOptions): Do
       id: item.Id,
       names: item.Names ?? [],
       image: item.Image,
+      imageId: item.ImageID ?? '',
       state: item.State,
       labels: item.Labels ?? {},
       ports: (item.Ports ?? [])
@@ -189,7 +195,20 @@ export function createDockerEngineClient(options: DockerEngineClientOptions): Do
 
     async removeContainer(id, force) {
       const query = `force=${force ? 'true' : 'false'}&v=true`;
-      await send('DELETE', `/containers/${encodeURIComponent(id)}?${query}`, { allow: [404] });
+      // 404: the container is already gone. 409: another removal of it is in progress. Both mean the
+      // outcome is what the caller wants, so neither is an error.
+      await send('DELETE', `/containers/${encodeURIComponent(id)}?${query}`, { allow: [404, 409] });
+    },
+
+    async imageId(reference) {
+      const { status, text } = await send('GET', `/images/${encodeURIComponent(reference)}/json`, {
+        allow: [404],
+      });
+      if (status !== 200) {
+        return undefined;
+      }
+      const parsed = parse(z.object({ Id: z.string().min(1) }), text, 'image inspect');
+      return parsed.Id;
     },
 
     async hasImage(reference) {

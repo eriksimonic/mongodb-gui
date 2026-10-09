@@ -111,7 +111,15 @@ describe('DockerEngineClient against a fake engine', () => {
 
     expect(recorded[0]?.url).toBe('/containers/json?all=true');
     expect(items).toEqual([
-      { id: 'abc', names: [], image: 'mongo:7', state: 'exited', labels: {}, ports: [27017] },
+      {
+        id: 'abc',
+        names: [],
+        image: 'mongo:7',
+        imageId: '',
+        state: 'exited',
+        labels: {},
+        ports: [27017],
+      },
     ]);
   });
 
@@ -236,6 +244,27 @@ describe('DockerEngineClient against a fake engine', () => {
 
     expect(await clientWith().hasImage('alpine:latest')).toBe(true);
     expect(await clientWith().hasImage('missing:1')).toBe(false);
+  });
+
+  it('reads the image id a reference resolves to, or undefined when absent', async () => {
+    await startServer((request, response) => {
+      if (request.url === '/images/alpine%3Alatest/json') {
+        json(response, 200, { Id: 'sha256:abc' });
+        return;
+      }
+      json(response, 404, { message: 'No such image' });
+    });
+
+    expect(await clientWith().imageId('alpine:latest')).toBe('sha256:abc');
+    expect(await clientWith().imageId('missing:1')).toBeUndefined();
+  });
+
+  it('treats a removal already in progress (409) as removed', async () => {
+    await startServer((_request, response) => {
+      json(response, 409, { message: 'removal of container is already in progress' });
+    });
+
+    await expect(clientWith().removeContainer('abc', true)).resolves.toBeUndefined();
   });
 
   it('pulls an image by streaming progress lines until the pull ends', async () => {

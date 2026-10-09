@@ -194,6 +194,7 @@ function listItem(overrides: Partial<ContainerListItem>): ContainerListItem {
     names: ['/x'],
     image: 'nginx:1',
     state: 'running',
+    imageId: 'sha256:socat',
     labels: {},
     ports: [],
     ...overrides,
@@ -225,6 +226,7 @@ function fakeClient(options: {
     startContainer: unexpected,
     removeContainer: unexpected,
     hasImage: unexpected,
+    imageId: unexpected,
     pullImage: unexpected,
   };
 }

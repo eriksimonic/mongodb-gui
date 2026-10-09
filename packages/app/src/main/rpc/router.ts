@@ -96,6 +96,8 @@ export interface AppServicesOptions {
   readonly userDataDir: string;
   readonly kdf?: KdfParams;
   readonly failureDelayMs?: number;
+  /** Engine socket for docker support. Tests point it at a missing socket to stay off the host engine. */
+  readonly dockerSocketPath?: string;
 }
 
 export type AppServices = Omit<RouterDeps, 'onEvent' | 'docker'> & {
@@ -403,7 +405,7 @@ export function createAppServices(options: AppServicesOptions): AppServices {
   };
   let handles = openStore();
   const connections = new ConnectionManager();
-  const socketPath = defaultDockerSocket(process.env, process.platform);
+  const socketPath = options.dockerSocketPath ?? defaultDockerSocket(process.env, process.platform);
   const engine = createDockerEngineClient({ socketPath });
   const docker = createDockerRuntime({
     engine,

@@ -68,7 +68,7 @@ interface MockState {
   dockerContainers: DockerMongoContainerSummary[];
 }
 
-const DOCKER_UNREACHABLE_REASON = 'Docker is not reachable. (ENOENT)';
+const DOCKER_UNREACHABLE_REASON = 'Docker is not reachable at /var/run/docker.sock (ENOENT).';
 const DOCKER_ENGINE_VERSION = '29.8.2';
 const MOCK_DOCKER_PASSWORD = 'secret';
 

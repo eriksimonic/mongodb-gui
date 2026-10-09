@@ -99,6 +99,7 @@ function fakeEngine(containers: Record<string, Record<string, unknown>>): FakeEn
             names: [String(json['Name'])],
             image: config.Image,
             state: state.Status,
+            imageId: '',
             labels: {},
             ports: [27017],
           };
@@ -116,6 +117,7 @@ function fakeEngine(containers: Record<string, Record<string, unknown>>): FakeEn
       startContainer: UNUSED,
       removeContainer: UNUSED,
       hasImage: UNUSED,
+      imageId: UNUSED,
       pullImage: UNUSED,
     },
   };

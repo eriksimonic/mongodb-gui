@@ -80,7 +80,9 @@ describe('ConnectionTree Docker node', () => {
     renderWithApp(<ConnectionTree />, { mock: { preset: 'unlocked', docker: 'unavailable' } });
 
     expect(await screen.findByText('Docker not available')).toBeInTheDocument();
-    expect(screen.getByText('Docker is not reachable. (ENOENT)')).toBeInTheDocument();
+    expect(
+      screen.getByText('Docker is not reachable at /var/run/docker.sock (ENOENT).'),
+    ).toBeInTheDocument();
     expect(screen.queryByRole('treeitem', { name: 'orders-mongo' })).not.toBeInTheDocument();
     expect(screen.getByRole('treeitem', { name: 'shop-mongo' })).toHaveAttribute(
       'title',

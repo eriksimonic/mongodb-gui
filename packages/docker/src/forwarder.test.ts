@@ -26,6 +26,7 @@ interface FakeEngine {
   readonly image: { present: boolean };
 }
 
+const SOCAT_IMAGE_ID = 'sha256:socat-pinned';
 const TARGET_ID = 'b'.repeat(64);
 const OTHER_TARGET_ID = 'c'.repeat(64);
 
@@ -62,6 +63,7 @@ function fakeEngine(listenPort: () => number, targetInspect: unknown = {}): Fake
       id: container.id,
       names: [],
       image: FORWARDER_IMAGE,
+      imageId: SOCAT_IMAGE_ID,
       state: container.state,
       labels: container.labels,
       ports: [],
@@ -114,6 +116,9 @@ function fakeEngine(listenPort: () => number, targetInspect: unknown = {}): Fake
     async removeContainer(id) {
       removed.push(id);
       containers.delete(id);
+    },
+    async imageId() {
+      return SOCAT_IMAGE_ID;
     },
     async hasImage() {
       return image.present;
@@ -263,6 +268,26 @@ describe('ForwarderManager', () => {
     await expect(managerFor(engine).release(TARGET_ID)).resolves.toBeUndefined();
   });
 
+  it('removes a labelled forwarder whose tag moved, matched by the pinned image id', async () => {
+    const engine = fakeEngine(() => listenPort);
+    engine.containers.set('retagged', {
+      id: 'retagged',
+      labels: { [FORWARDER_LABEL]: TARGET_ID },
+      state: 'exited',
+      hostPort: 1,
+      spec: undefined,
+    });
+    const original = engine.client.listContainersByLabel.bind(engine.client);
+    engine.client.listContainersByLabel = async (label) =>
+      (await original(label)).map((item) =>
+        item.id === 'retagged' ? { ...item, image: 'alpine/socat:1.7.4.4' } : item,
+      );
+
+    await managerFor(engine).release(TARGET_ID);
+
+    expect(engine.removed).toEqual(['retagged']);
+  });
+
   it('does not remove a container that carries the label but is not the forwarder image', async () => {
     const engine = fakeEngine(() => listenPort);
     engine.containers.set('imposter', {
@@ -277,7 +302,7 @@ describe('ForwarderManager', () => {
     const original = engine.client.listContainersByLabel.bind(engine.client);
     engine.client.listContainersByLabel = async (label) =>
       (await original(label)).map((item) =>
-        item.id === 'imposter' ? { ...item, image: 'nginx:1' } : item,
+        item.id === 'imposter' ? { ...item, image: 'nginx:1', imageId: 'sha256:other' } : item,
       );
 
     await managerFor(engine).release(TARGET_ID);

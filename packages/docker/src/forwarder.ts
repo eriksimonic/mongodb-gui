@@ -130,8 +130,9 @@ async function reuseOrStart(
   start: (target: DockerMongoContainer) => Promise<ForwarderHandle>,
 ): Promise<ForwarderHandle> {
   const existing = await client.listContainersByLabel(forwarderLabelFor(target.id));
+  const pinned = await client.imageId(FORWARDER_IMAGE);
   const running = existing.find(
-    (item) => item.state === 'running' && isOwnedForwarder(item, target.id),
+    (item) => item.state === 'running' && isOwnedForwarder(item, target.id, pinned),
   );
   if (running !== undefined) {
     return {
@@ -145,10 +146,19 @@ async function reuseOrStart(
 
 /**
  * A container is removed only when it is a forwarder this app made. The label alone is not
- * enough, because a user container could carry the same label. The image must match too.
+ * enough, because a user container could carry the same label. The image must match too: either
+ * the reference the app pulls, or the image id that reference currently resolves to. The id still
+ * matches after the tag moves or is removed locally, as long as the image itself is present.
  */
-function isOwnedForwarder(container: ContainerListItem, targetId: string | undefined): boolean {
-  if (container.image !== FORWARDER_IMAGE) {
+function isOwnedForwarder(
+  container: ContainerListItem,
+  targetId: string | undefined,
+  pinnedImageId: string | undefined,
+): boolean {
+  const sameImage =
+    container.image === FORWARDER_IMAGE ||
+    (pinnedImageId !== undefined && container.imageId === pinnedImageId);
+  if (!sameImage) {
     return false;
   }
   const owner = container.labels[FORWARDER_LABEL];
@@ -163,8 +173,9 @@ async function removeOwned(
   containers: readonly ContainerListItem[],
   targetId: string | undefined,
 ): Promise<void> {
+  const pinned = await client.imageId(FORWARDER_IMAGE);
   for (const container of containers) {
-    if (isOwnedForwarder(container, targetId)) {
+    if (isOwnedForwarder(container, targetId, pinned)) {
       await client.removeContainer(container.id, true);
     }
   }

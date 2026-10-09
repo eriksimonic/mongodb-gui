@@ -39,7 +39,14 @@ describe('router against a real MongoDB 8.0 server', () => {
     mongo = await startMongo(IMAGE);
     await seedCatalog(mongo.rootUri, true);
     dir = mkdtempSync(join(tmpdir(), 'router-integration-'));
-    services = createAppServices({ userDataDir: dir, kdf: FAST_KDF, failureDelayMs: 0 });
+    // The services dispose by removing labelled forwarders. A missing socket keeps that away from the
+    // host engine, where the forwarder test may be running in parallel.
+    services = createAppServices({
+      userDataDir: dir,
+      kdf: FAST_KDF,
+      failureDelayMs: 0,
+      dockerSocketPath: join(dir, 'no-docker.sock'),
+    });
     router = createRouter({
       ...services,
       onEvent: (event) => {
