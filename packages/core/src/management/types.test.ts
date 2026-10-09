@@ -7,6 +7,7 @@ import {
   DropDatabaseInputSchema,
   DropIndexInputSchema,
   NamespaceSchema,
+  SetIndexHiddenInputSchema,
   RenameCollectionInputSchema,
   SetValidationInputSchema,
   UpdateDocumentFieldsInputSchema,
@@ -180,6 +181,18 @@ describe('DropIndexInputSchema', () => {
 
   it('accepts a named index', () => {
     expect(DropIndexInputSchema.safeParse({ ...base, name: 'status_1' }).success).toBe(true);
+  });
+});
+
+describe('SetIndexHiddenInputSchema', () => {
+  const base = { database: 'shop', collection: 'orders', hidden: true };
+
+  it.each(['_id_', '*'])('refuses to hide %s', (name) => {
+    expect(SetIndexHiddenInputSchema.safeParse({ ...base, name }).success).toBe(false);
+  });
+
+  it('accepts a named index', () => {
+    expect(SetIndexHiddenInputSchema.safeParse({ ...base, name: 'status_1' }).success).toBe(true);
   });
 });
 

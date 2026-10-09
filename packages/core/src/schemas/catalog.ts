@@ -50,9 +50,9 @@ export const IndexInfoSchema = z.object({
   sparse: z.boolean().optional(),
   hidden: z.boolean().optional(),
   expireAfterSeconds: z.number().nonnegative().optional(),
-  partialFilterExpression: documentSchema.optional(),
-  collation: documentSchema.optional(),
-  wildcardProjection: documentSchema.optional(),
+  partialFilterExpressionEjson: z.string().optional(),
+  collationEjson: z.string().optional(),
+  wildcardProjectionEjson: z.string().optional(),
   size: z.number().nonnegative().optional(),
   usage: z
     .object({

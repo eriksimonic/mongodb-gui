@@ -145,17 +145,20 @@ const IndexTargetSchema = z.object({
   collection: ExistingCollectionNameSchema,
 });
 
+// Dropping or hiding _id_ or * is refused: "*" would reach every index but _id_.
+const ManagedIndexNameSchema = z
+  .string()
+  .min(1)
+  .refine((name) => !PROTECTED_INDEX_NAMES.includes(name), {
+    message: 'The _id_ and * indexes cannot be dropped or hidden',
+  });
+
 export const DropIndexInputSchema = IndexTargetSchema.extend({
-  name: z
-    .string()
-    .min(1)
-    .refine((name) => !PROTECTED_INDEX_NAMES.includes(name), {
-      message: 'The _id_ and * indexes cannot be dropped',
-    }),
+  name: ManagedIndexNameSchema,
 });
 
 export const SetIndexHiddenInputSchema = IndexTargetSchema.extend({
-  name: z.string().min(1),
+  name: ManagedIndexNameSchema,
   hidden: z.boolean(),
 });
 

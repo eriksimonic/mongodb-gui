@@ -273,12 +273,14 @@ describe.each(MONGO_IMAGES)('management on %s', (image) => {
         keys: { total: 1 },
         options: { name: 'paid_total', partialFilterExpressionEjson: JSON.stringify(filter) },
       });
-      expect(index.partialFilterExpression).toEqual(filter);
+      expect(EJSON.parse(index.partialFilterExpressionEjson ?? 'null', { relaxed: true })).toEqual(
+        filter,
+      );
     });
 
     it('keeps BSON types in a partial filter expression', async () => {
       const database = uniqueDatabase();
-      const index = await createIndex(client, {
+      await createIndex(client, {
         database,
         collection: 'orders',
         keys: { total: 1 },
@@ -287,9 +289,16 @@ describe.each(MONGO_IMAGES)('management on %s', (image) => {
           partialFilterExpressionEjson: '{"placedAt": {"$gte": {"$date": "2020-01-01T00:00:00Z"}}}',
         },
       });
-      expect(index.partialFilterExpression?.placedAt).toEqual(
-        expect.objectContaining({ $gte: new Date('2020-01-01T00:00:00Z') }),
+      // The listing returns canonical EJSON. Parsing it back must give a Date, not a string.
+      const listed = (await listIndexes(client, database, 'orders')).find(
+        (entry) => entry.name === 'recent_total',
       );
+      expect(listed?.partialFilterExpressionEjson).toBeDefined();
+      const filter = EJSON.parse(listed?.partialFilterExpressionEjson ?? 'null', {
+        relaxed: false,
+      }) as { placedAt: { $gte: unknown } };
+      expect(filter.placedAt.$gte).toBeInstanceOf(Date);
+      expect(filter.placedAt.$gte).toEqual(new Date('2020-01-01T00:00:00Z'));
     });
 
     it('creates a text index', async () => {
@@ -325,11 +334,15 @@ describe.each(MONGO_IMAGES)('management on %s', (image) => {
         keys: { '$**': 1 },
         options: { name: 'attrs_wildcard', wildcardProjectionEjson: JSON.stringify(projection) },
       });
-      expect(index.wildcardProjection).toEqual(projection);
+      expect(EJSON.parse(index.wildcardProjectionEjson ?? 'null', { relaxed: true })).toEqual(
+        projection,
+      );
       const listed = (await listIndexes(client, database, 'attributes')).find(
         (entry) => entry.name === 'attrs_wildcard',
       );
-      expect(listed?.wildcardProjection).toEqual(projection);
+      expect(EJSON.parse(listed?.wildcardProjectionEjson ?? 'null', { relaxed: true })).toEqual(
+        projection,
+      );
     });
 
     it('reports a duplicate-key unique index build as COMMAND_FAILED', async () => {
@@ -381,6 +394,16 @@ describe.each(MONGO_IMAGES)('management on %s', (image) => {
       expect(error.code).toBe('VALIDATION');
       const names = (await listIndexes(client, database, 'orders')).map((index) => index.name);
       expect(names).toEqual(expect.arrayContaining(['_id_', 'sku_1']));
+    });
+
+    it('refuses to hide _id_ or *', async () => {
+      const database = uniqueDatabase();
+      for (const name of ['_id_', '*']) {
+        const error = await captureError(() =>
+          setIndexHidden(client, { database, collection: 'orders', name, hidden: true }),
+        );
+        expect(error.code).toBe('VALIDATION');
+      }
     });
 
     it('hides and unhides an index', async () => {

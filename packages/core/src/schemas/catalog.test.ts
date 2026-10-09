@@ -95,8 +95,8 @@ describe('IndexInfoSchema', () => {
       sparse: true,
       hidden: false,
       expireAfterSeconds: 3600,
-      partialFilterExpression: { status: 'paid' },
-      collation: { locale: 'en' },
+      partialFilterExpressionEjson: '{"status": "paid"}',
+      collationEjson: '{"locale": "en"}',
       size: 40960,
       usage: { ops: 12, since: '2026-10-01T00:00:00.000Z' },
     };
