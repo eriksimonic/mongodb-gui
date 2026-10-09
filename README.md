@@ -47,6 +47,7 @@ release.
 | Schema analysis of a sampled collection                                                                                         |
 | ------------------------------------------------------------------------------------------------------------------------------- |
 | ![Schema panel with a summary, type bars and a field table of paths, types, presence and examples](docs/screenshots/schema.png) |
+
 | Add panel picker, grouped by category                                                                                           |
 | ----------------------------------------------------------------------------------------                                        |
 | ![Add panel picker with panels grouped by category](docs/screenshots/monitor-picker.png)                                        |
