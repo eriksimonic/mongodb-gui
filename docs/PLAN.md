@@ -273,7 +273,10 @@ issues.
   BATCHED_DELETE, and the timeseries unpack stage. Fixtures captured from real servers
   for each case on 4.4, 6.0 and 8.0 where the stage exists, plus hand-written sharded
   ones. The panel shows an icon and category per stage, hover descriptions, the
-  metrics that apply, lookup and union sub-trees, and the advice.
+  metrics that apply, lookup and union sub-trees, and the advice. The raw tab is always
+  present: it shows the exact explain document the server returned, as canonical EJSON
+  with search, folding and copy, and it works even when the normaliser produces an
+  `UNKNOWN` tree, so an unexpected plan shape is still inspectable.
 
 ### Phase 4: collection management
 
