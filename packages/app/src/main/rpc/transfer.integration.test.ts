@@ -412,4 +412,26 @@ describe('transfers through the router against a real MongoDB 8.0 server', () =>
     },
     SUITE_TIMEOUT_MS,
   );
+
+  it(
+    'a renderer reset cancels the transfers the page started',
+    async () => {
+      const started = valueOf(
+        await router.handle('transfer.startImport', {
+          connectionId,
+          database: DATABASE,
+          collection: 'bulk_reset',
+          path: join(dir ?? '', 'long.ndjson'),
+          options: { format: 'ndjson', mode: 'insert', batchSize: 5, stopOnError: false },
+        }),
+      ) as { transferId: string };
+
+      // A reload or a closed window calls resetRenderer, which must end the page's transfers.
+      router.resetRenderer();
+      const ended = await waitForDone(router, started.transferId);
+      expect(ended.error?.code).toBe('CANCELLED');
+      expect(ended.inserted).toBeLessThan(CANCEL_LINES);
+    },
+    SUITE_TIMEOUT_MS,
+  );
 });

@@ -15,12 +15,14 @@ import {
   databaseNodeId,
   monitorNodeId,
   operationsNodeId,
+  profilerNodeId,
 } from '../../state/node-ids';
 
 export type TreeRowKind =
   | 'connection'
   | 'database'
   | 'collection'
+  | 'profiler'
   | 'message'
   | 'docker'
   | 'container'
@@ -186,32 +188,50 @@ function databaseRows(
     return [row];
   }
   const childDepth = depth + 1;
+  // The profiler node sits above the collections, so it is always visible under an open database.
+  const profiler = makeRow({
+    key: profilerNodeId(connectionId, database),
+    kind: 'profiler',
+    depth: childDepth,
+    label: 'Profiler',
+    connectionId,
+    database,
+    parentKey: key,
+  });
+  return [row, profiler, ...collectionRows(input, connectionId, database, key, childDepth)];
+}
+
+/** The collections of an open database, or the line that says why there are none. */
+function collectionRows(
+  input: TreeInput,
+  connectionId: string,
+  database: string,
+  key: string,
+  depth: number,
+): TreeRow[] {
   const collections = input.collections[catalogKey(connectionId, database)];
   if (collections === undefined || collections.state === 'loading') {
-    return [row, messageRow(key, connectionId, childDepth, 'Loading collections')];
+    return [messageRow(key, connectionId, depth, 'Loading collections')];
   }
   if (collections.state === 'error') {
-    return [row, messageRow(key, connectionId, childDepth, collections.error.message, 'red')];
+    return [messageRow(key, connectionId, depth, collections.error.message, 'red')];
   }
   if (collections.data.length === 0) {
-    return [row, messageRow(key, connectionId, childDepth, 'No collections')];
+    return [messageRow(key, connectionId, depth, 'No collections')];
   }
-  return [
-    row,
-    ...collections.data.map((collection) =>
-      makeRow({
-        key: `col:${catalogKey(connectionId, database)}/${collection.name}`,
-        kind: 'collection',
-        depth: childDepth,
-        label: collection.name,
-        connectionId,
-        database,
-        collection: collection.name,
-        collectionType: collection.type,
-        parentKey: key,
-      }),
-    ),
-  ];
+  return collections.data.map((collection) =>
+    makeRow({
+      key: `col:${catalogKey(connectionId, database)}/${collection.name}`,
+      kind: 'collection',
+      depth,
+      label: collection.name,
+      connectionId,
+      database,
+      collection: collection.name,
+      collectionType: collection.type,
+      parentKey: key,
+    }),
+  );
 }
 
 interface ConnectionRowExtras {

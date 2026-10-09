@@ -1,72 +1,126 @@
-import { Menu } from '@mantine/core';
-import type { ConnectionStatus } from '@mongo-gui/core';
+import { useProfilerOpener } from '../../profiler/profiler-opener';
 import { useAppStore } from '../../state/app-store-context';
+import { TreeMenu, type TreeMenuEntry } from './TreeMenu';
 
-export interface CatalogTarget {
-  readonly connectionId: string;
-  readonly database: string;
-  /** Undefined for a database node. */
-  readonly collection: string | undefined;
-}
-
-export interface CatalogContextMenuProps {
-  readonly target: CatalogTarget;
-  readonly status: ConnectionStatus;
+interface MenuPlacement {
   readonly position: { readonly x: number; readonly y: number };
   readonly onClose: () => void;
 }
 
-/** Right-click menu for a database or a collection. Import and export open their dialogs. */
-export function CatalogContextMenu({ target, status, position, onClose }: CatalogContextMenuProps) {
+export interface DatabaseContextMenuProps extends MenuPlacement {
+  readonly connectionId: string;
+  readonly database: string;
+}
+
+/** Menu for a database node. Creating and dropping go through dialogs that the shell shows. */
+export function DatabaseContextMenu({
+  connectionId,
+  database,
+  position,
+  onClose,
+}: DatabaseContextMenuProps) {
+  const setManagementDialog = useAppStore((state) => state.setManagementDialog);
   const setTransferDialog = useAppStore((state) => state.setTransferDialog);
-  const connected = status.state === 'connected';
+  const refreshDatabase = useAppStore((state) => state.refreshDatabase);
+  const profilerOpener = useProfilerOpener();
+  const entries: TreeMenuEntry[] = [
+    {
+      kind: 'item',
+      label: 'New collection',
+      onSelect: () => setManagementDialog({ kind: 'createCollection', connectionId, database }),
+    },
+    {
+      kind: 'item',
+      label: 'Import data into new collection',
+      onSelect: () =>
+        setTransferDialog({ kind: 'import', connectionId, database, collection: undefined }),
+    },
+    {
+      kind: 'item',
+      label: 'Open profiler',
+      onSelect: () => profilerOpener?.open(connectionId, database),
+    },
+    {
+      kind: 'item',
+      label: 'Drop database',
+      color: 'red',
+      onSelect: () => setManagementDialog({ kind: 'dropDatabase', connectionId, database }),
+    },
+    {
+      kind: 'item',
+      label: 'Refresh',
+      onSelect: () => refreshDatabase(connectionId, database),
+    },
+  ];
+  return <TreeMenu entries={entries} position={position} onClose={onClose} />;
+}
 
-  function openImport() {
-    onClose();
-    setTransferDialog({
-      kind: 'import',
-      connectionId: target.connectionId,
-      database: target.database,
-      collection: target.collection,
-    });
-  }
+export interface CollectionContextMenuProps extends MenuPlacement {
+  readonly connectionId: string;
+  readonly database: string;
+  readonly collection: string;
+}
 
-  function openExport() {
-    if (target.collection === undefined) {
-      return;
-    }
-    onClose();
-    setTransferDialog({
-      kind: 'export',
-      connectionId: target.connectionId,
-      database: target.database,
-      collection: target.collection,
-    });
-  }
-
-  return (
-    <Menu opened withinPortal position="bottom-start" shadow="md" width={220} onClose={onClose}>
-      <Menu.Target>
-        <div
-          style={{ position: 'fixed', left: position.x, top: position.y, width: 1, height: 1 }}
-        />
-      </Menu.Target>
-      <Menu.Dropdown>
-        {target.collection === undefined ? (
-          <Menu.Item disabled={!connected} onClick={openImport}>
-            Import data into new collection
-          </Menu.Item>
-        ) : (
-          <>
-            <Menu.Item disabled={!connected} onClick={openImport}>
-              Import data
-            </Menu.Item>
-            <Menu.Item disabled={!connected} onClick={openExport}>
-              Export data
-            </Menu.Item>
-          </>
-        )}
-      </Menu.Dropdown>
-    </Menu>
-  );
+/** Menu for a collection node. Panels open in the dock. Destructive actions open a confirmation. */
+export function CollectionContextMenu({
+  connectionId,
+  database,
+  collection,
+  position,
+  onClose,
+}: CollectionContextMenuProps) {
+  const requestPanel = useAppStore((state) => state.requestPanel);
+  const setManagementDialog = useAppStore((state) => state.setManagementDialog);
+  const setTransferDialog = useAppStore((state) => state.setTransferDialog);
+  const refreshDatabase = useAppStore((state) => state.refreshDatabase);
+  const target = { connectionId, database, collection };
+  const entries: TreeMenuEntry[] = [
+    {
+      kind: 'item',
+      label: 'Open documents',
+      onSelect: () => requestPanel({ panel: 'documents', ...target }),
+    },
+    {
+      kind: 'item',
+      label: 'Indexes',
+      onSelect: () => requestPanel({ panel: 'indexes', ...target }),
+    },
+    {
+      kind: 'item',
+      label: 'Validation',
+      onSelect: () => requestPanel({ panel: 'validation', ...target }),
+    },
+    {
+      kind: 'item',
+      label: 'Import data',
+      onSelect: () => setTransferDialog({ kind: 'import', connectionId, database, collection }),
+    },
+    {
+      kind: 'item',
+      label: 'Export data',
+      onSelect: () => setTransferDialog({ kind: 'export', connectionId, database, collection }),
+    },
+    {
+      kind: 'item',
+      label: 'Rename',
+      onSelect: () => setManagementDialog({ kind: 'renameCollection', ...target }),
+    },
+    {
+      kind: 'item',
+      label: 'Clear',
+      onSelect: () => setManagementDialog({ kind: 'clearCollection', ...target }),
+    },
+    {
+      kind: 'item',
+      label: 'Drop',
+      color: 'red',
+      onSelect: () => setManagementDialog({ kind: 'dropCollection', ...target }),
+    },
+    {
+      kind: 'item',
+      label: 'Refresh',
+      onSelect: () => refreshDatabase(connectionId, database),
+    },
+  ];
+  return <TreeMenu entries={entries} position={position} onClose={onClose} />;
 }

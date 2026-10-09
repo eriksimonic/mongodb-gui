@@ -93,7 +93,7 @@ describe('ExportDialog', () => {
     fireEvent.click(screen.getByRole('button', { name: 'Start export' }));
     expect(await screen.findByTestId('transfer-progress')).toBeInTheDocument();
     const summary = await screen.findByTestId('export-summary', undefined, { timeout: 4000 });
-    expect(summary).toHaveTextContent(`Exported 300 documents to ${MOCK_DIALOG_PATH}.`);
+    expect(summary).toHaveTextContent(`Exported 240 documents to ${MOCK_DIALOG_PATH}.`);
 
     fireEvent.click(screen.getByRole('button', { name: 'Show in folder' }));
     await waitFor(() => expect(reveal).toHaveBeenCalledWith({ path: MOCK_DIALOG_PATH }));

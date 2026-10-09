@@ -24,6 +24,7 @@ export function ConnectionContextMenu({
   const removeConnection = useAppStore((state) => state.removeConnection);
   const refreshConnection = useAppStore((state) => state.refreshConnection);
   const setDialog = useAppStore((state) => state.setDialog);
+  const setManagementDialog = useAppStore((state) => state.setManagementDialog);
   const openPanel = usePanelOpener();
   const canConnect = status.state === 'disconnected' || status.state === 'error';
   const canDisconnect = status.state === 'connected' || status.state === 'connecting';
@@ -80,6 +81,15 @@ export function ConnectionContextMenu({
           }}
         >
           Monitor
+        </Menu.Item>
+        <Menu.Item
+          disabled={status.state !== 'connected'}
+          onClick={() => {
+            onClose();
+            setManagementDialog({ kind: 'createDatabase', connectionId: connection.id });
+          }}
+        >
+          New database
         </Menu.Item>
         <Menu.Item
           onClick={() => {

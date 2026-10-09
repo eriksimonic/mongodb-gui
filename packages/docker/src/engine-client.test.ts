@@ -342,7 +342,11 @@ describe('DockerEngineClient without an engine', () => {
       writeFileSync(socketPath, '');
 
       await expect(clientWith().ping()).rejects.toMatchObject({
-        error: { message: 'Docker is not reachable.', detail: 'ECONNREFUSED' },
+        // Linux refuses the connection; macOS reports that the file is not a socket.
+        error: {
+          message: 'Docker is not reachable.',
+          detail: expect.stringMatching(/^(ECONNREFUSED|ENOTSOCK)$/),
+        },
       });
     },
   );

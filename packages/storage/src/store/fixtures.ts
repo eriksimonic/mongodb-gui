@@ -48,7 +48,7 @@ export function openTestStore(): TestStore {
     layout: new LayoutRepository(store),
     dispose(): void {
       store.close();
-      rmSync(dir, { recursive: true, force: true });
+      rmSync(dir, { recursive: true, force: true, maxRetries: 10, retryDelay: 50 });
     },
   };
 }

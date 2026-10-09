@@ -7,6 +7,7 @@ import type {
   DockerMongoContainerSummary,
 } from '@mongo-gui/core';
 import { useAppStore } from '../../state/app-store-context';
+import { usePanelOpener } from '../../state/panel-opener';
 import { runReported } from '../notify-error';
 import { DockerContainerDetails } from './DockerContainerDetails';
 
@@ -33,6 +34,8 @@ export function DockerLinkedContextMenu({
   const removeConnection = useAppStore((state) => state.removeConnection);
   const refreshConnection = useAppStore((state) => state.refreshConnection);
   const setDialog = useAppStore((state) => state.setDialog);
+  const setManagementDialog = useAppStore((state) => state.setManagementDialog);
+  const openPanel = usePanelOpener();
   const canConnect = status.state === 'disconnected' || status.state === 'error';
   const canDisconnect = status.state === 'connected' || status.state === 'connecting';
 
@@ -99,6 +102,28 @@ export function DockerLinkedContextMenu({
           onClick={() => runAndClose(() => disconnect(connection.id))}
         >
           Disconnect
+        </Menu.Item>
+        <Menu.Item
+          disabled={status.state !== 'connected'}
+          onClick={() => {
+            onClose();
+            openPanel({
+              kind: 'monitor',
+              connectionId: connection.id,
+              connectionName: connection.name,
+            });
+          }}
+        >
+          Monitor
+        </Menu.Item>
+        <Menu.Item
+          disabled={status.state !== 'connected'}
+          onClick={() => {
+            onClose();
+            setManagementDialog({ kind: 'createDatabase', connectionId: connection.id });
+          }}
+        >
+          New database
         </Menu.Item>
         <Menu.Item
           onClick={() => {

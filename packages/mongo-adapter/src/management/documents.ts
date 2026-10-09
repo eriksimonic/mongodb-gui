@@ -2,17 +2,21 @@ import type { Document, MongoClient } from 'mongodb';
 import {
   AppErrorException,
   appError,
+  CountDocumentsInputSchema,
   DeleteByFilterInputSchema,
   DeleteDocumentsInputSchema,
   FindDocumentByIdInputSchema,
   InsertDocumentInputSchema,
   ReplaceDocumentInputSchema,
+  SampleDocumentsInputSchema,
   UpdateDocumentFieldsInputSchema,
+  type CountDocumentsInput,
   type DeleteByFilterInput,
   type DeleteDocumentsInput,
   type FindDocumentByIdInput,
   type InsertDocumentInput,
   type ReplaceDocumentInput,
+  type SampleDocumentsInput,
   type UpdateDocumentFieldsInput,
 } from '@mongo-gui/core';
 import type { PlainObject } from '../documents';
@@ -131,6 +135,36 @@ export async function findDocumentById(
       // Keep Long and typed values as BSON wrappers so the EJSON text keeps their types.
       .findOne(byId(id), { promoteLongs: false, promoteValues: false });
     return document === null ? null : stringifyEjson(document);
+  } catch (error) {
+    throw toAppException(error);
+  }
+}
+
+// Counts the documents a filter matches. The delete-by-filter flow uses it as a preview.
+export async function countDocuments(client: MongoClient, input: unknown): Promise<number> {
+  const parsed = parseInput<CountDocumentsInput>(CountDocumentsInputSchema, input);
+  const filter = parseEjsonDocument(parsed.filterEjson, FILTER_LABEL);
+  try {
+    return await client
+      .db(parsed.database)
+      .collection<PlainObject>(parsed.collection)
+      .countDocuments(filter);
+  } catch (error) {
+    throw toAppException(error);
+  }
+}
+
+// Returns the first documents in natural order as canonical EJSON. The document panel uses it
+// until the result grid arrives.
+export async function sampleDocuments(client: MongoClient, input: unknown): Promise<string[]> {
+  const parsed = parseInput<SampleDocumentsInput>(SampleDocumentsInputSchema, input);
+  try {
+    const rows = await client
+      .db(parsed.database)
+      .collection<PlainObject>(parsed.collection)
+      .find({}, { limit: parsed.limit, promoteLongs: false, promoteValues: false })
+      .toArray();
+    return rows.map((row) => stringifyEjson(row));
   } catch (error) {
     throw toAppException(error);
   }

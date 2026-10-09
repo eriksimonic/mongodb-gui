@@ -334,6 +334,14 @@ describe('monitor RPC calls', () => {
     expect(harness.created.map((item) => item.stopped)).toEqual([true, true]);
   });
 
+  it('stops every sampler when the renderer resets, so a reload leaves no sampling behind', async () => {
+    valueOf(await harness.router.handle('monitor.start', { connectionId: CONNECTION_ID }));
+    harness.setStatus(OTHER_ID, CONNECTED);
+    valueOf(await harness.router.handle('monitor.start', { connectionId: OTHER_ID }));
+    harness.router.resetRenderer();
+    expect(harness.created.map((item) => item.stopped)).toEqual([true, true]);
+  });
+
   it('lists operations through the adapter and hides background threads by default', async () => {
     harness.operationRows.push(
       {

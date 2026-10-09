@@ -1,3 +1,5 @@
+import './zod-config';
+
 export const corePackageName = '@mongo-gui/core';
 
 export * from './docker/types';
@@ -7,6 +9,8 @@ export * from './domain/errors';
 export * from './domain/history';
 export * from './domain/settings';
 export * from './domain/vault';
+export * from './ejson/canonical';
+export * from './ejson/format';
 export * from './explain/explain-text';
 export * from './explain/normalise';
 export * from './explain/plan-tree';

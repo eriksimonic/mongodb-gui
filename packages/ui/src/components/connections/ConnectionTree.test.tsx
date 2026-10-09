@@ -1,7 +1,9 @@
 // @vitest-environment jsdom
 import { fireEvent, screen, waitFor } from '@testing-library/react';
-import { describe, expect, it } from 'vitest';
+import { describe, expect, it, vi } from 'vitest';
+import { localConnectionId } from '../../api/mock-fixtures';
 import { createMockUiApi } from '../../api/mock-rpc-client';
+import { ProfilerOpenerContext } from '../../profiler/profiler-opener';
 import { renderWithApp } from '../../test-support/render';
 import { ConnectionTree } from './ConnectionTree';
 
@@ -86,6 +88,46 @@ describe('ConnectionTree', () => {
     fireEvent.keyDown(local, { key: 'F10', shiftKey: true });
 
     expect(await screen.findByRole('menuitem', { name: 'Refresh' })).toBeInTheDocument();
+  });
+
+  it('opens the profiler of a database from its Profiler node', async () => {
+    const open = vi.fn();
+    renderWithApp(
+      <ProfilerOpenerContext.Provider value={{ open }}>
+        <ConnectionTree />
+      </ProfilerOpenerContext.Provider>,
+      { mock: { preset: 'unlocked' } },
+    );
+    const local = await screen.findByRole('treeitem', { name: 'Local dev' });
+    local.focus();
+    fireEvent.keyDown(local, { key: 'ArrowRight' });
+    const shop = await screen.findByRole('treeitem', { name: 'shop' });
+    shop.focus();
+    fireEvent.keyDown(shop, { key: 'ArrowRight' });
+
+    const profiler = await screen.findByRole('treeitem', { name: 'Profiler' });
+    profiler.focus();
+    fireEvent.keyDown(profiler, { key: 'Enter' });
+
+    expect(open).toHaveBeenCalledWith(localConnectionId, 'shop');
+  });
+
+  it('opens the profiler from the database context menu', async () => {
+    const open = vi.fn();
+    renderWithApp(
+      <ProfilerOpenerContext.Provider value={{ open }}>
+        <ConnectionTree />
+      </ProfilerOpenerContext.Provider>,
+      { mock: { preset: 'unlocked' } },
+    );
+    const local = await screen.findByRole('treeitem', { name: 'Local dev' });
+    local.focus();
+    fireEvent.keyDown(local, { key: 'ArrowRight' });
+
+    fireEvent.contextMenu(await screen.findByRole('treeitem', { name: 'analytics' }));
+    fireEvent.click(await screen.findByRole('menuitem', { name: 'Open profiler' }));
+
+    expect(open).toHaveBeenCalledWith(localConnectionId, 'analytics');
   });
 
   it('shows a hint when there are no connections', async () => {

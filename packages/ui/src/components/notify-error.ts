@@ -1,9 +1,26 @@
 import { toAppError } from '@mongo-gui/core';
 import { notifications } from '@mantine/notifications';
 
-/** Shows a red notification with the message of a thrown error. */
+/**
+ * The text to show for a thrown error. The server's reason (`detail`) says what to change, for
+ * example a validator rejection, so it follows the message. A detail that already starts with the
+ * message is shown alone, so the message is not repeated.
+ */
+export function errorText(error: unknown): string {
+  const { message, detail } = toAppError(error);
+  if (detail === undefined || detail === '') {
+    return message;
+  }
+  // The period is dropped before the detail follows, so the sentence reads as one line.
+  const sentence = message.replace(/\.$/, '');
+  return detail.startsWith(message) || detail.startsWith(sentence)
+    ? detail
+    : `${sentence}: ${detail}`;
+}
+
+/** Shows a red notification with the text of a thrown error. */
 export function notifyError(error: unknown, title = 'Something went wrong'): void {
-  notifications.show({ color: 'red', title, message: toAppError(error).message });
+  notifications.show({ color: 'red', title, message: errorText(error) });
 }
 
 /** Runs an action and reports its failure as a notification. Never rejects. */
@@ -13,14 +30,4 @@ export async function runReported(action: () => Promise<unknown>): Promise<void>
   } catch (error) {
     notifyError(error);
   }
-}
-
-/**
- * The text every inline error shows: the message, then the detail when the backend gave one.
- * Components render this instead of the raw error, so the wording is the same everywhere.
- */
-export function errorText(error: unknown): string {
-  const failure = toAppError(error);
-  const message = failure.message.replace(/\.$/, '');
-  return failure.detail === undefined ? failure.message : `${message}: ${failure.detail}`;
 }

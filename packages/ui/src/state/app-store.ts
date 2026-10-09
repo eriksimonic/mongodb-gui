@@ -75,6 +75,38 @@ export type DialogState =
   | { readonly kind: 'create' }
   | { readonly kind: 'edit'; readonly connectionId: string };
 
+/** A management dialog opened from the tree. Each names the target it acts on. */
+export type ManagementDialog =
+  | { readonly kind: 'createDatabase'; readonly connectionId: string }
+  | { readonly kind: 'createCollection'; readonly connectionId: string; readonly database: string }
+  | {
+      readonly kind: 'renameCollection';
+      readonly connectionId: string;
+      readonly database: string;
+      readonly collection: string;
+    }
+  | {
+      readonly kind: 'clearCollection';
+      readonly connectionId: string;
+      readonly database: string;
+      readonly collection: string;
+    }
+  | {
+      readonly kind: 'dropCollection';
+      readonly connectionId: string;
+      readonly database: string;
+      readonly collection: string;
+    }
+  | { readonly kind: 'dropDatabase'; readonly connectionId: string; readonly database: string };
+
+/** A request to show a collection panel. The shell opens or focuses it, then clears the request. */
+export interface PanelRequest {
+  readonly panel: 'indexes' | 'validation' | 'documents';
+  readonly connectionId: string;
+  readonly database: string;
+  readonly collection: string;
+}
+
 /** The Docker node of the tree. `status` is undefined until the first read. */
 export interface DockerView {
   readonly status: DockerStatus | undefined;
@@ -97,6 +129,10 @@ export interface AppData {
   readonly selection: Selection | undefined;
   readonly dialog: DialogState;
   readonly managerOpen: boolean;
+  readonly managementDialog: ManagementDialog | undefined;
+  readonly panelRequest: PanelRequest | undefined;
+  /** Counts catalog:changed events. Panels reload when it moves. */
+  readonly catalogRevision: number;
   readonly settingsOpen: boolean;
   /** The updater state, pushed by the backend and read on start. */
   readonly updates: UpdateState;
@@ -135,6 +171,12 @@ export interface AppActions {
   select(selection: Selection | undefined): void;
   setDialog(dialog: DialogState): void;
   setManagerOpen(open: boolean): void;
+  setManagementDialog(dialog: ManagementDialog | undefined): void;
+  /** Asks the shell to show a collection panel. */
+  requestPanel(request: PanelRequest): void;
+  clearPanelRequest(): void;
+  /** Drops the cached collections of one database. The open tree nodes reload them. */
+  refreshDatabase(connectionId: string, database: string): void;
   loadDocker(): Promise<void>;
   refreshDockerStatus(): Promise<void>;
   /** Turns the 10 second container poll on or off in the main process. */
@@ -174,6 +216,8 @@ const SESSION_RESET: Pick<
   | 'selection'
   | 'dialog'
   | 'managerOpen'
+  | 'managementDialog'
+  | 'panelRequest'
   | 'settingsOpen'
   | 'transfers'
   | 'transferDialog'
@@ -188,6 +232,8 @@ const SESSION_RESET: Pick<
   selection: undefined,
   dialog: { kind: 'closed' },
   managerOpen: false,
+  managementDialog: undefined,
+  panelRequest: undefined,
   settingsOpen: false,
   transfers: {},
   transferDialog: { kind: 'closed' },
@@ -196,7 +242,43 @@ const SESSION_RESET: Pick<
 /** Replaced by the first state the backend reports. */
 const NO_UPDATE_STATE: UpdateState = { phase: 'idle', current: '', canInstall: false };
 
-const INITIAL_DATA: AppData = { vault: 'loading', ...SESSION_RESET, updates: NO_UPDATE_STATE };
+const INITIAL_DATA: AppData = {
+  vault: 'loading',
+  catalogRevision: 0,
+  ...SESSION_RESET,
+  updates: NO_UPDATE_STATE,
+};
+
+/**
+ * Drops the cached catalog that a change touched. Without a database the whole connection goes.
+ * A database without a collection drops the database list and its collections. A collection drops
+ * only that database's collections.
+ */
+function withoutCatalogScope(
+  data: Pick<AppData, 'databases' | 'collections'>,
+  scope: {
+    readonly connectionId: string;
+    readonly database?: string | undefined;
+    readonly collection?: string | undefined;
+  },
+): Pick<AppData, 'databases' | 'collections'> {
+  if (scope.database === undefined) {
+    return withoutConnectionCatalog(data, scope.connectionId);
+  }
+  const key = catalogKey(scope.connectionId, scope.database);
+  const databases =
+    scope.collection === undefined
+      ? Object.fromEntries(
+          Object.entries(data.databases).filter(([id]) => id !== scope.connectionId),
+        )
+      : data.databases;
+  return {
+    databases,
+    collections: Object.fromEntries(
+      Object.entries(data.collections).filter(([catalog]) => catalog !== key),
+    ),
+  };
+}
 
 function withoutConnectionCatalog(
   data: Pick<AppData, 'databases' | 'collections'>,
@@ -465,6 +547,27 @@ export function createAppStore(api: UiApi, initial: Partial<AppData> = {}): AppS
         set({ managerOpen: open });
       },
 
+      setManagementDialog(dialog) {
+        set({ managementDialog: dialog });
+      },
+
+      requestPanel(request) {
+        set({ panelRequest: request });
+      },
+
+      clearPanelRequest() {
+        set({ panelRequest: undefined });
+      },
+
+      refreshDatabase(connectionId, database) {
+        const key = catalogKey(connectionId, database);
+        set((state) => ({
+          collections: Object.fromEntries(
+            Object.entries(state.collections).filter(([catalog]) => catalog !== key),
+          ),
+        }));
+      },
+
       async loadDocker() {
         try {
           const status = await rpc.docker.status();
@@ -615,6 +718,13 @@ export function createAppStore(api: UiApi, initial: Partial<AppData> = {}): AppS
           }
           return;
         }
+        if (event.type === 'catalog:changed') {
+          set((state) => ({
+            ...withoutCatalogScope(state, event),
+            catalogRevision: state.catalogRevision + 1,
+          }));
+          return;
+        }
         if (event.type === 'docker:containers') {
           set((state) => ({
             docker: { ...state.docker, containers: { state: 'ready', data: event.containers } },
@@ -636,6 +746,9 @@ export function createAppStore(api: UiApi, initial: Partial<AppData> = {}): AppS
         }
         if (event.type === 'monitor:error') {
           updateMonitor(event.connectionId, (view) => applyError(view, event.error));
+        }
+        // Profiler events belong to the profiler store.
+        if (event.type !== 'connection:status') {
           return;
         }
         setStatus(event.connectionId, event.status);

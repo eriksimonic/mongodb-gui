@@ -11,10 +11,14 @@ import { autoUpdater } from 'electron-updater';
 import { join } from 'node:path';
 import { devServerUrl, isAppUrl, rendererDirectory } from './app-origin';
 import { log } from './log';
-import { createAppServices, createRouter, type AppServices, type Router } from './rpc/router';
+import {
+  createAppServices,
+  createRouter,
+  type AppServices,
+  type NativeDialogs,
+  type Router,
+} from './rpc/router';
 import { registerIpc, sendEvent } from './rpc/ipc';
-import { createRendererResetRegistry } from './rpc/renderer-reset';
-import type { NativeDialogs } from './rpc/router';
 
 const preloadPath = join(import.meta.dirname, '../preload/index.cjs');
 
@@ -28,7 +32,6 @@ let mainWindow: BrowserWindow | undefined;
 let services: AppServices | undefined;
 let router: Router | undefined;
 let quitting = false;
-const rendererReset = createRendererResetRegistry();
 
 /**
  * The file dialogs open over the main window. The renderer gets only the path the user picked.
@@ -78,6 +81,8 @@ function contentSecurityPolicy(): string {
     return [
       "default-src 'self'",
       "script-src 'self'",
+      // Monaco runs its language and editor workers as blob: URLs.
+      "worker-src 'self' blob:",
       "style-src 'self' 'unsafe-inline'",
       "font-src 'self' data:",
       "img-src 'self' data:",
@@ -93,6 +98,7 @@ function contentSecurityPolicy(): string {
   return [
     `default-src 'self' ${origin} ${socketOrigin}`,
     `script-src 'self' ${origin} 'unsafe-inline'`,
+    "worker-src 'self' blob:",
     `style-src 'self' ${origin} 'unsafe-inline'`,
     `font-src 'self' ${origin} data:`,
     `img-src 'self' ${origin} data:`,
@@ -146,15 +152,22 @@ function createMainWindow(): void {
     services?.updates.start();
   });
 
-  window.webContents.on('render-process-gone', () => {
-    rendererReset.resetRenderer();
-  });
-
   window.on('closed', () => {
     if (mainWindow === window) {
       mainWindow = undefined;
     }
-    rendererReset.resetRenderer();
+    router?.resetRenderer();
+  });
+
+  // A reload or a new page drops what the old page subscribed to. Same-document navigations keep
+  // the page, so they do not reset.
+  window.webContents.on('did-start-navigation', (_event, _url, isInPlace, isMainFrame) => {
+    if (isMainFrame && !isInPlace) {
+      router?.resetRenderer();
+    }
+  });
+  window.webContents.on('render-process-gone', () => {
+    router?.resetRenderer();
   });
 
   window.webContents.setWindowOpenHandler(() => ({ action: 'deny' }));
@@ -210,7 +223,6 @@ app
       },
       openExternal: (url) => shell.openExternal(url),
       dialogs: nativeDialogs,
-      rendererReset,
     });
     // Forwarders left behind by a crash or a force quit are removed before the user can connect.
     void appServices.docker.cleanupAll();
@@ -235,7 +247,8 @@ app.on('before-quit', (event) => {
   }
   event.preventDefault();
   quitting = true;
-  rendererReset.resetRenderer();
+  // Quitting ends the transfers that the window started, as a reset of the renderer does.
+  router?.resetRenderer();
   const current = services;
   current.vault.lock();
   void current
