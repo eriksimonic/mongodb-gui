@@ -8,6 +8,8 @@ import {
   type ConnectionStatus,
   type ConnectionTestResult,
   type DatabaseInfo,
+  type DockerMongoContainerSummary,
+  type DockerStatus,
   type RpcEvent,
   type VaultStatus,
 } from '@mongo-gui/core';
@@ -36,11 +38,19 @@ export type DialogState =
   | { readonly kind: 'create' }
   | { readonly kind: 'edit'; readonly connectionId: string };
 
+/** The Docker node of the tree. `status` is undefined until the first read. */
+export interface DockerView {
+  readonly status: DockerStatus | undefined;
+  readonly containers: Loadable<readonly DockerMongoContainerSummary[]>;
+  readonly autoConnect: boolean;
+}
+
 /** Everything the screens read. Kept apart from the actions so tests can seed it. */
 export interface AppData {
   readonly vault: VaultView;
   readonly connections: Loadable<readonly ConnectionProfileSummary[]>;
   readonly statuses: Readonly<Record<string, ConnectionStatus>>;
+  readonly docker: DockerView;
   /** Tree nodes that are open, keyed by node id from `node-ids.ts`. */
   readonly expanded: Readonly<Record<string, boolean>>;
   readonly databases: Readonly<Record<string, Loadable<readonly DatabaseInfo[]>>>;
@@ -73,6 +83,14 @@ export interface AppActions {
   select(selection: Selection | undefined): void;
   setDialog(dialog: DialogState): void;
   setManagerOpen(open: boolean): void;
+  loadDocker(): Promise<void>;
+  refreshDockerStatus(): Promise<void>;
+  /** Turns the 10 second container poll on or off in the main process. */
+  watchDocker(enabled: boolean): Promise<void>;
+  /** Connects a container. Rejects with the AppError the main process returned. */
+  connectContainer(containerId: string): Promise<void>;
+  disconnectContainer(containerId: string): Promise<void>;
+  setDockerAutoConnect(enabled: boolean): Promise<void>;
   applyEvent(event: RpcEvent): void;
 }
 
@@ -83,6 +101,7 @@ const SESSION_RESET: Pick<
   AppData,
   | 'connections'
   | 'statuses'
+  | 'docker'
   | 'expanded'
   | 'databases'
   | 'collections'
@@ -92,6 +111,7 @@ const SESSION_RESET: Pick<
 > = {
   connections: { state: 'loading' },
   statuses: {},
+  docker: { status: undefined, containers: { state: 'loading' }, autoConnect: false },
   expanded: {},
   databases: {},
   collections: {},
@@ -313,11 +333,79 @@ export function createAppStore(api: UiApi, initial: Partial<AppData> = {}): AppS
         set({ managerOpen: open });
       },
 
+      async loadDocker() {
+        try {
+          const status = await rpc.docker.status();
+          const containers = status.available ? await rpc.docker.list() : [];
+          const settings = await rpc.settings.get();
+          set({
+            docker: {
+              status,
+              containers: { state: 'ready', data: containers },
+              autoConnect: settings.dockerAutoConnect,
+            },
+          });
+        } catch (error) {
+          set((state) => ({
+            docker: { ...state.docker, containers: { state: 'error', error: toAppError(error) } },
+          }));
+        }
+      },
+
+      async refreshDockerStatus() {
+        try {
+          const status = await rpc.docker.status();
+          set((state) => ({ docker: { ...state.docker, status } }));
+        } catch {
+          // The tree keeps its last status. The next poll or load asks again.
+        }
+      },
+
+      async watchDocker(enabled) {
+        try {
+          await rpc.docker.watch({ enabled });
+        } catch {
+          // Without the poll the list only refreshes on load. Nothing else depends on it.
+        }
+      },
+
+      async connectContainer(containerId) {
+        const result = await rpc.docker.connect({ containerId });
+        setStatus(result.connectionId, result.status);
+        await get().loadConnections();
+      },
+
+      async disconnectContainer(containerId) {
+        await rpc.docker.disconnect({ containerId });
+      },
+
+      async setDockerAutoConnect(enabled) {
+        const settings = await rpc.docker.setAutoConnect({ enabled });
+        set((state) => ({
+          docker: { ...state.docker, autoConnect: settings.dockerAutoConnect },
+        }));
+      },
+
       applyEvent(event) {
         if (event.type === 'vault:locked') {
           clearSession();
           set({ vault: 'locked' });
           return;
+        }
+        if (event.type === 'docker:containers') {
+          set((state) => ({
+            docker: { ...state.docker, containers: { state: 'ready', data: event.containers } },
+          }));
+          void get().refreshDockerStatus();
+          return;
+        }
+        // Auto connect creates profiles without a call from the UI, so the list is refreshed here.
+        const connections = get().connections;
+        const known =
+          connections.state === 'ready' &&
+          connections.data.some((connection) => connection.id === event.connectionId);
+        if (!known) {
+          void get().loadConnections();
         }
         setStatus(event.connectionId, event.status);
         if (event.status.state !== 'connected') {

@@ -26,6 +26,9 @@ export const ConnectionProfileSchema = z.object({
     .enum(['primary', 'primaryPreferred', 'secondary', 'secondaryPreferred', 'nearest'])
     .optional(),
   connectTimeoutMs: z.number().int().positive().optional(),
+  /** `docker` profiles come from a Docker container and are reused for that container. */
+  source: z.enum(['manual', 'docker']).optional(),
+  dockerContainerId: z.string().min(1).optional(),
   createdAt: z.iso.datetime(),
   updatedAt: z.iso.datetime(),
 });

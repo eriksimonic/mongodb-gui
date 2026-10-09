@@ -1,7 +1,13 @@
-import { IconChevronDown, IconChevronRight, IconDatabase } from '@tabler/icons-react';
+import {
+  IconBrandDocker,
+  IconChevronDown,
+  IconChevronRight,
+  IconDatabase,
+} from '@tabler/icons-react';
 import type { MouseEvent } from 'react';
 import { CollectionIcon } from './CollectionIcon';
 import { ConnectionStatusIcon } from './ConnectionStatusIcon';
+import { DockerContainerMeta } from './DockerContainerMeta';
 import type { TreeRow as TreeRowModel } from './tree-model';
 import './tree.css';
 
@@ -73,6 +79,7 @@ export function TreeRow({
         <RowIcon row={row} />
       </span>
       <span className="mg-tree-label">{row.label}</span>
+      {row.container === undefined ? null : <DockerContainerMeta container={row.container} />}
     </div>
   );
 }
@@ -83,6 +90,9 @@ function RowIcon({ row }: { readonly row: TreeRowModel }) {
   }
   if (row.kind === 'collection' && row.collectionType !== undefined) {
     return <CollectionIcon type={row.collectionType} />;
+  }
+  if (row.kind === 'docker' || row.kind === 'container') {
+    return <IconBrandDocker size={14} />;
   }
   return <IconDatabase size={14} />;
 }

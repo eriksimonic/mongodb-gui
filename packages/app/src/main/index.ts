@@ -134,6 +134,8 @@ app
         }
       },
     });
+    // Forwarders left behind by a crash or a force quit are removed before the user can connect.
+    void appServices.docker.cleanupAll();
     createMainWindow();
 
     app.on('activate', () => {

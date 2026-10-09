@@ -1,0 +1,232 @@
+{
+  "Id": "7aadc21db13662bff33de2b1e94c3b7d7489b7948ed97f29b02beaafaa3acf72",
+  "Created": "2026-10-09T19:35:48.668181903Z",
+  "Path": "docker-entrypoint.sh",
+  "Args": ["mongod"],
+  "State": {
+    "Status": "running",
+    "Running": true,
+    "Paused": false,
+    "Restarting": false,
+    "OOMKilled": false,
+    "Dead": false,
+    "Pid": 484379,
+    "ExitCode": 0,
+    "Error": "",
+    "StartedAt": "2026-10-09T19:35:49.924070457Z",
+    "FinishedAt": "0001-01-01T00:00:00Z"
+  },
+  "Image": "sha256:9814652e33f0cf8b9fddea8b46dfc9d8e19b130dcfdd7b510ca58bb0d40c8b71",
+  "ResolvConfPath": "/var/lib/docker/containers/7aadc21db13662bff33de2b1e94c3b7d7489b7948ed97f29b02beaafaa3acf72/resolv.conf",
+  "HostnamePath": "/var/lib/docker/containers/7aadc21db13662bff33de2b1e94c3b7d7489b7948ed97f29b02beaafaa3acf72/hostname",
+  "HostsPath": "/var/lib/docker/containers/7aadc21db13662bff33de2b1e94c3b7d7489b7948ed97f29b02beaafaa3acf72/hosts",
+  "LogPath": "/var/lib/docker/containers/7aadc21db13662bff33de2b1e94c3b7d7489b7948ed97f29b02beaafaa3acf72/7aadc21db13662bff33de2b1e94c3b7d7489b7948ed97f29b02beaafaa3acf72-json.log",
+  "Name": "/inspiring_goodall",
+  "RestartCount": 0,
+  "Driver": "overlayfs",
+  "Platform": "linux",
+  "MountLabel": "",
+  "ProcessLabel": "",
+  "AppArmorProfile": "docker-default",
+  "ExecIDs": null,
+  "HostConfig": {
+    "Binds": null,
+    "ContainerIDFile": "",
+    "LogConfig": {
+      "Type": "json-file",
+      "Config": {}
+    },
+    "NetworkMode": "bridge",
+    "PortBindings": {},
+    "RestartPolicy": {
+      "Name": "no",
+      "MaximumRetryCount": 0
+    },
+    "AutoRemove": false,
+    "VolumeDriver": "",
+    "VolumesFrom": null,
+    "ConsoleSize": [0, 0],
+    "CapAdd": null,
+    "CapDrop": null,
+    "CgroupnsMode": "private",
+    "Dns": null,
+    "DnsOptions": null,
+    "DnsSearch": null,
+    "ExtraHosts": null,
+    "GroupAdd": null,
+    "IpcMode": "private",
+    "Cgroup": "",
+    "Links": null,
+    "OomScoreAdj": 0,
+    "PidMode": "",
+    "Privileged": false,
+    "PublishAllPorts": false,
+    "ReadonlyRootfs": false,
+    "SecurityOpt": null,
+    "UTSMode": "",
+    "UsernsMode": "",
+    "ShmSize": 67108864,
+    "Runtime": "runc",
+    "Isolation": "",
+    "CpuShares": 0,
+    "Memory": 0,
+    "NanoCpus": 0,
+    "CgroupParent": "",
+    "BlkioWeight": 0,
+    "BlkioWeightDevice": null,
+    "BlkioDeviceReadBps": null,
+    "BlkioDeviceWriteBps": null,
+    "BlkioDeviceReadIOps": null,
+    "BlkioDeviceWriteIOps": null,
+    "CpuPeriod": 0,
+    "CpuQuota": 0,
+    "CpuRealtimePeriod": 0,
+    "CpuRealtimeRuntime": 0,
+    "CpusetCpus": "",
+    "CpusetMems": "",
+    "Devices": null,
+    "DeviceCgroupRules": null,
+    "DeviceRequests": null,
+    "MemoryReservation": 0,
+    "MemorySwap": 0,
+    "MemorySwappiness": null,
+    "OomKillDisable": null,
+    "PidsLimit": null,
+    "Ulimits": null,
+    "CpuCount": 0,
+    "CpuPercent": 0,
+    "IOMaximumIOps": 0,
+    "IOMaximumBandwidth": 0,
+    "MaskedPaths": [
+      "/proc/acpi",
+      "/proc/asound",
+      "/proc/interrupts",
+      "/proc/kcore",
+      "/proc/keys",
+      "/proc/latency_stats",
+      "/proc/sched_debug",
+      "/proc/scsi",
+      "/proc/timer_list",
+      "/proc/timer_stats",
+      "/sys/devices/virtual/powercap",
+      "/sys/firmware"
+    ],
+    "ReadonlyPaths": ["/proc/bus", "/proc/fs", "/proc/irq", "/proc/sys", "/proc/sysrq-trigger"]
+  },
+  "Storage": {
+    "RootFS": {
+      "Snapshot": {
+        "Name": "overlayfs"
+      }
+    }
+  },
+  "Mounts": [
+    {
+      "Type": "volume",
+      "Name": "61ed4a153fc1cad801650a59f3bb9879d1056df76359d94371ecdbb13a8c317c",
+      "Source": "/var/lib/docker/volumes/61ed4a153fc1cad801650a59f3bb9879d1056df76359d94371ecdbb13a8c317c/_data",
+      "Destination": "/data/configdb",
+      "Driver": "local",
+      "Mode": "",
+      "RW": true,
+      "Propagation": ""
+    },
+    {
+      "Type": "volume",
+      "Name": "59222bc624c44c43f7ddf1884d281f992dfbb04184372504e2f34341159c1bb8",
+      "Source": "/var/lib/docker/volumes/59222bc624c44c43f7ddf1884d281f992dfbb04184372504e2f34341159c1bb8/_data",
+      "Destination": "/data/db",
+      "Driver": "local",
+      "Mode": "",
+      "RW": true,
+      "Propagation": ""
+    }
+  ],
+  "Config": {
+    "Hostname": "7aadc21db136",
+    "Domainname": "",
+    "User": "",
+    "AttachStdin": false,
+    "AttachStdout": false,
+    "AttachStderr": false,
+    "ExposedPorts": {
+      "27017/tcp": {}
+    },
+    "Tty": false,
+    "OpenStdin": false,
+    "StdinOnce": false,
+    "Env": [
+      "PATH=/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin",
+      "GOSU_VERSION=1.19",
+      "JSYAML_VERSION=3.13.1",
+      "JSYAML_CHECKSUM=662e32319bdd378e91f67578e56a34954b0a2e33aca11d70ab9f4826af24b941",
+      "MONGO_PACKAGE=mongodb-org",
+      "MONGO_REPO=repo.mongodb.org",
+      "MONGO_MAJOR=8.0",
+      "MONGO_VERSION=8.0.17",
+      "HOME=/data/db",
+      "GLIBC_TUNABLES=glibc.pthread.rseq=0"
+    ],
+    "Cmd": ["mongod"],
+    "Image": "mongo:8.0.17",
+    "Volumes": {
+      "/data/configdb": {},
+      "/data/db": {}
+    },
+    "WorkingDir": "",
+    "Entrypoint": ["docker-entrypoint.sh"],
+    "Labels": {
+      "org.opencontainers.image.ref.name": "ubuntu",
+      "org.opencontainers.image.version": "24.04",
+      "org.testcontainers": "true",
+      "org.testcontainers.lang": "node",
+      "org.testcontainers.session-id": "c0af65f78b7b",
+      "org.testcontainers.version": "12.2.0"
+    }
+  },
+  "NetworkSettings": {
+    "SandboxID": "55cfcc1856f55f73a8fb01de67491bea82df175ff507e72b60ebbe9c922c4b82",
+    "SandboxKey": "/var/run/docker/netns/55cfcc1856f5",
+    "Ports": {
+      "27017/tcp": null
+    },
+    "Networks": {
+      "bridge": {
+        "IPAMConfig": null,
+        "Links": null,
+        "Aliases": null,
+        "DriverOpts": null,
+        "GwPriority": 0,
+        "NetworkID": "0899dad0aaea5def8d0668e1a5f834f08aa94ab37e2df1ac3d901908d21dc593",
+        "EndpointID": "e33f93c06ad22c7aba440324bcec5739162c0b0febe6265fd240117e8d5f3522",
+        "Gateway": "172.17.0.1",
+        "IPAddress": "172.17.0.4",
+        "MacAddress": "a2:1e:58:58:ba:37",
+        "IPPrefixLen": 16,
+        "IPv6Gateway": "",
+        "GlobalIPv6Address": "",
+        "GlobalIPv6PrefixLen": 0,
+        "DNSNames": null
+      }
+    }
+  },
+  "ImageManifestDescriptor": {
+    "mediaType": "application/vnd.oci.image.manifest.v1+json",
+    "digest": "sha256:f76c917358b2c4ca1272dd160c82a762408e4e35c8174bf0aede36e7423dbf74",
+    "size": 2476,
+    "annotations": {
+      "com.docker.official-images.bashbrew.arch": "amd64",
+      "org.opencontainers.image.base.digest": "sha256:a4453623f2f8319cfff65c43da9be80fe83b1a7ce689579b475867d69495b782",
+      "org.opencontainers.image.base.name": "ubuntu:noble",
+      "org.opencontainers.image.created": "2026-01-15T22:33:10Z",
+      "org.opencontainers.image.revision": "757120238169cda699a6eda90a996cff9d53076e",
+      "org.opencontainers.image.source": "https://github.com/docker-library/mongo.git#757120238169cda699a6eda90a996cff9d53076e:8.0",
+      "org.opencontainers.image.url": "https://hub.docker.com/_/mongo",
+      "org.opencontainers.image.version": "8.0.17-noble"
+    },
+    "platform": {
+      "architecture": "amd64",
+      "os": "linux"
+    }
+  }
+}

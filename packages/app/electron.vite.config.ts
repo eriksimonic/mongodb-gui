@@ -8,6 +8,7 @@ const appRoot = import.meta.dirname;
 // the bundle includes them. Their npm dependencies (zod, mongodb) are bundled with them.
 const bundledWorkspacePackages = [
   '@mongo-gui/core',
+  '@mongo-gui/docker',
   '@mongo-gui/mongo-adapter',
   '@mongo-gui/storage',
 ];

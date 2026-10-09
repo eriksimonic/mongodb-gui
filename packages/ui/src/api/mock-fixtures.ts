@@ -2,6 +2,7 @@ import type {
   CollectionInfo,
   ConnectionProfile,
   DatabaseInfo,
+  DockerMongoContainerSummary,
   Favourite,
   HistoryEntry,
   IndexInfo,
@@ -176,6 +177,39 @@ export function fixtureFavourites(): Favourite[] {
       connectionId: localConnectionId,
       database: 'shop',
       createdAt: CREATED_AT,
+    },
+  ];
+}
+
+/** A container with 27017 published on loopback. Its root user is `app`, with a password the mock never shows. */
+export function fixtureDockerContainers(): DockerMongoContainerSummary[] {
+  return [
+    {
+      id: '6c1e0b9d4f2a7e83c5d1b0a9f8e7d6c5b4a39281706f5e4d3c2b1a0f9e8d7c6b',
+      name: 'shop-mongo',
+      image: 'mongo:7',
+      state: 'running',
+      publishedPort: { hostIp: '127.0.0.1', hostPort: 27017 },
+      internalPort: 27017,
+      networks: ['shop_default'],
+      env: { username: 'app', database: 'shop' },
+      envKeys: [
+        'MONGO_INITDB_DATABASE',
+        'MONGO_INITDB_ROOT_PASSWORD',
+        'MONGO_INITDB_ROOT_USERNAME',
+      ],
+      hasCredentials: true,
+    },
+    {
+      id: '9d4a7b2c8e1f0a3b6c5d4e3f2a1b0c9d8e7f6a5b4c3d2e1f0a9b8c7d6e5f4a3b',
+      name: 'orders-mongo',
+      image: 'mongo:8.0.17',
+      state: 'running',
+      internalPort: 27017,
+      networks: ['orders_net'],
+      env: {},
+      envKeys: ['MONGO_VERSION'],
+      hasCredentials: false,
     },
   ];
 }

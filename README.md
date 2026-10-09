@@ -22,6 +22,10 @@ release.
 | ------------------------------------------------------------------------------------------------ | ----------------------------------------------------------------------------- |
 | ![Connection tree with databases and collections expanded](docs/screenshots/connection-tree.png) | ![New connection dialog in form mode](docs/screenshots/connection-dialog.png) |
 
+| Docker node in the connection tree                                                |
+| --------------------------------------------------------------------------------- |
+| ![Docker node listing local MongoDB containers](docs/screenshots/docker-tree.png) |
+
 ## Prerequisites
 
 - Node.js 24 (see `.nvmrc`)

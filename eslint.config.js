@@ -113,6 +113,15 @@ export default [
     },
   },
   {
+    files: ['packages/docker/src/' + SOURCE_GLOB],
+    rules: {
+      'no-restricted-imports': importBoundary({
+        packages: ['electron', 'react'],
+        nodeBuiltins: false,
+      }),
+    },
+  },
+  {
     files: ['packages/shell-runtime/src/' + SOURCE_GLOB],
     rules: {
       'no-restricted-imports': importBoundary({

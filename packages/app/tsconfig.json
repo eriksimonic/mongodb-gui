@@ -15,6 +15,9 @@
       "path": "../core"
     },
     {
+      "path": "../docker"
+    },
+    {
       "path": "../mongo-adapter"
     },
     {
