@@ -4,7 +4,7 @@ import { rpcContract } from './contract';
 const namespaces = Object.entries(rpcContract);
 
 describe('rpcContract', () => {
-  it('declares the namespaces required by P1-1', () => {
+  it('declares the namespaces required by P1-1 and P2-2', () => {
     expect(Object.keys(rpcContract).sort()).toEqual(
       [
         'collections',
@@ -13,6 +13,7 @@ describe('rpcContract', () => {
         'favourites',
         'history',
         'settings',
+        'shell',
         'vault',
       ].sort(),
     );

@@ -179,3 +179,23 @@ export function fixtureFavourites(): Favourite[] {
     },
   ];
 }
+
+// Documents per collection are generated, not stored. The count is capped so the mock stays small.
+const MOCK_DOCUMENT_LIMIT = 150;
+const STATUSES = ['paid', 'open', 'refunded'] as const;
+const FIRST_DOCUMENT_TIME = Date.parse('2026-09-01T00:00:00.000Z');
+const HOUR_MS = 3_600_000;
+
+/** Deterministic documents for one collection, in canonical EJSON form. */
+export function fixtureDocuments(collection: string, count: number): Record<string, unknown>[] {
+  const size = Math.min(count, MOCK_DOCUMENT_LIMIT);
+  return Array.from({ length: size }, (_unused, index) => ({
+    _id: { $oid: index.toString(16).padStart(24, '0') },
+    seq: index,
+    collection,
+    status: STATUSES[index % STATUSES.length],
+    total: (index * 37) % 500,
+    customer: `customer-${index % 40}`,
+    createdAt: { $date: new Date(FIRST_DOCUMENT_TIME + index * HOUR_MS).toISOString() },
+  }));
+}

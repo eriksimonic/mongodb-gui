@@ -16,6 +16,18 @@ import {
 import { SettingsPatchSchema, SettingsSchema } from '../schemas/settings';
 import { FavouriteInputSchema, FavouriteSchema, HistoryEntrySchema } from '../schemas/history';
 import { VaultStatusSchema } from '../schemas/vault';
+import {
+  ShellCancelInputSchema,
+  ShellCompleteInputSchema,
+  ShellCompletionsSchema,
+  ShellConnectionInputSchema,
+  ShellEvaluateInputSchema,
+  ShellEvaluationSchema,
+  ShellNextInputSchema,
+  ShellSampleSchemaInputSchema,
+  ShellSchemaSampleSchema,
+  ShellStateSchema,
+} from '../shell/rpc-schemas';
 import { defineCall, type RpcContract } from './define';
 
 const idParam = z.object({ id: z.uuid() });
@@ -56,6 +68,15 @@ export const rpcContract = {
     list: defineCall(databaseParam, z.array(CollectionInfoSchema)),
     stats: defineCall(collectionParam, CollectionStatsSchema),
     indexes: defineCall(collectionParam, z.array(IndexInfoSchema)),
+  },
+  shell: {
+    evaluate: defineCall(ShellEvaluateInputSchema, ShellEvaluationSchema),
+    next: defineCall(ShellNextInputSchema, ShellEvaluationSchema),
+    cancel: defineCall(ShellCancelInputSchema, z.void()),
+    complete: defineCall(ShellCompleteInputSchema, ShellCompletionsSchema),
+    sampleSchema: defineCall(ShellSampleSchemaInputSchema, ShellSchemaSampleSchema),
+    restart: defineCall(ShellConnectionInputSchema, z.void()),
+    state: defineCall(ShellConnectionInputSchema, ShellStateSchema),
   },
   settings: {
     get: defineCall(z.void(), SettingsSchema),

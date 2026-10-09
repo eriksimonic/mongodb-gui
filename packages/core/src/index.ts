@@ -35,3 +35,4 @@ export * from './schemas/settings';
 export * from './schemas/vault';
 export * from './shell/protocol';
 export * from './shell/result-type';
+export * from './shell/rpc-schemas';

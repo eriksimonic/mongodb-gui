@@ -38,6 +38,8 @@ import {
 } from '@mongo-gui/storage';
 import { log, type Logger } from '../log';
 import { redactText } from '../redact';
+import type { ForkFunction } from '../shell/child';
+import { RuntimeSupervisor } from '../shell/supervisor';
 
 /** The subset of ConnectionManager that the router uses. The real class satisfies it. */
 export type ConnectionRegistry = Pick<
@@ -63,6 +65,21 @@ export interface LockEvents {
   subscribe(listener: () => void): () => void;
 }
 
+/** The subset of RuntimeSupervisor that the router uses. The real class satisfies it. */
+export type ShellRegistry = Pick<
+  RuntimeSupervisor,
+  | 'evaluate'
+  | 'next'
+  | 'cancel'
+  | 'complete'
+  | 'sampleSchema'
+  | 'restart'
+  | 'state'
+  | 'stop'
+  | 'stopAll'
+  | 'onEvent'
+>;
+
 export interface RouterDeps {
   readonly vault: Vault;
   readonly store: EncryptedStore;
@@ -78,6 +95,8 @@ export interface RouterDeps {
   readonly lockEvents?: LockEvents;
   /** Receives failures as method, code and message. Inputs and raw driver text stay out. */
   readonly log?: Logger;
+  /** One runtime process per connection. Without it every shell call fails with INTERNAL. */
+  readonly shell?: ShellRegistry;
 }
 
 export interface Router {
@@ -88,6 +107,14 @@ export interface AppServicesOptions {
   readonly userDataDir: string;
   readonly kdf?: KdfParams;
   readonly failureDelayMs?: number;
+  /**
+   * How the shell runtime processes start. The app passes the built bundle and a utility process
+   * fork. Without it the shell refuses to start.
+   */
+  readonly shell?: {
+    readonly entryPath: string;
+    readonly fork: ForkFunction;
+  };
 }
 
 export type AppServices = Omit<RouterDeps, 'onEvent'> & { dispose(): Promise<void> };
@@ -198,6 +225,29 @@ export function createRouter(deps: RouterDeps): Router {
       ),
     ),
 
+    entry('shell.evaluate', rpcContract.shell.evaluate, (input) =>
+      shellCall(input.connectionId, (shell) => shell.evaluate(input)),
+    ),
+    entry('shell.next', rpcContract.shell.next, (input) =>
+      shellCall(input.connectionId, (shell) => shell.next(input)),
+    ),
+    entry('shell.cancel', rpcContract.shell.cancel, async (input) => {
+      // Nothing runs on a connection that is not open, so cancel needs no connection check.
+      await deps.shell?.cancel(input.connectionId, input.requestId);
+    }),
+    entry('shell.complete', rpcContract.shell.complete, (input) =>
+      shellCall(input.connectionId, (shell) => shell.complete(input)),
+    ),
+    entry('shell.sampleSchema', rpcContract.shell.sampleSchema, (input) =>
+      shellCall(input.connectionId, (shell) => shell.sampleSchema(input)),
+    ),
+    entry('shell.restart', rpcContract.shell.restart, (input) =>
+      shellCall(input.connectionId, (shell) => shell.restart(input.connectionId)),
+    ),
+    entry('shell.state', rpcContract.shell.state, (input) => ({
+      state: deps.shell?.state(input.connectionId) ?? 'stopped',
+    })),
+
     entry('settings.get', rpcContract.settings.get, () => repos().settings.get()),
     entry('settings.update', rpcContract.settings.update, (input) => {
       // The timeout is applied before the value is stored, so a value the vault rejects is never saved.
@@ -223,10 +273,18 @@ export function createRouter(deps: RouterDeps): Router {
 
   deps.connections.onStatusChange((connectionId, status) => {
     deps.onEvent({ type: 'connection:status', connectionId, status });
+    // A runtime serves only an open connection, so any other state ends its process.
+    if (status.state !== 'connected') {
+      void deps.shell?.stop(connectionId);
+    }
   });
   deps.lockEvents?.subscribe(() => {
     void deps.connections.disconnectAll();
+    void deps.shell?.stopAll();
     deps.onEvent({ type: 'vault:locked' });
+  });
+  deps.shell?.onEvent((event) => {
+    deps.onEvent(event);
   });
 
   return {
@@ -253,6 +311,24 @@ export function createRouter(deps: RouterDeps): Router {
       }
     },
   };
+
+  /**
+   * Runs a shell call for an open connection. A connection that is not open is refused before
+   * any runtime process starts.
+   */
+  async function shellCall<T>(
+    connectionId: string,
+    action: (shell: ShellRegistry) => Promise<T>,
+  ): Promise<T> {
+    const shell = deps.shell;
+    if (shell === undefined) {
+      throw new AppErrorException(appError('INTERNAL', 'The shell is not available.'));
+    }
+    if (deps.connections.status(connectionId).state !== 'connected') {
+      throw new AppErrorException(appError('NOT_CONNECTED', 'Connect to the server first.'));
+    }
+    return action(shell);
+  }
 
   /** Pushes an idle timeout (in minutes) from settings into the vault. */
   function applyIdleLock(minutes: number): void {
@@ -326,12 +402,19 @@ export function createAppServices(options: AppServicesOptions): AppServices {
   };
   let handles = openStore();
   const connections = new ConnectionManager();
+  const shell = new RuntimeSupervisor({
+    entryPath: options.shell?.entryPath ?? '',
+    fork: options.shell?.fork ?? refuseFork,
+    profileOf: (connectionId) => handles.repos.connections.get(connectionId),
+    isConnected: (connectionId) => connections.status(connectionId).state === 'connected',
+  });
 
   return {
     vault,
     store: handles.store,
     repos: handles.repos,
     connections,
+    shell,
     log,
     reopenStore: () => {
       handles = openStore();
@@ -346,6 +429,7 @@ export function createAppServices(options: AppServicesOptions): AppServices {
       },
     },
     async dispose() {
+      shell.dispose();
       await connections.disconnectAll();
       handles.store.close();
     },
@@ -362,6 +446,10 @@ export function createRepos(store: EncryptedStore): RouterRepos {
     layout: new LayoutRepository(store),
   };
 }
+
+const refuseFork: ForkFunction = () => {
+  throw new Error('no shell runtime is configured');
+};
 
 function entry<C extends RpcCall>(
   method: string,

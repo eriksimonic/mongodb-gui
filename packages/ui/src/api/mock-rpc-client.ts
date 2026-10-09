@@ -20,6 +20,7 @@ import {
   type RpcClient,
   type RpcEvent,
   type Settings,
+  type ShellRuntimeState,
   type SettingsPatch,
   type VaultStatus,
 } from '@mongo-gui/core';
@@ -35,6 +36,7 @@ import {
   type CollectionFixture,
   type DatabaseFixture,
 } from './mock-fixtures';
+import { createMockShell } from './mock-shell';
 import type { UiApi } from './ui-api';
 
 export type MockPreset = 'fresh' | 'unlocked';
@@ -236,6 +238,8 @@ export function createMockUiApi(options: MockUiApiOptions = {}): UiApi {
     }
   }
 
+  const shell = createMockShell(emit);
+
   function statusOf(connectionId: string): ConnectionStatus {
     return state.statuses.get(connectionId) ?? { state: 'disconnected' };
   }
@@ -246,6 +250,7 @@ export function createMockUiApi(options: MockUiApiOptions = {}): UiApi {
   }
 
   function disconnectAll(): void {
+    shell.clear();
     for (const connection of state.connections) {
       if (statusOf(connection.id).state !== 'disconnected') {
         setStatus(connection.id, { state: 'disconnected' });
@@ -439,6 +444,49 @@ export function createMockUiApi(options: MockUiApiOptions = {}): UiApi {
           return fixtureIndexes(collection);
         },
       ),
+    },
+    shell: {
+      evaluate: method(rpcContract.shell.evaluate, latencyMs, (input) => {
+        requireUnlocked();
+        requireConnected(input.connectionId);
+        return shell.evaluate({
+          connectionId: input.connectionId,
+          requestId: input.requestId ?? newId(),
+          database: input.database,
+          code: input.code,
+          batchSize: input.batchSize,
+        });
+      }),
+      next: method(rpcContract.shell.next, latencyMs, (input) => {
+        requireUnlocked();
+        requireConnected(input.connectionId);
+        return shell.next(input);
+      }),
+      cancel: method(rpcContract.shell.cancel, latencyMs, ({ requestId }) => {
+        requireUnlocked();
+        shell.cancel(requestId);
+      }),
+      complete: method(rpcContract.shell.complete, latencyMs, (input) => {
+        requireUnlocked();
+        requireConnected(input.connectionId);
+        return { items: shell.complete(input) };
+      }),
+      sampleSchema: method(rpcContract.shell.sampleSchema, latencyMs, (input) => {
+        requireUnlocked();
+        requireConnected(input.connectionId);
+        return shell.sampleSchema(input);
+      }),
+      restart: method(rpcContract.shell.restart, latencyMs, ({ connectionId }) => {
+        requireUnlocked();
+        requireConnected(connectionId);
+        shell.clear();
+      }),
+      state: method(rpcContract.shell.state, latencyMs, ({ connectionId }) => {
+        requireUnlocked();
+        const ready: ShellRuntimeState =
+          statusOf(connectionId).state === 'connected' ? 'ready' : 'stopped';
+        return { state: ready };
+      }),
     },
     settings: {
       get: method(rpcContract.settings.get, latencyMs, () => {
