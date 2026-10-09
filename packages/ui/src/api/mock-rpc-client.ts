@@ -43,6 +43,7 @@ import {
   type DatabaseFixture,
 } from './mock-fixtures';
 import { createMockMonitor } from './mock-monitor';
+import { createMockProfiler } from './mock-profiler';
 import type { UiApi } from './ui-api';
 
 export type MockPreset = 'fresh' | 'unlocked';
@@ -60,6 +61,8 @@ export interface MockUiApiOptions {
   readonly preset?: MockPreset;
   /** Delay added to every call, in milliseconds. Defaults to 0. */
   readonly latencyMs?: number;
+  /** Replaces the shop profiler fixtures with this many generated rows. For performance checks. */
+  readonly profilerRows?: number | undefined;
   /** `unavailable` makes every Docker call report that the engine cannot be reached. */
   readonly docker?: 'available' | 'unavailable';
   /** Scripted update states. Defaults to an idle updater on version 0.1.0. */
@@ -377,6 +380,23 @@ export function createMockUiApi(options: MockUiApiOptions = {}): UiApi {
     return found;
   }
 
+  function wrapCall<I extends z.ZodType, O extends z.ZodType>(
+    definition: RpcCall<I, O>,
+    run: (input: z.output<I>) => z.output<O> | Promise<z.output<O>>,
+  ): (raw: z.input<I>) => Promise<z.output<O>> {
+    return method(definition, latencyMs, run);
+  }
+
+  const profiler = createMockProfiler({
+    bulkRows: options.profilerRows,
+    wrap: wrapCall,
+    requireUnlocked,
+    requireConnected,
+    isAvailable: (connectionId) =>
+      state.vault === 'unlocked' && statusOf(connectionId).state === 'connected',
+    emit,
+  });
+
   const rpc: RpcClient = {
     updates: {
       state: method(rpcContract.updates.state, latencyMs, () => currentUpdate()),
@@ -656,6 +676,7 @@ export function createMockUiApi(options: MockUiApiOptions = {}): UiApi {
         state.favourites = state.favourites.filter((item) => item.id !== id);
       }),
     },
+    profiler,
     docker: {
       status: method(rpcContract.docker.status, latencyMs, (): DockerStatus => {
         return state.dockerAvailable

@@ -6,8 +6,10 @@ import type { Selection } from '../../state/app-store';
 import { useAppStore } from '../../state/app-store-context';
 import { usePanelOpener } from '../../state/panel-opener';
 import { catalogKey, connectionNodeId, databaseNodeId } from '../../state/node-ids';
+import { useProfilerOpener } from '../../profiler/profiler-opener';
 import { runReported } from '../notify-error';
 import { ConnectionContextMenu } from './ConnectionContextMenu';
+import { DatabaseContextMenu } from './DatabaseContextMenu';
 import { DockerContainerContextMenu } from './DockerContainerContextMenu';
 import { DockerLinkedContextMenu } from './DockerLinkedContextMenu';
 import { DockerNodeContextMenu } from './DockerNodeContextMenu';
@@ -32,6 +34,13 @@ type MenuTarget =
 
 interface MenuAnchor {
   readonly target: MenuTarget;
+  readonly x: number;
+  readonly y: number;
+}
+
+interface DatabaseMenuAnchor {
+  readonly connectionId: string;
+  readonly database: string;
   readonly x: number;
   readonly y: number;
 }
@@ -111,8 +120,10 @@ export function ConnectionTree() {
   const watchDocker = useAppStore((state) => state.watchDocker);
   const connectContainer = useAppStore((state) => state.connectContainer);
   const openPanel = usePanelOpener();
+  const profilerOpener = useProfilerOpener();
   const [focusKey, setFocusKey] = useState<string | undefined>(undefined);
   const [menu, setMenu] = useState<MenuAnchor | undefined>(undefined);
+  const [databaseMenu, setDatabaseMenu] = useState<DatabaseMenuAnchor | undefined>(undefined);
   const items = useRef(new Map<string, HTMLDivElement>());
   // A double click sends two clicks. This set keeps one connect call per container in flight.
   const connectingContainers = useRef(new Set<string>());
@@ -236,6 +247,13 @@ export function ConnectionTree() {
     });
   }
 
+  /** The profiler of a database opens its panel in the centre group. */
+  function openProfiler(row: TreeRowModel) {
+    if (row.database !== undefined) {
+      profilerOpener?.open(row.connectionId, row.database);
+    }
+  }
+
   /** Enter opens a collapsed connection, which also connects it. On an open one it connects if needed. */
   function openRow(row: TreeRowModel) {
     if (row.kind === 'docker') {
@@ -247,6 +265,10 @@ export function ConnectionTree() {
       return;
     }
     selectRow(row);
+    if (row.kind === 'profiler') {
+      openProfiler(row);
+      return;
+    }
     if (row.kind !== 'connection') {
       openToolRow(row);
       return;
@@ -259,16 +281,18 @@ export function ConnectionTree() {
   }
 
   function openMenuFor(row: TreeRowModel) {
+    const rect = items.current.get(row.key)?.getBoundingClientRect();
+    const x = rect === undefined ? 0 : rect.left + 12;
+    const y = rect === undefined ? 0 : rect.bottom;
+    if (row.kind === 'database' && row.database !== undefined) {
+      setDatabaseMenu({ connectionId: row.connectionId, database: row.database, x, y });
+      return;
+    }
     const target = menuTargetFor(row, readyConnections);
     if (target === undefined) {
       return;
     }
-    const rect = items.current.get(row.key)?.getBoundingClientRect();
-    setMenu({
-      target,
-      x: rect === undefined ? 0 : rect.left + 12,
-      y: rect === undefined ? 0 : rect.bottom,
-    });
+    setMenu({ target, x, y });
   }
 
   function handleKeyDown(event: KeyboardEvent<HTMLDivElement>) {
@@ -317,6 +341,15 @@ export function ConnectionTree() {
 
   function handleContextMenu(row: TreeRowModel, event: MouseEvent<HTMLDivElement>) {
     event.preventDefault();
+    if (row.kind === 'database' && row.database !== undefined) {
+      setDatabaseMenu({
+        connectionId: row.connectionId,
+        database: row.database,
+        x: event.clientX,
+        y: event.clientY,
+      });
+      return;
+    }
     const target = menuTargetFor(row, readyConnections);
     if (target !== undefined) {
       setMenu({ target, x: event.clientX, y: event.clientY });
@@ -437,7 +470,9 @@ export function ConnectionTree() {
                 }
               }}
               onDoubleClick={() => {
-                if (row.kind !== 'connection') {
+                if (row.kind === 'profiler') {
+                  openProfiler(row);
+                } else if (row.kind !== 'connection') {
                   openToolRow(row);
                 } else if (canConnect(statuses[row.connectionId])) {
                   void connect(row.connectionId);
@@ -448,6 +483,14 @@ export function ConnectionTree() {
           ),
         )}
         {menu === undefined ? null : renderMenu(menu)}
+        {databaseMenu === undefined ? null : (
+          <DatabaseContextMenu
+            connectionId={databaseMenu.connectionId}
+            database={databaseMenu.database}
+            position={{ x: databaseMenu.x, y: databaseMenu.y }}
+            onClose={() => setDatabaseMenu(undefined)}
+          />
+        )}
       </div>
     </>
   );

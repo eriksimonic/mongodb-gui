@@ -4,6 +4,7 @@ import {
   IconChevronDown,
   IconChevronRight,
   IconDatabase,
+  IconGauge,
   IconListDetails,
 } from '@tabler/icons-react';
 import type { MouseEvent } from 'react';
@@ -93,6 +94,9 @@ function RowIcon({ row }: { readonly row: TreeRowModel }) {
   }
   if (row.kind === 'collection' && row.collectionType !== undefined) {
     return <CollectionIcon type={row.collectionType} />;
+  }
+  if (row.kind === 'profiler') {
+    return <IconGauge size={14} aria-hidden="true" />;
   }
   if (row.kind === 'docker' || row.kind === 'container') {
     return <IconBrandDocker size={14} />;

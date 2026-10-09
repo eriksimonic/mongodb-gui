@@ -545,6 +545,9 @@ export function createAppStore(api: UiApi, initial: Partial<AppData> = {}): AppS
         }
         if (event.type === 'monitor:error') {
           updateMonitor(event.connectionId, (view) => applyError(view, event.error));
+        }
+        // Profiler events belong to the profiler store.
+        if (event.type !== 'connection:status') {
           return;
         }
         setStatus(event.connectionId, event.status);

@@ -4,7 +4,7 @@ import { rpcContract } from './contract';
 const namespaces = Object.entries(rpcContract);
 
 describe('rpcContract', () => {
-  it('declares the namespaces required by P1-1', () => {
+  it('declares the namespaces required by P1-1 and the profiler namespace of P6-2', () => {
     expect(Object.keys(rpcContract).sort()).toEqual(
       [
         'app',
@@ -15,11 +15,40 @@ describe('rpcContract', () => {
         'favourites',
         'history',
         'monitor',
+        'profiler',
         'settings',
         'updates',
         'vault',
       ].sort(),
     );
+  });
+
+  it('declares the profiler calls with the level, list, shapes, info and tail inputs', () => {
+    const { profiler } = rpcContract;
+    expect(Object.keys(profiler).sort()).toEqual(
+      ['info', 'level', 'list', 'setLevel', 'shapes', 'tail'].sort(),
+    );
+    const database = { connectionId: '3f2b8c1e-5d4a-4b7e-9c1f-2a6d8e0b7f10', database: 'shop' };
+    expect(profiler.level.input.safeParse(database).success).toBe(true);
+    expect(
+      profiler.setLevel.input.safeParse({ ...database, level: 1, slowMs: 50, sampleRate: 0.5 })
+        .success,
+    ).toBe(true);
+    expect(profiler.setLevel.input.safeParse({ ...database, level: 3 }).success).toBe(false);
+    expect(profiler.list.input.safeParse({ ...database, filter: {} }).success).toBe(true);
+    expect(profiler.list.input.safeParse({ ...database }).success).toBe(false);
+    expect(profiler.shapes.input.safeParse({ ...database, filter: { limit: 0 } }).success).toBe(
+      false,
+    );
+    expect(profiler.info.input.safeParse(database).success).toBe(true);
+  });
+
+  it('defaults the tail poll interval to 2000 ms and rejects polls under 50 ms', () => {
+    const { input } = rpcContract.profiler.tail;
+    const base = { connectionId: '3f2b8c1e-5d4a-4b7e-9c1f-2a6d8e0b7f10', database: 'shop' };
+    const parsed = input.parse({ ...base, enabled: true });
+    expect(parsed.pollMs).toBe(2000);
+    expect(input.safeParse({ ...base, enabled: true, pollMs: 10 }).success).toBe(false);
   });
 
   it('gives every call an input and an output zod schema', () => {

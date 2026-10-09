@@ -3,7 +3,7 @@ import 'dockview/dist/styles/dockview.css';
 import '../theme/dockview-theme.css';
 import { Box, Button, Flex, Group, Text } from '@mantine/core';
 import { IconDatabase, IconLock, IconPlus, IconServer, IconSettings } from '@tabler/icons-react';
-import { useCallback, useRef } from 'react';
+import { useCallback, useMemo, useRef } from 'react';
 import {
   DockviewReact,
   themeDark,
@@ -16,14 +16,17 @@ import { ConnectionManager } from '../components/connections/ConnectionManager';
 import { runReported } from '../components/notify-error';
 import { SettingsModal } from '../components/settings/SettingsModal';
 import { UpdateBanner } from '../components/updates/UpdateBanner';
+import { ProfilerOpenerContext, type ProfilerOpener } from '../profiler/profiler-opener';
 import { useAppStore } from '../state/app-store-context';
 import { PanelOpenerContext, type OpenPanel } from '../state/panel-opener';
+import { profilerPanelId } from '../state/node-ids';
 import {
   ConnectionsPanel,
   FixedTab,
   MonitorPanel,
   OperationsPanelView,
   OutputPanel,
+  ProfilerDockPanel,
   WelcomePanel,
 } from './ShellPanels';
 
@@ -31,6 +34,7 @@ const PANEL_COMPONENTS = {
   connections: ConnectionsPanel,
   welcome: WelcomePanel,
   output: OutputPanel,
+  profiler: ProfilerDockPanel,
   monitor: MonitorPanel,
   operations: OperationsPanelView,
 };
@@ -76,6 +80,26 @@ function handleDockReady({ api }: DockviewReadyEvent) {
   // The initial sizes are set on the groups, because the panel options do not size the first split.
   api.getPanel('connections')?.group.api.setSize({ width: SIDEBAR_WIDTH_PX });
   api.getPanel('output')?.group.api.setSize({ height: Math.round(height * OUTPUT_SHARE) });
+}
+
+/**
+ * Adds the profiler panel of a database next to the welcome panel, or focuses it when it is open.
+ * One panel per database, titled "<database> profiler".
+ */
+function openProfilerPanel(api: DockviewApi, connectionId: string, database: string): void {
+  const id = profilerPanelId(connectionId, database);
+  const existing = api.getPanel(id);
+  if (existing !== undefined) {
+    existing.api.setActive();
+    return;
+  }
+  api.addPanel({
+    id,
+    component: 'profiler',
+    title: `${database} profiler`,
+    params: { connectionId, database },
+    position: { referencePanel: 'welcome', direction: 'within' },
+  });
 }
 
 /**
@@ -140,82 +164,94 @@ export function ShellScreen() {
       openConnectionPanel(dockApi.current, request);
     }
   }, []);
+  const profilerOpener = useMemo<ProfilerOpener>(
+    () => ({
+      open(connectionId, database) {
+        if (dockApi.current !== undefined) {
+          openProfilerPanel(dockApi.current, connectionId, database);
+        }
+      },
+    }),
+    [],
+  );
 
   return (
     <PanelOpenerContext.Provider value={openPanel}>
-      <Flex direction="column" h="100vh" style={{ overflow: 'hidden' }}>
-        <Group
-          h={40}
-          px={8}
-          justify="space-between"
-          wrap="nowrap"
-          gap={8}
-          style={{ borderBottom: '1px solid var(--mantine-color-dark-4)', flex: '0 0 auto' }}
-        >
-          <Group gap={8} wrap="nowrap">
-            <IconDatabase size={18} color="var(--mantine-color-blue-5)" aria-hidden="true" />
-            <Text fw={600} size="sm">
-              Mongo GUI
-            </Text>
-            <Button
-              variant="light"
-              leftSection={<IconPlus size={14} />}
-              onClick={() => setDialog({ kind: 'create' })}
-            >
-              New connection
-            </Button>
-            <Button
-              variant="default"
-              leftSection={<IconServer size={14} />}
-              onClick={() => setManagerOpen(true)}
-            >
-              Connections
-            </Button>
-            <UpdateBanner />
+      <ProfilerOpenerContext.Provider value={profilerOpener}>
+        <Flex direction="column" h="100vh" style={{ overflow: 'hidden' }}>
+          <Group
+            h={40}
+            px={8}
+            justify="space-between"
+            wrap="nowrap"
+            gap={8}
+            style={{ borderBottom: '1px solid var(--mantine-color-dark-4)', flex: '0 0 auto' }}
+          >
+            <Group gap={8} wrap="nowrap">
+              <IconDatabase size={18} color="var(--mantine-color-blue-5)" aria-hidden="true" />
+              <Text fw={600} size="sm">
+                Mongo GUI
+              </Text>
+              <Button
+                variant="light"
+                leftSection={<IconPlus size={14} />}
+                onClick={() => setDialog({ kind: 'create' })}
+              >
+                New connection
+              </Button>
+              <Button
+                variant="default"
+                leftSection={<IconServer size={14} />}
+                onClick={() => setManagerOpen(true)}
+              >
+                Connections
+              </Button>
+              <UpdateBanner />
+            </Group>
+            <Group gap={8} wrap="nowrap">
+              <Button
+                variant="default"
+                leftSection={<IconSettings size={14} />}
+                onClick={() => setSettingsOpen(true)}
+              >
+                Settings
+              </Button>
+              <Button
+                variant="default"
+                leftSection={<IconLock size={14} />}
+                onClick={() => void runReported(() => lock())}
+              >
+                Lock
+              </Button>
+            </Group>
           </Group>
-          <Group gap={8} wrap="nowrap">
-            <Button
-              variant="default"
-              leftSection={<IconSettings size={14} />}
-              onClick={() => setSettingsOpen(true)}
-            >
-              Settings
-            </Button>
-            <Button
-              variant="default"
-              leftSection={<IconLock size={14} />}
-              onClick={() => void runReported(() => lock())}
-            >
-              Lock
-            </Button>
-          </Group>
-        </Group>
-        <Box style={{ flex: 1, minHeight: 0 }}>
-          <div style={{ height: '100%' }}>
-            <DockviewReact
-              theme={MONGO_THEME}
-              components={PANEL_COMPONENTS}
-              tabComponents={TAB_COMPONENTS}
-              onReady={(event) => {
-                dockApi.current = event.api;
-                handleDockReady(event);
-                event.api.onDidRemovePanel((panel) => {
-                  stopSamplerWhenUnused(event.api, panel.id, stopMonitor);
-                });
-              }}
+          <Box style={{ flex: 1, minHeight: 0 }}>
+            <div style={{ height: '100%' }}>
+              <DockviewReact
+                theme={MONGO_THEME}
+                components={PANEL_COMPONENTS}
+                tabComponents={TAB_COMPONENTS}
+                onReady={(event) => {
+                  dockApi.current = event.api;
+                  handleDockReady(event);
+                  event.api.onDidRemovePanel((panel) => {
+                    stopSamplerWhenUnused(event.api, panel.id, stopMonitor);
+                  });
+                }}
+              />
+            </div>
+          </Box>
+          {dialog.kind === 'closed' ? null : (
+            <ConnectionDialog
+              key={dialog.kind === 'edit' ? dialog.connectionId : 'create'}
+              connectionId={dialog.kind === 'edit' ? dialog.connectionId : undefined}
+              onClose={() => setDialog({ kind: 'closed' })}
             />
-          </div>
-        </Box>
-        {dialog.kind === 'closed' ? null : (
-          <ConnectionDialog
-            key={dialog.kind === 'edit' ? dialog.connectionId : 'create'}
-            connectionId={dialog.kind === 'edit' ? dialog.connectionId : undefined}
-            onClose={() => setDialog({ kind: 'closed' })}
-          />
-        )}
-        <ConnectionManager />
-        <SettingsModal />
-      </Flex>
+          )}
+          <ConnectionManager />
+          <SettingsModal />
+        </Flex>
+      </ProfilerOpenerContext.Provider>
     </PanelOpenerContext.Provider>
   );
 }

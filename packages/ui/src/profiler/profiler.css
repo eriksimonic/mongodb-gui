@@ -1,0 +1,126 @@
+/* Profiler panel. Colours come from Mantine variables so light and dark themes both work. */
+
+.mg-profiler-scroll {
+  height: 100%;
+  overflow: auto;
+  outline: none;
+  font-size: var(--mantine-font-size-xs);
+}
+
+.mg-profiler-scroll:focus-visible {
+  box-shadow: inset 0 0 0 1px var(--mantine-color-blue-5);
+}
+
+.mg-profiler-head,
+.mg-profiler-row {
+  display: grid;
+  align-items: center;
+  column-gap: 6px;
+  height: 32px;
+  box-sizing: border-box;
+  padding: 0 8px;
+}
+
+.mg-profiler-head {
+  position: sticky;
+  top: 0;
+  z-index: 1;
+  background: var(--mantine-color-body);
+  border-bottom: 1px solid var(--mantine-color-dark-4);
+}
+
+.mg-profiler-row {
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  cursor: pointer;
+  border-bottom: 1px solid var(--mantine-color-dark-6);
+}
+
+.mg-profiler-row:hover {
+  background: var(--mantine-color-dark-6);
+}
+
+.mg-profiler-row[aria-selected='true'] {
+  background: var(--mantine-color-blue-light);
+}
+
+.mg-profiler-row[data-highlight='true'] {
+  animation: mg-profiler-flash 1.5s ease-out;
+}
+
+@keyframes mg-profiler-flash {
+  from {
+    background: var(--mantine-color-yellow-light);
+  }
+  to {
+    background: transparent;
+  }
+}
+
+/* Every cell is one line and cuts off with an ellipsis. The full text is in the title. */
+.mg-profiler-cell {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.mg-profiler-plan {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  min-width: 0;
+}
+
+.mg-profiler-plan > .mg-profiler-cell {
+  flex: 1 1 auto;
+}
+
+.mg-profiler-duration {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  min-width: 0;
+}
+
+.mg-profiler-duration-label {
+  flex: 0 0 auto;
+  width: 56px;
+  text-align: right;
+}
+
+.mg-profiler-bar-track {
+  flex: 1 1 auto;
+  min-width: 24px;
+  height: 6px;
+  border-radius: 3px;
+  background: var(--mantine-color-dark-5);
+  overflow: hidden;
+}
+
+.mg-profiler-bar {
+  display: block;
+  height: 100%;
+  border-radius: 3px;
+  background: var(--mantine-color-blue-5);
+}
+
+.mg-profiler-splitter {
+  flex: 0 0 6px;
+  cursor: col-resize;
+  border-left: 1px solid var(--mantine-color-dark-4);
+  touch-action: none;
+}
+
+.mg-profiler-splitter:focus-visible {
+  background: var(--mantine-color-blue-5);
+  outline: none;
+}
+
+.mg-profiler-detail {
+  overflow: auto;
+  padding: 8px;
+  min-width: 0;
+}

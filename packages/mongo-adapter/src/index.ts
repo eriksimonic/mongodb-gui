@@ -10,6 +10,7 @@ export {
   listIndexes,
   type ListCollectionsOptions,
 } from './catalog';
+export { toCanonicalEjson } from './ejson';
 export { mapDriverError } from './errors';
 export { exportCollection } from './transfer/export';
 export { importFile, previewImport } from './transfer/import';
