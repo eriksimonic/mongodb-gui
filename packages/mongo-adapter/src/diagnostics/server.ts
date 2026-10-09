@@ -22,7 +22,7 @@ import {
   readStringArray,
   type PlainObject,
 } from '../documents';
-import { stringifyEjson } from '../management/ejson';
+import { EJSON, stringifyEjson } from '../management/ejson';
 
 import { runAdminCommand } from './command';
 
@@ -30,6 +30,12 @@ export { collectionStats as getCollStats, databaseStats as getDbStats } from '..
 
 // Fields that every command reply carries. They are not server parameters.
 const REPLY_FIELDS: ReadonlySet<string> = new Set(['ok', 'operationTime']);
+
+// Relaxed EJSON text for a whole server reply. Callers read it with JSON.parse. Dates and
+// Timestamps stay as single-key wrapper objects, and Longs above 2^53 keep their $numberLong form.
+function relaxedJson(value: unknown): string {
+  return EJSON.stringify(value, { relaxed: true });
+}
 const TCMALLOC_SECTION = 'tcmalloc';
 const METRICS_SECTION = 'metrics';
 const METRICS_COMMANDS = 'commands';
@@ -66,7 +72,7 @@ export async function getHostInfo(client: MongoClient): Promise<HostInfo> {
     ...definedEntry('cpu', toCpu(system)),
     ...definedEntry('memSizeMb', readNumber(system, 'memSizeMB')),
     ...definedEntry('numaEnabled', readBoolean(system, 'numaEnabled')),
-    rawEjson: stringifyEjson(reply),
+    rawJson: relaxedJson(reply),
   };
 }
 
@@ -85,7 +91,7 @@ export async function getBuildInfo(client: MongoClient): Promise<BuildInfo> {
     storageEngines: readStringArray(reply, 'storageEngines'),
     ...definedEntry('bits', readNumber(reply, 'bits')),
     ...definedEntry('maxBsonObjectSize', readNumber(reply, 'maxBsonObjectSize')),
-    rawEjson: stringifyEjson(reply),
+    rawJson: relaxedJson(reply),
   };
 }
 
@@ -110,7 +116,7 @@ export async function getServerStatusTree(client: MongoClient): Promise<ServerSt
     }
     raw[section] = value;
   }
-  return { at: new Date().toISOString(), rawEjson: stringifyEjson(raw), stripped };
+  return { at: new Date().toISOString(), rawJson: relaxedJson(raw), stripped };
 }
 
 export async function getConnPoolStats(client: MongoClient): Promise<ConnPoolStats> {
@@ -130,7 +136,7 @@ export async function getConnPoolStats(client: MongoClient): Promise<ConnPoolSta
         },
       ]),
     ),
-    rawEjson: stringifyEjson(reply),
+    rawJson: relaxedJson(reply),
   };
 }
 

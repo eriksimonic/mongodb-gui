@@ -23,11 +23,14 @@ export interface ListSessionsOptions {
 
 const SESSION_ID_HEX = /^[0-9a-f]{32}$/i;
 const UNAUTHORIZED_CODE = 13;
+const COMMAND_NOT_FOUND_CODE = 59;
+const NAMESPACE_NOT_FOUND_CODE = 26;
 
 // Lists sessions cluster-wide from config.system.sessions when the caller asks for other users.
 // The "all" scope is reported whenever that read succeeds, even when it returns no rows. When the
-// read fails, the list falls back to the sessions the connected server holds, reports the scope
-// as "local", and names the reason in fallbackReason.
+// server refuses the read as unauthorized, or reports that the command or namespace does not exist,
+// the list falls back to the local sessions, reports the scope as "local", and names the reason in
+// fallbackReason. Any other failure is thrown to the caller.
 //
 // Rows from config.system.sessions carry only the user digest (_id.uid). The user name is filled
 // by matching that digest against the local listing. A digest with no local match keeps only
@@ -37,7 +40,6 @@ export async function listSessions(
   options: ListSessionsOptions = {},
 ): Promise<SessionList> {
   const filter = sessionFilter(options);
-  let fallbackReason: SessionFallbackReason | undefined;
   if (options.allUsers === true || (options.users?.length ?? 0) > 0) {
     const global = await readGlobalRows(client, filter);
     if (global.ok) {
@@ -47,13 +49,20 @@ export async function listSessions(
         sessions: global.rows.flatMap((row) => toSessionInfo(row, names)),
       };
     }
-    fallbackReason = global.reason;
+    // A caller without the listSessions privilege still sees its own sessions. Asking for other
+    // users would fail again, so the local read drops that filter.
+    const ownFilter = global.reason === 'unauthorized' ? {} : filter;
+    const rows = await readLocalRows(client, ownFilter);
+    return {
+      scope: 'local',
+      sessions: rows.flatMap((row) => toSessionInfo(row)),
+      fallbackReason: global.reason,
+    };
   }
   const rows = await readLocalRows(client, filter);
   return {
     scope: 'local',
     sessions: rows.flatMap((row) => toSessionInfo(row)),
-    ...definedEntry('fallbackReason', fallbackReason),
   };
 }
 
@@ -101,8 +110,33 @@ async function readGlobalRows(client: MongoClient, filter: Document): Promise<Gl
       .toArray();
     return { ok: true, rows };
   } catch (error) {
-    return { ok: false, reason: isUnauthorized(error) ? 'unauthorized' : 'unsupported' };
+    const reason = fallbackReasonFor(error);
+    if (reason === undefined) {
+      throw toAppException(error);
+    }
+    return { ok: false, reason };
   }
+}
+
+// Only these failures fall back to the local listing. Anything else is a real error for the caller.
+// Standalone and mongos deployments without the sessions namespace report one of the missing-name
+// codes, which counts as "unsupported".
+function fallbackReasonFor(error: unknown): SessionFallbackReason | undefined {
+  if (!(error instanceof MongoServerError)) {
+    return undefined;
+  }
+  if (error.code === UNAUTHORIZED_CODE || error.codeName === 'Unauthorized') {
+    return 'unauthorized';
+  }
+  if (
+    error.code === COMMAND_NOT_FOUND_CODE ||
+    error.code === NAMESPACE_NOT_FOUND_CODE ||
+    error.codeName === 'CommandNotFound' ||
+    error.codeName === 'NamespaceNotFound'
+  ) {
+    return 'unsupported';
+  }
+  return undefined;
 }
 
 async function readLocalRows(client: MongoClient, filter: Document): Promise<unknown[]> {
@@ -133,13 +167,6 @@ async function userNamesByDigest(client: MongoClient): Promise<Map<string, strin
     // Without the mapping, rows keep only userId.
   }
   return names;
-}
-
-function isUnauthorized(error: unknown): boolean {
-  return (
-    error instanceof MongoServerError &&
-    (error.code === UNAUTHORIZED_CODE || error.codeName === 'Unauthorized')
-  );
 }
 
 function sessionFilter(options: ListSessionsOptions): Document {

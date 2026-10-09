@@ -47,17 +47,17 @@ describe('ServerLogSchema', () => {
 
 describe('HostInfoSchema and BuildInfoSchema', () => {
   it('accepts a host with only the raw EJSON payload', () => {
-    expect(HostInfoSchema.safeParse({ rawEjson: '{}' }).success).toBe(true);
+    expect(HostInfoSchema.safeParse({ rawJson: '{}' }).success).toBe(true);
   });
 
   it('requires a version and module lists for build info', () => {
-    expect(BuildInfoSchema.safeParse({ version: '8.0.17', rawEjson: '{}' }).success).toBe(false);
+    expect(BuildInfoSchema.safeParse({ version: '8.0.17', rawJson: '{}' }).success).toBe(false);
     expect(
       BuildInfoSchema.safeParse({
         version: '8.0.17',
         modules: [],
         storageEngines: ['wiredTiger'],
-        rawEjson: '{}',
+        rawJson: '{}',
       }).success,
     ).toBe(true);
   });
@@ -89,7 +89,7 @@ describe('ConnPoolStatsSchema', () => {
       totalAvailable: 2,
       totalCreated: 3,
       hosts: { 'localhost:27017': { inUse: 1, available: 2, created: 3 } },
-      rawEjson: '{}',
+      rawJson: '{}',
     };
     expect(ConnPoolStatsSchema.safeParse(stats).success).toBe(true);
   });
@@ -114,10 +114,10 @@ describe('ServerStatusTreeSchema', () => {
   it('keeps the list of stripped sections', () => {
     const tree = {
       at: '2026-01-01T00:00:00.000Z',
-      rawEjson: '{"host":"h"}',
+      rawJson: '{"host":"h"}',
       stripped: ['tcmalloc'],
     };
     expect(ServerStatusTreeSchema.safeParse(tree).success).toBe(true);
-    expect(ServerStatusTreeSchema.safeParse({ at: 'x', rawEjson: '{}' }).success).toBe(false);
+    expect(ServerStatusTreeSchema.safeParse({ at: 'x', rawJson: '{}' }).success).toBe(false);
   });
 });

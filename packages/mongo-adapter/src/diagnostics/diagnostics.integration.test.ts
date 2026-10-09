@@ -204,7 +204,7 @@ describe.each(MONGO_IMAGES)('server diagnostics on %s', (image) => {
       expect(ServerStatusTreeSchema.safeParse(tree).success).toBe(true);
       // serverStatus has operator-count keys that start with "$", so EJSON.parse rejects it. The
       // payload is still valid JSON, and JSON.parse reads it.
-      const raw = JSON.parse(tree.rawEjson) as Record<string, unknown>;
+      const raw = JSON.parse(tree.rawJson) as Record<string, unknown>;
       expect(raw).toHaveProperty('host');
       expect(raw).not.toHaveProperty('tcmalloc');
       expect(tree.stripped).toContain('tcmalloc');
@@ -275,6 +275,44 @@ describe.each(MONGO_IMAGES)('server diagnostics on %s', (image) => {
         expect(mine?.user).toBe('root@admin');
       } finally {
         await endSession(session);
+      }
+    },
+    SUITE_TIMEOUT_MS,
+  );
+
+  // The reader role lacks listSessions, so the cluster-wide read is refused. The fallback lists the
+  // reader's own sessions only, not the root session.
+  it(
+    'falls back to the own sessions of a user without the listSessions privilege',
+    async () => {
+      const readerClient = new MongoClient(
+        userUri(startedMongo().rootUri, READER_USER, READER_PASSWORD),
+        { appName: 'reader-list-test' },
+      );
+      await readerClient.connect();
+      const readerSession = readerClient.startSession();
+      const rootSession = connected().startSession();
+      try {
+        await readerClient
+          .db(DIAG_DB)
+          .collection(DIAG_COLLECTION)
+          .findOne({}, { session: readerSession });
+        await connected()
+          .db(DIAG_DB)
+          .collection(DIAG_COLLECTION)
+          .findOne({}, { session: rootSession });
+        const listing = await listSessions(readerClient, { allUsers: true });
+        expect(SessionListSchema.safeParse(listing).success).toBe(true);
+        expect(listing.scope).toBe('local');
+        expect(listing.fallbackReason).toBe('unauthorized');
+        const ids = listing.sessions.map((info) => info.id);
+        expect(ids).toContain(sessionHex(readerSession));
+        expect(ids).not.toContain(sessionHex(rootSession));
+        expect(listing.sessions.every((info) => info.user === `${READER_USER}@admin`)).toBe(true);
+      } finally {
+        await endSession(readerSession);
+        await endSession(rootSession);
+        await readerClient.close();
       }
     },
     SUITE_TIMEOUT_MS,

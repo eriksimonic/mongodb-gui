@@ -57,7 +57,9 @@ export const HostInfoSchema = z.object({
     .optional(),
   memSizeMb: z.number().nonnegative().optional(),
   numaEnabled: z.boolean().optional(),
-  rawEjson: z.string(),
+  // Relaxed EJSON text. Parse with JSON.parse; Dates, Longs above 2^53 and Timestamps stay as
+  // single-key wrapper objects. "$" keys are not escaped.
+  rawJson: z.string(),
 });
 
 export const BuildInfoSchema = z.object({
@@ -69,7 +71,9 @@ export const BuildInfoSchema = z.object({
   storageEngines: z.array(z.string()),
   bits: z.number().int().optional(),
   maxBsonObjectSize: nonNegativeInt.optional(),
-  rawEjson: z.string(),
+  // Relaxed EJSON text. Parse with JSON.parse; Dates, Longs above 2^53 and Timestamps stay as
+  // single-key wrapper objects. "$" keys are not escaped.
+  rawJson: z.string(),
 });
 
 export const OpStatSchema = z.object({
@@ -101,7 +105,9 @@ export const ConnPoolStatsSchema = z.object({
   totalAvailable: nonNegativeInt,
   totalCreated: nonNegativeInt,
   hosts: z.record(z.string(), ConnPoolHostStatsSchema),
-  rawEjson: z.string(),
+  // Relaxed EJSON text. Parse with JSON.parse; Dates, Longs above 2^53 and Timestamps stay as
+  // single-key wrapper objects. "$" keys are not escaped.
+  rawJson: z.string(),
 });
 
 export const SessionInfoSchema = z.object({
@@ -126,7 +132,9 @@ export const SessionListSchema = z.object({
 
 export const ServerStatusTreeSchema = z.object({
   at: z.string(),
-  rawEjson: z.string(),
+  // Relaxed EJSON text. Parse with JSON.parse; Dates, Longs above 2^53 and Timestamps stay as
+  // single-key wrapper objects. "$" keys are not escaped.
+  rawJson: z.string(),
   stripped: z.array(z.string()),
 });
 
