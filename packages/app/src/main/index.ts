@@ -2,13 +2,21 @@ import { app, BrowserWindow, ipcMain, session } from 'electron';
 import { join } from 'node:path';
 import { pathToFileURL } from 'node:url';
 
-const devServerUrl = process.env['ELECTRON_RENDERER_URL'];
+// One source of truth for "dev": a packaged app never uses the dev server, even if the
+// environment variable is set.
+const devServerUrl = app.isPackaged ? undefined : process.env['ELECTRON_RENDERER_URL'];
 const rendererDirectory = join(import.meta.dirname, '../renderer');
 const preloadPath = join(import.meta.dirname, '../preload/index.cjs');
 
 function contentSecurityPolicy(): string {
   if (devServerUrl === undefined) {
-    return "default-src 'self'";
+    return [
+      "default-src 'self'",
+      "script-src 'self'",
+      "object-src 'none'",
+      "base-uri 'none'",
+      "frame-ancestors 'none'",
+    ].join('; ');
   }
   const origin = new URL(devServerUrl).origin;
   const socketOrigin = origin.replace(/^http/, 'ws');
@@ -19,6 +27,9 @@ function contentSecurityPolicy(): string {
     `script-src 'self' ${origin} 'unsafe-inline'`,
     `style-src 'self' ${origin} 'unsafe-inline'`,
     `connect-src 'self' ${origin} ${socketOrigin}`,
+    "object-src 'none'",
+    "base-uri 'none'",
+    "frame-ancestors 'none'",
   ].join('; ');
 }
 
@@ -71,6 +82,11 @@ function createMainWindow(): void {
   };
   window.webContents.on('will-navigate', blockForeignNavigation);
   window.webContents.on('will-redirect', blockForeignNavigation);
+  window.webContents.on('will-frame-navigate', (details) => {
+    if (!isAppUrl(details.url)) {
+      details.preventDefault();
+    }
+  });
 
   if (devServerUrl !== undefined) {
     void window.loadURL(devServerUrl);
@@ -78,6 +94,14 @@ function createMainWindow(): void {
     void window.loadFile(join(rendererDirectory, 'index.html'));
   }
 }
+
+// Webviews are a second renderer surface with their own preload and node settings.
+// Refuse them on every web contents.
+app.on('web-contents-created', (_event, contents) => {
+  contents.on('will-attach-webview', (event) => {
+    event.preventDefault();
+  });
+});
 
 app.whenReady().then(() => {
   installContentSecurityPolicy();
