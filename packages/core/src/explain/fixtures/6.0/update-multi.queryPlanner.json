@@ -1,0 +1,103 @@
+{
+  "explainVersion": "1",
+  "queryPlanner": {
+    "namespace": "fixtures.orders",
+    "indexFilterSet": false,
+    "parsedQuery": {
+      "status": {
+        "$eq": "open"
+      }
+    },
+    "queryHash": "6F186887",
+    "planCacheKey": "40AC69D5",
+    "maxIndexedOrSolutionsReached": false,
+    "maxIndexedAndSolutionsReached": false,
+    "maxScansToExplodeReached": false,
+    "winningPlan": {
+      "stage": "UPDATE",
+      "inputStage": {
+        "stage": "FETCH",
+        "inputStage": {
+          "stage": "IXSCAN",
+          "keyPattern": {
+            "status": {
+              "$numberInt": "1"
+            }
+          },
+          "indexName": "status_1",
+          "isMultiKey": false,
+          "multiKeyPaths": {
+            "status": []
+          },
+          "isUnique": false,
+          "isSparse": false,
+          "isPartial": false,
+          "indexVersion": {
+            "$numberInt": "2"
+          },
+          "direction": "forward",
+          "indexBounds": {
+            "status": [
+              "[\"open\", \"open\"]"
+            ]
+          }
+        }
+      }
+    },
+    "rejectedPlans": []
+  },
+  "command": {
+    "update": "orders",
+    "updates": [
+      {
+        "q": {
+          "status": "open"
+        },
+        "u": {
+          "$set": {
+            "tags": []
+          }
+        },
+        "multi": true
+      }
+    ],
+    "$db": "fixtures"
+  },
+  "serverInfo": {
+    "host": "34329e6dff8d",
+    "port": {
+      "$numberInt": "27017"
+    },
+    "version": "6.0.28",
+    "gitVersion": "ef888a6df901622004aeb4b7362e007b8c4299da"
+  },
+  "serverParameters": {
+    "internalQueryFacetBufferSizeBytes": {
+      "$numberInt": "104857600"
+    },
+    "internalQueryFacetMaxOutputDocSizeBytes": {
+      "$numberInt": "104857600"
+    },
+    "internalLookupStageIntermediateDocumentMaxSizeBytes": {
+      "$numberInt": "104857600"
+    },
+    "internalDocumentSourceGroupMaxMemoryBytes": {
+      "$numberInt": "104857600"
+    },
+    "internalQueryMaxBlockingSortMemoryUsageBytes": {
+      "$numberInt": "104857600"
+    },
+    "internalQueryProhibitBlockingMergeOnMongoS": {
+      "$numberInt": "0"
+    },
+    "internalQueryMaxAddToSetBytes": {
+      "$numberInt": "104857600"
+    },
+    "internalDocumentSourceSetWindowFieldsMaxMemoryBytes": {
+      "$numberInt": "104857600"
+    }
+  },
+  "ok": {
+    "$numberDouble": "1.0"
+  }
+}

@@ -1,0 +1,176 @@
+{
+  "explainVersion": "2",
+  "queryPlanner": {
+    "namespace": "fixtures.orders",
+    "indexFilterSet": false,
+    "parsedQuery": {
+      "$and": [
+        {
+          "customerId": {
+            "$eq": {
+              "$numberInt": "7"
+            }
+          }
+        },
+        {
+          "status": {
+            "$eq": "paid"
+          }
+        }
+      ]
+    },
+    "queryHash": "94D241C8",
+    "planCacheKey": "050D55D2",
+    "maxIndexedOrSolutionsReached": false,
+    "maxIndexedAndSolutionsReached": false,
+    "maxScansToExplodeReached": false,
+    "winningPlan": {
+      "queryPlan": {
+        "stage": "FETCH",
+        "planNodeId": {
+          "$numberInt": "2"
+        },
+        "filter": {
+          "status": {
+            "$eq": "paid"
+          }
+        },
+        "inputStage": {
+          "stage": "IXSCAN",
+          "planNodeId": {
+            "$numberInt": "1"
+          },
+          "keyPattern": {
+            "customerId": {
+              "$numberInt": "1"
+            },
+            "createdAt": {
+              "$numberInt": "-1"
+            }
+          },
+          "indexName": "customerId_1_createdAt_-1",
+          "isMultiKey": false,
+          "multiKeyPaths": {
+            "customerId": [],
+            "createdAt": []
+          },
+          "isUnique": false,
+          "isSparse": false,
+          "isPartial": false,
+          "indexVersion": {
+            "$numberInt": "2"
+          },
+          "direction": "forward",
+          "indexBounds": {
+            "customerId": [
+              "[7, 7]"
+            ],
+            "createdAt": [
+              "[MaxKey, MinKey]"
+            ]
+          }
+        }
+      },
+      "slotBasedPlan": {
+        "slots": "$$RESULT=s11 $$RID=s12 env: { s1 = TimeZoneDatabase(Asia/Harbin...GB) (timeZoneDB), s3 = 1791574470810 (NOW), s2 = Nothing (SEARCH_META) }",
+        "stages": "[2] filter {applyClassicMatcher (ClassicMatcher({ status: { $eq: \"paid\" } }), s11)} \n[2] nlj [] [s8, s4, s5, s6, s7] \n    left \n        [1] nlj [s7] [s9, s10] \n            left \n                [1] project [s7 = {\"customerId\" : 1, \"createdAt\" : -1}, s9 = KS(2B0E0F0104), s10 = KS(2B0EF5FE04)] \n                [1] limit 1 \n                [1] coscan \n            right \n                [1] ixseek s9 s10 s6 s8 s4 s5 [] @\"f3899e44-9a7a-41e5-9a3b-135109951701\" @\"customerId_1_createdAt_-1\" true \n            \n        \n    right \n        [2] limit 1 \n        [2] seek s8 s11 s12 s4 s5 s6 s7 [] @\"f3899e44-9a7a-41e5-9a3b-135109951701\" true false \n    \n"
+      }
+    },
+    "rejectedPlans": [
+      {
+        "queryPlan": {
+          "stage": "FETCH",
+          "planNodeId": {
+            "$numberInt": "2"
+          },
+          "filter": {
+            "customerId": {
+              "$eq": {
+                "$numberInt": "7"
+              }
+            }
+          },
+          "inputStage": {
+            "stage": "IXSCAN",
+            "planNodeId": {
+              "$numberInt": "1"
+            },
+            "keyPattern": {
+              "status": {
+                "$numberInt": "1"
+              }
+            },
+            "indexName": "status_1",
+            "isMultiKey": false,
+            "multiKeyPaths": {
+              "status": []
+            },
+            "isUnique": false,
+            "isSparse": false,
+            "isPartial": false,
+            "indexVersion": {
+              "$numberInt": "2"
+            },
+            "direction": "forward",
+            "indexBounds": {
+              "status": [
+                "[\"paid\", \"paid\"]"
+              ]
+            }
+          }
+        },
+        "slotBasedPlan": {
+          "slots": "$$RESULT=s11 $$RID=s12 env: { s2 = Nothing (SEARCH_META), s3 = 1791574470810 (NOW), s1 = TimeZoneDatabase(Asia/Harbin...GB) (timeZoneDB) }",
+          "stages": "[2] filter {applyClassicMatcher (ClassicMatcher({ customerId: { $eq: 7 } }), s11)} \n[2] nlj [] [s8, s4, s5, s6, s7] \n    left \n        [1] nlj [s7] [s9, s10] \n            left \n                [1] project [s7 = {\"status\" : 1}, s9 = KS(3C70616964000104), s10 = KS(3C7061696400FE04)] \n                [1] limit 1 \n                [1] coscan \n            right \n                [1] ixseek s9 s10 s6 s8 s4 s5 [] @\"f3899e44-9a7a-41e5-9a3b-135109951701\" @\"status_1\" true \n            \n        \n    right \n        [2] limit 1 \n        [2] seek s8 s11 s12 s4 s5 s6 s7 [] @\"f3899e44-9a7a-41e5-9a3b-135109951701\" true false \n    \n"
+        }
+      }
+    ]
+  },
+  "command": {
+    "find": "orders",
+    "filter": {
+      "customerId": {
+        "$numberInt": "7"
+      },
+      "status": "paid"
+    },
+    "$db": "fixtures"
+  },
+  "serverInfo": {
+    "host": "734bd7ad9e7a",
+    "port": {
+      "$numberInt": "27017"
+    },
+    "version": "6.0.28",
+    "gitVersion": "ef888a6df901622004aeb4b7362e007b8c4299da"
+  },
+  "serverParameters": {
+    "internalQueryFacetBufferSizeBytes": {
+      "$numberInt": "104857600"
+    },
+    "internalQueryFacetMaxOutputDocSizeBytes": {
+      "$numberInt": "104857600"
+    },
+    "internalLookupStageIntermediateDocumentMaxSizeBytes": {
+      "$numberInt": "104857600"
+    },
+    "internalDocumentSourceGroupMaxMemoryBytes": {
+      "$numberInt": "104857600"
+    },
+    "internalQueryMaxBlockingSortMemoryUsageBytes": {
+      "$numberInt": "104857600"
+    },
+    "internalQueryProhibitBlockingMergeOnMongoS": {
+      "$numberInt": "0"
+    },
+    "internalQueryMaxAddToSetBytes": {
+      "$numberInt": "104857600"
+    },
+    "internalDocumentSourceSetWindowFieldsMaxMemoryBytes": {
+      "$numberInt": "104857600"
+    }
+  },
+  "ok": {
+    "$numberDouble": "1.0"
+  }
+}

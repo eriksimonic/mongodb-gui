@@ -1,0 +1,59 @@
+{
+  "queryPlanner": {
+    "plannerVersion": {
+      "$numberInt": "1"
+    },
+    "namespace": "fixtures.orders",
+    "indexFilterSet": false,
+    "parsedQuery": {
+      "status": {
+        "$eq": "open"
+      }
+    },
+    "queryHash": "E6304EB6",
+    "planCacheKey": "7A94191B",
+    "winningPlan": {
+      "stage": "UPDATE",
+      "inputStage": {
+        "stage": "FETCH",
+        "inputStage": {
+          "stage": "IXSCAN",
+          "keyPattern": {
+            "status": {
+              "$numberInt": "1"
+            }
+          },
+          "indexName": "status_1",
+          "isMultiKey": false,
+          "multiKeyPaths": {
+            "status": []
+          },
+          "isUnique": false,
+          "isSparse": false,
+          "isPartial": false,
+          "indexVersion": {
+            "$numberInt": "2"
+          },
+          "direction": "forward",
+          "indexBounds": {
+            "status": [
+              "[\"open\", \"open\"]"
+            ]
+          }
+        }
+      }
+    },
+    "rejectedPlans": []
+  },
+  "serverInfo": {
+    "host": "a124add29127",
+    "port": {
+      "$numberInt": "27017"
+    },
+    "version": "4.4.30",
+    "gitVersion": "4d7fa6a6260d25c5caa971dce10561690cb79dea"
+  },
+  "ok": {
+    "$numberDouble": "1.0"
+  }
+}

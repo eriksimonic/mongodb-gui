@@ -1,0 +1,210 @@
+{
+  "queryPlanner": {
+    "plannerVersion": {
+      "$numberInt": "1"
+    },
+    "namespace": "fixtures.orders",
+    "indexFilterSet": false,
+    "parsedQuery": {
+      "status": {
+        "$eq": "open"
+      }
+    },
+    "winningPlan": {
+      "stage": "UPDATE",
+      "inputStage": {
+        "stage": "FETCH",
+        "inputStage": {
+          "stage": "IXSCAN",
+          "keyPattern": {
+            "status": {
+              "$numberInt": "1"
+            }
+          },
+          "indexName": "status_1",
+          "isMultiKey": false,
+          "multiKeyPaths": {
+            "status": []
+          },
+          "isUnique": false,
+          "isSparse": false,
+          "isPartial": false,
+          "indexVersion": {
+            "$numberInt": "2"
+          },
+          "direction": "forward",
+          "indexBounds": {
+            "status": [
+              "[\"open\", \"open\"]"
+            ]
+          }
+        }
+      }
+    },
+    "rejectedPlans": []
+  },
+  "executionStats": {
+    "executionSuccess": true,
+    "nReturned": {
+      "$numberInt": "0"
+    },
+    "executionTimeMillis": {
+      "$numberInt": "1"
+    },
+    "totalKeysExamined": {
+      "$numberInt": "667"
+    },
+    "totalDocsExamined": {
+      "$numberInt": "667"
+    },
+    "executionStages": {
+      "stage": "UPDATE",
+      "nReturned": {
+        "$numberInt": "0"
+      },
+      "executionTimeMillisEstimate": {
+        "$numberInt": "0"
+      },
+      "works": {
+        "$numberInt": "668"
+      },
+      "advanced": {
+        "$numberInt": "0"
+      },
+      "needTime": {
+        "$numberInt": "667"
+      },
+      "needYield": {
+        "$numberInt": "0"
+      },
+      "saveState": {
+        "$numberInt": "0"
+      },
+      "restoreState": {
+        "$numberInt": "0"
+      },
+      "isEOF": {
+        "$numberInt": "1"
+      },
+      "nMatched": {
+        "$numberInt": "667"
+      },
+      "nWouldModify": {
+        "$numberInt": "667"
+      },
+      "wouldInsert": false,
+      "inputStage": {
+        "stage": "FETCH",
+        "nReturned": {
+          "$numberInt": "667"
+        },
+        "executionTimeMillisEstimate": {
+          "$numberInt": "0"
+        },
+        "works": {
+          "$numberInt": "668"
+        },
+        "advanced": {
+          "$numberInt": "667"
+        },
+        "needTime": {
+          "$numberInt": "0"
+        },
+        "needYield": {
+          "$numberInt": "0"
+        },
+        "saveState": {
+          "$numberInt": "667"
+        },
+        "restoreState": {
+          "$numberInt": "667"
+        },
+        "isEOF": {
+          "$numberInt": "1"
+        },
+        "docsExamined": {
+          "$numberInt": "667"
+        },
+        "alreadyHasObj": {
+          "$numberInt": "0"
+        },
+        "inputStage": {
+          "stage": "IXSCAN",
+          "nReturned": {
+            "$numberInt": "667"
+          },
+          "executionTimeMillisEstimate": {
+            "$numberInt": "0"
+          },
+          "works": {
+            "$numberInt": "668"
+          },
+          "advanced": {
+            "$numberInt": "667"
+          },
+          "needTime": {
+            "$numberInt": "0"
+          },
+          "needYield": {
+            "$numberInt": "0"
+          },
+          "saveState": {
+            "$numberInt": "667"
+          },
+          "restoreState": {
+            "$numberInt": "667"
+          },
+          "isEOF": {
+            "$numberInt": "1"
+          },
+          "keyPattern": {
+            "status": {
+              "$numberInt": "1"
+            }
+          },
+          "indexName": "status_1",
+          "isMultiKey": false,
+          "multiKeyPaths": {
+            "status": []
+          },
+          "isUnique": false,
+          "isSparse": false,
+          "isPartial": false,
+          "indexVersion": {
+            "$numberInt": "2"
+          },
+          "direction": "forward",
+          "indexBounds": {
+            "status": [
+              "[\"open\", \"open\"]"
+            ]
+          },
+          "keysExamined": {
+            "$numberInt": "667"
+          },
+          "seeks": {
+            "$numberInt": "1"
+          },
+          "dupsTested": {
+            "$numberInt": "0"
+          },
+          "dupsDropped": {
+            "$numberInt": "0"
+          }
+        }
+      }
+    },
+    "allPlansExecution": []
+  },
+  "serverInfo": {
+    "host": "a124add29127",
+    "port": {
+      "$numberInt": "27017"
+    },
+    "version": "4.4.30",
+    "gitVersion": "4d7fa6a6260d25c5caa971dce10561690cb79dea"
+  },
+  "ok": {
+    "$numberDouble": "1.0"
+  }
+}

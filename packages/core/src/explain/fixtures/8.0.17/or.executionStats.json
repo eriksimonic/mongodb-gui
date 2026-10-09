@@ -1,0 +1,416 @@
+{
+  "explainVersion": "1",
+  "queryPlanner": {
+    "namespace": "fixtures.orders",
+    "parsedQuery": {
+      "$or": [
+        {
+          "customerId": {
+            "$eq": {
+              "$numberInt": "7"
+            }
+          }
+        },
+        {
+          "status": {
+            "$eq": "cancelled"
+          }
+        }
+      ]
+    },
+    "indexFilterSet": false,
+    "queryHash": "FF52C2C3",
+    "planCacheShapeHash": "FF52C2C3",
+    "planCacheKey": "3024EDA7",
+    "optimizationTimeMillis": {
+      "$numberInt": "0"
+    },
+    "maxIndexedOrSolutionsReached": false,
+    "maxIndexedAndSolutionsReached": false,
+    "maxScansToExplodeReached": false,
+    "prunedSimilarIndexes": false,
+    "winningPlan": {
+      "isCached": false,
+      "stage": "SUBPLAN",
+      "inputStage": {
+        "stage": "FETCH",
+        "inputStage": {
+          "stage": "OR",
+          "inputStages": [
+            {
+              "stage": "IXSCAN",
+              "keyPattern": {
+                "customerId": {
+                  "$numberInt": "1"
+                },
+                "createdAt": {
+                  "$numberInt": "-1"
+                }
+              },
+              "indexName": "customerId_1_createdAt_-1",
+              "isMultiKey": false,
+              "multiKeyPaths": {
+                "customerId": [],
+                "createdAt": []
+              },
+              "isUnique": false,
+              "isSparse": false,
+              "isPartial": false,
+              "indexVersion": {
+                "$numberInt": "2"
+              },
+              "direction": "forward",
+              "indexBounds": {
+                "customerId": [
+                  "[7, 7]"
+                ],
+                "createdAt": [
+                  "[MaxKey, MinKey]"
+                ]
+              }
+            },
+            {
+              "stage": "IXSCAN",
+              "keyPattern": {
+                "status": {
+                  "$numberInt": "1"
+                }
+              },
+              "indexName": "status_1",
+              "isMultiKey": false,
+              "multiKeyPaths": {
+                "status": []
+              },
+              "isUnique": false,
+              "isSparse": false,
+              "isPartial": false,
+              "indexVersion": {
+                "$numberInt": "2"
+              },
+              "direction": "forward",
+              "indexBounds": {
+                "status": [
+                  "[\"cancelled\", \"cancelled\"]"
+                ]
+              }
+            }
+          ]
+        }
+      }
+    },
+    "rejectedPlans": []
+  },
+  "executionStats": {
+    "executionSuccess": true,
+    "nReturned": {
+      "$numberInt": "680"
+    },
+    "executionTimeMillis": {
+      "$numberInt": "0"
+    },
+    "totalKeysExamined": {
+      "$numberInt": "686"
+    },
+    "totalDocsExamined": {
+      "$numberInt": "680"
+    },
+    "executionStages": {
+      "isCached": false,
+      "stage": "SUBPLAN",
+      "nReturned": {
+        "$numberInt": "680"
+      },
+      "executionTimeMillisEstimate": {
+        "$numberInt": "0"
+      },
+      "works": {
+        "$numberInt": "688"
+      },
+      "advanced": {
+        "$numberInt": "680"
+      },
+      "needTime": {
+        "$numberInt": "7"
+      },
+      "needYield": {
+        "$numberInt": "0"
+      },
+      "saveState": {
+        "$numberInt": "0"
+      },
+      "restoreState": {
+        "$numberInt": "0"
+      },
+      "isEOF": {
+        "$numberInt": "1"
+      },
+      "inputStage": {
+        "stage": "FETCH",
+        "nReturned": {
+          "$numberInt": "680"
+        },
+        "executionTimeMillisEstimate": {
+          "$numberInt": "0"
+        },
+        "works": {
+          "$numberInt": "688"
+        },
+        "advanced": {
+          "$numberInt": "680"
+        },
+        "needTime": {
+          "$numberInt": "7"
+        },
+        "needYield": {
+          "$numberInt": "0"
+        },
+        "saveState": {
+          "$numberInt": "0"
+        },
+        "restoreState": {
+          "$numberInt": "0"
+        },
+        "isEOF": {
+          "$numberInt": "1"
+        },
+        "docsExamined": {
+          "$numberInt": "680"
+        },
+        "alreadyHasObj": {
+          "$numberInt": "0"
+        },
+        "inputStage": {
+          "stage": "OR",
+          "nReturned": {
+            "$numberInt": "680"
+          },
+          "executionTimeMillisEstimate": {
+            "$numberInt": "0"
+          },
+          "works": {
+            "$numberInt": "688"
+          },
+          "advanced": {
+            "$numberInt": "680"
+          },
+          "needTime": {
+            "$numberInt": "7"
+          },
+          "needYield": {
+            "$numberInt": "0"
+          },
+          "saveState": {
+            "$numberInt": "0"
+          },
+          "restoreState": {
+            "$numberInt": "0"
+          },
+          "isEOF": {
+            "$numberInt": "1"
+          },
+          "dupsTested": {
+            "$numberInt": "686"
+          },
+          "dupsDropped": {
+            "$numberInt": "6"
+          },
+          "inputStages": [
+            {
+              "stage": "IXSCAN",
+              "nReturned": {
+                "$numberInt": "20"
+              },
+              "executionTimeMillisEstimate": {
+                "$numberInt": "0"
+              },
+              "works": {
+                "$numberInt": "21"
+              },
+              "advanced": {
+                "$numberInt": "20"
+              },
+              "needTime": {
+                "$numberInt": "0"
+              },
+              "needYield": {
+                "$numberInt": "0"
+              },
+              "saveState": {
+                "$numberInt": "0"
+              },
+              "restoreState": {
+                "$numberInt": "0"
+              },
+              "isEOF": {
+                "$numberInt": "1"
+              },
+              "keyPattern": {
+                "customerId": {
+                  "$numberInt": "1"
+                },
+                "createdAt": {
+                  "$numberInt": "-1"
+                }
+              },
+              "indexName": "customerId_1_createdAt_-1",
+              "isMultiKey": false,
+              "multiKeyPaths": {
+                "customerId": [],
+                "createdAt": []
+              },
+              "isUnique": false,
+              "isSparse": false,
+              "isPartial": false,
+              "indexVersion": {
+                "$numberInt": "2"
+              },
+              "direction": "forward",
+              "indexBounds": {
+                "customerId": [
+                  "[7, 7]"
+                ],
+                "createdAt": [
+                  "[MaxKey, MinKey]"
+                ]
+              },
+              "keysExamined": {
+                "$numberInt": "20"
+              },
+              "seeks": {
+                "$numberInt": "1"
+              },
+              "dupsTested": {
+                "$numberInt": "0"
+              },
+              "dupsDropped": {
+                "$numberInt": "0"
+              }
+            },
+            {
+              "stage": "IXSCAN",
+              "nReturned": {
+                "$numberInt": "666"
+              },
+              "executionTimeMillisEstimate": {
+                "$numberInt": "0"
+              },
+              "works": {
+                "$numberInt": "667"
+              },
+              "advanced": {
+                "$numberInt": "666"
+              },
+              "needTime": {
+                "$numberInt": "0"
+              },
+              "needYield": {
+                "$numberInt": "0"
+              },
+              "saveState": {
+                "$numberInt": "0"
+              },
+              "restoreState": {
+                "$numberInt": "0"
+              },
+              "isEOF": {
+                "$numberInt": "1"
+              },
+              "keyPattern": {
+                "status": {
+                  "$numberInt": "1"
+                }
+              },
+              "indexName": "status_1",
+              "isMultiKey": false,
+              "multiKeyPaths": {
+                "status": []
+              },
+              "isUnique": false,
+              "isSparse": false,
+              "isPartial": false,
+              "indexVersion": {
+                "$numberInt": "2"
+              },
+              "direction": "forward",
+              "indexBounds": {
+                "status": [
+                  "[\"cancelled\", \"cancelled\"]"
+                ]
+              },
+              "keysExamined": {
+                "$numberInt": "666"
+              },
+              "seeks": {
+                "$numberInt": "1"
+              },
+              "dupsTested": {
+                "$numberInt": "0"
+              },
+              "dupsDropped": {
+                "$numberInt": "0"
+              }
+            }
+          ]
+        }
+      }
+    }
+  },
+  "queryShapeHash": "416CAD78B510A9FA223BF216CDC45725954DC2AFFDF5B33BC92C99B4A294D669",
+  "command": {
+    "find": "orders",
+    "filter": {
+      "$or": [
+        {
+          "customerId": {
+            "$numberInt": "7"
+          }
+        },
+        {
+          "status": "cancelled"
+        }
+      ]
+    },
+    "$db": "fixtures"
+  },
+  "serverInfo": {
+    "host": "5490cf8510f6",
+    "port": {
+      "$numberInt": "27017"
+    },
+    "version": "8.0.17",
+    "gitVersion": "b20e43625b72f4bb43cc15107f80ac966ae13b6d"
+  },
+  "serverParameters": {
+    "internalQueryFacetBufferSizeBytes": {
+      "$numberInt": "104857600"
+    },
+    "internalQueryFacetMaxOutputDocSizeBytes": {
+      "$numberInt": "104857600"
+    },
+    "internalLookupStageIntermediateDocumentMaxSizeBytes": {
+      "$numberInt": "104857600"
+    },
+    "internalDocumentSourceGroupMaxMemoryBytes": {
+      "$numberInt": "104857600"
+    },
+    "internalQueryMaxBlockingSortMemoryUsageBytes": {
+      "$numberInt": "104857600"
+    },
+    "internalQueryProhibitBlockingMergeOnMongoS": {
+      "$numberInt": "0"
+    },
+    "internalQueryMaxAddToSetBytes": {
+      "$numberInt": "104857600"
+    },
+    "internalDocumentSourceSetWindowFieldsMaxMemoryBytes": {
+      "$numberInt": "104857600"
+    },
+    "internalQueryFrameworkControl": "trySbeRestricted",
+    "internalQueryPlannerIgnoreIndexWithCollationForRegex": {
+      "$numberInt": "1"
+    }
+  },
+  "ok": {
+    "$numberDouble": "1.0"
+  }
+}

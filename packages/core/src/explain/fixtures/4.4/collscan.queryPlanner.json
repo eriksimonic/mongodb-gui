@@ -1,0 +1,41 @@
+{
+  "queryPlanner": {
+    "plannerVersion": {
+      "$numberInt": "1"
+    },
+    "namespace": "fixtures.orders",
+    "indexFilterSet": false,
+    "parsedQuery": {
+      "total": {
+        "$gt": {
+          "$numberInt": "5"
+        }
+      }
+    },
+    "queryHash": "1D1F928B",
+    "planCacheKey": "1D1F928B",
+    "winningPlan": {
+      "stage": "COLLSCAN",
+      "filter": {
+        "total": {
+          "$gt": {
+            "$numberInt": "5"
+          }
+        }
+      },
+      "direction": "forward"
+    },
+    "rejectedPlans": []
+  },
+  "serverInfo": {
+    "host": "a124add29127",
+    "port": {
+      "$numberInt": "27017"
+    },
+    "version": "4.4.30",
+    "gitVersion": "4d7fa6a6260d25c5caa971dce10561690cb79dea"
+  },
+  "ok": {
+    "$numberDouble": "1.0"
+  }
+}
