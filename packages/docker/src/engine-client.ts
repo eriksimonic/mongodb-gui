@@ -7,7 +7,13 @@ const LINUX_SOCKET = '/var/run/docker.sock';
 const WINDOWS_PIPE = '//./pipe/docker_engine';
 const UNIX_PREFIX = 'unix://';
 const MAX_DETAIL_LENGTH = 200;
-const UNREACHABLE_CODES: readonly string[] = ['ENOENT', 'ECONNREFUSED', 'EACCES', 'EPERM'];
+const UNREACHABLE_CODES: readonly string[] = [
+  'ENOENT',
+  'ECONNREFUSED',
+  'ENOTSOCK',
+  'EACCES',
+  'EPERM',
+];
 
 /** An Engine API failure. It is an AppErrorException with code INTERNAL, so the router passes it on. */
 export class DockerEngineError extends AppErrorException {
