@@ -6,6 +6,7 @@ export * from './domain/errors';
 export * from './domain/history';
 export * from './domain/settings';
 export * from './domain/vault';
+export * from './management/types';
 export * from './ids';
 export * from './redact';
 export * from './rpc/client';

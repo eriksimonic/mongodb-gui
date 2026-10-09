@@ -11,3 +11,4 @@ export {
   type ListCollectionsOptions,
 } from './catalog';
 export { mapDriverError } from './errors';
+export * from './management/index';
