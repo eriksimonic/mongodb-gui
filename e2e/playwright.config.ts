@@ -12,7 +12,8 @@ export default defineConfig({
   forbidOnly: process.env['CI'] !== undefined,
   timeout: 120_000,
   expect: { timeout: 15_000 },
-  reporter: [['list']],
+  // The github reporter turns failures into annotations readable without the job log.
+  reporter: process.env['GITHUB_ACTIONS'] ? [['list'], ['github']] : [['list']],
   use: {
     trace: 'off',
     screenshot: 'only-on-failure',
