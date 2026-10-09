@@ -26,12 +26,49 @@ const collectionParam = databaseParam.extend({ collection: z.string().min(1) });
 const password = z.string().min(1);
 const newPassword = z.string().min(10);
 
-/** Links the app may open: the project's GitHub pages only, without path traversal. */
-export const EXTERNAL_LINK_PREFIX = 'https://github.com/eriksimonic/mongodb-mager/';
+const PROJECT_PATH_PREFIX = '/eriksimonic/mongodb-mager/';
+const MAX_LINK_LENGTH = 2048;
+const ENCODED_DOT_OR_SLASH = /%2e|%2f/i;
+
+/** Spaces, tabs, line breaks and other control characters. */
+function hasWhitespaceOrControl(value: string): boolean {
+  for (const char of value) {
+    const code = char.codePointAt(0) ?? 0;
+    if (code <= 0x20 || code === 0x7f || /\s/.test(char)) {
+      return true;
+    }
+  }
+  return false;
+}
+
+/**
+ * True only for an https link to a page of the project on github.com. The check runs on the
+ * parsed URL, so a traversal segment, a user name or a look-alike host cannot pass.
+ */
+export function isProjectLink(value: string): boolean {
+  if (hasWhitespaceOrControl(value) || ENCODED_DOT_OR_SLASH.test(value)) {
+    return false;
+  }
+  let url: URL;
+  try {
+    url = new URL(value);
+  } catch {
+    return false;
+  }
+  return (
+    url.protocol === 'https:' &&
+    url.hostname === 'github.com' &&
+    url.port === '' &&
+    url.username === '' &&
+    url.password === '' &&
+    url.pathname.startsWith(PROJECT_PATH_PREFIX)
+  );
+}
+
 const externalUrl = z
-  .url()
-  .startsWith(EXTERNAL_LINK_PREFIX)
-  .refine((value) => !value.includes('..'), 'The link may not contain "..".');
+  .string()
+  .max(MAX_LINK_LENGTH)
+  .refine(isProjectLink, 'The link must point to a page of the project on GitHub.');
 
 export const rpcContract = {
   vault: {

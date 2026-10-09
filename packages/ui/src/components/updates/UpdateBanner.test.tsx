@@ -36,6 +36,45 @@ describe('UpdateBanner', () => {
     expect(screen.queryByRole('button', { name: 'Download from GitHub' })).toBeNull();
   });
 
+  it('shows the release notes as plain text in a popover when the update has notes', async () => {
+    renderWithApp(<UpdateBanner />, {
+      mock: {
+        updates: {
+          states: [
+            {
+              ...BASE,
+              phase: 'available',
+              available: { ...AVAILABLE_INFO, notes: 'Fixed <b>login</b>.' },
+            },
+          ],
+        },
+      },
+    });
+    fireEvent.click(await screen.findByRole('button', { name: 'Release notes' }));
+
+    expect(await screen.findByText('Fixed <b>login</b>.')).toBeInTheDocument();
+    expect(screen.getByText('Fixed <b>login</b>.').querySelector('b')).toBeNull();
+  });
+
+  it('retries a failed download by downloading again', async () => {
+    const failedDownload: UpdateState = {
+      ...BASE,
+      phase: 'error',
+      available: AVAILABLE_INFO,
+      error: { code: 'INTERNAL', message: 'Could not download the update.' },
+    };
+    const { api } = renderWithApp(<UpdateBanner />, {
+      mock: { updates: { states: [failedDownload, downloading] } },
+    });
+    const download = vi.spyOn(api.rpc.updates, 'download');
+    const check = vi.spyOn(api.rpc.updates, 'check');
+
+    fireEvent.click(await screen.findByRole('button', { name: 'Retry' }));
+    expect(await screen.findByText('Downloading version 0.2.0, 40%')).toBeInTheDocument();
+    expect(download).toHaveBeenCalledTimes(1);
+    expect(check).not.toHaveBeenCalled();
+  });
+
   it('starts the download and shows progress', async () => {
     renderWithApp(<UpdateBanner />, {
       mock: { updates: { states: [available, downloading] } },
@@ -55,6 +94,8 @@ describe('UpdateBanner', () => {
     fireEvent.click(await screen.findByRole('button', { name: 'Download from GitHub' }));
     await waitFor(() => expect(openExternal).toHaveBeenCalledWith({ url: RELEASE_URL }));
     expect(screen.queryByRole('button', { name: 'Download' })).toBeNull();
+    // The notify-only banner has one link to GitHub, so it has no second release notes button.
+    expect(screen.queryByRole('button', { name: 'Release notes' })).toBeNull();
   });
 
   it('opens the release page from release notes', async () => {

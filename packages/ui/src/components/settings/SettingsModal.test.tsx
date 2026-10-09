@@ -1,6 +1,6 @@
 // @vitest-environment jsdom
 import { fireEvent, screen, waitFor } from '@testing-library/react';
-import { describe, expect, it } from 'vitest';
+import { describe, expect, it, vi } from 'vitest';
 import { renderWithApp } from '../../test-support/render';
 import { SettingsModal } from './SettingsModal';
 
@@ -50,5 +50,35 @@ describe('SettingsModal', () => {
       initialState: { settingsOpen: false },
     });
     expect(screen.queryByText('Settings')).toBeNull();
+  });
+
+  it.each([
+    ['0', '1'],
+    ['5000', '1440'],
+  ])('clamps a typed idle lock of %s minutes to %s before saving', async (typed, saved) => {
+    const { api } = renderWithApp(<SettingsModal />, {
+      mock: { preset: 'unlocked' },
+      initialState: { settingsOpen: true },
+    });
+    const field = await screen.findByLabelText('Idle lock (minutes)');
+    fireEvent.change(field, { target: { value: typed } });
+    fireEvent.blur(field);
+
+    await waitFor(() => expect(screen.getByLabelText('Idle lock (minutes)')).toHaveValue(saved));
+    expect((await api.rpc.settings.get()).idleLockMinutes).toBe(Number(saved));
+  });
+
+  it('restores the saved idle lock when the field is left empty', async () => {
+    const { api } = renderWithApp(<SettingsModal />, {
+      mock: { preset: 'unlocked' },
+      initialState: { settingsOpen: true },
+    });
+    const update = vi.spyOn(api.rpc.settings, 'update');
+    const field = await screen.findByLabelText('Idle lock (minutes)');
+    fireEvent.change(field, { target: { value: '' } });
+    fireEvent.blur(field);
+
+    await waitFor(() => expect(screen.getByLabelText('Idle lock (minutes)')).toHaveValue('30'));
+    expect(update).not.toHaveBeenCalled();
   });
 });

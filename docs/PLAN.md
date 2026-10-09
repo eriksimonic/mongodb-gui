@@ -71,7 +71,7 @@ built-ins.
 
 `packages/core/src/rpc/contract.ts` declares every call as `{ input: zod schema, output:
 zod schema }` grouped by namespace: `connections`, `databases`, `collections`, `shell`,
-`explain`, `indexes`, `documents`, `monitor`, `profiler`, `history`, `settings`.
+`explain`, `indexes`, `documents`, `monitor`, `profiler`, `history`, `settings`, `updates`, `app`.
 Streaming calls (query results, monitor samples, profiler tail) are modelled as
 subscriptions with `subscribe(input) -> AsyncIterable<event>` and an explicit `cancel`.
 

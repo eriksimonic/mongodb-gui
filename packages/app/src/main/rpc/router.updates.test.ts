@@ -158,7 +158,7 @@ describe('app.openExternal', () => {
   it('opens a link to the project on GitHub', async () => {
     const { router, openExternal } = buildRouter();
     expectValue(await router.handle('app.openExternal', { url: GITHUB_LINK }));
-    expect(openExternal).toHaveBeenCalledWith(GITHUB_LINK);
+    expect(openExternal).toHaveBeenCalledWith(new URL(GITHUB_LINK).href);
   });
 
   it('refuses links to other hosts, other repositories and path traversal', async () => {
@@ -169,6 +169,17 @@ describe('app.openExternal', () => {
       'https://github.com/someone/else/releases',
       'https://github.com/eriksimonic/mongodb-mager/../other/releases',
       'file:///etc/passwd',
+      'https://github.com/eriksimonic/mongodb-mager/%2e%2e/evil',
+      'https://github.com/eriksimonic/mongodb-mager/%2e%2e%2fevil',
+      'https://github.com/eriksimonic/mongodb-mager/../../evil',
+      'https://github.com@evil.com/eriksimonic/mongodb-mager/releases',
+      'https://mongodb-mager.evil.com/eriksimonic/mongodb-mager/releases',
+      'javascript:alert(1)',
+      'https://github.com/eriksimonic/mongodb-mager/releases\nhttps://evil.example',
+      'https://github.com/eriksimonic/mongodb-mager/releases\r\nX-Injected: 1',
+      'https://github.com/eriksimonic/mongodb-mager/releases now',
+      'https://user:pass@github.com/eriksimonic/mongodb-mager/releases',
+      'https://github.com:444/eriksimonic/mongodb-mager/releases',
     ];
     for (const url of refused) {
       expectError(await router.handle('app.openExternal', { url }), 'VALIDATION');

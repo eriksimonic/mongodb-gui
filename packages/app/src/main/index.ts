@@ -67,6 +67,7 @@ function createMainWindow(): void {
   const window = new BrowserWindow({
     width: 1200,
     height: 800,
+    minWidth: 1024,
     show: false,
     webPreferences: {
       preload: preloadPath,

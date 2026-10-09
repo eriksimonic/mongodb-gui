@@ -275,7 +275,7 @@ export function createRouter(deps: RouterDeps): Router {
       if (deps.openExternal === undefined) {
         throw new AppErrorException(appError('INTERNAL', 'Links cannot be opened.'));
       }
-      await deps.openExternal(input.url);
+      await deps.openExternal(new URL(input.url).href);
     }),
   ]);
 

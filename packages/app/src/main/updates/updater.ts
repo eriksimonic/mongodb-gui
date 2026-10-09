@@ -197,8 +197,10 @@ export function createUpdater(options: UpdaterOptions): Updater {
     }
     const detail = redactText(toAppError(error).message);
     if (parts.phase === 'downloading') {
+      // The offer stays, so Retry can download again instead of checking.
       publish({
         ...only('error'),
+        ...(parts.available === undefined ? {} : { available: parts.available }),
         error: appError('INTERNAL', 'Could not download the update.', detail),
       });
       log.warn('update download failed', { error: detail });
@@ -354,7 +356,8 @@ export function createUpdater(options: UpdaterOptions): Updater {
     },
 
     async check() {
-      if (canCheck()) {
+      // An unknown setting (locked vault) or a switched-off setting means no request to GitHub.
+      if (canCheck() && settings.readCheckForUpdates() === true) {
         await runCheck(true);
       }
       return current();
@@ -367,7 +370,10 @@ export function createUpdater(options: UpdaterOptions): Updater {
       if (parts.phase === 'downloading' || parts.phase === 'downloaded') {
         return current();
       }
-      if (parts.phase !== 'available' || !canInstall) {
+      // A failed download keeps its offer in the error phase, so the user can try again.
+      const offered =
+        parts.phase === 'available' || (parts.phase === 'error' && parts.available !== undefined);
+      if (!offered || !canInstall) {
         throw new AppErrorException(appError('VALIDATION', 'No update is ready to download.'));
       }
       publish({ ...parts, phase: 'downloading', progress: { percent: 0 }, error: undefined });
@@ -502,6 +508,15 @@ function updaterLogger(log: Logger): UpdaterLogger {
   return {
     info: (message) => log.info(text(message)),
     warn: (message) => log.warn(text(message)),
-    error: (message) => log.error(text(message)),
+    error: (message) => {
+      const line = text(message);
+      // electron-updater logs the empty release feed as an error. It is the normal state of a
+      // repository without releases, so it goes to the info level.
+      if (line.includes(NO_PUBLISHED_RELEASE_MESSAGE)) {
+        log.info(line);
+        return;
+      }
+      log.error(line);
+    },
   };
 }

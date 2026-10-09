@@ -66,7 +66,7 @@ function harness(options: HarnessOptions = {}): Harness {
   const states: UpdateState[] = [];
   const log = { info: vi.fn(), warn: vi.fn(), error: vi.fn() };
   const setting: { value: boolean | undefined } = {
-    value: options.enabled === undefined ? true : options.enabled,
+    value: 'enabled' in options ? options.enabled : true,
   };
   const updater = createUpdater({
     log: options.logger ?? log,
@@ -517,6 +517,65 @@ describe('manual check errors', () => {
     const result = await updater.check();
     expect(result.phase).toBe('error');
     expect(result.available).toBeUndefined();
+  });
+});
+
+describe('check gating and the remaining rules', () => {
+  it('does not contact GitHub while the setting is unknown (vault locked)', async () => {
+    const { updater, backend } = harness({ enabled: undefined });
+    const result = await updater.check();
+    expect(backend.checkForUpdates).not.toHaveBeenCalled();
+    expect(result.phase).toBe('idle');
+  });
+
+  it('does not contact GitHub while the setting is off', async () => {
+    const { updater, backend } = harness({ enabled: false });
+    await updater.check();
+    expect(backend.checkForUpdates).not.toHaveBeenCalled();
+  });
+
+  it('logs the empty release feed at info level and other errors at error level', () => {
+    const { backend, log } = harness();
+    backend.logger?.error('Cannot check for updates: Error: No published versions on GitHub');
+    expect(log.info).toHaveBeenCalledTimes(1);
+    expect(log.error).not.toHaveBeenCalled();
+    backend.logger?.error('Cannot check for updates: socket hang up');
+    expect(log.error).toHaveBeenCalledTimes(1);
+  });
+
+  it('keeps the offer after a failed download, and Retry downloads again', async () => {
+    const { updater, backend } = harness({ env: { APPIMAGE: '/a.AppImage' } });
+    backend.checkForUpdates.mockImplementation(() => {
+      backend.emit('update-available', availableInfo());
+      return Promise.resolve(null);
+    });
+    await updater.check();
+    backend.downloadUpdate.mockImplementationOnce(() => {
+      backend.emit('error', new Error('network reset'));
+      return Promise.reject(new Error('network reset'));
+    });
+    await updater.download();
+    await vi.waitFor(() => expect(updater.state().phase).toBe('error'));
+    expect(updater.state().available?.version).toBe('0.2.0');
+
+    await updater.download();
+    expect(backend.downloadUpdate).toHaveBeenCalledTimes(2);
+    expect(backend.checkForUpdates).toHaveBeenCalledTimes(1);
+  });
+
+  it('unrefs the scheduled timer so it never keeps the process alive', () => {
+    const unref = vi.fn();
+    const timeout = vi.spyOn(globalThis, 'setTimeout').mockReturnValue({
+      unref,
+    } as unknown as ReturnType<typeof setTimeout>);
+    try {
+      const { updater } = harness();
+      updater.start();
+      expect(timeout).toHaveBeenCalledWith(expect.any(Function), FIRST_CHECK_DELAY_MS);
+      expect(unref).toHaveBeenCalledTimes(1);
+    } finally {
+      timeout.mockRestore();
+    }
   });
 });
 
