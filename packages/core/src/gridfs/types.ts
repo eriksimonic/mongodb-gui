@@ -5,6 +5,7 @@ import { AbsolutePathSchema } from '../transfer/types';
 export const GRIDFS_DEFAULT_LIST_LIMIT = 200;
 export const GRIDFS_MAX_LIST_LIMIT = 5000;
 export const GRIDFS_MAX_BATCH_IDS = 5000;
+export const GRIDFS_MIN_CHUNK_SIZE_BYTES = 1024;
 export const GRIDFS_MAX_CHUNK_SIZE_BYTES = 15 * 1024 * 1024;
 export const GRIDFS_DEFAULT_CHUNK_SIZE_BYTES = 255 * 1024;
 export const GRIDFS_MAX_FILENAME_CHARS = 1024;
@@ -96,7 +97,12 @@ export const GridFsUploadInputSchema = z.object({
   filename: GridFsFilenameSchema.optional(),
   contentType: z.string().min(1).optional(),
   metadataEjson: z.string().optional(),
-  chunkSizeBytes: z.number().int().min(1).max(GRIDFS_MAX_CHUNK_SIZE_BYTES).optional(),
+  chunkSizeBytes: z
+    .number()
+    .int()
+    .min(GRIDFS_MIN_CHUNK_SIZE_BYTES)
+    .max(GRIDFS_MAX_CHUNK_SIZE_BYTES)
+    .optional(),
 });
 
 export const GridFsDownloadInputSchema = z.object({
@@ -118,6 +124,10 @@ export const GridFsRenameInputSchema = z.object({
   bucket: GridFsBucketNameSchema,
   idEjson: GridFsIdEjsonSchema,
   filename: GridFsFilenameSchema,
+});
+
+export const GridFsListBucketsInputSchema = z.object({
+  database: DatabaseNameSchema,
 });
 
 export const GridFsFileRefSchema = z.object({
@@ -142,4 +152,5 @@ export type GridFsDownloadInput = z.infer<typeof GridFsDownloadInputSchema>;
 export type GridFsDeleteInput = z.infer<typeof GridFsDeleteInputSchema>;
 export type GridFsRenameInput = z.infer<typeof GridFsRenameInputSchema>;
 export type GridFsFileRef = z.infer<typeof GridFsFileRefSchema>;
+export type GridFsListBucketsInput = z.infer<typeof GridFsListBucketsInputSchema>;
 export type GridFsDropBucketInput = z.infer<typeof GridFsDropBucketInputSchema>;

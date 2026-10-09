@@ -1,13 +1,19 @@
 import { randomUUID } from 'node:crypto';
 import { once } from 'node:events';
 import { createReadStream, createWriteStream } from 'node:fs';
-import { lstat, rename as moveEntry, rm, stat } from 'node:fs/promises';
+import { link, lstat, rename as moveEntry, rm, stat } from 'node:fs/promises';
 import { basename, dirname, join } from 'node:path';
 import { Transform, type TransformCallback, type Writable } from 'node:stream';
 import { pipeline } from 'node:stream/promises';
-import type { Document, GridFSBucket, GridFSBucketWriteStream, MongoClient } from 'mongodb';
-import { ObjectId } from 'mongodb';
+import type {
+  Document,
+  GridFSBucket,
+  GridFSBucketWriteStream,
+  MongoClient,
+  ObjectId,
+} from 'mongodb';
 import {
+  appError,
   AppErrorException,
   GRIDFS_DEFAULT_CHUNK_SIZE_BYTES,
   GridFsDeleteInputSchema,
@@ -20,28 +26,37 @@ import {
   type GridFsListFilter,
   type GridFsUploadInput,
 } from '@mongo-gui/core';
-import { readNumber } from '../documents';
-import { parseEjson, parseEjsonDocument } from '../management/ejson';
-import { parseInput } from '../management/errors';
+import { readField, readNumber } from '../documents';
+import { parseEjsonDocument, stringifyEjson } from '../management/ejson';
+import { parseInput, refuseReservedDatabase } from '../management/errors';
 import {
   ProgressTracker,
   throwIfCancelled,
-  toFailure,
   TransferCancelled,
   type TransferHooks,
 } from '../transfer/progress';
 import {
+  chunksCollection,
   filesCollection,
+  idQuery,
   isMissingFileError,
+  notFoundError,
   openBucket,
-  parseObjectId,
+  openDownloadStreamFor,
+  parseFileId,
   requireFile,
+  toGridFsFailure,
   toGridFsFile,
   validationError,
 } from './shared';
 
 // Progress is reported each time this many bytes have moved.
 const PROGRESS_STEP_BYTES = 1024 * 1024;
+
+export interface GridFsDeleteResult {
+  readonly deleted: number;
+  readonly failed: number;
+}
 
 // Lists files of a bucket, newest first unless a sort and direction are given. The limit applies
 // after the sort.
@@ -58,7 +73,7 @@ export async function listFiles(client: MongoClient, request: unknown): Promise<
       .toArray();
     return docs.map(toGridFsFile);
   } catch (error) {
-    throw new AppErrorException(toFailure(error));
+    throw new AppErrorException(toGridFsFailure(error));
   }
 }
 
@@ -81,31 +96,18 @@ function listQuery(filter: GridFsListFilter | undefined): Document {
   return query;
 }
 
-// The _id may be any BSON value, so the query is built from unknown and checked by the server.
-function idQuery(id: unknown): Document {
-  return { _id: id };
-}
-
 function escapeRegex(text: string): string {
   return text.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
 }
 
-export async function getFile(
-  client: MongoClient,
-  database: string,
-  bucket: string,
-  idEjson: string,
-): Promise<GridFsFile> {
+export async function getFile(client: MongoClient, request: unknown): Promise<GridFsFile> {
   try {
-    const input = parseInput(GridFsFileRefSchema, { database, bucket, idEjson });
-    const id = parseEjson(input.idEjson, 'The file id');
-    const doc = await filesCollection(client, input.database, input.bucket).findOne(idQuery(id));
-    if (doc === null) {
-      throw validationError('No file with that id exists in the bucket');
-    }
+    const input = parseInput(GridFsFileRefSchema, request);
+    const id = parseFileId(input.idEjson);
+    const doc = await requireFile(filesCollection(client, input.database, input.bucket), id);
     return toGridFsFile(doc);
   } catch (error) {
-    throw new AppErrorException(toFailure(error));
+    throw new AppErrorException(toGridFsFailure(error));
   }
 }
 
@@ -123,6 +125,8 @@ export async function uploadFile(
   let id: ObjectId | undefined;
   try {
     const input = parseInput(GridFsUploadInputSchema, request);
+    refuseReservedDatabase(input.database, 'upload to');
+    throwIfCancelled(hooks.signal);
     const info = await stat(input.path);
     if (!info.isFile()) {
       throw validationError('The path is not a regular file');
@@ -138,6 +142,9 @@ export async function uploadFile(
     id = upload.id;
     const tracker = new ProgressTracker(hooks);
     await copyIntoUpload(input.path, upload, tracker, info.size, hooks.signal);
+    // A cancel that arrived after the last chunk still stops the upload before the file document
+    // is written.
+    throwIfCancelled(hooks.signal);
     const finished = once(upload, 'finish');
     upload.end();
     await finished;
@@ -148,7 +155,7 @@ export async function uploadFile(
     return toGridFsFile(doc);
   } catch (error) {
     await discardUpload(bucket, upload, id);
-    throw new AppErrorException(toFailure(cancellationAware(error, hooks.signal)));
+    throw new AppErrorException(toGridFsFailure(cancellationAware(error, hooks.signal)));
   }
 }
 
@@ -210,8 +217,9 @@ async function discardUpload(
   }
 }
 
-// Writes the file to a temporary file beside the target, then renames it over the target. A
-// failed or cancelled download removes the temporary file and leaves the target untouched.
+// Writes the file to a temporary file beside the target. The temporary file replaces the target
+// when overwrite is set. Without overwrite, a hard link creates the target and fails if it exists.
+// A failed or cancelled download removes the temporary file and leaves the target untouched.
 export async function downloadFile(
   client: MongoClient,
   request: unknown,
@@ -220,14 +228,15 @@ export async function downloadFile(
   let temp: string | undefined;
   try {
     const input = parseInput(GridFsDownloadInputSchema, request);
-    const id = parseObjectId(input.idEjson);
+    const overwrite = input.overwrite === true;
+    const id = parseFileId(input.idEjson);
     const doc = await requireFile(filesCollection(client, input.database, input.bucket), id);
     const total = readNumber(doc, 'length') ?? 0;
-    await refuseExistingTarget(input.path, input.overwrite === true);
+    await refuseExistingTarget(input.path, overwrite);
     throwIfCancelled(hooks.signal);
     temp = join(dirname(input.path), `.${basename(input.path)}.${randomUUID()}.part`);
     const tracker = new ProgressTracker(hooks);
-    const source = openBucket(client, input.database, input.bucket).openDownloadStream(id);
+    const source = openDownloadStreamFor(openBucket(client, input.database, input.bucket), id);
     await pipeline(
       source,
       progressCounter(tracker, total),
@@ -236,23 +245,36 @@ export async function downloadFile(
         signal: hooks.signal,
       },
     );
+    // The driver ends the stream without an error when chunks are missing, so the byte count is
+    // the only check that the whole file was read.
+    if (tracker.processed !== total) {
+      throw new AppErrorException(
+        appError(
+          'COMMAND_FAILED',
+          "The file's chunks are missing or damaged",
+          `The file is incomplete: read ${tracker.processed} of ${total} bytes`,
+        ),
+      );
+    }
     throwIfCancelled(hooks.signal);
-    await refuseExistingTarget(input.path, input.overwrite === true);
-    await moveEntry(temp, input.path);
+    if (overwrite) {
+      await moveEntry(temp, input.path);
+    } else {
+      await linkExclusive(temp, input.path);
+      await rm(temp, { force: true });
+    }
     temp = undefined;
-    hooks.onProgress?.(
-      tracker.snapshot({ done: true, bytesRead: tracker.processed, bytesTotal: total }),
-    );
+    hooks.onProgress?.(tracker.snapshot({ done: true, bytesRead: total, bytesTotal: total }));
   } catch (error) {
     if (temp !== undefined) {
       await rm(temp, { force: true }).catch(() => undefined);
     }
-    throw new AppErrorException(toFailure(cancellationAware(error, hooks.signal)));
+    throw new AppErrorException(toGridFsFailure(cancellationAware(error, hooks.signal)));
   }
 }
 
-// Refuses an existing target unless the caller allows overwriting it. The check runs again just
-// before the rename, which narrows the window for a file that appears during the download.
+// Refuses an existing target unless the caller allows overwriting it. This check fails fast
+// before any bytes are read. The final step checks again atomically.
 async function refuseExistingTarget(path: string, overwrite: boolean): Promise<void> {
   if (overwrite) {
     return;
@@ -268,6 +290,18 @@ async function refuseExistingTarget(path: string, overwrite: boolean): Promise<v
   );
   if (exists) {
     throw validationError('The target file already exists');
+  }
+}
+
+// A hard link fails with EEXIST when the target exists, so the check and the creation are one step.
+async function linkExclusive(source: string, target: string): Promise<void> {
+  try {
+    await link(source, target);
+  } catch (error) {
+    if (readField(error, 'code') === 'EEXIST') {
+      throw validationError('The target file already exists');
+    }
+    throw error;
   }
 }
 
@@ -290,54 +324,74 @@ function cancellationAware(error: unknown, signal: AbortSignal | undefined): unk
   return signal?.aborted === true ? new TransferCancelled() : error;
 }
 
-// Deletes the files in one request. Every id must exist before anything is removed, so a stale
-// id refuses the whole request. Returns the number of files removed.
-export async function deleteFiles(client: MongoClient, request: unknown): Promise<number> {
+// Deletes files and their chunks. Every id must exist before anything is removed, so a stale id
+// refuses the whole request with NOT_FOUND. A file that disappears between the check and its
+// delete already has the wanted result, so it counts as deleted. If any delete fails, the other
+// files are still deleted, and the error detail gives both counts.
+export async function deleteFiles(
+  client: MongoClient,
+  request: unknown,
+): Promise<GridFsDeleteResult> {
   try {
     const input = parseInput(GridFsDeleteInputSchema, request);
-    const ids = uniqueIds(input.idsEjson.map(parseObjectId));
+    refuseReservedDatabase(input.database, 'delete files in');
+    const ids = uniqueIds(input.idsEjson.map(parseFileId));
     const files = filesCollection(client, input.database, input.bucket);
-    const present = await files.countDocuments({ _id: { $in: ids } });
+    const chunks = chunksCollection(client, input.database, input.bucket);
+    const present = await files.countDocuments(idsQuery(ids));
     if (present !== ids.length) {
-      throw validationError('Some of the files do not exist in the bucket');
+      throw notFoundError();
     }
-    const bucket = openBucket(client, input.database, input.bucket);
     let deleted = 0;
+    let failed = 0;
     for (const id of ids) {
       try {
-        await bucket.delete(id);
+        await files.deleteOne(idQuery(id));
+        await chunks.deleteMany({ files_id: id });
         deleted += 1;
-      } catch (error) {
-        // A file that another session removed in the meantime is not a failure.
-        if ((await files.countDocuments({ _id: id })) > 0) {
-          throw error;
-        }
+      } catch {
+        failed += 1;
       }
     }
-    return deleted;
+    if (failed > 0) {
+      throw new AppErrorException(
+        appError(
+          'COMMAND_FAILED',
+          'Some files could not be deleted',
+          `deleted ${deleted}, failed ${failed}`,
+        ),
+      );
+    }
+    return { deleted, failed };
   } catch (error) {
-    throw new AppErrorException(toFailure(error));
+    throw new AppErrorException(toGridFsFailure(error));
   }
 }
 
-function uniqueIds(ids: readonly ObjectId[]): ObjectId[] {
-  const byHex = new Map<string, ObjectId>();
+function idsQuery(ids: readonly unknown[]): Document {
+  return { _id: { $in: ids } };
+}
+
+// Keeps one entry per file id. Ids are compared by their canonical Extended JSON.
+function uniqueIds(ids: readonly unknown[]): unknown[] {
+  const byText = new Map<string, unknown>();
   for (const id of ids) {
-    byHex.set(id.toHexString(), id);
+    byText.set(stringifyEjson(id), id);
   }
-  return [...byHex.values()];
+  return [...byText.values()];
 }
 
 // Renames a file by changing its filename field. Returns the file as it is after the rename.
 export async function renameFile(client: MongoClient, request: unknown): Promise<GridFsFile> {
   try {
     const input = parseInput(GridFsRenameInputSchema, request);
-    const id = parseObjectId(input.idEjson);
+    refuseReservedDatabase(input.database, 'rename files in');
+    const id = parseFileId(input.idEjson);
     const files = filesCollection(client, input.database, input.bucket);
     const doc = await requireFile(files, id);
-    await openBucket(client, input.database, input.bucket).rename(id, input.filename);
+    await files.updateOne(idQuery(id), { $set: { filename: input.filename } });
     return toGridFsFile({ ...doc, filename: input.filename });
   } catch (error) {
-    throw new AppErrorException(toFailure(error));
+    throw new AppErrorException(toGridFsFailure(error));
   }
 }

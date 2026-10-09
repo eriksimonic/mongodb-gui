@@ -85,9 +85,13 @@ describe('GridFsUploadInputSchema', () => {
     ).toBe(false);
   });
 
-  it('refuses chunk sizes below one byte or above 15 MB', () => {
+  it('refuses chunk sizes below 1 KB or above 15 MB', () => {
     const base = { database: DB, bucket: 'fs', path: '/tmp/x' };
     expect(GridFsUploadInputSchema.safeParse({ ...base, chunkSizeBytes: 0 }).success).toBe(false);
+    expect(GridFsUploadInputSchema.safeParse({ ...base, chunkSizeBytes: 1023 }).success).toBe(
+      false,
+    );
+    expect(GridFsUploadInputSchema.safeParse({ ...base, chunkSizeBytes: 1024 }).success).toBe(true);
     expect(
       GridFsUploadInputSchema.safeParse({ ...base, chunkSizeBytes: 16 * 1024 * 1024 }).success,
     ).toBe(false);

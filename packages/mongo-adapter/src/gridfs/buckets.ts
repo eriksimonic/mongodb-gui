@@ -1,8 +1,8 @@
 import type { Db, MongoClient } from 'mongodb';
 import {
   AppErrorException,
-  DatabaseNameSchema,
   GridFsDropBucketInputSchema,
+  GridFsListBucketsInputSchema,
   type GridFsBucket,
 } from '@mongo-gui/core';
 import { readField, readNumber } from '../documents';
@@ -16,9 +16,9 @@ const CHUNKS_SUFFIX = '.chunks';
 // A bucket exists when both of its collections exist. Buckets are not created explicitly: the
 // first upload creates "<name>.files" and "<name>.chunks" together, with the chunks index.
 // Any bucket name works, and "fs" is the driver's default name.
-export async function listBuckets(client: MongoClient, database: string): Promise<GridFsBucket[]> {
+export async function listBuckets(client: MongoClient, request: unknown): Promise<GridFsBucket[]> {
   try {
-    const name = parseInput(DatabaseNameSchema, database);
+    const { database: name } = parseInput(GridFsListBucketsInputSchema, request);
     const db = client.db(name);
     const collections = await db.listCollections({}, { nameOnly: true }).toArray();
     const names = new Set(collections.map((collection) => collection.name));

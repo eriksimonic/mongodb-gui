@@ -4,7 +4,9 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { setFlagsFromString } from 'node:v8';
 import { runInNewContext } from 'node:vm';
-import { MongoClient } from 'mongodb';
+import { createReadStream } from 'node:fs';
+import { pipeline } from 'node:stream/promises';
+import { Binary, GridFSBucket, MongoClient, type GridFSBucketWriteStreamOptions } from 'mongodb';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import {
   AppErrorException,
@@ -68,6 +70,12 @@ async function failureOf(promise: Promise<unknown>): Promise<AppError> {
 
 async function countIn(client: MongoClient, name: string): Promise<number> {
   return client.db(DB).collection(name).countDocuments({});
+}
+
+// Heap plus ArrayBuffer memory. Buffers read from files live outside the V8 heap.
+function heapInUse(): number {
+  const usage = process.memoryUsage();
+  return usage.heapUsed + usage.arrayBuffers;
 }
 
 function chunkCountFor(length: number, chunkSize: number): number {
@@ -244,7 +252,9 @@ for (const image of IMAGES) {
         });
 
         expect(renamed.filename).toBe('renamed.bin');
-        expect((await getFile(client, DB, bucket, file.idEjson)).filename).toBe('renamed.bin');
+        expect(
+          (await getFile(client, { database: DB, bucket, idEjson: file.idEjson })).filename,
+        ).toBe('renamed.bin');
       },
       TEST_TIMEOUT_MS,
     );
@@ -281,7 +291,7 @@ for (const image of IMAGES) {
             idsEjson: [first.idEjson, missing],
           }),
         );
-        expect(refusal.code).toBe('VALIDATION');
+        expect(refusal.code).toBe('NOT_FOUND');
         expect(await listFiles(client, { database: DB, bucket })).toHaveLength(2);
 
         const removed = await deleteFiles(client, {
@@ -289,7 +299,7 @@ for (const image of IMAGES) {
           bucket,
           idsEjson: [first.idEjson, second.idEjson],
         });
-        expect(removed).toBe(2);
+        expect(removed).toEqual({ deleted: 2, failed: 0 });
         expect(await listFiles(client, { database: DB, bucket })).toEqual([]);
         expect(await countIn(client, `${bucket}.chunks`)).toBe(0);
       },
@@ -317,7 +327,7 @@ for (const image of IMAGES) {
           path: await makeFile(`${docs}-1.bin`, 1024),
         });
 
-        const buckets = await listBuckets(client, DB);
+        const buckets = await listBuckets(client, { database: DB });
         const byName = new Map(buckets.map((bucket) => [bucket.name, bucket]));
         expect(byName.get(photos)).toEqual({
           name: photos,
@@ -342,7 +352,8 @@ for (const image of IMAGES) {
         });
         await dropBucket(client, DB, bucket);
 
-        expect((await listBuckets(client, DB)).map((item) => item.name)).not.toContain(bucket);
+        const remaining = await listBuckets(client, { database: DB });
+        expect(remaining.map((item) => item.name)).not.toContain(bucket);
         expect(await countIn(client, `${bucket}.files`)).toBe(0);
         await dropBucket(client, DB, bucket);
       },
@@ -359,14 +370,194 @@ for (const image of IMAGES) {
     );
 
     it(
+      'fails a download whose last chunk is missing and leaves no partial file',
+      async () => {
+        const bucket = uniqueName('lost_tail');
+        const file = await uploadFile(client, {
+          database: DB,
+          bucket,
+          path: await makeFile(`${bucket}.bin`, MB),
+          chunkSizeBytes: CHUNK_SIZE,
+        });
+        const chunks = client.db(DB).collection(`${bucket}.chunks`);
+        const fileDoc = await client.db(DB).collection(`${bucket}.files`).findOne({});
+        const count = await chunks.countDocuments({});
+        await chunks.deleteOne({ files_id: fileDoc?._id, n: count - 1 });
+
+        const target = join(workDir, `${bucket}-out.bin`);
+        const failure = await failureOf(
+          downloadFile(client, { database: DB, bucket, idEjson: file.idEjson, path: target }),
+        );
+        expect(failure.code).toBe('COMMAND_FAILED');
+        expect(failure.detail).toMatch(/read \d+ of \d+ bytes/);
+        await expect(stat(target)).rejects.toThrow();
+        expect((await readdir(workDir)).filter((name) => name.endsWith('.part'))).toEqual([]);
+      },
+      TEST_TIMEOUT_MS,
+    );
+
+    it(
+      'fails a download whose chunks are all missing',
+      async () => {
+        const bucket = uniqueName('no_chunks');
+        const file = await uploadFile(client, {
+          database: DB,
+          bucket,
+          path: await makeFile(`${bucket}.bin`, MB),
+          chunkSizeBytes: CHUNK_SIZE,
+        });
+        await client.db(DB).collection(`${bucket}.chunks`).deleteMany({});
+
+        const target = join(workDir, `${bucket}-out.bin`);
+        const failure = await failureOf(
+          downloadFile(client, { database: DB, bucket, idEjson: file.idEjson, path: target }),
+        );
+        expect(failure.code).toBe('COMMAND_FAILED');
+        await expect(stat(target)).rejects.toThrow();
+      },
+      TEST_TIMEOUT_MS,
+    );
+
+    it(
+      'reports a damaged chunk as COMMAND_FAILED',
+      async () => {
+        const bucket = uniqueName('damaged');
+        const file = await uploadFile(client, {
+          database: DB,
+          bucket,
+          path: await makeFile(`${bucket}.bin`, MB),
+          chunkSizeBytes: CHUNK_SIZE,
+        });
+        const fileDoc = await client.db(DB).collection(`${bucket}.files`).findOne({});
+        await client
+          .db(DB)
+          .collection(`${bucket}.chunks`)
+          .updateOne(
+            { files_id: fileDoc?._id, n: 0 },
+            { $set: { data: new Binary(Buffer.alloc(3)) } },
+          );
+
+        const target = join(workDir, `${bucket}-out.bin`);
+        const failure = await failureOf(
+          downloadFile(client, { database: DB, bucket, idEjson: file.idEjson, path: target }),
+        );
+        expect(failure.code).toBe('COMMAND_FAILED');
+        expect(failure.message).toBe("The file's chunks are missing or damaged");
+        await expect(stat(target)).rejects.toThrow();
+      },
+      TEST_TIMEOUT_MS,
+    );
+
+    it(
+      'returns NOT_FOUND for an unknown file id',
+      async () => {
+        const bucket = uniqueName('unknown_id');
+        await uploadFile(client, {
+          database: DB,
+          bucket,
+          path: await makeFile(`${bucket}.bin`, 10),
+        });
+        const missing = '{"$oid":"64b000000000000000000001"}';
+        const lookup = await failureOf(getFile(client, { database: DB, bucket, idEjson: missing }));
+        expect(lookup.code).toBe('NOT_FOUND');
+        const rename = await failureOf(
+          renameFile(client, { database: DB, bucket, idEjson: missing, filename: 'x' }),
+        );
+        expect(rename.code).toBe('NOT_FOUND');
+      },
+      TEST_TIMEOUT_MS,
+    );
+
+    it(
+      'handles a file whose _id is a string across list, download, rename and delete',
+      async () => {
+        const bucket = uniqueName('legacy');
+        const source = await makeFile(`${bucket}.bin`, 300 * 1024);
+        const driverBucket = new GridFSBucket(client.db(DB), { bucketName: bucket });
+        const options = {
+          id: 'legacy-1',
+          chunkSizeBytes: CHUNK_SIZE,
+        } as unknown as GridFSBucketWriteStreamOptions;
+        await pipeline(
+          createReadStream(source),
+          driverBucket.openUploadStream('legacy.bin', options),
+        );
+
+        const listed = await listFiles(client, { database: DB, bucket });
+        expect(listed).toHaveLength(1);
+        expect(listed[0]?.idEjson).toBe('"legacy-1"');
+
+        const target = join(workDir, `${bucket}-out.bin`);
+        await downloadFile(client, { database: DB, bucket, idEjson: '"legacy-1"', path: target });
+        expect(await sha256Of(target)).toBe(await sha256Of(source));
+
+        const renamed = await renameFile(client, {
+          database: DB,
+          bucket,
+          idEjson: '"legacy-1"',
+          filename: 'renamed-legacy.bin',
+        });
+        expect(renamed.filename).toBe('renamed-legacy.bin');
+
+        const removed = await deleteFiles(client, {
+          database: DB,
+          bucket,
+          idsEjson: ['"legacy-1"'],
+        });
+        expect(removed).toEqual({ deleted: 1, failed: 0 });
+        expect(await countIn(client, `${bucket}.chunks`)).toBe(0);
+      },
+      TEST_TIMEOUT_MS,
+    );
+
+    it(
+      'cancels an upload whose signal is already aborted, leaving no file',
+      async () => {
+        const bucket = uniqueName('pre_abort');
+        const controller = new AbortController();
+        controller.abort();
+        const failure = await failureOf(
+          uploadFile(
+            client,
+            { database: DB, bucket, path: await makeFile(`${bucket}.bin`, 0) },
+            { signal: controller.signal },
+          ),
+        );
+        expect(failure.code).toBe('CANCELLED');
+        expect(await countIn(client, `${bucket}.files`)).toBe(0);
+      },
+      TEST_TIMEOUT_MS,
+    );
+
+    it(
+      'refuses writes to the local, config and admin databases',
+      async () => {
+        const path = await makeFile('reserved.bin', 10);
+        for (const database of ['local', 'config', 'admin']) {
+          const upload = await failureOf(uploadFile(client, { database, bucket: 'fs', path }));
+          expect(upload.code).toBe('VALIDATION');
+          const rename = await failureOf(
+            renameFile(client, { database, bucket: 'fs', idEjson: '"x"', filename: 'y' }),
+          );
+          expect(rename.code).toBe('VALIDATION');
+          const remove = await failureOf(
+            deleteFiles(client, { database, bucket: 'fs', idsEjson: ['"x"'] }),
+          );
+          expect(remove.code).toBe('VALIDATION');
+        }
+      },
+      TEST_TIMEOUT_MS,
+    );
+
+    it(
       'uploads 50 MB with the heap under 150 MB',
       async () => {
         const bucket = uniqueName('big_upload');
         const source = await makeFile(`${bucket}.bin`, 50 * MB);
         collectGarbage();
-        let peakHeap = process.memoryUsage().heapUsed;
+        let peakHeap = heapInUse();
         const sampler = setInterval(() => {
-          peakHeap = Math.max(peakHeap, process.memoryUsage().heapUsed);
+          peakHeap = Math.max(peakHeap, heapInUse());
         }, 5);
         let file: GridFsFile;
         try {
@@ -375,7 +566,7 @@ for (const image of IMAGES) {
             { database: DB, bucket, path: source, chunkSizeBytes: CHUNK_SIZE },
             {
               onProgress: () => {
-                peakHeap = Math.max(peakHeap, process.memoryUsage().heapUsed);
+                peakHeap = Math.max(peakHeap, heapInUse());
               },
             },
           );
