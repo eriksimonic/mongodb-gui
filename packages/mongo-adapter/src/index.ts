@@ -11,6 +11,8 @@ export {
   type ListCollectionsOptions,
 } from './catalog';
 export { mapDriverError } from './errors';
+export { readServerInfo, type ServerInfo } from './server-info';
+export * from './management/index';
 export { killOperation, listOperations, type ListOperationsOptions } from './monitor/operations';
 export {
   Sampler,
@@ -18,3 +20,12 @@ export {
   type SampleListener,
   type SamplerOptions,
 } from './monitor/sampler';
+export {
+  getProfilingLevel,
+  listProfileEntries,
+  profileCollectionInfo,
+  setProfilingLevel,
+  tailProfileEntries,
+  type ProfileCollectionInfo,
+  type ProfileTail,
+} from './profiler/profiler';
