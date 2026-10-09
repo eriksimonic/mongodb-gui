@@ -10,6 +10,8 @@
     "vitest.config.ts",
     "tests/**/*.ts",
     "packages/app/electron.vite.config.ts",
+    "packages/app/vite.shell-runtime.config.ts",
+    "packages/app/scripts/**/*.ts",
     "packages/ui/vite.config.ts",
     "e2e/**/*.ts"
   ]
