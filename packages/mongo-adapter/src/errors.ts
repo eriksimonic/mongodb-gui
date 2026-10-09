@@ -13,14 +13,15 @@ export function mapDriverError(error: unknown): AppError {
     return error.error;
   }
   const detail = driverDetail(error);
-  if (isAuthFailure(error)) {
+  const serverErrors = readServerErrors(error);
+  const failures = [...causeChain(error), ...serverErrors.flatMap(causeChain)];
+  if (failures.some(isAuthFailure)) {
     return appError('AUTH_FAILED', 'Authentication failed', detail);
   }
-  const failures = collectFailures(error);
   if (failures.some(isRefused)) {
     return appError('CONNECTION_FAILED', 'Could not connect to the server', detail);
   }
-  if (isTimeout(error, failures)) {
+  if (isTimeout(error, serverErrors)) {
     return appError('CONNECTION_TIMEOUT', 'Connection timed out', detail);
   }
   return appError('CONNECTION_FAILED', 'Could not connect to the server', detail);
@@ -33,19 +34,11 @@ function driverDetail(error: unknown): string | undefined {
   return error.message.replace(EMBEDDED_URI, (uri) => redactUri(uri));
 }
 
-function isAuthFailure(error: unknown): boolean {
+function isAuthFailure(failure: unknown): boolean {
   return (
-    error instanceof MongoServerError &&
-    (error.code === AUTH_FAILED_CODE || error.codeName === 'AuthenticationFailed')
+    failure instanceof MongoServerError &&
+    (failure.code === AUTH_FAILED_CODE || failure.codeName === 'AuthenticationFailed')
   );
-}
-
-function isTimeout(error: unknown, failures: unknown[]): boolean {
-  // The driver throws MongoServerSelectionError only when serverSelectionTimeoutMS expires.
-  if (error instanceof MongoServerSelectionError) {
-    return true;
-  }
-  return error instanceof MongoNetworkTimeoutError || failures.some(isSocketTimeout);
 }
 
 function isRefused(failure: unknown): boolean {
@@ -59,10 +52,16 @@ function isSocketTimeout(failure: unknown): boolean {
   );
 }
 
-// Collects the error, its cause chain and the errors each server reported during selection.
-function collectFailures(error: unknown): unknown[] {
-  const serverErrors = readServerErrors(error);
-  return [...causeChain(error), ...serverErrors.flatMap(causeChain)];
+// A selection error is a timeout when every server failed by timing out, or when no server
+// reported a failure at all. Any other server failure (DNS, TLS, and so on) is a plain failure.
+function isTimeout(error: unknown, serverErrors: unknown[]): boolean {
+  if (causeChain(error).some(isSocketTimeout)) {
+    return true;
+  }
+  if (!(error instanceof MongoServerSelectionError)) {
+    return false;
+  }
+  return serverErrors.every((server) => causeChain(server).some(isSocketTimeout));
 }
 
 function readServerErrors(error: unknown): unknown[] {

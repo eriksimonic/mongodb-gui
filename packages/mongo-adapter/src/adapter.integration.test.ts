@@ -356,6 +356,19 @@ describe.each(MONGO_IMAGES)('MongoDB %s adapter', (image) => {
   );
 
   it(
+    'test reports CONNECTION_FAILED for an unresolvable host within the configured timeout',
+    async () => {
+      const started = Date.now();
+      const result = await manager.test(makeProfile('mongodb://no-such-host.invalid:27017/', 2000));
+      const elapsed = Date.now() - started;
+      ConnectionTestResultSchema.parse(result);
+      expect(result).toMatchObject({ ok: false, error: { code: 'CONNECTION_FAILED' } });
+      expect(elapsed).toBeLessThan(FAILURE_BUDGET_MS);
+    },
+    SUITE_TIMEOUT_MS,
+  );
+
+  it(
     'disconnect clears the status and the client',
     async () => {
       await manager.disconnect(profile.id);

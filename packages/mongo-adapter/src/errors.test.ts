@@ -41,6 +41,38 @@ describe('mapDriverError', () => {
     expect(mapDriverError(error).code).toBe('CONNECTION_TIMEOUT');
   });
 
+  it('maps a DNS failure reported during selection to CONNECTION_FAILED', () => {
+    const error = selectionError('Server selection timed out after 2000 ms', [
+      withCode('getaddrinfo ENOTFOUND no-such-host.invalid', 'ENOTFOUND'),
+    ]);
+    expect(mapDriverError(error).code).toBe('CONNECTION_FAILED');
+  });
+
+  it('maps a TLS failure reported during selection to CONNECTION_FAILED', () => {
+    const error = selectionError('Server selection timed out after 2000 ms', [
+      new Error('Client network socket disconnected before secure TLS connection was established'),
+    ]);
+    expect(mapDriverError(error).code).toBe('CONNECTION_FAILED');
+  });
+
+  it('maps a selection error whose servers only timed out to CONNECTION_TIMEOUT', () => {
+    const error = selectionError('Server selection timed out after 2000 ms', [
+      new MongoNetworkTimeoutError('connection timed out'),
+      withCode('connect ETIMEDOUT 10.0.0.2:27017', 'ETIMEDOUT'),
+    ]);
+    expect(mapDriverError(error).code).toBe('CONNECTION_TIMEOUT');
+  });
+
+  it('maps an auth failure wrapped in a selection error to AUTH_FAILED', () => {
+    const wrapped = new MongoServerError({
+      message: 'Authentication failed.',
+      code: 18,
+      codeName: 'AuthenticationFailed',
+    });
+    const error = selectionError('Server selection timed out after 2000 ms', [wrapped]);
+    expect(mapDriverError(error).code).toBe('AUTH_FAILED');
+  });
+
   it('maps a network timeout to CONNECTION_TIMEOUT', () => {
     const error = new MongoNetworkTimeoutError('connection timed out');
     expect(mapDriverError(error).code).toBe('CONNECTION_TIMEOUT');
