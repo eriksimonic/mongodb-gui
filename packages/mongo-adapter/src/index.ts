@@ -12,3 +12,10 @@ export {
 } from './catalog';
 export { mapDriverError } from './errors';
 export * from './management/index';
+export { killOperation, listOperations, type ListOperationsOptions } from './monitor/operations';
+export {
+  Sampler,
+  type SampleErrorListener,
+  type SampleListener,
+  type SamplerOptions,
+} from './monitor/sampler';

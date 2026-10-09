@@ -1,4 +1,4 @@
-import { rmSync } from 'node:fs';
+import { chmodSync, rmSync } from 'node:fs';
 import { DatabaseSync } from 'node:sqlite';
 import { AppErrorException, appError } from '@mongo-gui/core';
 import { DecryptError, open, seal } from '../crypto/aead';
@@ -15,6 +15,7 @@ export interface EncryptedStoreOptions {
 
 const MEMORY_PATH = ':memory:';
 const SIDECAR_SUFFIXES = ['', '-wal', '-shm'] as const;
+const STORE_FILE_MODE = 0o600;
 
 /**
  * SQLite file whose payload columns hold AES-256-GCM ciphertext under the vault DEK.
@@ -30,6 +31,7 @@ export class EncryptedStore {
     this.#path = options.path;
     this.#vault = options.vault;
     this.#db = new DatabaseSync(options.path);
+    restrictToOwner(options.path);
     try {
       this.#db.exec('PRAGMA journal_mode = WAL');
       this.#db.exec('PRAGMA foreign_keys = ON');
@@ -107,6 +109,14 @@ export class EncryptedStore {
       rmSync(this.#path + suffix, { force: true });
     }
   }
+}
+
+/** Owner read and write only. Windows ignores POSIX modes, so it is skipped there. */
+function restrictToOwner(path: string): void {
+  if (path === MEMORY_PATH || process.platform === 'win32') {
+    return;
+  }
+  chmodSync(path, STORE_FILE_MODE);
 }
 
 function aadFor(table: StoreTable, id: string): Buffer {
