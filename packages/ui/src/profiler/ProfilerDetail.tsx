@@ -15,7 +15,13 @@ import type { ProfileEntry } from '@mongo-gui/core';
 import { useRef, useState, type KeyboardEvent, type PointerEvent } from 'react';
 import { notifyError } from '../components/notify-error';
 import { profilerUiEvents } from './profiler-events';
-import { formatCommand, formatCommandJson, formatLocalTime, isCollscan } from './profiler-model';
+import {
+  formatCommand,
+  formatCommandJson,
+  formatLocalTime,
+  isCollscan,
+  userCommand,
+} from './profiler-model';
 
 type CommandView = 'mongosh' | 'json';
 
@@ -111,19 +117,29 @@ function EntryDetail({ connectionId, database, entry }: EntryDetailProps) {
   const command = formatCommand(entry.command);
   const shownCommand = view === 'mongosh' ? command : formatCommandJson(entry.command);
 
+  // Copy and the editor get the command without the driver's session fields.
+  const runnable = userCommand(entry.command);
+  const runnableText = formatCommand(runnable);
+
   function explain() {
-    profilerUiEvents.emit({ type: 'profiler:explain', ref: { connectionId, database, entry } });
+    profilerUiEvents.emit({
+      type: 'profiler:explain',
+      ref: { connectionId, database, entry, command: runnable },
+    });
     notifications.show({ title: 'Explain this', message: 'Explain arrives in phase 3.' });
   }
 
   function openInEditor() {
-    profilerUiEvents.emit({ type: 'profiler:open', ref: { connectionId, database, entry } });
+    profilerUiEvents.emit({
+      type: 'profiler:open',
+      ref: { connectionId, database, entry, command: runnable },
+    });
     notifications.show({ title: 'Open in editor', message: 'Open in editor arrives in phase 2.' });
   }
 
   async function copyCommand() {
     try {
-      await navigator.clipboard.writeText(command);
+      await navigator.clipboard.writeText(runnableText);
       notifications.show({ title: 'Command copied', message: entry.ns, color: 'teal' });
     } catch (error) {
       notifyError(error, 'The command could not be copied');

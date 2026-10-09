@@ -10,6 +10,7 @@ import {
   filtersToQuery,
   formatBytes,
   commandPreview,
+  userCommand,
   formatCommand,
   formatCommandJson,
   formatLocalTime,
@@ -252,6 +253,22 @@ describe('display helpers', () => {
   it('formats a local time with milliseconds', () => {
     const iso = '2026-10-09T10:00:00.007Z';
     expect(formatLocalTime(iso)).toMatch(/^\d{2}:\d{2}:\d{2}\.007$/);
+  });
+
+  it('leaves the driver session fields out of the command a copy or the editor gets', () => {
+    const command = {
+      find: 'orders',
+      lsid: { id: 'session' },
+      $db: 'shop',
+      $clusterTime: { clusterTime: 1 },
+      $readPreference: { mode: 'primaryPreferred' },
+      $readConcern: { level: 'local' },
+    };
+    expect(userCommand(command)).toEqual({ find: 'orders', $readConcern: { level: 'local' } });
+    expect(userCommand('plain')).toBe('plain');
+    expect(formatCommand(userCommand(command), 0)).toBe(
+      '{find: "orders", $readConcern: {level: "local"}}',
+    );
   });
 
   it('formats byte counts', () => {

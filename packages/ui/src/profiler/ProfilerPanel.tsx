@@ -130,7 +130,7 @@ function ProfilerBody({ panelId, connectionId, database, namespaces, panel }: Pr
         {panel.tab === 'slow' ? (
           <Menu closeOnItemClick={false} position="bottom-end" shadow="md" withinPortal>
             <Menu.Target>
-              <Button size="xs" variant="default" mb={4}>
+              <Button size="xs" variant="default">
                 Columns
               </Button>
             </Menu.Target>

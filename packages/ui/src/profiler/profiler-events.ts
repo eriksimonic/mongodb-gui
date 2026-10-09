@@ -4,6 +4,8 @@ export interface ProfilerEntryRef {
   readonly connectionId: string;
   readonly database: string;
   readonly entry: ProfileEntry;
+  /** The command in canonical extended JSON, without the driver's session fields. */
+  readonly command: unknown;
 }
 
 /**

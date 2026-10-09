@@ -25,7 +25,7 @@ export interface MockProfilerDeps {
   /** False once the connection or the vault is gone. A running tail stops then. */
   isAvailable(connectionId: string): boolean;
   emit(event: RpcEvent): void;
-  /** When set, shop holds this many generated rows instead of the fixtures. For performance checks. */
+  /** When set, every database holds this many generated rows in its own namespace. For performance checks. */
   readonly bulkRows?: number | undefined;
 }
 
@@ -101,8 +101,8 @@ export function createMockProfiler(deps: MockProfilerDeps): Rpc {
     if (!rows.has(key)) {
       const prefix = FIXTURE_PREFIXES[database];
       const fixtures =
-        deps.bulkRows !== undefined && database === 'shop'
-          ? bulkProfileEntries(deps.bulkRows, Date.now())
+        deps.bulkRows !== undefined
+          ? bulkProfileEntries(deps.bulkRows, Date.now(), database)
           : fixtureProfileEntries(Date.now()).filter(
               (entry) => prefix !== undefined && entry.ns.startsWith(prefix),
             );

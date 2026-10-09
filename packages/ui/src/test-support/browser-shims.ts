@@ -38,6 +38,48 @@ Object.defineProperty(HTMLElement.prototype, 'offsetHeight', {
   },
 });
 
+// Scrolling in jsdom does not move anything. The profiler scroller keeps the offset it is given,
+// so a test can check where scrollToIndex put the selected row.
+const scrollOffsets = new WeakMap<Element, number>();
+Object.defineProperty(Element.prototype, 'scrollTop', {
+  configurable: true,
+  get(this: Element): number {
+    return scrollOffsets.get(this) ?? 0;
+  },
+  set(this: Element, value: number) {
+    scrollOffsets.set(this, value);
+  },
+});
+Element.prototype.scrollTo = function scrollTo(this: Element, ...args: unknown[]): void {
+  const options = args[0];
+  if (typeof options === 'object' && options !== null && 'top' in options) {
+    const top = (options as { top?: unknown }).top;
+    if (typeof top === 'number') {
+      scrollOffsets.set(this, top);
+    }
+  }
+};
+// The scroll height of the profiler scroller is its header plus the body the table sets as an inline
+// height. The virtualiser clamps scroll offsets to scrollHeight minus clientHeight, as a browser does.
+const PROFILER_HEADER_PX = 32;
+Object.defineProperty(HTMLElement.prototype, 'scrollHeight', {
+  configurable: true,
+  get(this: HTMLElement): number {
+    if (!this.classList.contains(PROFILER_SCROLLER)) {
+      return 0;
+    }
+    const body = this.firstElementChild?.lastElementChild;
+    const bodyPx = body instanceof HTMLElement ? parseFloat(body.style.height) : 0;
+    return PROFILER_HEADER_PX + (Number.isFinite(bodyPx) ? bodyPx : 0);
+  },
+});
+Object.defineProperty(HTMLElement.prototype, 'clientHeight', {
+  configurable: true,
+  get(this: HTMLElement): number {
+    return this.classList.contains(PROFILER_SCROLLER) ? PROFILER_VIEWPORT_PX : 0;
+  },
+});
+
 // Mantine's combobox scrolls the highlighted option into view when it opens.
 if (typeof Element.prototype.scrollIntoView !== 'function') {
   Element.prototype.scrollIntoView = (): void => undefined;

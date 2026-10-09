@@ -88,7 +88,8 @@ function writeObject(object: Plain, indent: number, depth: number): string {
 }
 
 function writeKey(key: string): string {
-  return IDENTIFIER.test(key) ? key : JSON.stringify(key);
+  // __proto__ is always quoted: unquoted, mongosh would read it as a prototype setter.
+  return key !== '__proto__' && IDENTIFIER.test(key) ? key : JSON.stringify(key);
 }
 
 function wrap(
@@ -134,9 +135,9 @@ function writeSpecial(value: Plain): string | undefined {
     case '$regularExpression':
       return writeRegex(inner);
     case '$minKey':
-      return 'MinKey';
+      return 'MinKey()';
     case '$maxKey':
-      return 'MaxKey';
+      return 'MaxKey()';
     case '$code':
       return typeof inner === 'string' ? `Code(${JSON.stringify(inner)})` : undefined;
     case '$undefined':
@@ -144,6 +145,22 @@ function writeSpecial(value: Plain): string | undefined {
     default:
       return undefined;
   }
+}
+
+const MAX_ISO_YEAR = 9999;
+const LITERAL_REGEX_FLAGS = /^[imsu]*$/;
+const LINE_TERMINATOR = /[\n\r\u2028\u2029]/;
+// A slash that is not already escaped: an even run of backslashes before it is not an escape.
+const UNESCAPED_SLASH = /(^|[^\\])((?:\\\\)*)\//g;
+
+/** ISO text for milliseconds, or undefined when the date has no ISO form (years outside 0 to 9999). */
+function isoFromMillis(millis: number): string | undefined {
+  const date = new Date(millis);
+  if (!Number.isFinite(date.getTime())) {
+    return undefined;
+  }
+  const year = date.getUTCFullYear();
+  return year < 0 || year > MAX_ISO_YEAR ? undefined : date.toISOString();
 }
 
 function writeDate(inner: unknown): string | undefined {
@@ -154,7 +171,11 @@ function writeDate(inner: unknown): string | undefined {
   if (typeof millis !== 'string') {
     return undefined;
   }
-  return `ISODate(${JSON.stringify(new Date(Number(millis)).toISOString())})`;
+  const iso = isoFromMillis(Number(millis));
+  // A date outside the ISO range keeps its exact milliseconds through the constructor.
+  return iso === undefined
+    ? `new Date(NumberLong(${JSON.stringify(millis)}))`
+    : `ISODate(${JSON.stringify(iso)})`;
 }
 
 function doubleText(text: string): string {
@@ -162,7 +183,14 @@ function doubleText(text: string): string {
     return text;
   }
   const value = Number(text);
-  return Number.isFinite(value) ? String(value) : text;
+  if (!Number.isFinite(value)) {
+    return text;
+  }
+  // A whole double would read back as an int32 in plain form, so it is written as Double.
+  if (Number.isInteger(value)) {
+    return `Double(${Object.is(value, -0) ? '-0' : String(value)})`;
+  }
+  return String(value);
 }
 
 function writeTimestamp(inner: unknown): string | undefined {
@@ -203,12 +231,20 @@ function dashUuid(hex: string): string {
   return `${hex.slice(0, 8)}-${hex.slice(8, 12)}-${hex.slice(12, 16)}-${hex.slice(16, 20)}-${hex.slice(20)}`;
 }
 
+/**
+ * A literal /pattern/flags when the flags are ones a literal can carry and the pattern has no line
+ * terminator. Otherwise BSONRegExp, which keeps any option and any pattern exactly.
+ */
 function writeRegex(inner: unknown): string | undefined {
   if (!isPlain(inner) || typeof inner.pattern !== 'string') {
     return undefined;
   }
+  const pattern = inner.pattern;
   const options = typeof inner.options === 'string' ? inner.options : '';
-  return `/${inner.pattern.replace(/\//g, '\\/')}/${options}`;
+  if (LITERAL_REGEX_FLAGS.test(options) && !LINE_TERMINATOR.test(pattern)) {
+    return `/${pattern.replace(UNESCAPED_SLASH, '$1$2\\/')}/${options}`;
+  }
+  return `BSONRegExp(${JSON.stringify(pattern)}, ${JSON.stringify(options)})`;
 }
 
 function relax(value: unknown): unknown {
@@ -227,12 +263,21 @@ function relax(value: unknown): unknown {
       return Number.isFinite(parsed) ? parsed : value;
     }
     if (key === '$date' && isPlain(inner) && typeof inner.$numberLong === 'string') {
-      return new Date(Number(inner.$numberLong)).toISOString();
+      const iso = isoFromMillis(Number(inner.$numberLong));
+      if (iso !== undefined) {
+        return iso;
+      }
     }
   }
   const out: Plain = {};
   for (const key of keys) {
-    out[key] = relax(value[key]);
+    // defineProperty, so a key named __proto__ stays an ordinary property.
+    Object.defineProperty(out, key, {
+      value: relax(value[key]),
+      enumerable: true,
+      writable: true,
+      configurable: true,
+    });
   }
   return out;
 }

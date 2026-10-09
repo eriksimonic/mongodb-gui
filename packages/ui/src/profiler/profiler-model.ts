@@ -201,6 +201,20 @@ export function clientLabel(entry: ProfileEntry): string {
 }
 
 /** The command as formatted canonical extended JSON. The values arrive already canonical. */
+// Fields the driver adds to every command. They are session plumbing, not part of the query, so a
+// copied command or one sent to the editor leaves them out.
+const DRIVER_FIELDS: readonly string[] = ['lsid', '$db', '$clusterTime', '$readPreference'];
+
+/** The command without the driver's session fields. Other values are returned unchanged. */
+export function userCommand(command: unknown): unknown {
+  if (typeof command !== 'object' || command === null || Array.isArray(command)) {
+    return command;
+  }
+  return Object.fromEntries(
+    Object.entries(command).filter(([key]) => !DRIVER_FIELDS.includes(key)),
+  );
+}
+
 /** The command as mongosh source, so a pasted command keeps the server's types. */
 export function formatCommand(command: unknown, indent = 2): string {
   const text = JSON.stringify(command);

@@ -109,6 +109,29 @@ describe('ProfilerPanel', () => {
     expect(within(slowGrid()).queryByText('shop.orders')).not.toBeInTheDocument();
   });
 
+  it('keeps the selected row inside the client height after scrollToIndex', async () => {
+    const api = await connectedApi();
+    renderPanel(api);
+    const list = await api.rpc.profiler.list({ ...SHOP, filter: LIMIT });
+    await waitForRows(list.length);
+
+    fireEvent.click(bodyRows()[0] as HTMLElement);
+    fireEvent.keyDown(slowGrid(), { key: 'End' });
+    await waitFor(() => expect(bodyRows().at(-1)?.getAttribute('aria-selected')).toBe('true'));
+
+    // Row offsets in the body start below the header. The header is the first row of the grid.
+    const row = bodyRows().at(-1) as HTMLElement;
+    const translate = /translateY\((-?[\d.]+)px\)/.exec(row.style.transform);
+    expect(translate).not.toBeNull();
+    const headerPx = 32;
+    const rowTop = headerPx + Number(translate?.[1]);
+    const grid = slowGrid();
+    const visibleTop = grid.scrollTop;
+    const visibleBottom = grid.scrollTop + grid.clientHeight;
+    expect(rowTop).toBeGreaterThanOrEqual(visibleTop + headerPx);
+    expect(rowTop + 32).toBeLessThanOrEqual(visibleBottom);
+  });
+
   it('moves the selection with the arrow keys from the grid', async () => {
     const api = await connectedApi();
     renderPanel(api);

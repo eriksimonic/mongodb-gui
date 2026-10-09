@@ -15,7 +15,7 @@
 .mg-profiler-row {
   display: grid;
   align-items: center;
-  column-gap: 8px;
+  column-gap: 6px;
   height: 32px;
   box-sizing: border-box;
   padding: 0 8px;

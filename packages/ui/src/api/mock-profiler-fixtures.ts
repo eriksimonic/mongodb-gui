@@ -201,10 +201,13 @@ export function fixtureProfileEntries(nowMs: number): ProfileEntry[] {
 }
 
 /** `count` rows for performance checks, one every 700 ms back from now. */
-export function bulkProfileEntries(count: number, nowMs: number): ProfileEntry[] {
+export function bulkProfileEntries(count: number, nowMs: number, database: string): ProfileEntry[] {
   const entries: ProfileEntry[] = [];
   for (let index = 0; index < count; index += 1) {
-    entries.push(fixtureEntry(index, nowMs, index * 700 + 1000));
+    const row = fixtureEntry(index, nowMs, index * 700 + 1000);
+    // The namespace belongs to the panel's database, so the rows never show another database.
+    const collection = row.ns.slice(row.ns.indexOf('.') + 1);
+    entries.push({ ...row, ns: `${database}.${collection}` });
   }
   return entries;
 }

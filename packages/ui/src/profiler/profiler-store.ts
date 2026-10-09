@@ -100,7 +100,7 @@ export interface ProfilerActions {
 export type ProfilerStoreState = ProfilerState & ProfilerActions;
 export type ProfilerStore = StoreApi<ProfilerStoreState>;
 
-const DEFAULT_DETAIL_WIDTH = 340;
+const DEFAULT_DETAIL_WIDTH = 320;
 
 /**
  * The selection that survives a change of rows. It stays only while the row is still listed and

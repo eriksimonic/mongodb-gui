@@ -20,6 +20,19 @@ describe('formatMongoshSyntax, scalar wrappers', () => {
     expect(shell({ $date: { $numberLong: '0' } })).toBe('ISODate("1970-01-01T00:00:00.000Z")');
   });
 
+  it('keeps a date outside the ISO range through the NumberLong constructor', () => {
+    // Year 10000 and year -1 have no ISO form in this writer.
+    expect(shell({ $date: { $numberLong: '253402300800000' } })).toBe(
+      'new Date(NumberLong("253402300800000"))',
+    );
+    expect(shell({ $date: { $numberLong: '-62198755200000' } })).toBe(
+      'new Date(NumberLong("-62198755200000"))',
+    );
+    expect(shell({ $date: { $numberLong: 'not a number' } })).toBe(
+      'new Date(NumberLong("not a number"))',
+    );
+  });
+
   it('writes a date from a relaxed ISO string as ISODate', () => {
     expect(shell({ $date: '2026-10-09T10:00:00.000Z' })).toBe(
       'ISODate("2026-10-09T10:00:00.000Z")',
@@ -72,9 +85,45 @@ describe('formatMongoshSyntax, scalar wrappers', () => {
     expect(shell({ $regularExpression: { pattern: 'a/b', options: '' } })).toBe('/a\\/b/');
   });
 
-  it('writes min and max keys', () => {
-    expect(shell({ $minKey: 1 })).toBe('MinKey');
-    expect(shell({ $maxKey: 1 })).toBe('MaxKey');
+  it('writes min and max keys as constructor calls', () => {
+    expect(shell({ $minKey: 1 })).toBe('MinKey()');
+    expect(shell({ $maxKey: 1 })).toBe('MaxKey()');
+  });
+
+  it('writes whole doubles as Double so they stay doubles', () => {
+    expect(shell({ $numberDouble: '1' })).toBe('Double(1)');
+    expect(shell({ $numberDouble: '-0' })).toBe('Double(-0)');
+    expect(shell({ $numberDouble: '0' })).toBe('Double(0)');
+  });
+
+  it('writes an exact literal regex for the flags a literal can carry', () => {
+    expect(shell({ $regularExpression: { pattern: 'a.c', options: 'ims' } })).toBe('/a.c/ims');
+    expect(shell({ $regularExpression: { pattern: 'x', options: 'u' } })).toBe('/x/u');
+  });
+
+  it('writes BSONRegExp when the flags are not literal flags', () => {
+    expect(shell({ $regularExpression: { pattern: '^ab', options: 'x' } })).toBe(
+      'BSONRegExp("^ab", "x")',
+    );
+    expect(shell({ $regularExpression: { pattern: 'a', options: 'g' } })).toBe(
+      'BSONRegExp("a", "g")',
+    );
+  });
+
+  it('writes BSONRegExp when the pattern has a line terminator', () => {
+    expect(shell({ $regularExpression: { pattern: 'a\nb', options: '' } })).toBe(
+      'BSONRegExp("a\\nb", "")',
+    );
+    expect(shell({ $regularExpression: { pattern: 'a b', options: 'i' } })).toBe(
+      'BSONRegExp("a b", "i")',
+    );
+  });
+
+  it('leaves an already escaped slash alone and escapes only the bare ones', () => {
+    expect(shell({ $regularExpression: { pattern: 'a\\/b', options: '' } })).toBe('/a\\/b/');
+    expect(shell({ $regularExpression: { pattern: 'a/b/c', options: '' } })).toBe('/a\\/b\\/c/');
+    // Two backslashes are an escaped backslash, so the slash after them is bare.
+    expect(shell({ $regularExpression: { pattern: 'a\\\\/b', options: '' } })).toBe('/a\\\\\\/b/');
   });
 
   it('writes code and undefined', () => {
@@ -153,6 +202,14 @@ describe('formatMongoshSyntax, plain values', () => {
     expect(formatRelaxedJson('not json {')).toBe('not json {');
   });
 
+  it('always quotes a __proto__ key, in mongosh and in the JSON view', () => {
+    const value = JSON.parse('{"__proto__": {"$numberInt": "1"}, "a": 2}') as unknown;
+    expect(formatMongoshSyntax(JSON.stringify(value), ONE_LINE)).toBe('{"__proto__": 1, a: 2}');
+    const relaxed = JSON.parse(formatRelaxedJson(JSON.stringify(value))) as Record<string, unknown>;
+    expect(Object.keys(relaxed)).toEqual(['__proto__', 'a']);
+    expect(Object.getOwnPropertyDescriptor(relaxed, '__proto__')?.value).toBe(1);
+  });
+
   it('does not treat a wrapper key next to other keys as a wrapper', () => {
     expect(shell({ $oid: '64b7', extra: 1 })).toBe('{$oid: "64b7", extra: 1}');
   });
@@ -180,6 +237,39 @@ describe('formatMongoshSyntax, round trip of plain values through toCanonicalVal
     expect(shell(toCanonicalValue(value))).toBe(
       '{small: 7, large: NumberLong("5000000000"), ratio: 0.5, at: ISODate("1970-01-01T00:00:00.000Z")}',
     );
+  });
+});
+
+/** Reads a mongosh regex literal back into a RegExp, the way mongosh would. */
+function regexFromLiteral(text: string): RegExp {
+  const end = text.lastIndexOf('/');
+  return new RegExp(text.slice(1, end), text.slice(end + 1));
+}
+
+describe('regex round trip through mongosh text', () => {
+  it('reads a literal with an escaped slash back to the same pattern', () => {
+    const literal = shell({ $regularExpression: { pattern: 'a\\/b', options: '' } });
+    expect(regexFromLiteral(literal).test('a/b')).toBe(true);
+    expect(regexFromLiteral(literal).test('a\\b')).toBe(false);
+  });
+
+  it('reads a literal with a bare slash back to the same pattern', () => {
+    const literal = shell({ $regularExpression: { pattern: 'a/b', options: 'i' } });
+    expect(regexFromLiteral(literal).test('A/B')).toBe(true);
+    expect(regexFromLiteral(literal).source).toBe(new RegExp('a/b', 'i').source);
+  });
+
+  it('keeps the x option in BSONRegExp, where a literal would drop it', () => {
+    expect(shell({ $regularExpression: { pattern: 'a b', options: 'x' } })).toBe(
+      'BSONRegExp("a b", "x")',
+    );
+  });
+
+  it('keeps a newline in the pattern through the BSONRegExp escape', () => {
+    const text = shell({ $regularExpression: { pattern: 'a\nb', options: '' } });
+    // The escape is the two characters backslash and n, so the text parses back to a newline.
+    const pattern = JSON.parse(text.slice('BSONRegExp('.length, text.lastIndexOf(',')));
+    expect(pattern).toBe('a\nb');
   });
 });
 
