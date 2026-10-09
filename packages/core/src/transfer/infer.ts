@@ -96,7 +96,8 @@ function fitsCandidates(value: string): Record<Candidate, boolean> {
     double: fitsDouble(value),
     boolean: BOOLEAN_PATTERN.test(value),
     date: parseIsoDate(value) !== undefined,
-    objectId: OBJECT_ID_PATTERN.test(value),
+    // All-digit text is far more likely a number or a code than an ObjectId, so it is not inferred.
+    objectId: OBJECT_ID_PATTERN.test(value) && !/^\d{24}$/.test(value),
     json: looksLikeJson(value),
   };
 }
@@ -122,8 +123,9 @@ export function coerce(value: string | null, type: ConcreteFieldType): TypedValu
       }
       return { t: 'long', v: BigInt(value).toString() };
     case 'double': {
-      if (!fitsDouble(value)) {
-        throw invalid(value, 'a number that is exact as a double');
+      const problem = doubleProblem(value);
+      if (problem !== undefined) {
+        throw invalid(value, problem);
       }
       return { t: 'double', v: Number(value) };
     }
@@ -177,14 +179,27 @@ function fitsLong(value: string): boolean {
 // A double must represent the text exactly: integers beyond 2^53 are refused, so they become
 // long values or strings instead of being rounded.
 function fitsDouble(value: string): boolean {
+  return doubleProblem(value) === undefined;
+}
+
+// Why a text cannot be read as a double, or undefined when it can. Overflow (1e400) and underflow
+// (1e-400, which would read as 0) are refused, and so are integers a double cannot hold exactly.
+function doubleProblem(value: string): string | undefined {
   if (!DECIMAL_PATTERN.test(value)) {
-    return false;
+    return 'a number';
   }
   const number = Number(value);
   if (!Number.isFinite(number)) {
-    return false;
+    return 'a number within the double range';
   }
-  return INTEGER_PATTERN.test(value) ? Number.isSafeInteger(number) : true;
+  const mantissa = value.split(/[eE]/)[0] ?? '';
+  if (number === 0 && /[1-9]/.test(mantissa)) {
+    return 'a number within the double range (it is too small)';
+  }
+  if (INTEGER_PATTERN.test(value) && !Number.isSafeInteger(number)) {
+    return 'an integer a double holds exactly';
+  }
+  return undefined;
 }
 
 function looksLikeJson(value: string): boolean {
@@ -222,9 +237,16 @@ export function parseIsoDate(value: string): number | undefined {
     return undefined;
   }
   const millis = Number(fraction.padEnd(3, '0'));
-  const base = Date.UTC(year, month - 1, day, hour, minute, second, millis);
-  const check = new Date(base);
-  if (check.getUTCDate() !== day || check.getUTCMonth() !== month - 1) {
+  // setUTCFullYear, not Date.UTC: Date.UTC maps the years 0 to 99 to 1900 to 1999.
+  const date = new Date(0);
+  date.setUTCFullYear(year, month - 1, day);
+  date.setUTCHours(hour, minute, second, millis);
+  const base = date.getTime();
+  if (
+    date.getUTCFullYear() !== year ||
+    date.getUTCMonth() !== month - 1 ||
+    date.getUTCDate() !== day
+  ) {
     return undefined;
   }
   const offset = zoneOffsetMinutes(zone);

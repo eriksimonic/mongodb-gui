@@ -136,11 +136,13 @@ describe('TransferProgressSchema', () => {
       processed: 10,
       inserted: 8,
       updated: 0,
+      matched: 0,
       failed: 2,
       elapsedMs: 15,
       done: true,
       error: { code: 'CANCELLED', message: 'Import cancelled' },
       errors: [{ row: 3, message: '"x" is not a 32-bit integer' }],
+      warnings: [],
     };
     expect(TransferProgressSchema.parse(progress)).toEqual(progress);
   });
@@ -150,11 +152,13 @@ describe('TransferProgressSchema', () => {
       processed: 0,
       inserted: 0,
       updated: 0,
+      matched: 0,
       failed: 0,
       elapsedMs: 0,
       done: false,
       error: { code: 'NOPE', message: 'x' },
       errors: [],
+      warnings: [],
     };
     expect(TransferProgressSchema.safeParse(progress).success).toBe(false);
   });

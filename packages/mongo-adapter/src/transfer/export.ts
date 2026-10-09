@@ -49,8 +49,8 @@ export async function exportCollection(
   let stream: WriteStream | undefined;
   let cursor: FindCursor<Document> | undefined;
   try {
+    // Everything that can fail on the input is checked before the file is touched.
     const parsed: ExportRequest = parseInput(ExportRequestSchema, request);
-    path = parsed.path;
     const find = findOptions(parsed.options);
     cursor = client
       .db(parsed.database)
@@ -58,6 +58,14 @@ export async function exportCollection(
       .find(find.filter, find.options);
     throwIfCancelled(hooks.signal);
     stream = createWriteStream(parsed.path, { encoding: 'utf8' });
+    // A listener is attached before anything else can fail. Without it, a write error such as
+    // ENOSPC would be an uncaught exception. The error stays on stream.errored, where the write
+    // loop checks it.
+    stream.on('error', () => undefined);
+    await once(stream, 'open');
+    // Only a file this export opened is ever removed on failure, so an existing file survives a
+    // failure that happens before the open.
+    path = parsed.path;
     await writeExport(cursor, stream, tracker, parsed.options, hooks.signal);
   } catch (failure) {
     error = toFailure(failure);
@@ -119,8 +127,25 @@ async function writeExport(
   if (options.format === 'json-array') {
     await sink.write('[\n');
   }
+  // Columns found by discovery are fixed. A field that first appears later is not exported, and
+  // the caller is told once per field.
+  const discovered =
+    csv !== undefined && options.csv?.columns === undefined ? new Set(csv.columns) : undefined;
   const emit = async (doc: Document): Promise<void> => {
     throwIfCancelled(signal);
+    if (stream.errored !== null) {
+      throw stream.errored;
+    }
+    if (discovered !== undefined && tracker.processed >= DISCOVERY_DOCUMENTS) {
+      for (const path of flatten(doc).keys()) {
+        if (!discovered.has(path)) {
+          discovered.add(path);
+          tracker.addWarning(
+            `Field "${path}" first seen after document ${DISCOVERY_DOCUMENTS} was not exported`,
+          );
+        }
+      }
+    }
     await writeDocument(doc, csv);
     tracker.processed += 1;
     if (tracker.processed % PROGRESS_EVERY === 0) {
@@ -202,6 +227,10 @@ class Sink {
     }
     const chunk = this.buffer;
     this.buffer = '';
+    // A failed stream never emits drain again, so the failure is raised here instead of waiting.
+    if (this.stream.errored !== null) {
+      throw this.stream.errored;
+    }
     if (!this.stream.write(chunk)) {
       await once(this.stream, 'drain');
     }

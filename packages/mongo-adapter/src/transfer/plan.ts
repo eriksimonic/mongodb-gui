@@ -8,7 +8,7 @@ import {
   type FieldType,
   type ImportMode,
 } from '@mongo-gui/core';
-import { isPlainObject, type PlainObject } from '../documents';
+import type { PlainObject } from '../documents';
 import { parseEjson } from '../management/ejson';
 import { validationError } from '../management/errors';
 import { cellToBson, getPath, jsonValueToBson, setPath, splitPath } from './values';
@@ -202,7 +202,7 @@ function convertJson(text: string, fields: readonly JsonField[] | undefined): Ro
   } catch (error) {
     return fail(messageOf(error));
   }
-  if (!isPlainObject(value)) {
+  if (!isDocumentValue(value)) {
     return fail('The row is not a JSON object');
   }
   if (fields === undefined) {
@@ -236,10 +236,25 @@ export function writeOperation(
   if (key === undefined) {
     return { ok: false, message: `The row has no ${upsertKey} to upsert on` };
   }
+  // A null key is refused: it would match every document that lacks the field. The filter uses
+  // $eq, so a document-valued key is compared as a value and never read as query operators.
+  if (key === null) {
+    return { ok: false, message: `The row has an empty ${upsertKey}` };
+  }
   return {
     ok: true,
-    op: { replaceOne: { filter: { [upsertKey]: key }, replacement: doc, upsert: true } },
+    op: { replaceOne: { filter: { [upsertKey]: { $eq: key } }, replacement: doc, upsert: true } },
   };
+}
+
+// A document as the importer means it: a plain object, not a BSON class instance such as an
+// ObjectId or a Date, which must never be written as a row.
+export function isDocumentValue(value: unknown): value is PlainObject {
+  if (typeof value !== 'object' || value === null || Array.isArray(value)) {
+    return false;
+  }
+  const prototype: unknown = Object.getPrototypeOf(value);
+  return prototype === Object.prototype || prototype === null;
 }
 
 function fail(message: string): RowResult {

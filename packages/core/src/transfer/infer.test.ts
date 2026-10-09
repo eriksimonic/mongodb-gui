@@ -52,8 +52,8 @@ describe('inferType', () => {
     expect(inferType(['99999999999999999999'])).toBe('string');
   });
 
-  it('gives objectId for 24 hexadecimal characters, even when they are all digits', () => {
-    expect(inferType(['123456789012345678901234'])).toBe('objectId');
+  it('does not infer objectId for 24 digits, which read as a number or code', () => {
+    expect(inferType(['123456789012345678901234'])).toBe('string');
   });
 
   it('does not treat a non-parsing JSON-looking value as json', () => {
@@ -158,5 +158,34 @@ describe('coerce', () => {
   it('quotes the offending value in the error message and shortens long values', () => {
     expect(() => coerce('abc', 'int')).toThrow('"abc" is not a 32-bit integer');
     expect(() => coerce('x'.repeat(100), 'int')).toThrow(/^"x{60}\.\.\." is not/);
+  });
+});
+
+describe('date years and double range', () => {
+  it('keeps the years 0 to 99 in their own century', () => {
+    expect(coerce('0050-06-01T00:00:00Z', 'date')).toEqual({
+      t: 'date',
+      v: Date.parse('0050-06-01T00:00:00Z'),
+    });
+    expect(parseIsoDate('0099-12-31')).toBe(Date.parse('0099-12-31T00:00:00Z'));
+    expect(parseIsoDate('0099-12-31')).not.toBe(Date.parse('1999-12-31T00:00:00Z'));
+  });
+
+  it('refuses a double that would underflow to zero', () => {
+    expect(() => coerce('1e-400', 'double')).toThrow(CoercionError);
+    expect(() => coerce('1e-400', 'double')).toThrow(/too small/);
+  });
+
+  it('keeps an exact zero as a double', () => {
+    expect(coerce('0.0', 'double')).toEqual({ t: 'double', v: 0 });
+    expect(coerce('0e5', 'double')).toEqual({ t: 'double', v: 0 });
+  });
+
+  it('refuses an overflowing double with a range message', () => {
+    expect(() => coerce('1e400', 'double')).toThrow(/within the double range/);
+  });
+
+  it('refuses an integer a double cannot hold exactly', () => {
+    expect(() => coerce('9007199254740993', 'double')).toThrow(/holds exactly/);
   });
 });

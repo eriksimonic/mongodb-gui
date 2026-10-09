@@ -1,6 +1,21 @@
 import { stat } from 'node:fs/promises';
-import type { AnyBulkWriteOperation, Collection, Document, MongoClient } from 'mongodb';
-import { Decimal128, Double, Int32, Long, MongoBulkWriteError, ObjectId } from 'mongodb';
+import type {
+  AnyBulkWriteOperation,
+  BulkWriteResult,
+  Collection,
+  Document,
+  MongoClient,
+} from 'mongodb';
+import {
+  BSON,
+  Decimal128,
+  Double,
+  Int32,
+  Long,
+  MongoAPIError,
+  MongoBulkWriteError,
+  ObjectId,
+} from 'mongodb';
 import {
   appError,
   createCsvParser,
@@ -497,6 +512,8 @@ async function writeRecords(
       await flush();
       return cancelledError();
     }
+    // Row numbers count data records (CSV) or elements and non-empty lines (JSON, NDJSON), not
+    // physical lines of the file. See TransferProgressSchema.
     row += 1;
     tracker.processed += 1;
     queued += 1;
@@ -545,31 +562,84 @@ async function writeRecords(
 
 // Writes one batch with ordered: false, so one bad document does not stop the rest. Returns the
 // first write failure, if any, for the stop-on-error decision.
+type Failure = { row: number; message: string } | undefined;
+
 async function writeBatch(
   collection: Collection<Document>,
   ops: AnyBulkWriteOperation<Document>[],
   rows: readonly number[],
   tracker: ProgressTracker,
-): Promise<{ row: number; message: string } | undefined> {
+): Promise<Failure> {
   try {
-    const result = await collection.bulkWrite(ops, { ordered: false });
-    tracker.inserted += result.insertedCount + result.upsertedCount;
-    tracker.updated += result.matchedCount;
+    countResult(tracker, await collection.bulkWrite(ops, { ordered: false }));
     return undefined;
   } catch (error) {
-    if (!(error instanceof MongoBulkWriteError)) {
-      throw error;
+    if (error instanceof MongoBulkWriteError) {
+      return recordBulkError(error, rows, tracker);
     }
-    tracker.inserted += error.result.insertedCount + error.result.upsertedCount;
-    tracker.updated += error.result.matchedCount;
-    const writeErrors = Array.isArray(error.writeErrors) ? error.writeErrors : [error.writeErrors];
-    let first: { row: number; message: string } | undefined;
-    for (const writeError of writeErrors) {
-      const failedRow = rows[writeError.index] ?? 0;
-      const message = writeError.errmsg ?? WRITE_FAILED;
-      tracker.addRowError(failedRow, message);
-      first ??= { row: failedRow, message };
+    if (isClientSideRefusal(error)) {
+      // The driver refuses a document (for example one over the 16 MB limit) before anything is
+      // sent, so nothing was written. The documents are written one at a time, which names the one
+      // that was refused.
+      return writeEach(collection, ops, rows, tracker);
     }
-    return first;
+    throw error;
   }
+}
+
+async function writeEach(
+  collection: Collection<Document>,
+  ops: AnyBulkWriteOperation<Document>[],
+  rows: readonly number[],
+  tracker: ProgressTracker,
+): Promise<Failure> {
+  let first: Failure;
+  for (const [index, op] of ops.entries()) {
+    const row = rows[index] ?? 0;
+    try {
+      countResult(tracker, await collection.bulkWrite([op], { ordered: false }));
+    } catch (error) {
+      if (isClientSideRefusal(error)) {
+        tracker.addRowError(row, error.message);
+        first ??= { row, message: error.message };
+      } else if (error instanceof MongoBulkWriteError) {
+        first ??= recordBulkError(error, rows.slice(index), tracker);
+      } else {
+        throw error;
+      }
+    }
+  }
+  return first;
+}
+
+// A failure raised by the driver or the BSON encoder before the server was asked anything. A
+// document the encoder cannot represent is the usual case.
+// The encoder reports an oversize string as a RangeError (ERR_OUT_OF_RANGE), so that counts too.
+function isClientSideRefusal(error: unknown): error is Error {
+  return (
+    error instanceof BSON.BSONError || error instanceof MongoAPIError || error instanceof RangeError
+  );
+}
+
+function countResult(tracker: ProgressTracker, result: BulkWriteResult): void {
+  tracker.inserted += result.insertedCount + result.upsertedCount;
+  tracker.updated += result.modifiedCount;
+  tracker.matched += result.matchedCount;
+}
+
+function recordBulkError(
+  error: MongoBulkWriteError,
+  rows: readonly number[],
+  tracker: ProgressTracker,
+): Failure {
+  countResult(tracker, error.result);
+  const writeErrors = Array.isArray(error.writeErrors) ? error.writeErrors : [error.writeErrors];
+  let first: Failure;
+  for (const writeError of writeErrors) {
+    const failedRow = rows[writeError.index] ?? 0;
+    const message = writeError.errmsg ?? WRITE_FAILED;
+    tracker.addRowError(failedRow, message);
+    first ??= { row: failedRow, message };
+  }
+  return first;
 }

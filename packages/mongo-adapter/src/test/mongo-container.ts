@@ -29,13 +29,19 @@ export async function startMongo(image: string): Promise<StartedMongo> {
       MONGO_INITDB_ROOT_PASSWORD: ROOT_PASSWORD,
     })
     .withExposedPorts(MONGO_PORT)
-    .withWaitStrategy(Wait.forListeningPorts())
+    // The init phase starts a temporary mongod that listens on the port before the real server
+    // does, and the official image logs "Waiting for connections" once per server. Waiting for
+    // the second message means the real server is accepting connections.
+    .withWaitStrategy(
+      Wait.forAll([Wait.forListeningPorts(), Wait.forLogMessage(/Waiting for connections/, 2)]),
+    )
     .withStartupTimeout(CONTAINER_STARTUP_TIMEOUT_MS)
     .start();
   const hostPort = `${container.getHost()}:${container.getMappedPort(MONGO_PORT)}`;
-  await waitUntilReady(hostPort);
+  const rootUri = `mongodb://${ROOT_USER}:${ROOT_PASSWORD}@${hostPort}/?authSource=admin`;
+  await waitUntilReady(rootUri);
   return {
-    rootUri: `mongodb://${ROOT_USER}:${ROOT_PASSWORD}@${hostPort}/?authSource=admin`,
+    rootUri,
     wrongPasswordUri: `mongodb://${ROOT_USER}:wrong-password@${hostPort}/?authSource=admin`,
     stop: async () => {
       await container.stop();
@@ -106,12 +112,12 @@ function eventDocuments(): Record<string, unknown>[] {
   return Array.from({ length: EVENT_COUNT }, (_, index) => ({ sequence: index }));
 }
 
-async function waitUntilReady(hostPort: string): Promise<void> {
+async function waitUntilReady(rootUri: string): Promise<void> {
   const deadline = Date.now() + READY_TIMEOUT_MS;
   let lastError: unknown;
   while (Date.now() < deadline) {
     try {
-      await pingOnce(hostPort);
+      await pingOnce(rootUri);
       return;
     } catch (error) {
       lastError = error;
@@ -121,8 +127,10 @@ async function waitUntilReady(hostPort: string): Promise<void> {
   throw lastError;
 }
 
-async function pingOnce(hostPort: string): Promise<void> {
-  const client = new MongoClient(`mongodb://${hostPort}/?directConnection=true`, {
+// Authenticates with the root user. The image's init phase runs a temporary mongod without
+// authorization; an unauthenticated ping can succeed against it before the real server is up.
+async function pingOnce(rootUri: string): Promise<void> {
+  const client = new MongoClient(`${rootUri}&directConnection=true`, {
     serverSelectionTimeoutMS: 2000,
   });
   try {

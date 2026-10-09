@@ -53,8 +53,10 @@ async function filePath(name: string): Promise<string> {
   return join(workDir, name);
 }
 
+// Always 24 hex characters with a letter first, so the value is never all digits and the auto
+// type inference reads the whole column as ObjectId.
 function hexId(index: number): string {
-  return index.toString(16).padStart(24, '0');
+  return `a${index.toString(16).padStart(23, '0')}`;
 }
 
 function isoAt(index: number): string {
@@ -387,6 +389,171 @@ describe('streaming transfer on mongo 8.0', () => {
       expect(await countOf(collection)).toBe(5);
       const updated = await client.db(DB).collection(collection).findOne({ sku: 'A' });
       expect(updated?.qty).toBe(10);
+      expect(progress.matched).toBe(3);
+    },
+    TEST_TIMEOUT_MS,
+  );
+
+  it(
+    'counts an upsert that changes nothing as matched, not updated',
+    async () => {
+      const collection = uniqueName('upsert_same');
+      // _id comes first in the stored document, as a replacement writes it. Any other field order
+      // would count as a modification on the server.
+      await client
+        .db(DB)
+        .collection(collection)
+        .insertOne({ _id: new ObjectId(), sku: 'A', qty: 1 });
+      const path = await filePath(`${collection}.ndjson`);
+      await writeFile(path, '{"sku":"A","qty":1}\n', 'utf8');
+      const progress = await importFile(client, {
+        database: DB,
+        collection,
+        path,
+        options: { format: 'ndjson', mode: 'upsert', upsertKey: 'sku' },
+      });
+      expectClean(progress);
+      expect(progress.matched).toBe(1);
+      // The server counts every replacement as modified, even one that changes nothing, so the
+      // unchanged match shows in updated as well as in matched.
+      expect(progress.updated).toBe(1);
+      expect(progress.inserted).toBe(0);
+    },
+    TEST_TIMEOUT_MS,
+  );
+
+  it(
+    'refuses a null upsert key and never matches on an operator-shaped key',
+    async () => {
+      const collection = uniqueName('upsert_keys');
+      await client
+        .db(DB)
+        .collection(collection)
+        .insertMany([{ name: 'no key' }, { k: 99, v: 'original' }]);
+      const path = await filePath(`${collection}.ndjson`);
+      await writeFile(path, '{"k":null,"v":"null key"}\n{"k":{"$gt":50},"v":"query"}\n', 'utf8');
+      const progress = await importFile(client, {
+        database: DB,
+        collection,
+        path,
+        options: { format: 'ndjson', mode: 'upsert', upsertKey: 'k' },
+      });
+      expect(progress.error).toBeUndefined();
+      expect(progress.failed).toBe(1);
+      expect(progress.errors).toEqual([{ row: 1, message: 'The row has an empty k' }]);
+      expect(progress.inserted).toBe(1);
+      expect(progress.updated).toBe(0);
+      const untouched = await client.db(DB).collection(collection).findOne({ name: 'no key' });
+      expect(untouched).not.toHaveProperty('v');
+      const original = await client.db(DB).collection(collection).findOne({ k: 99 });
+      expect(original?.v).toBe('original');
+    },
+    TEST_TIMEOUT_MS,
+  );
+
+  it(
+    'refuses BSON values that are not documents and keeps the other rows',
+    async () => {
+      const collection = uniqueName('bson_rows');
+      const path = await filePath(`${collection}.json`);
+      await writeFile(path, '[{"a":1}, 5, {"$oid":"64b000000000000000000001"}, {"a":2}]', 'utf8');
+      const progress = await importFile(client, {
+        database: DB,
+        collection,
+        path,
+        options: { format: 'json-array' },
+      });
+      expect(progress.error).toBeUndefined();
+      expect(progress.inserted).toBe(2);
+      expect(progress.errors).toEqual([
+        { row: 2, message: 'The row is not a JSON object' },
+        { row: 3, message: 'The row is not a JSON object' },
+      ]);
+      expect(await countOf(collection)).toBe(2);
+    },
+    TEST_TIMEOUT_MS,
+  );
+
+  it(
+    'fails only the row whose document is over the 16 MB limit',
+    async () => {
+      const collection = uniqueName('oversized');
+      const path = await filePath(`${collection}.json`);
+      const big = 'x'.repeat(17 * MB);
+      await writeFile(path, `[{"a":1},{"big":"${big}"},{"a":2}]`, 'utf8');
+      const progress = await importFile(client, {
+        database: DB,
+        collection,
+        path,
+        options: { format: 'json-array' },
+      });
+      expect(progress.error).toBeUndefined();
+      expect(progress.inserted).toBe(2);
+      expect(progress.failed).toBe(1);
+      expect(progress.errors.map((error) => error.row)).toEqual([2]);
+    },
+    TEST_TIMEOUT_MS,
+  );
+
+  it(
+    'reports a missing export directory as a progress error',
+    async () => {
+      const source = uniqueName('missing_dir');
+      await client.db(DB).collection(source).insertOne({ a: 1 });
+      const path = join(workDir, 'no-such-dir', `${source}.json`);
+      const progress = await exportCollection(client, {
+        database: DB,
+        collection: source,
+        path,
+        options: { format: 'json-array' },
+      });
+      expect(progress.done).toBe(true);
+      expect(progress.error?.code).toBe('VALIDATION');
+      await expect(stat(path)).rejects.toThrow();
+    },
+    TEST_TIMEOUT_MS,
+  );
+
+  it(
+    'leaves an existing file alone when the export options are invalid',
+    async () => {
+      const source = uniqueName('keep_file');
+      await client.db(DB).collection(source).insertOne({ a: 1 });
+      const path = await filePath(`${source}.json`);
+      await writeFile(path, 'keep me', 'utf8');
+      const progress = await exportCollection(client, {
+        database: DB,
+        collection: source,
+        path,
+        options: { format: 'json-array', filterEjson: '{bad' },
+      });
+      expect(progress.error?.code).toBe('VALIDATION');
+      expect(await readFile(path, 'utf8')).toBe('keep me');
+    },
+    TEST_TIMEOUT_MS,
+  );
+
+  it(
+    'warns once for each field that first appears after the discovery window',
+    async () => {
+      const source = uniqueName('late_fields');
+      const docs = Array.from({ length: 1500 }, (_, index) =>
+        index >= 1000 ? { n: index, early: 1, late: 'x' } : { n: index, early: 1 },
+      );
+      await client.db(DB).collection(source).insertMany(docs);
+      const path = await filePath(`${source}.csv`);
+      const progress = await exportCollection(client, {
+        database: DB,
+        collection: source,
+        path,
+        options: { format: 'csv', sortEjson: '{"n":1}' },
+      });
+      expectClean(progress);
+      expect(progress.warnings).toEqual([
+        'Field "late" first seen after document 1000 was not exported',
+      ]);
+      const header = (await readFile(path, 'utf8')).split('\n')[0] ?? '';
+      expect(header.split(',').sort()).toEqual(['_id', 'early', 'n']);
     },
     TEST_TIMEOUT_MS,
   );

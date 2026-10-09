@@ -117,10 +117,19 @@ export const TransferRowErrorSchema = z.object({
   message: z.string(),
 });
 
+// Progress of an import or export.
+//
+// Row numbers in `errors` are data records, not file lines: for CSV they count the records after
+// the header, and blank lines are not counted. For JSON and NDJSON they count the array elements
+// or the non-empty lines. A record that spans several physical lines (a quoted newline) is one row.
+//
+// `updated` is the number of existing documents whose content changed (modifiedCount). `matched`
+// is every existing document that the upsert key found, changed or not.
 export const TransferProgressSchema = z.object({
   processed: z.number().int().nonnegative(),
   inserted: z.number().int().nonnegative(),
   updated: z.number().int().nonnegative(),
+  matched: z.number().int().nonnegative(),
   failed: z.number().int().nonnegative(),
   bytesRead: z.number().int().nonnegative().optional(),
   bytesTotal: z.number().int().nonnegative().optional(),
@@ -128,6 +137,7 @@ export const TransferProgressSchema = z.object({
   done: z.boolean(),
   error: AppErrorSchema.optional(),
   errors: z.array(TransferRowErrorSchema),
+  warnings: z.array(z.string()),
 });
 
 export const ImportPreviewFieldSchema = z.object({
