@@ -7,3 +7,6 @@ allowBuilds:
   ssh2: false
   cpu-features: false
   protobufjs: false
+  kerberos: false
+  mongodb-client-encryption: false
+  os-dns-native: false
