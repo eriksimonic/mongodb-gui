@@ -6,14 +6,14 @@ export default defineConfig({
       {
         test: {
           name: 'unit',
-          include: ['packages/*/src/**/*.test.ts', 'tests/**/*.test.ts'],
-          exclude: ['**/node_modules/**', '**/*.integration.test.ts'],
+          include: ['packages/*/src/**/*.test.{ts,tsx}', 'tests/**/*.test.ts'],
+          exclude: ['**/node_modules/**', '**/dist/**', '**/*.integration.test.{ts,tsx}'],
         },
       },
       {
         test: {
           name: 'integration',
-          include: ['packages/*/src/**/*.integration.test.ts'],
+          include: ['packages/*/src/**/*.integration.test.{ts,tsx}'],
         },
       },
     ],
