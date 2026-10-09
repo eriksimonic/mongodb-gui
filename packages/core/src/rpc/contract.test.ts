@@ -7,13 +7,17 @@ describe('rpcContract', () => {
   it('declares the namespaces required by P1-1 and the profiler namespace of P6-2', () => {
     expect(Object.keys(rpcContract).sort()).toEqual(
       [
+        'app',
         'collections',
         'connections',
         'databases',
+        'docker',
         'favourites',
         'history',
+        'monitor',
         'profiler',
         'settings',
+        'updates',
         'vault',
       ].sort(),
     );

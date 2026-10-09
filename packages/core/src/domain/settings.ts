@@ -10,4 +10,6 @@ export const defaultSettings: Settings = {
   historyLimit: 20000,
   editorFontSize: 13,
   sampleSize: 100,
+  dockerAutoConnect: false,
+  checkForUpdates: true,
 };

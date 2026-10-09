@@ -8,13 +8,18 @@ const appRoot = import.meta.dirname;
 // the bundle includes them. Their npm dependencies (zod, mongodb) are bundled with them.
 const bundledWorkspacePackages = [
   '@mongo-gui/core',
+  '@mongo-gui/docker',
   '@mongo-gui/mongo-adapter',
   '@mongo-gui/storage',
 ];
 
 export default defineConfig({
   main: {
-    plugins: [externalizeDepsPlugin({ exclude: bundledWorkspacePackages })],
+    // electron-updater is bundled into the main bundle. It reads app-update.yml from the
+    // resources directory at run time, which works inside the asar.
+    plugins: [
+      externalizeDepsPlugin({ exclude: [...bundledWorkspacePackages, 'electron-updater'] }),
+    ],
     build: {
       outDir: join(appRoot, 'out/main'),
     },

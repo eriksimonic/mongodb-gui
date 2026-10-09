@@ -46,6 +46,11 @@ export const packageBoundaries: readonly PackageBoundary[] = [
     forbiddenPackages: ['electron', 'react'],
     forbidsNodeBuiltins: false,
   },
+  {
+    packageName: 'docker',
+    forbiddenPackages: ['electron', 'react'],
+    forbidsNodeBuiltins: false,
+  },
 ];
 
 export function isSourceFileName(fileName: string): boolean {

@@ -1,7 +1,10 @@
 import { z } from 'zod';
-import { ConnectionStatusSchema } from './connection';
+import { DockerMongoContainerSummarySchema } from '../docker/types';
+import { MonitorSampleSchema } from '../monitor/schemas';
 import { ProfileEntrySchema } from '../profiler/types';
+import { UpdateStateSchema } from '../updates/types';
 import { AppErrorSchema } from './errors';
+import { ConnectionStatusSchema } from './connection';
 
 export const RpcEventSchema = z.discriminatedUnion('type', [
   z.object({
@@ -20,6 +23,21 @@ export const RpcEventSchema = z.discriminatedUnion('type', [
     type: z.literal('profiler:error'),
     connectionId: z.uuid(),
     database: z.string().min(1),
+    error: AppErrorSchema,
+  }),
+  z.object({
+    type: z.literal('docker:containers'),
+    containers: z.array(DockerMongoContainerSummarySchema),
+  }),
+  z.object({ type: z.literal('updates:state'), state: UpdateStateSchema }),
+  z.object({
+    type: z.literal('monitor:sample'),
+    connectionId: z.uuid(),
+    sample: MonitorSampleSchema,
+  }),
+  z.object({
+    type: z.literal('monitor:error'),
+    connectionId: z.uuid(),
     error: AppErrorSchema,
   }),
 ]);

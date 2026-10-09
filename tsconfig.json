@@ -14,6 +14,12 @@
       "path": "./packages/mongo-adapter/tsconfig.test.json"
     },
     {
+      "path": "./packages/docker"
+    },
+    {
+      "path": "./packages/docker/tsconfig.test.json"
+    },
+    {
       "path": "./packages/shell-runtime"
     },
     {

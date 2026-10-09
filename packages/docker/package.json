@@ -1,0 +1,19 @@
+{
+  "name": "@mongo-gui/docker",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "main": "src/index.ts",
+  "types": "src/index.ts",
+  "exports": {
+    ".": "./src/index.ts"
+  },
+  "dependencies": {
+    "@mongo-gui/core": "workspace:*",
+    "zod": "^4.6.5"
+  },
+  "devDependencies": {
+    "mongodb": "^7.7.0",
+    "testcontainers": "^12.2.0"
+  }
+}

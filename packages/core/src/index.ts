@@ -1,5 +1,6 @@
 export const corePackageName = '@mongo-gui/core';
 
+export * from './docker/types';
 export * from './domain/catalog';
 export * from './domain/connection';
 export * from './domain/errors';
@@ -15,6 +16,7 @@ export * from './explain/warnings';
 export * from './management/types';
 export * from './ids';
 export * from './monitor/derive';
+export * from './monitor/opid';
 export * from './monitor/ring-buffer';
 export * from './monitor/schemas';
 export * from './monitor/types';
@@ -33,7 +35,9 @@ export * from './schemas/connection';
 export * from './schemas/errors';
 export * from './schemas/events';
 export * from './schemas/history';
+export * from './schemas/monitor';
 export * from './schemas/settings';
 export * from './schemas/vault';
+export * from './updates/types';
 export * from './shell/protocol';
 export * from './shell/result-type';
