@@ -30,6 +30,7 @@ import {
   type RpcCall,
   type RpcEvent,
   type RpcResult,
+  type SchemaReport,
   type SetProfilingLevelInput,
   type TailProfileOptions,
   type UpdateState,
@@ -51,6 +52,7 @@ import {
   deleteByFilter,
   deleteDocuments,
   dropCollection,
+  estimatedDocumentCount,
   dropDatabase,
   dropIndex,
   findDocumentById,
@@ -688,6 +690,33 @@ export function createRouter(deps: RouterDeps): Router {
     entry('shell.sampleSchema', rpcContract.shell.sampleSchema, (input) =>
       shellCall(input.connectionId, (shell) => shell.sampleSchema(input)),
     ),
+    // The sample comes from the shell runtime. The total comes from the server's metadata.
+    entry('schema.analyse', rpcContract.schema.analyse, async (input): Promise<SchemaReport> => {
+      const sample = await shellCall(input.connectionId, (shell) =>
+        shell.sampleSchema({
+          connectionId: input.connectionId,
+          database: input.database,
+          collection: input.collection,
+          size: input.size,
+          strategy: input.strategy,
+        }),
+      );
+      const total = await driverCall(() =>
+        estimatedDocumentCount(
+          deps.connections.getClient(input.connectionId),
+          input.database,
+          input.collection,
+        ),
+      );
+      return {
+        database: input.database,
+        collection: input.collection,
+        sampled: sample.sampled,
+        total,
+        fields: sample.fields,
+        at: new Date().toISOString(),
+      };
+    }),
     entry('shell.restart', rpcContract.shell.restart, (input) =>
       shellCall(input.connectionId, (shell) => shell.restart(input.connectionId)),
     ),
@@ -719,6 +748,13 @@ export function createRouter(deps: RouterDeps): Router {
     entry('monitor.setInterval', rpcContract.monitor.setInterval, (input) =>
       monitor.setInterval(input.connectionId, input.intervalMs),
     ),
+
+    entry('layout.get', rpcContract.layout.get, (input) => ({
+      value: repos().layout.get(input.key) ?? null,
+    })),
+    entry('layout.set', rpcContract.layout.set, (input) => {
+      repos().layout.set(input.key, input.value);
+    }),
 
     entry('settings.get', rpcContract.settings.get, () => repos().settings.get()),
     entry('settings.update', rpcContract.settings.update, (input) => {

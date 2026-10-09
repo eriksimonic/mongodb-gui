@@ -1,8 +1,10 @@
 import {
   AppErrorException,
   appError,
+  CATALOG_SERIES,
   DEFAULT_MONITOR_INTERVAL_MS,
   DEFAULT_MONITOR_RETENTION_MS,
+  type SeriesUnit,
   type MonitorConfig,
   type MonitorSample,
   type RpcEvent,
@@ -211,6 +213,7 @@ function sampleAt(run: Run, tick: number, at: number, intervalMs: number): Monit
   const cacheUsedMb = Math.min(CACHE_MAX_MB - 8, 1180 + wave(60, 70) + tick * 0.05 + noise(6));
 
   const sample: MonitorSample = {
+    series: {},
     at: new Date(at).toISOString(),
     uptimeSeconds: run.uptimeBase + (tick * intervalMs) / MS_PER_SECOND,
     opcounters,
@@ -267,7 +270,96 @@ function sampleAt(run: Run, tick: number, at: number, intervalMs: number): Monit
       oplogWindowSeconds: 7_200 + wave(120, 80),
     };
   }
+  Object.assign(sample.series, seriesValues(run, tick, sample));
   return sample;
+}
+
+const MIB = 1024 * 1024;
+
+/** Values for series the sample's own fields do not hold. Ticket pools sit near their totals. */
+const GENERIC_BASE: Readonly<Record<SeriesUnit, number>> = {
+  count: 12,
+  'per-second': 25,
+  bytes: 512 * MIB,
+  'bytes-per-second': 150_000,
+  ms: 35,
+  percent: 40,
+  seconds: 7200,
+};
+const GENERIC_BASE_OVERRIDES: Readonly<Record<string, number>> = {
+  'tickets-read-available': 120,
+  'tickets-read-out': 8,
+  'tickets-write-available': 124,
+  'tickets-write-out': 4,
+  'queue-readers': 0,
+  'queue-writers': 0,
+  deadlocks: 0,
+  'cursor-timed-out': 0,
+};
+
+/** Series with a value in the sample's own fields. Each one matches the field it is drawn from. */
+const FROM_SAMPLE: Readonly<Record<string, (sample: MonitorSample) => number | undefined>> = {
+  'op-insert': (sample) => sample.opcounters.insert,
+  'op-query': (sample) => sample.opcounters.query,
+  'op-update': (sample) => sample.opcounters.update,
+  'op-delete': (sample) => sample.opcounters.delete,
+  'op-getmore': (sample) => sample.opcounters.getmore,
+  'op-command': (sample) => sample.opcounters.command,
+  'conn-current': (sample) => sample.connections.current,
+  'conn-active': (sample) => sample.connections.active,
+  'conn-available': (sample) => sample.connections.available,
+  'net-in': (sample) => sample.network.bytesInPerSec,
+  'net-out': (sample) => sample.network.bytesOutPerSec,
+  'net-requests': (sample) => sample.network.requestsPerSec,
+  'mem-resident': (sample) => sample.memory.residentMb * MIB,
+  'mem-virtual': (sample) => sample.memory.virtualMb * MIB,
+  'wt-cache-used': (sample) =>
+    sample.wiredTiger === undefined ? undefined : sample.wiredTiger.cacheUsedMb * MIB,
+  'wt-cache-dirty': (sample) =>
+    sample.wiredTiger === undefined ? undefined : sample.wiredTiger.cacheDirtyMb * MIB,
+  'wt-cache-max': (sample) =>
+    sample.wiredTiger === undefined ? undefined : sample.wiredTiger.cacheMaxMb * MIB,
+  'wt-cache-fill': (sample) =>
+    sample.wiredTiger === undefined || sample.wiredTiger.cacheMaxMb <= 0
+      ? undefined
+      : (sample.wiredTiger.cacheUsedMb / sample.wiredTiger.cacheMaxMb) * 100,
+  'wt-bytes-read-in': (sample) => sample.wiredTiger?.readIntoCachePerSec,
+  'wt-bytes-written-out': (sample) => sample.wiredTiger?.writtenFromCachePerSec,
+  'queue-readers': (sample) => sample.globalLock?.currentQueueReaders,
+  'queue-writers': (sample) => sample.globalLock?.currentQueueWriters,
+  'oplog-window': (sample) => sample.replication?.oplogWindowSeconds,
+  'page-faults': (sample) => sample.pageFaultsPerSec,
+};
+
+/**
+ * One value per catalogue series, as the real sampler would produce them. Series the sample holds
+ * take the sample's value, so the two agree. Replica lag is one key per member. The rest are generated
+ * from a per-unit base with a slow wave, keyed by the series id.
+ */
+function seriesValues(run: Run, tick: number, sample: MonitorSample): Record<string, number> {
+  const values: Record<string, number> = {};
+  for (const spec of CATALOG_SERIES) {
+    if (spec.path[0] === 'repl' && spec.path[1] === 'lag') {
+      if (run.replication) {
+        for (const member of sample.replication?.members ?? []) {
+          if (member.lagSeconds !== undefined) {
+            values[`${spec.id}@${member.name}`] = member.lagSeconds;
+          }
+        }
+      }
+      continue;
+    }
+    const fromSample = FROM_SAMPLE[spec.id]?.(sample);
+    if (fromSample !== undefined && Number.isFinite(fromSample)) {
+      values[spec.id] = Math.max(0, fromSample);
+      continue;
+    }
+    const base = GENERIC_BASE_OVERRIDES[spec.id] ?? GENERIC_BASE[spec.unit];
+    const phase = seedFor(spec.id) % 97;
+    const wave = 1 + 0.25 * Math.sin(tick / (20 + (phase % 40)) + phase);
+    values[spec.id] = Math.max(0, base * wave * (1 + (run.random() - 0.5) * 0.1));
+  }
+  return values;
 }
 
 /**

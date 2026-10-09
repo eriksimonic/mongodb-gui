@@ -13,6 +13,7 @@ import { join } from 'node:path';
 import { devServerUrl, isAppUrl, rendererDirectory } from './app-origin';
 import { log } from './log';
 import {
+  AppErrorException,
   WINDOW_BOUNDS_KEY,
   clampBounds,
   debounce,
@@ -47,8 +48,27 @@ let quitting = false;
 const BOUNDS_SAVE_DELAY_MS = 500;
 
 /**
- * Writes the window bounds under window:main. The vault must be unlocked, so a write while
- * locked is skipped and the next move or resize tries again.
+ * The latest bounds the user moved the window to while the vault was locked. They are written on
+ * the next unlock, so the window stays where the user left it.
+ */
+let pendingBounds: WindowBounds | undefined;
+
+/** Stores the bounds under window:main. False when the store refuses, such as a locked vault. */
+function storeBounds(bounds: WindowBounds): boolean {
+  if (services === undefined) {
+    return false;
+  }
+  try {
+    services.currentRepos().layout.set(WINDOW_BOUNDS_KEY, bounds);
+    return true;
+  } catch {
+    return false;
+  }
+}
+
+/**
+ * Saves the window bounds. A locked vault keeps the bounds in memory instead, and the next unlock
+ * writes them.
  */
 function writeWindowBounds(): void {
   const window = mainWindow;
@@ -57,18 +77,27 @@ function writeWindowBounds(): void {
   }
   const { x, y, width, height } = window.getNormalBounds();
   const bounds: WindowBounds = { x, y, width, height, maximized: window.isMaximized() };
-  try {
-    services.currentRepos().layout.set(WINDOW_BOUNDS_KEY, bounds);
-  } catch {
-    // Locked vault. Nothing is saved until the next unlock and move.
+  if (!storeBounds(bounds)) {
+    pendingBounds = bounds;
   }
 }
 
 const boundsSaver = debounce(writeWindowBounds, BOUNDS_SAVE_DELAY_MS);
 
+/** True when a read failed because the vault is locked, which is normal at launch. */
+function isLockedError(error: unknown): boolean {
+  return error instanceof AppErrorException && error.error.code === 'VAULT_LOCKED';
+}
+
+/** Logs why the saved bounds were ignored. The value itself is never logged. */
+function warnIgnoredBounds(reason: string): void {
+  log.warn('saved window bounds ignored', { key: WINDOW_BOUNDS_KEY, reason });
+}
+
 /**
  * Applies the saved bounds to the main window. Runs on window creation when the vault is open,
- * and after every unlock. A locked vault, or a window without saved bounds, keeps the defaults.
+ * and on an unlock that has no pending bounds. A locked vault, or a window without saved bounds,
+ * keeps the defaults. A stored value that cannot be read or parsed is logged and ignored.
  */
 function restoreWindowBounds(): void {
   const window = mainWindow;
@@ -78,21 +107,51 @@ function restoreWindowBounds(): void {
   let stored: unknown;
   try {
     stored = services.currentRepos().layout.get(WINDOW_BOUNDS_KEY);
-  } catch {
+  } catch (error) {
+    if (!isLockedError(error)) {
+      warnIgnoredBounds(
+        `the stored value cannot be read: ${error instanceof Error ? error.message : String(error)}`,
+      );
+    }
+    return;
+  }
+  if (stored === null || stored === undefined) {
     return;
   }
   const saved = parseWindowBounds(stored);
   if (saved === undefined) {
+    warnIgnoredBounds('the stored value does not match the bounds schema');
     return;
   }
   // The display that holds most of the saved window, or the nearest one when none holds it.
   const display = screen.getDisplayMatching(saved);
   const fitted = clampBounds(saved, display.workArea);
+  // Unmaximize first, so the bounds below take effect on a window that was maximized.
+  if (window.isMaximized() && !fitted.maximized) {
+    window.unmaximize();
+  }
   window.setBounds({ x: fitted.x, y: fitted.y, width: fitted.width, height: fitted.height });
   if (fitted.maximized) {
     window.maximize();
   }
 }
+
+/**
+ * Runs after every unlock. Bounds moved while locked are written now, so the stored ones do not
+ * snap the window back. Otherwise the saved bounds apply.
+ */
+function onVaultUnlocked(): void {
+  const moved = pendingBounds;
+  pendingBounds = undefined;
+  if (moved === undefined) {
+    restoreWindowBounds();
+    return;
+  }
+  if (!storeBounds(moved)) {
+    pendingBounds = moved;
+  }
+}
+
 /**
  * The file dialogs open over the main window. The renderer gets only the path the user picked.
  * A cancelled dialog gives no path.
@@ -307,7 +366,7 @@ app
     // Forwarders left behind by a crash or a force quit are removed before the user can connect.
     void appServices.docker.cleanupAll();
     appServices.unlockEvents.subscribe(() => {
-      restoreWindowBounds();
+      onVaultUnlocked();
     });
     createMainWindow();
 

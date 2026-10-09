@@ -33,6 +33,7 @@ import {
   fixtureBuilds,
   fixtureCatalog,
   findDatabase,
+  findMockCollection,
   type MockBuild,
   type MockCollection,
   type MockDatabase,
@@ -763,6 +764,33 @@ export function createMockUiApi(options: MockUiApiOptions = {}): UiApi {
         requireUnlocked();
         state.settings = mergeSettings(state.settings, patch);
         return { ...state.settings };
+      }),
+    },
+    schema: {
+      analyse: method(rpcContract.schema.analyse, latencyMs, (input) => {
+        requireUnlocked();
+        requireConnected(input.connectionId);
+        const found = findMockCollection(
+          catalogOf(input.connectionId),
+          input.database,
+          input.collection,
+        );
+        if (found === undefined) {
+          throw fail(
+            'COMMAND_FAILED',
+            'Collection not found',
+            `${input.database}.${input.collection}`,
+          );
+        }
+        const sample = shell.sampleSchema(input);
+        return {
+          database: input.database,
+          collection: input.collection,
+          sampled: sample.sampled,
+          total: found.documents.length,
+          fields: sample.fields,
+          at: new Date().toISOString(),
+        };
       }),
     },
     monitor: {

@@ -2,6 +2,7 @@ import { useAppStore } from '../../state/app-store-context';
 import { ClearCollectionDialog, DropCollectionDialog, DropDatabaseDialog } from './DropDialogs';
 import { CreateCollectionDialog } from './CreateCollectionDialog';
 import { CreateDatabaseDialog } from './CreateDatabaseDialog';
+import { CreateIndexDialog } from './CreateIndexDialog';
 import { RenameCollectionDialog } from './RenameCollectionDialog';
 
 export interface ManagementDialogsProps {
@@ -52,6 +53,16 @@ export function ManagementDialogs({ onDatabaseDropped }: ManagementDialogsProps)
           connectionId={dialog.connectionId}
           database={dialog.database}
           collection={dialog.collection}
+          onClose={onClose}
+        />
+      );
+    case 'createIndex':
+      return (
+        <CreateIndexDialog
+          connectionId={dialog.connectionId}
+          database={dialog.database}
+          collection={dialog.collection}
+          initialField={dialog.field}
           onClose={onClose}
         />
       );

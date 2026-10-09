@@ -2,6 +2,11 @@ import { z } from 'zod';
 import { AppErrorSchema } from '../schemas/errors';
 import { ClusterTopologySchema } from '../schemas/connection';
 import { ShellResultTypeSchema } from './result-type';
+import {
+  SchemaFieldSchema,
+  SchemaSampleSizeSchema,
+  SchemaSampleStrategySchema,
+} from '../schema/types';
 
 // Process-level messages (ready, unparseable input without an id, uncaught errors) use this id.
 export const PROCESS_MESSAGE_ID = 'process';
@@ -51,7 +56,9 @@ export const SampleSchemaRequestSchema = z.object({
   kind: z.literal('sampleSchema'),
   database: z.string().min(1),
   collection: z.string().min(1),
-  size: BatchSizeSchema,
+  size: SchemaSampleSizeSchema,
+  // Older requests carry no strategy. They sampled at random.
+  strategy: SchemaSampleStrategySchema.default('random'),
 });
 
 export const DisconnectRequestSchema = z.object({
@@ -89,14 +96,6 @@ export const CompletionKindSchema = z.enum([
 ]);
 
 export type CompletionKind = z.infer<typeof CompletionKindSchema>;
-
-export const SchemaFieldSchema = z.object({
-  path: z.string(),
-  types: z.array(z.string()),
-  presence: z.number().min(0).max(1),
-});
-
-export type SchemaField = z.infer<typeof SchemaFieldSchema>;
 
 const ResponseBase = { id: RequestIdSchema };
 

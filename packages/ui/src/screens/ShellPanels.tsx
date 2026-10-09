@@ -19,6 +19,7 @@ import { IndexesPanel } from '../components/management/IndexesPanel';
 import { ValidationPanel } from '../components/management/ValidationPanel';
 import { ExplainPanel } from '../explain/ExplainPanel';
 import { ProfilerPanel } from '../profiler/ProfilerPanel';
+import { SchemaPanel } from '../schema/SchemaPanel';
 import { MonitorDashboard } from '../monitor/MonitorDashboard';
 import { OperationsPanel } from '../monitor/OperationsPanel';
 import { useAppStore } from '../state/app-store-context';
@@ -285,6 +286,15 @@ export function ValidationDockPanel({ params }: IDockviewPanelProps<CollectionPa
   return (
     <Box h="100%" style={{ overflow: 'auto' }}>
       <ValidationPanel {...params} />
+    </Box>
+  );
+}
+
+/** Dock panel: schema analysis of one collection. The panel scrolls its own table. */
+export function SchemaDockPanel({ params }: IDockviewPanelProps<CollectionPanelParams>) {
+  return (
+    <Box h="100%" style={{ overflow: 'hidden' }}>
+      <SchemaPanel {...params} />
     </Box>
   );
 }

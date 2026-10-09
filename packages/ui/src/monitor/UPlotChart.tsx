@@ -1,9 +1,11 @@
 import 'uplot/dist/uPlot.min.css';
+import type { SeriesUnit } from '@mongo-gui/core';
 import uPlot from 'uplot';
 import { useComputedColorScheme } from '@mantine/core';
 import { useEffect, useMemo, useRef, useState, type RefObject } from 'react';
-import { CHART_HEIGHT_PX, type ChartSeries, type ChartWindow } from './chart-types';
-import { formatAxisValue, formatClock, formatValue, type MetricUnit } from './format';
+import { CHART_HEIGHT_PX, type ChartMode, type ChartSeries, type ChartWindow } from './chart-types';
+import { stackedValues } from './chart-series';
+import { formatAxisValue, formatClock, formatValue } from './format';
 import { chartPalette, type ChartPalette } from './palette';
 import './monitor.css';
 
@@ -13,11 +15,12 @@ export interface UPlotChartProps {
   readonly times: readonly number[];
   readonly series: readonly ChartSeries[];
   /** Unit of the value axis. Every series in one chart shares it. */
-  readonly yUnit: MetricUnit;
+  readonly yUnit: SeriesUnit;
   /** Charts with the same key share a cursor, so hovering one marks the same moment on all. */
   readonly syncKey: string;
   /** The window the x axis shows. Without it the axis follows the data. */
   readonly window?: ChartWindow | undefined;
+  readonly mode?: ChartMode;
   readonly height?: number;
 }
 
@@ -28,16 +31,45 @@ const X_TICK_SPACE_PX = 84;
 const Y_TICK_SPACE_PX = 40;
 const TOOLTIP_OFFSET_PX = 12;
 const HEADROOM = 1.1;
-const REFERENCE_DASH = [4, 3];
+// Area fills take the series colour at this alpha. Two hex digits, appended to a #rrggbb colour.
+const AREA_FILL_ALPHA = '33';
+
+const KIBI = 1024;
+/** Byte axis steps: 1, 2, 4 ... 512 times each power of 1024, so every step is a whole number of bytes. */
+const BYTE_INCREMENTS: readonly number[] = Array.from({ length: 5 }, (_, power) =>
+  Array.from({ length: 10 }, (_, step) => KIBI ** power * 2 ** step),
+)
+  .flat()
+  .sort((a, b) => a - b);
+/** Count axis steps: 1, 2 and 5 times each power of ten. Every step is an integer. */
+const COUNT_INCREMENTS: readonly number[] = Array.from({ length: 10 }, (_, power) =>
+  [1, 2, 5].map((mantissa) => mantissa * 10 ** power),
+).flat();
+
+/** The axis steps for a unit. Other units let uPlot choose its own. */
+function axisIncrements(unit: SeriesUnit): number[] | undefined {
+  switch (unit) {
+    case 'bytes':
+    case 'bytes-per-second':
+      return [...BYTE_INCREMENTS];
+    case 'count':
+      return [...COUNT_INCREMENTS];
+    default:
+      return undefined;
+  }
+}
 
 interface BuildInput {
   readonly ink: ChartPalette['ink'];
   readonly width: number;
   readonly height: number;
   readonly series: readonly ChartSeries[];
-  readonly yUnit: MetricUnit;
+  /** Returns the series as they are now. The tooltip reads it on each cursor move, after data updates. */
+  readonly readSeries: () => readonly ChartSeries[];
+  readonly yUnit: SeriesUnit;
   readonly syncKey: string;
   readonly window: ChartWindow | undefined;
+  readonly mode: ChartMode;
 }
 
 /** Spreads a value only when it is defined, for uPlot options that reject explicit undefined. */
@@ -84,8 +116,25 @@ function tickSplits(min: number, max: number, step: number): number[] {
 }
 
 /**
+ * The window's tick step, doubled until the labels fit the plot without touching. A narrow card
+ * keeps fewer labels, so it shows a wider step than the window asks for.
+ */
+function fittingStep(plot: uPlot, min: number, max: number, baseStep: number): number {
+  if (baseStep <= 0) {
+    return baseStep;
+  }
+  const maxLabels = Math.max(1, Math.floor(plot.over.clientWidth / X_TICK_SPACE_PX));
+  let multiple = 1;
+  while ((max - min) / (baseStep * multiple) > maxLabels) {
+    multiple += 1;
+  }
+  return baseStep * multiple;
+}
+
+/**
  * Writes one readout per series at the hovered moment. It shows only in the chart under the
  * pointer, so synced charts keep the crosshair without a tooltip each. Text goes in with textContent.
+ * The readouts read the series values, not the plotted ones, so a stacked area shows each value as it is.
  */
 function renderTooltip(plot: uPlot, element: HTMLDivElement, series: readonly ChartSeries[]): void {
   const index = plot.cursor.idx;
@@ -99,8 +148,8 @@ function renderTooltip(plot: uPlot, element: HTMLDivElement, series: readonly Ch
   heading.className = 'mg-chart-tooltip-time';
   heading.textContent = formatClock(time * 1000);
 
-  const rows = series.map((item, position) => {
-    const value = plot.data[position + 1]?.[index];
+  const rows = series.map((item) => {
+    const value = item.values[index];
     const row = document.createElement('div');
     row.className = 'mg-chart-tooltip-row';
     const key = document.createElement('span');
@@ -139,11 +188,16 @@ function buildOptions({
   width,
   height,
   series,
+  readSeries,
   yUnit,
   syncKey,
   window,
+  mode,
 }: BuildInput): uPlot.Options {
   let tooltip: HTMLDivElement | undefined;
+  const filled = mode !== 'lines';
+  const stacked = mode === 'stacked';
+  const increments = axisIncrements(yUnit);
   return {
     width,
     height,
@@ -159,8 +213,8 @@ function buildOptions({
       x: {
         time: true,
         // The window ends at the newest point, so a short history leaves blank space on the left.
-        range: (_plot, _min, max) =>
-          window === undefined ? [_min, max] : [max - window.windowSeconds, max],
+        range: (_plot, min, max) =>
+          window === undefined ? [min, max] : [max - window.windowSeconds, max],
       },
       y: {
         range: (_plot, min, max) => [Math.min(0, min), max > 0 ? max * HEADROOM : 1],
@@ -176,8 +230,8 @@ function buildOptions({
         ticks: { show: false },
         border: { show: true, stroke: ink.baseline, width: 1 },
         ...ifDefined(window !== undefined, () => ({
-          splits: (_plot: uPlot, _axis: number, min: number, max: number) =>
-            tickSplits(min, max, window?.tickSeconds ?? 0),
+          splits: (plot: uPlot, _axis: number, min: number, max: number) =>
+            tickSplits(min, max, fittingStep(plot, min, max, window?.tickSeconds ?? 0)),
         })),
         values: (_plot, values) => values.map((value) => formatClock(value * 1000)),
       },
@@ -189,20 +243,32 @@ function buildOptions({
         grid: { show: true, stroke: ink.gridline, width: 1 },
         ticks: { show: false },
         border: { show: false },
+        ...(increments === undefined ? {} : { incrs: increments }),
         values: (_plot, values) => values.map((value) => formatAxisValue(value, yUnit)),
       },
     ],
     series: [
       {},
-      ...series.map((item) => ({
+      ...series.map((item, index) => ({
         label: item.label,
         stroke: item.color,
-        width: item.dashed === true ? 1 : 2,
-        ...ifDefined(item.dashed === true, () => ({ dash: REFERENCE_DASH })),
+        width: 2,
+        // A stack fills its bottom series to zero. Each higher series fills through its band below.
+        ...ifDefined(filled && (!stacked || index === 0), () => ({
+          fill: `${item.color}${AREA_FILL_ALPHA}`,
+        })),
         points: { show: false },
         spanGaps: false,
       })),
     ],
+    ...ifDefined(stacked, () => ({
+      // uPlot series 0 is the x axis, so series i of the stack is uPlot series i + 1. The band
+      // for series i fills between series i and the series below it.
+      bands: series.slice(1).map((item, index) => ({
+        series: [index + 2, index + 1] as [number, number],
+        fill: `${item.color}${AREA_FILL_ALPHA}`,
+      })),
+    })),
     hooks: {
       init: [
         (plot) => {
@@ -215,7 +281,7 @@ function buildOptions({
       setCursor: [
         (plot) => {
           if (tooltip !== undefined) {
-            renderTooltip(plot, tooltip, series);
+            renderTooltip(plot, tooltip, readSeries());
           }
         },
       ],
@@ -223,9 +289,14 @@ function buildOptions({
   };
 }
 
+/** The values uPlot draws: the series as they are, or the running totals for a stacked chart. */
+function plottedValues(series: readonly ChartSeries[], mode: ChartMode): (number | null)[][] {
+  return mode === 'stacked' ? stackedValues(series) : series.map((item) => [...item.values]);
+}
+
 /**
- * A uPlot line chart in a box that fills its parent. The plot is rebuilt when the width, the
- * series set, the unit or the window changes, and updated in place when only the data changes.
+ * A uPlot chart in a box that fills its parent. The plot is rebuilt when the width, the series set,
+ * the unit, the mode or the window changes, and updated in place when only the data changes.
  */
 export function UPlotChart({
   label,
@@ -234,6 +305,7 @@ export function UPlotChart({
   yUnit,
   syncKey,
   window,
+  mode = 'lines',
   height = CHART_HEIGHT_PX,
 }: UPlotChartProps) {
   const hostRef = useRef<HTMLDivElement>(null);
@@ -243,18 +315,16 @@ export function UPlotChart({
   const scheme = useComputedColorScheme('dark');
   const ink = chartPalette(scheme).ink;
   const data = useMemo(
-    () => [times.slice(), ...series.map((item) => item.values.slice())] as uPlot.AlignedData,
-    [times, series],
+    () => [times.slice(), ...plottedValues(series, mode)] as uPlot.AlignedData,
+    [times, series, mode],
   );
-  const shape = series
-    .map((item) => `${item.key}|${item.label}|${item.color}|${item.dashed === true}`)
-    .join(';');
+  const shape = series.map((item) => `${item.key}|${item.label}|${item.color}`).join(';');
   const windowKey = window === undefined ? 'none' : `${window.windowSeconds}/${window.tickSeconds}`;
-  const latest = useRef({ series, data, window });
+  const latest = useRef({ series, data, window, mode });
 
   useEffect(() => {
-    latest.current = { series, data, window };
-  }, [series, data, window]);
+    latest.current = { series, data, window, mode };
+  }, [series, data, window, mode]);
 
   useEffect(() => {
     const host = hostRef.current;
@@ -268,9 +338,11 @@ export function UPlotChart({
         width,
         height,
         series: current.series,
+        readSeries: () => latest.current.series,
         yUnit,
         syncKey,
         window: current.window,
+        mode: current.mode,
       }),
       current.data,
       host,
@@ -282,7 +354,7 @@ export function UPlotChart({
         plotRef.current = undefined;
       }
     };
-  }, [width, height, shape, yUnit, syncKey, windowKey, ink]);
+  }, [width, height, shape, yUnit, syncKey, windowKey, mode, ink]);
 
   useEffect(() => {
     plotRef.current?.setData(data);

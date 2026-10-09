@@ -1,8 +1,10 @@
 import {
   appError,
+  summarizeCanonicalSample,
   type CompletionItem,
   type RpcEvent,
-  type SchemaField,
+  type SchemaSampleStrategy,
+  type SchemaSummary,
   type ShellEvaluation,
   type ShellResult,
 } from '@mongo-gui/core';
@@ -238,16 +240,10 @@ export function createMockShell(
       database: string;
       collection: string;
       size: number;
-    }): {
-      fields: SchemaField[];
-      sampled: number;
-    } {
-      const documents = collectionDocuments(
-        input.connectionId,
-        input.database,
-        input.collection,
-      ).slice(0, input.size);
-      return summariseDocuments(documents);
+      strategy: SchemaSampleStrategy;
+    }): SchemaSummary {
+      const documents = collectionDocuments(input.connectionId, input.database, input.collection);
+      return summarizeCanonicalSample(pickSample(documents, input.size, input.strategy));
     },
 
     clearConnection(connectionId: string): void {
@@ -346,64 +342,17 @@ function unquote(arg: string): string {
   return quoted === null ? arg : (quoted[2] ?? '');
 }
 
-/** Walks sampled documents and reports each field path with its types and presence. */
-export function summariseDocuments(documents: readonly unknown[]): {
-  fields: SchemaField[];
-  sampled: number;
-} {
-  const types = new Map<string, Set<string>>();
-  const seen = new Map<string, number>();
-  for (const document of documents) {
-    const paths = new Set<string>();
-    collectFields(document, '', types, paths);
-    for (const path of paths) {
-      seen.set(path, (seen.get(path) ?? 0) + 1);
-    }
+/**
+ * The documents a schema sample reads. The mock holds its documents in insertion order, so random
+ * takes the first documents too. That keeps the mock deterministic.
+ */
+export function pickSample(
+  documents: readonly unknown[],
+  size: number,
+  strategy: SchemaSampleStrategy,
+): readonly unknown[] {
+  if (strategy === 'last') {
+    return documents.slice(Math.max(0, documents.length - size));
   }
-  const sampled = documents.length;
-  const fields = [...types.keys()].sort().map((path) => ({
-    path,
-    types: [...(types.get(path) ?? [])].sort(),
-    presence: sampled === 0 ? 0 : (seen.get(path) ?? 0) / sampled,
-  }));
-  return { fields, sampled };
-}
-
-function collectFields(
-  value: unknown,
-  prefix: string,
-  types: Map<string, Set<string>>,
-  paths: Set<string>,
-): void {
-  if (typeof value !== 'object' || value === null) {
-    return;
-  }
-  for (const [key, child] of Object.entries(value)) {
-    const path = prefix === '' ? key : `${prefix}.${key}`;
-    paths.add(path);
-    const typeName = typeOf(child);
-    types.set(path, (types.get(path) ?? new Set<string>()).add(typeName));
-    if (typeName === 'Object') {
-      collectFields(child, path, types, paths);
-    }
-  }
-}
-
-function typeOf(value: unknown): string {
-  if (value === null) {
-    return 'null';
-  }
-  if (Array.isArray(value)) {
-    return 'Array';
-  }
-  if (typeof value === 'object') {
-    if ('$oid' in value) {
-      return 'ObjectId';
-    }
-    if ('$date' in value) {
-      return 'Date';
-    }
-    return 'Object';
-  }
-  return typeof value;
+  return documents.slice(0, size);
 }

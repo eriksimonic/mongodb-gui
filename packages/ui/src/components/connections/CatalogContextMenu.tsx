@@ -92,6 +92,11 @@ export function CollectionContextMenu({
     },
     {
       kind: 'item',
+      label: 'Analyse schema',
+      onSelect: () => requestPanel({ panel: 'schema', ...target }),
+    },
+    {
+      kind: 'item',
       label: 'Import data',
       onSelect: () => setTransferDialog({ kind: 'import', connectionId, database, collection }),
     },

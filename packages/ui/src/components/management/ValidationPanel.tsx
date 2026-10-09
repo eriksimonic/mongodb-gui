@@ -21,6 +21,8 @@ import { useEffect, useState } from 'react';
 import { useUiApi } from '../../api/ui-api';
 import { JsonEditor } from '../../editor/JsonEditor';
 import { formatJson, parseJsonObject } from '../../management/input-rules';
+import { addFieldToValidator } from '../../management/validation-field';
+import { useAppStore } from '../../state/app-store-context';
 import { runReported } from '../notify-error';
 import type { CollectionPanelProps } from './IndexesPanel';
 
@@ -48,6 +50,14 @@ interface Stored {
   readonly error: string | undefined;
 }
 
+function isSuccessMessage(message: string): boolean {
+  return (
+    message === 'Saved' ||
+    message.startsWith('Added a rule for ') ||
+    message.startsWith('Updated the rule for ')
+  );
+}
+
 function parseLevel(value: string | null): ValidationLevel {
   return value === 'off' || value === 'moderate' ? value : 'strict';
 }
@@ -65,6 +75,43 @@ export function ValidationPanel({ connectionId, database, collection }: Collecti
   const [check, setCheck] = useState<ValidationCheckResult | undefined>(undefined);
   const [message, setMessage] = useState<string | undefined>(undefined);
   const [busy, setBusy] = useState(false);
+  const fieldRequest = useAppStore((state) => state.validationField);
+  const clearValidationField = useAppStore((state) => state.clearValidationField);
+
+  // A field from the schema panel adds a rule to the draft. The user saves it, as with any edit.
+  useEffect(() => {
+    if (draft === undefined || fieldRequest === undefined) {
+      return;
+    }
+    const matches =
+      fieldRequest.connectionId === connectionId &&
+      fieldRequest.database === database &&
+      fieldRequest.collection === collection;
+    if (!matches) {
+      return;
+    }
+    // The update runs as a microtask so the effect body only reads the store. The request is cleared
+    // first, so a second run of the effect finds nothing to apply.
+    clearValidationField();
+    queueMicrotask(() => {
+      const result = addFieldToValidator(
+        draft.validatorEjson,
+        fieldRequest.path,
+        fieldRequest.types,
+      );
+      if (result.ok) {
+        setDraft({ ...draft, validatorEjson: result.validatorEjson });
+        setCheck(undefined);
+        setMessage(
+          result.ruleExisted
+            ? `Updated the rule for ${fieldRequest.path}. Save to keep it.`
+            : `Added a rule for ${fieldRequest.path}. Save to keep it.`,
+        );
+      } else {
+        setMessage(result.message);
+      }
+    });
+  }, [draft, fieldRequest, connectionId, database, collection, clearValidationField]);
 
   useEffect(() => {
     let active = true;
@@ -223,7 +270,7 @@ export function ValidationPanel({ connectionId, database, collection }: Collecti
       </Group>
 
       {message === undefined ? null : (
-        <Text size="sm" c={message === 'Saved' ? 'green' : 'red'}>
+        <Text size="sm" c={isSuccessMessage(message) ? 'green' : 'red'}>
           {message}
         </Text>
       )}

@@ -50,6 +50,7 @@ function sample(at: string): MonitorSample {
     connections: { current: 3, available: 800 },
     network: { bytesInPerSec: 100, bytesOutPerSec: 200, requestsPerSec: 5 },
     memory: { residentMb: 64, virtualMb: 900 },
+    series: {},
   };
 }
 

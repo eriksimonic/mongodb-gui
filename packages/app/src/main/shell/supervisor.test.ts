@@ -676,6 +676,7 @@ describe('RuntimeSupervisor', () => {
       database: 'shop',
       collection: 'orders',
       size: 100,
+      strategy: 'random',
     });
     expect(schema).toEqual({ fields: [], sampled: 0 });
   });

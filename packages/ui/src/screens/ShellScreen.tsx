@@ -36,7 +36,7 @@ import type { PanelRequest } from '../state/app-store';
 import { useAppStore } from '../state/app-store-context';
 import { PanelOpenerContext, type OpenPanel } from '../state/panel-opener';
 import { profilerPanelId } from '../state/node-ids';
-import { databasePanelIds, stalePanelIds } from './collection-panels';
+import { databasePanelIds, restoredCollectionRequest, stalePanelIds } from './collection-panels';
 import { createLayoutSaver, loadDockLayout, restoreDockLayout } from './dock-layout';
 import {
   ConnectionsPanel,
@@ -48,6 +48,7 @@ import {
   OperationsPanelView,
   OutputPanel,
   ProfilerDockPanel,
+  SchemaDockPanel,
   ValidationDockPanel,
   WelcomePanel,
 } from './ShellPanels';
@@ -63,6 +64,7 @@ const PANEL_COMPONENTS = {
   validation: ValidationDockPanel,
   documents: DocumentsDockPanel,
   explain: ExplainDockPanel,
+  schema: SchemaDockPanel,
 };
 
 const TAB_COMPONENTS = { fixed: FixedTab };
@@ -79,6 +81,7 @@ const PANEL_TITLE_SUFFIX: Readonly<Record<PanelRequest['panel'], string>> = {
   indexes: 'indexes',
   validation: 'validation',
   documents: 'documents',
+  schema: 'schema',
 };
 
 /**
@@ -114,6 +117,18 @@ function handleDockReady({ api }: { readonly api: DockviewApi }) {
 }
 
 /**
+ * Registers the collection panels that a saved layout restored, so the stale-panel cleanup sees them.
+ */
+function registerRestoredPanels(api: DockviewApi, open: Map<string, PanelRequest>): void {
+  for (const panel of api.panels) {
+    const request = restoredCollectionRequest(panel.api.component, panel.params);
+    if (request !== undefined) {
+      open.set(panel.id, request);
+    }
+  }
+}
+
+/**
  * Restores the saved layout, or builds the default one when nothing is saved or the saved one does
  * not load. Layout changes are written from then on. Returns false when the dock was replaced
  * before the read finished, so the caller leaves it alone.
@@ -123,6 +138,7 @@ async function initialiseLayout(
   rpc: RpcClient,
   saver: ReturnType<typeof createLayoutSaver>,
   isCurrent: () => boolean,
+  open: Map<string, PanelRequest>,
 ): Promise<void> {
   const saved = await loadDockLayout(rpc);
   if (!isCurrent()) {
@@ -131,6 +147,7 @@ async function initialiseLayout(
   if (!restoreDockLayout(event.api, saved)) {
     handleDockReady(event);
   }
+  registerRestoredPanels(event.api, open);
   event.api.onDidLayoutChange(() => {
     saver.call(event.api.toJSON());
   });
@@ -457,7 +474,13 @@ export function ShellScreen() {
                       closeExplainPanel(panel.id);
                     }
                   });
-                  void initialiseLayout(event, rpc, saver, () => dockApi.current === event.api);
+                  void initialiseLayout(
+                    event,
+                    rpc,
+                    saver,
+                    () => dockApi.current === event.api,
+                    collectionPanels.current,
+                  );
                 }}
               />
             </div>

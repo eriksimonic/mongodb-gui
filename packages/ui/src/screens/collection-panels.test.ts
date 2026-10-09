@@ -1,7 +1,12 @@
 import { describe, expect, it } from 'vitest';
 import type { PanelRequest } from '../state/app-store';
 import { catalogKey } from '../state/node-ids';
-import { databasePanelIds, isStalePanel, stalePanelIds } from './collection-panels';
+import {
+  databasePanelIds,
+  isStalePanel,
+  restoredCollectionRequest,
+  stalePanelIds,
+} from './collection-panels';
 
 const CONNECTION = 'c1';
 const orders: PanelRequest = {
@@ -71,5 +76,30 @@ describe('databasePanelIds', () => {
     ]);
     expect(databasePanelIds(open, CONNECTION, 'shop')).toEqual(['orders', 'customers']);
     expect(databasePanelIds(open, 'other', 'shop')).toEqual([]);
+  });
+});
+
+describe('restoredCollectionRequest', () => {
+  it('reads a collection panel request from the params of a restored dock panel', () => {
+    expect(
+      restoredCollectionRequest('schema', {
+        connectionId: CONNECTION,
+        database: 'shop',
+        collection: 'orders',
+      }),
+    ).toEqual({
+      panel: 'schema',
+      connectionId: CONNECTION,
+      database: 'shop',
+      collection: 'orders',
+    });
+  });
+
+  it('ignores panels that are not collection panels and params that lack a name', () => {
+    const params = { connectionId: CONNECTION, database: 'shop', collection: 'orders' };
+    expect(restoredCollectionRequest('monitor', params)).toBeUndefined();
+    expect(restoredCollectionRequest('profiler', params)).toBeUndefined();
+    expect(restoredCollectionRequest('documents', { connectionId: CONNECTION })).toBeUndefined();
+    expect(restoredCollectionRequest('documents', undefined)).toBeUndefined();
   });
 });
