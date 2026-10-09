@@ -229,7 +229,7 @@ describe('deriveSample', () => {
     expect(sample.replication).toEqual({
       setName: 'rs0',
       members: [
-        { name: 'mongo-a:27017', state: 'PRIMARY', health: 1, lagSeconds: 0, self: false },
+        { name: 'mongo-a:27017', state: 'PRIMARY', health: 1, self: false },
         {
           name: 'mongo-b:27017',
           state: 'SECONDARY',
@@ -241,6 +241,72 @@ describe('deriveSample', () => {
       ],
     });
     expect(MonitorSampleSchema.safeParse(sample).success).toBe(true);
+  });
+
+  it('leaves lag undefined for the primary, for an unreachable member and for a member with a zero optime', () => {
+    const sample = deriveSample(undefined, {
+      at: T0,
+      serverStatus: standaloneStatus(ZERO, 100),
+      replSetStatus: {
+        set: 'rs0',
+        members: [
+          {
+            name: 'mongo-a:27017',
+            health: 1,
+            state: 1,
+            stateStr: 'PRIMARY',
+            optimeDate: new Date(T0),
+            self: true,
+          },
+          {
+            name: 'mongo-b:27017',
+            health: 0,
+            state: 8,
+            stateStr: '(not reachable/healthy)',
+            optimeDate: new Date(0),
+            self: false,
+          },
+          {
+            name: 'mongo-c:27017',
+            health: 1,
+            state: 2,
+            stateStr: 'SECONDARY',
+            optimeDate: new Date(0),
+            self: false,
+          },
+        ],
+      },
+    });
+
+    const members = sample.replication?.members ?? [];
+    expect(members.map((member) => member.lagSeconds)).toEqual([undefined, undefined, undefined]);
+    expect(members[0]).not.toHaveProperty('lagSeconds');
+    expect(members[1]).not.toHaveProperty('lagSeconds');
+    expect(MonitorSampleSchema.safeParse(sample).success).toBe(true);
+  });
+
+  it('computes the oplog window from the first and last oplog entries', () => {
+    const sample = deriveSample(undefined, {
+      at: T0,
+      serverStatus: standaloneStatus(ZERO, 100),
+      replSetStatus: { set: 'rs0', members: [] },
+      oplogFirst: { ts: { high: 1_767_225_600, low: 1 } },
+      oplogLast: { ts: { high: 1_767_229_200, low: 7 } },
+    });
+
+    expect(sample.replication?.oplogWindowSeconds).toBe(3600);
+    expect(MonitorSampleSchema.safeParse(sample).success).toBe(true);
+  });
+
+  it('leaves the oplog window undefined when an oplog entry is missing', () => {
+    const sample = deriveSample(undefined, {
+      at: T0,
+      serverStatus: standaloneStatus(ZERO, 100),
+      replSetStatus: { set: 'rs0', members: [] },
+      oplogFirst: { ts: { high: 1_767_225_600, low: 1 } },
+    });
+
+    expect(sample.replication).not.toHaveProperty('oplogWindowSeconds');
   });
 
   it('leaves lag undefined when the set has no primary', () => {

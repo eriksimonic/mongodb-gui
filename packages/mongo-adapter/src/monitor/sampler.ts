@@ -1,4 +1,3 @@
-/// <reference types="node" />
 import type { MongoClient } from 'mongodb';
 import {
   AppErrorException,
@@ -35,6 +34,8 @@ const SERVER_STATUS_COMMAND = {
   tcmalloc: 0,
 };
 const REPL_SET_STATUS_COMMAND = { replSetGetStatus: 1 };
+const ASCENDING = 1;
+const DESCENDING = -1;
 const HELLO_COMMAND = { hello: 1 };
 
 const BACKOFF_AFTER_ERRORS = 5;
@@ -51,6 +52,8 @@ export class Sampler {
   private inFlight = false;
   private timer: ReturnType<typeof setTimeout> | undefined;
   private previous: RawServerSnapshot | undefined;
+  // Bumped on every start, so a sample that was in flight across a restart gets zero rates.
+  private epoch = 0;
   private replicaSet: boolean | undefined;
   private consecutiveErrors = 0;
 
@@ -66,6 +69,8 @@ export class Sampler {
       return;
     }
     this.running = true;
+    this.epoch += 1;
+    this.previous = undefined;
     // A tick still in flight schedules the next one when it finishes, so starting never overlaps.
     if (!this.inFlight) {
       void this.tick();
@@ -133,6 +138,7 @@ export class Sampler {
 
   // Never rejects. A failed sample is reported to error listeners and the sampler keeps going.
   private async sampleOnce(): Promise<void> {
+    const epoch = this.epoch;
     try {
       const admin = this.client.db('admin');
       const replicaSet = await this.isReplicaSet(admin);
@@ -140,8 +146,17 @@ export class Sampler {
       const replSetStatus: unknown = replicaSet
         ? await admin.command(REPL_SET_STATUS_COMMAND)
         : undefined;
-      const current: RawServerSnapshot = { at: this.now(), serverStatus, replSetStatus };
-      const sample = deriveSample(this.previous, current);
+      const oplogFirst = replicaSet ? await this.readOplogEdge(ASCENDING) : undefined;
+      const oplogLast = replicaSet ? await this.readOplogEdge(DESCENDING) : undefined;
+      const current: RawServerSnapshot = {
+        at: this.now(),
+        serverStatus,
+        replSetStatus,
+        oplogFirst,
+        oplogLast,
+      };
+      const base = epoch === this.epoch ? this.previous : undefined;
+      const sample = deriveSample(base, current);
       this.previous = current;
       this.consecutiveErrors = 0;
       this.buffer.push(sample);
@@ -160,6 +175,22 @@ export class Sampler {
       this.replicaSet = readString(hello, 'setName') !== undefined;
     }
     return this.replicaSet;
+  }
+
+  // Reads the first or last oplog entry. A failed read leaves the window undefined for this tick.
+  private async readOplogEdge(direction: 1 | -1): Promise<unknown> {
+    try {
+      const rows = await this.client
+        .db('local')
+        .collection('oplog.rs')
+        .find({}, { projection: { ts: 1 } })
+        .sort({ $natural: direction })
+        .limit(1)
+        .toArray();
+      return rows[0];
+    } catch {
+      return undefined;
+    }
   }
 
   private schedule(): void {

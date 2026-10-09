@@ -10,4 +10,7 @@ export interface RawServerSnapshot {
   readonly at: number;
   readonly serverStatus: unknown;
   readonly replSetStatus?: unknown;
+  // The first and last oplog entries from local.oplog.rs, read on a replica set member.
+  readonly oplogFirst?: unknown;
+  readonly oplogLast?: unknown;
 }

@@ -16,7 +16,10 @@ export function deriveSample(
 
   const wiredTiger = deriveWiredTiger(previous?.serverStatus, status, elapsedSeconds);
   const globalLock = deriveGlobalLock(status);
-  const replication = deriveReplication(current.replSetStatus);
+  const replication = deriveReplication(
+    current.replSetStatus,
+    deriveOplogWindow(current.oplogFirst, current.oplogLast),
+  );
   const active = numberAt(status, ['connections', 'active']);
   const pageFaults = numberAt(status, ['extra_info', 'page_faults']);
 
@@ -104,8 +107,12 @@ function deriveGlobalLock(status: unknown): MonitorSample['globalLock'] {
   };
 }
 
-// The primary's optime is the reference point. Without a primary, no member has a lag.
-function deriveReplication(replSetStatus: unknown): MonitorSample['replication'] {
+// The primary's optime is the reference point. Only a healthy secondary with a real optime has a
+// lag. The primary reports no lag, and an unreachable member reports a zero or stale optime.
+function deriveReplication(
+  replSetStatus: unknown,
+  oplogWindowSeconds: number | undefined,
+): MonitorSample['replication'] {
   const setName = stringAt(replSetStatus, ['set']);
   if (setName === undefined) {
     return undefined;
@@ -118,22 +125,54 @@ function deriveReplication(replSetStatus: unknown): MonitorSample['replication']
     if (name === undefined) {
       return [];
     }
-    const memberOptime = dateMsAt(member, ['optimeDate']);
-    const lagSeconds =
-      primaryOptime === undefined || memberOptime === undefined
-        ? undefined
-        : Math.max(0, primaryOptime - memberOptime) / 1000;
+    const state =
+      stringAt(member, ['stateStr']) ?? String(numberAt(member, ['state']) ?? 'unknown');
+    const lagSeconds = memberLagSeconds(member, state, primaryOptime);
     return [
       {
         name,
-        state: stringAt(member, ['stateStr']) ?? String(numberAt(member, ['state']) ?? 'unknown'),
+        state,
         health: numberAt(member, ['health']) ?? 0,
         ...(lagSeconds === undefined ? {} : { lagSeconds }),
         self: member['self'] === true,
       },
     ];
   });
-  return { setName, members };
+  return {
+    setName,
+    members,
+    ...(oplogWindowSeconds === undefined ? {} : { oplogWindowSeconds }),
+  };
+}
+
+function memberLagSeconds(
+  member: PlainObject,
+  state: string,
+  primaryOptime: number | undefined,
+): number | undefined {
+  const memberOptime = dateMsAt(member, ['optimeDate']);
+  const healthy = numberAt(member, ['health']) === 1;
+  if (
+    primaryOptime === undefined ||
+    memberOptime === undefined ||
+    memberOptime <= 0 ||
+    !healthy ||
+    state !== 'SECONDARY'
+  ) {
+    return undefined;
+  }
+  return Math.max(0, primaryOptime - memberOptime) / 1000;
+}
+
+// The window runs from the first to the last oplog entry, in the high 32 bits of the timestamp,
+// which hold Unix seconds.
+function deriveOplogWindow(first: unknown, last: unknown): number | undefined {
+  const firstSeconds = numberAt(first, ['ts', 'high']);
+  const lastSeconds = numberAt(last, ['ts', 'high']);
+  if (firstSeconds === undefined || lastSeconds === undefined || lastSeconds < firstSeconds) {
+    return undefined;
+  }
+  return lastSeconds - firstSeconds;
 }
 
 function isPlainObject(value: unknown): value is PlainObject {

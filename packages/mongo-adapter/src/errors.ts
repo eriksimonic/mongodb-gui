@@ -24,6 +24,10 @@ export function mapDriverError(error: unknown): AppError {
   if (isTimeout(error, serverErrors)) {
     return appError('CONNECTION_TIMEOUT', 'Connection timed out', detail);
   }
+  // A server reply that is not an auth failure means the server answered and refused the command.
+  if (error instanceof MongoServerError) {
+    return appError('COMMAND_FAILED', 'The server rejected the command', detail);
+  }
   return appError('CONNECTION_FAILED', 'Could not connect to the server', detail);
 }
 

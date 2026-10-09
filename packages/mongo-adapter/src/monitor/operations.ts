@@ -16,7 +16,8 @@ export interface ListOperationsOptions {
   readonly includeSystem?: boolean;
 }
 
-const IDLE_CONNECTION_PREFIX = 'conn';
+// Client connections are named "conn<n>". Background server threads have other names.
+const CLIENT_CONNECTION_PREFIX = 'conn';
 
 export async function listOperations(
   client: MongoClient,
@@ -36,11 +37,14 @@ export async function listOperations(
     throw new AppErrorException(mapDriverError(error));
   }
   return rows.flatMap((row) => {
-    const operation = toOperation(row);
-    if (operation === undefined || isListingItself(row)) {
+    if (isListingItself(row)) {
       return [];
     }
-    if (!includeSystem && isIdleSystemConnection(operation)) {
+    const operation = toOperation(row, includeIdle);
+    if (operation === undefined) {
+      return [];
+    }
+    if (!includeSystem && isBackgroundThread(row, operation)) {
       return [];
     }
     return [operation];
@@ -55,8 +59,10 @@ export async function killOperation(client: MongoClient, opid: string | number):
   }
 }
 
-function toOperation(row: unknown): RunningOperation | undefined {
-  const opid = readNumber(row, 'opid') ?? readString(row, 'opid');
+// An idle connection row has no opid. It gets a synthetic one when idle rows are requested.
+function toOperation(row: unknown, includeIdle: boolean): RunningOperation | undefined {
+  const opid =
+    readNumber(row, 'opid') ?? readString(row, 'opid') ?? idleConnectionOpid(row, includeIdle);
   if (opid === undefined) {
     return undefined;
   }
@@ -97,6 +103,19 @@ function isListingItself(row: unknown): boolean {
   );
 }
 
-function isIdleSystemConnection(operation: RunningOperation): boolean {
-  return !operation.active && (operation.desc ?? '').startsWith(IDLE_CONNECTION_PREFIX);
+function idleConnectionOpid(row: unknown, includeIdle: boolean): string | undefined {
+  const connectionId = readNumber(row, 'connectionId');
+  if (!includeIdle || connectionId === undefined) {
+    return undefined;
+  }
+  return `conn:${connectionId}`;
+}
+
+// Background threads such as Checkpointer or JournalFlusher have no client and no operation,
+// or a description that is not a client connection name.
+function isBackgroundThread(row: unknown, operation: RunningOperation): boolean {
+  const hasClient = readString(row, 'client') !== undefined;
+  const noOperation = operation.op === 'none';
+  const isClientConnection = (operation.desc ?? '').startsWith(CLIENT_CONNECTION_PREFIX);
+  return (!hasClient && noOperation) || !isClientConnection;
 }

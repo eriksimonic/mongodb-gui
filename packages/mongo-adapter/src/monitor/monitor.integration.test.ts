@@ -209,14 +209,36 @@ describe.each(MONGO_IMAGES)('server monitor on %s', (image) => {
   );
 
   it(
-    'lists idle connections only when asked',
+    'lists idle connections with synthetic opids only when asked',
     async () => {
       const withIdle = await listOperations(connected(), { includeIdle: true });
-      expect(Array.isArray(withIdle)).toBe(true);
+      const idleRows = withIdle.filter((operation) => String(operation.opid).startsWith('conn:'));
+      expect(idleRows.length).toBeGreaterThanOrEqual(1);
+      expect(idleRows.every((operation) => !operation.active)).toBe(true);
+
       const withoutIdle = await listOperations(connected());
-      expect(
-        withoutIdle.every((operation) => operation.active || !operation.desc?.startsWith('conn')),
-      ).toBe(true);
+      expect(withoutIdle.some((operation) => String(operation.opid).startsWith('conn:'))).toBe(
+        false,
+      );
+    },
+    SUITE_TIMEOUT_MS,
+  );
+
+  it(
+    'hides background server threads unless includeSystem is set',
+    async () => {
+      const defaults = await listOperations(connected());
+      const withSystem = await listOperations(connected(), { includeSystem: true });
+      const names = (operations: RunningOperation[]) =>
+        operations.map((operation) => operation.desc ?? '');
+
+      expect(names(defaults).filter((name) => !name.startsWith('conn'))).toEqual([]);
+      // 4.4 names the checkpoint thread WTCheckpointThread. Later versions use Checkpointer.
+      const checkpointThread = ['Checkpointer', 'WTCheckpointThread'];
+      expect(names(withSystem)).toEqual(expect.arrayContaining(['JournalFlusher']));
+      expect(names(withSystem).some((name) => checkpointThread.includes(name))).toBe(true);
+      expect(names(defaults)).not.toContain('Checkpointer');
+      expect(names(defaults)).not.toContain('JournalFlusher');
     },
     SUITE_TIMEOUT_MS,
   );
@@ -304,6 +326,10 @@ describe('replica set sampling on mongo:8.0.17', () => {
         expect(members).toHaveLength(1);
         expect(members.filter((member) => member.self)).toHaveLength(1);
         expect(members[0]?.state).toBe('PRIMARY');
+        expect(members[0]).not.toHaveProperty('lagSeconds');
+        const window = sample.replication?.oplogWindowSeconds;
+        expect(typeof window).toBe('number');
+        expect(window).toBeGreaterThanOrEqual(0);
       } finally {
         sampler.stop();
       }
