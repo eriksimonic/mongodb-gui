@@ -1,4 +1,6 @@
 import js from '@eslint/js';
+import reactHooks from 'eslint-plugin-react-hooks';
+import reactRefresh from 'eslint-plugin-react-refresh';
 import { builtinModules } from 'node:module';
 import tseslint from 'typescript-eslint';
 
@@ -34,7 +36,7 @@ function importBoundary({ packages, nodeBuiltins }) {
 
 export default [
   {
-    ignores: ['**/dist/**', '**/coverage/**', 'out/**', '.vite/**', '.claude/**'],
+    ignores: ['**/dist/**', '**/coverage/**', '**/out/**', '**/.vite/**', '.claude/**'],
   },
   js.configs.recommended,
   ...tseslint.configs.strict,
@@ -54,6 +56,17 @@ export default [
           },
         },
       ],
+    },
+  },
+  {
+    files: ['**/*.tsx'],
+    plugins: {
+      'react-hooks': reactHooks,
+      'react-refresh': reactRefresh,
+    },
+    rules: {
+      ...reactHooks.configs['recommended-latest'].rules,
+      'react-refresh/only-export-components': 'error',
     },
   },
   {
