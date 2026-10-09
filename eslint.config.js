@@ -42,7 +42,7 @@ export default [
   ...tseslint.configs.strict,
   {
     files: [SOURCE_GLOB],
-    ignores: ['**/*.config.{ts,mts,js,mjs}'],
+    ignores: ['**/*.config.{ts,mts,js,mjs}', '**/*.stories.tsx', '**/.storybook/*.{ts,tsx}'],
     rules: {
       'no-restricted-exports': [
         'error',
@@ -67,6 +67,13 @@ export default [
     rules: {
       ...reactHooks.configs['recommended-latest'].rules,
       'react-refresh/only-export-components': 'error',
+    },
+  },
+  {
+    // Storybook stories export meta and story objects next to the component.
+    files: ['**/*.stories.tsx'],
+    rules: {
+      'react-refresh/only-export-components': 'off',
     },
   },
   {

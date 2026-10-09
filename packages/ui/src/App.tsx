@@ -1,30 +1,47 @@
-import { useState } from 'react';
+import { Alert, Center, Loader } from '@mantine/core';
+import { AppRoot } from './AppRoot';
+import type { UiApi } from './api/ui-api';
+import { FirstRunScreen } from './screens/FirstRunScreen';
+import { ShellScreen } from './screens/ShellScreen';
+import { UnlockScreen } from './screens/UnlockScreen';
+import { useAppStore } from './state/app-store-context';
 
-const browserFallbackMessage = 'not available in browser';
+export interface AppProps {
+  readonly api: UiApi;
+}
 
-export function App() {
-  const [status, setStatus] = useState('');
-
-  async function handlePing() {
-    const api = window.mongoGui;
-    if (api === undefined) {
-      setStatus(browserFallbackMessage);
-      return;
-    }
-    try {
-      setStatus(await api.ping());
-    } catch (error) {
-      setStatus(`ping failed: ${error instanceof Error ? error.message : String(error)}`);
-    }
-  }
-
+/** The application. Picks the screen from the vault state. A `vault:locked` event returns to unlock. */
+export function App({ api }: AppProps) {
   return (
-    <main>
-      <h1>Mongo GUI</h1>
-      <button type="button" onClick={() => void handlePing()}>
-        Ping main
-      </button>
-      {status === '' ? null : <p role="status">{status}</p>}
-    </main>
+    <AppRoot api={api}>
+      <VaultScreen />
+    </AppRoot>
   );
+}
+
+function VaultScreen() {
+  const vault = useAppStore((state) => state.vault);
+  if (vault === 'loading') {
+    return (
+      <Center mih="100vh">
+        <Loader aria-label="Loading" />
+      </Center>
+    );
+  }
+  if (vault === 'failed') {
+    return (
+      <Center mih="100vh" p="md">
+        <Alert color="red" title="Cannot read the vault" maw={420}>
+          The app backend did not answer. Restart the app.
+        </Alert>
+      </Center>
+    );
+  }
+  if (vault === 'uninitialised') {
+    return <FirstRunScreen />;
+  }
+  if (vault === 'locked') {
+    return <UnlockScreen />;
+  }
+  return <ShellScreen />;
 }
