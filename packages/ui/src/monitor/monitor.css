@@ -64,6 +64,11 @@
   white-space: nowrap;
 }
 
+.mg-chip-row {
+  /* Reserved even when empty, so a card does not change height when its data arrives. */
+  min-height: 20px;
+}
+
 .mg-chip-key {
   display: inline-block;
   width: 12px;
@@ -71,10 +76,19 @@
   border-radius: 1px;
 }
 
+.mg-chip-key[data-dashed='true'] {
+  height: 0;
+  border-top: 2px dashed;
+}
+
+/* A fixed minimum width keeps the chip row from shifting as the values change length. */
 .mg-chip-value {
+  display: inline-block;
+  min-width: 9ch;
   color: var(--mantine-color-gray-0);
   font-weight: 600;
   font-variant-numeric: tabular-nums;
+  text-align: right;
 }
 
 .mg-chart-grid {

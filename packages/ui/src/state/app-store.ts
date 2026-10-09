@@ -82,6 +82,8 @@ export interface AppActions {
   setMonitorInterval(connectionId: string, intervalMs: number): Promise<void>;
   /** Restarts the sampler after an error. Failures show in the monitor view, not as a throw. */
   retryMonitor(connectionId: string): Promise<void>;
+  /** Stops the server sampler and clears the sampler state. Samples are kept for the view. */
+  stopMonitor(connectionId: string): Promise<void>;
   loadDatabases(connectionId: string): Promise<void>;
   loadCollections(connectionId: string, database: string): Promise<void>;
   /** Drops the cached databases and collections of a connection. Open nodes reload them. */
@@ -141,6 +143,10 @@ function withoutConnectionCatalog(
  */
 export function createAppStore(api: UiApi, initial: Partial<AppData> = {}): AppStore {
   const { rpc } = api;
+  // Outside the state on purpose: these only matter to in-flight calls, not to rendering.
+  const monitorGenerations = new Map<string, number>();
+  // The interval the user chose, kept so a reconnect restarts the sampler at the same rate.
+  const preferredIntervals = new Map<string, number>();
 
   return createStore<AppState>()((set, get) => {
     function clearSession(): void {
@@ -149,6 +155,16 @@ export function createAppStore(api: UiApi, initial: Partial<AppData> = {}): AppS
 
     function setStatus(id: string, status: ConnectionStatus): void {
       set((state) => ({ statuses: { ...state.statuses, [id]: status } }));
+    }
+
+    /**
+     * Each start and stop takes a new number. A start that resolves after a later number has been
+     * issued does not apply its result, so a late start cannot resurrect a stopped sampler.
+     */
+    function bumpMonitorGeneration(connectionId: string): number {
+      const next = (monitorGenerations.get(connectionId) ?? 0) + 1;
+      monitorGenerations.set(connectionId, next);
+      return next;
     }
 
     function updateMonitor(connectionId: string, update: (view: MonitorView) => MonitorView): void {
@@ -280,14 +296,31 @@ export function createAppStore(api: UiApi, initial: Partial<AppData> = {}): AppS
       },
 
       async startMonitor(connectionId, intervalMs) {
-        const config = await rpc.monitor.start({ connectionId, intervalMs });
+        const generation = bumpMonitorGeneration(connectionId);
+        const requested = intervalMs ?? preferredIntervals.get(connectionId);
+        const config = await rpc.monitor.start({ connectionId, intervalMs: requested });
         const history = await rpc.monitor.samples({ connectionId });
+        // A stop, a disconnect or a newer start that happened meanwhile wins over this result.
+        if (generation !== monitorGenerations.get(connectionId)) {
+          return;
+        }
+        if (get().statuses[connectionId]?.state !== 'connected') {
+          return;
+        }
+        preferredIntervals.set(connectionId, config.intervalMs);
         updateMonitor(connectionId, (view) => applyStarted(view, config, history));
       },
 
       async setMonitorInterval(connectionId, intervalMs) {
         const config = await rpc.monitor.setInterval({ connectionId, intervalMs });
+        preferredIntervals.set(connectionId, config.intervalMs);
         updateMonitor(connectionId, (view) => applyIntervalChange(view, config));
+      },
+
+      async stopMonitor(connectionId) {
+        bumpMonitorGeneration(connectionId);
+        await rpc.monitor.stop({ connectionId });
+        updateMonitor(connectionId, applyStopped);
       },
 
       async retryMonitor(connectionId) {
@@ -376,6 +409,7 @@ export function createAppStore(api: UiApi, initial: Partial<AppData> = {}): AppS
         }
         setStatus(event.connectionId, event.status);
         if (event.status.state !== 'connected') {
+          bumpMonitorGeneration(event.connectionId);
           set((state) => withoutConnectionCatalog(state, event.connectionId));
           // The server stops the sampler on disconnect. The view keeps its samples and loses config.
           if (get().monitors[event.connectionId] !== undefined) {

@@ -31,6 +31,8 @@ describe('formatValue', () => {
     expect(formatValue(7, 'count')).toBe('7');
     expect(formatValue(2048, 'bytesPerSecond')).toBe('2.0 KB/s');
     expect(formatValue(512, 'megabytes')).toBe('512 MB');
+    expect(formatValue(1816.44, 'megabytes')).toBe('1,816 MB');
+    expect(formatValue(64.25, 'megabytes')).toBe('64.3 MB');
     expect(formatValue(0.4, 'seconds')).toBe('0.4 s');
     expect(formatValue(300, 'seconds')).toBe('5 min 0 s');
   });

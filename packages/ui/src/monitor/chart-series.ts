@@ -10,5 +10,6 @@ export function chartSeries(lines: readonly SeriesLine[]): ChartSeries[] {
     unit: line.unit,
     color: seriesColor(index),
     values: line.values,
+    ...(line.reference === true ? { dashed: true } : {}),
   }));
 }

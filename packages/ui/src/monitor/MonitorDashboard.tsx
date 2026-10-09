@@ -24,6 +24,8 @@ import {
   headlineOf,
   MONITOR_RANGES,
   RANGE_LABELS,
+  RANGE_MS,
+  RANGE_TICK_SECONDS,
   rangeSamples,
   seriesFromSamples,
   type MonitorRange,
@@ -117,13 +119,19 @@ export function MonitorDashboard({ connectionId }: MonitorDashboardProps) {
     }
   }, [connected, running, connectionId, startMonitor]);
 
+  const intervalMs = view.config?.intervalMs ?? DEFAULT_MONITOR_INTERVAL_MS;
   const source = frozen ?? view.samples;
   const windowed = useMemo(() => rangeSamples(source, range), [source, range]);
-  const series = useMemo(() => seriesFromSamples(windowed), [windowed]);
+  const series = useMemo(() => seriesFromSamples(windowed, intervalMs), [windowed, intervalMs]);
+  const chartWindow = useMemo(
+    () => ({ windowSeconds: RANGE_MS[range] / 1000, tickSeconds: RANGE_TICK_SECONDS[range] }),
+    [range],
+  );
   const cards = useMemo(
     () => ({
       operations: chartSeries(series.operations),
       connections: chartSeries(series.connections),
+      connectionsReadout: chartSeries(series.connectionsReadout),
       network: chartSeries(series.network),
       memory: chartSeries(series.memory),
       queues: chartSeries(series.queues),
@@ -132,7 +140,6 @@ export function MonitorDashboard({ connectionId }: MonitorDashboardProps) {
     [series],
   );
   const headline = headlineOf(windowed.at(-1));
-  const intervalMs = view.config?.intervalMs ?? DEFAULT_MONITOR_INTERVAL_MS;
   const hasReplication = windowed.at(-1)?.replication !== undefined;
   const syncKey = `monitor:${connectionId}`;
 
@@ -204,7 +211,8 @@ export function MonitorDashboard({ connectionId }: MonitorDashboardProps) {
           <Button
             size="xs"
             variant="default"
-            disabled={!connected}
+            // Resume stays enabled while disconnected, so a frozen view can always be released.
+            disabled={!connected && frozen === undefined}
             onClick={() => setFrozen(frozen === undefined ? view.samples : undefined)}
           >
             {frozen === undefined ? 'Pause' : 'Resume'}
@@ -272,15 +280,18 @@ export function MonitorDashboard({ connectionId }: MonitorDashboardProps) {
                 series={cards.operations}
                 yUnit="perSecond"
                 syncKey={syncKey}
+                window={chartWindow}
                 emptyText="No samples in this range."
               />
               <ChartCard
                 title="Connections"
-                caption="Open and available"
+                caption="Open"
                 times={series.times}
                 series={cards.connections}
+                readouts={cards.connectionsReadout}
                 yUnit="count"
                 syncKey={syncKey}
+                window={chartWindow}
                 emptyText="No samples in this range."
               />
               <ChartCard
@@ -290,6 +301,7 @@ export function MonitorDashboard({ connectionId }: MonitorDashboardProps) {
                 series={cards.network}
                 yUnit="bytesPerSecond"
                 syncKey={syncKey}
+                window={chartWindow}
                 emptyText="No samples in this range."
               />
               <ChartCard
@@ -299,6 +311,7 @@ export function MonitorDashboard({ connectionId }: MonitorDashboardProps) {
                 series={cards.memory}
                 yUnit="megabytes"
                 syncKey={syncKey}
+                window={chartWindow}
                 emptyText="No samples in this range."
               />
               <ChartCard
@@ -308,6 +321,7 @@ export function MonitorDashboard({ connectionId }: MonitorDashboardProps) {
                 series={cards.queues}
                 yUnit="count"
                 syncKey={syncKey}
+                window={chartWindow}
                 emptyText="This server does not report the global lock."
               />
               {hasReplication ? (
@@ -318,6 +332,7 @@ export function MonitorDashboard({ connectionId }: MonitorDashboardProps) {
                   series={cards.replicationLag}
                   yUnit="seconds"
                   syncKey={syncKey}
+                  window={chartWindow}
                   emptyText="No secondary has reported a lag yet."
                 />
               ) : null}

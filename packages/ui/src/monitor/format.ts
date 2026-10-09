@@ -7,7 +7,9 @@ const SECONDS_PER_DAY = 86_400;
 const BYTE_STEP = 1024;
 const BYTE_UNITS = ['B', 'KB', 'MB', 'GB', 'TB'] as const;
 
+const MEGABYTE_WHOLE_FROM = 100;
 const exactFormat = new Intl.NumberFormat('en-US', { maximumFractionDigits: 1 });
+const wholeFormat = new Intl.NumberFormat('en-US', { maximumFractionDigits: 0 });
 const compactFormat = new Intl.NumberFormat('en-US', {
   notation: 'compact',
   maximumFractionDigits: 1,
@@ -63,7 +65,9 @@ export function formatValue(value: number, unit: MetricUnit): string {
     case 'bytesPerSecond':
       return `${formatBytes(value)}/s`;
     case 'megabytes':
-      return `${formatExact(value)} MB`;
+      return value >= MEGABYTE_WHOLE_FROM
+        ? `${wholeFormat.format(Math.round(value))} MB`
+        : `${formatExact(value)} MB`;
     case 'seconds':
       return value < SECONDS_PER_MINUTE ? `${formatExact(value)} s` : formatDuration(value);
   }

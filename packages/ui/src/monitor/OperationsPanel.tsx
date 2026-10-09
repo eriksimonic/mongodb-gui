@@ -10,13 +10,14 @@ import {
   Table,
   Text,
   TextInput,
+  Tooltip,
 } from '@mantine/core';
 import { IconSearch } from '@tabler/icons-react';
 import { toAppError, type AppError, type RunningOperation } from '@mongo-gui/core';
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { useUiApi } from '../api/ui-api';
 import { formatDuration } from './format';
-import { commandExcerpt, filterOperations, isKillable } from './operations-view';
+import { commandExcerpt, filterOperations, killBlockReason } from './operations-view';
 
 const OPERATIONS_REFRESH_MS = 2000;
 
@@ -24,6 +25,38 @@ export interface OperationsPanelProps {
   readonly connectionId: string;
   /** Polling stops while the panel is hidden. Defaults to visible. */
   readonly visible?: boolean;
+}
+
+interface KillButtonProps {
+  readonly operation: RunningOperation;
+  readonly onKill: () => void;
+}
+
+/** Kill for one row. A row that cannot be killed shows its reason on hover and focus. */
+function KillButton({ operation, onKill }: KillButtonProps) {
+  const reason = killBlockReason(operation);
+  const button = (
+    <Button
+      size="xs"
+      color="red"
+      variant="light"
+      aria-label={`Kill operation ${String(operation.opid)}`}
+      disabled={reason !== undefined}
+      onClick={onKill}
+    >
+      Kill
+    </Button>
+  );
+  if (reason === undefined) {
+    return button;
+  }
+  return (
+    <Tooltip label={reason} withArrow>
+      <span tabIndex={0} style={{ display: 'inline-block' }}>
+        {button}
+      </span>
+    </Tooltip>
+  );
 }
 
 function yesNo(value: boolean | undefined): string {
@@ -156,6 +189,7 @@ export function OperationsPanel({ connectionId, visible = true }: OperationsPane
             <Table.Tr>
               <Table.Th>Opid</Table.Th>
               <Table.Th>Type</Table.Th>
+              <Table.Th>Description</Table.Th>
               <Table.Th>Namespace</Table.Th>
               <Table.Th>Running for</Table.Th>
               <Table.Th>Client</Table.Th>
@@ -170,6 +204,7 @@ export function OperationsPanel({ connectionId, visible = true }: OperationsPane
               <Table.Tr key={String(operation.opid)}>
                 <Table.Td>{String(operation.opid)}</Table.Td>
                 <Table.Td>{operation.op}</Table.Td>
+                <Table.Td>{operation.desc ?? ''}</Table.Td>
                 <Table.Td>{operation.ns}</Table.Td>
                 <Table.Td>
                   {operation.secsRunning === undefined ? '' : formatDuration(operation.secsRunning)}
@@ -179,19 +214,13 @@ export function OperationsPanel({ connectionId, visible = true }: OperationsPane
                 <Table.Td>{operation.planSummary ?? ''}</Table.Td>
                 <Table.Td>{yesNo(operation.waitingForLock)}</Table.Td>
                 <Table.Td>
-                  <Button
-                    size="xs"
-                    color="red"
-                    variant="light"
-                    aria-label={`Kill operation ${String(operation.opid)}`}
-                    disabled={!isKillable(operation.opid)}
-                    onClick={() => {
+                  <KillButton
+                    operation={operation}
+                    onKill={() => {
                       setKillError(undefined);
                       setTarget(operation);
                     }}
-                  >
-                    Kill
-                  </Button>
+                  />
                 </Table.Td>
               </Table.Tr>
             ))}

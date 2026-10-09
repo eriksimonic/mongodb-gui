@@ -58,7 +58,9 @@ const SPIKE_LENGTH = 10;
 const CACHE_MAX_MB = 2048;
 const RESIDENT_BASE_MB = 1820;
 const VIRTUAL_OVERHEAD_MB = 1340;
-const MAX_CONNECTIONS = 819;
+// A server's connection limit is large. Available connections sit near this value, so the chart
+// shows open connections on their own scale.
+const CONNECTION_LIMIT = 800_000;
 const BYTES_IN_PER_OP = 1150;
 const BYTES_OUT_PER_OP = 2400;
 const MS_PER_SECOND = 1000;
@@ -211,7 +213,7 @@ function sampleAt(run: Run, tick: number, at: number, intervalMs: number): Monit
     opcounters,
     connections: {
       current,
-      available: MAX_CONNECTIONS - current,
+      available: CONNECTION_LIMIT - current,
       active: Math.round(current * 0.4),
     },
     network: {
@@ -273,6 +275,8 @@ function sampleAt(run: Run, tick: number, at: number, intervalMs: number): Monit
 export function createMockMonitor(options: MockMonitorOptions): MockMonitor {
   const now = options.now ?? Date.now;
   const runs = new Map<string, Run>();
+  // The newest sample time per connection. It outlives a stop, so a restart backfills only after it.
+  const newestAt = new Map<string, number>();
   const startedAt = now();
   const operationsState = FIXTURE_OPERATIONS.map((item) => ({ ...item, removed: false }));
 
@@ -294,6 +298,7 @@ export function createMockMonitor(options: MockMonitorOptions): MockMonitor {
     run.timer = setInterval(() => {
       run.tick += 1;
       const sample = sampleAt(run, run.tick, now(), run.config.intervalMs);
+      newestAt.set(connectionId, Date.parse(sample.at));
       run.history.push(sample);
       if (run.history.length > MAX_HISTORY) {
         run.history.shift();
@@ -322,12 +327,21 @@ export function createMockMonitor(options: MockMonitorOptions): MockMonitor {
         tick: 0,
       };
       // The backfill covers the ticks before now. The last one sits one interval before now.
+      // A restart after a gap starts the backfill after the newest sample already emitted, so
+      // the history never runs backwards in time when the view merges the two runs.
       const backfillStart = now() - BACKFILL_SAMPLES * config.intervalMs;
+      const floor = newestAt.get(connectionId) ?? Number.NEGATIVE_INFINITY;
       for (let index = 0; index < BACKFILL_SAMPLES; index += 1) {
+        const at = backfillStart + index * config.intervalMs;
+        if (at <= floor) {
+          continue;
+        }
         const tick = index - BACKFILL_SAMPLES;
-        run.history.push(
-          sampleAt(run, tick, backfillStart + index * config.intervalMs, config.intervalMs),
-        );
+        run.history.push(sampleAt(run, tick, at, config.intervalMs));
+      }
+      const last = run.history.at(-1);
+      if (last !== undefined) {
+        newestAt.set(connectionId, Math.max(floor, Date.parse(last.at)));
       }
       runs.set(connectionId, run);
       scheduleTicks(connectionId, run);

@@ -1,4 +1,4 @@
-// The adapter names idle client connections "conn<n>" because they have no server opid.
+// An idle client connection has no server opid, so the adapter gives it the id "conn:<n>" instead.
 const SYNTHETIC_OPID = /^conn:\d+$/;
 
 /** True for the placeholder id of an idle connection, which the server cannot kill. */

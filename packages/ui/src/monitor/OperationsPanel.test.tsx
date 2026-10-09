@@ -44,6 +44,19 @@ describe('OperationsPanel', () => {
     expect(screen.getByRole('button', { name: 'Kill operation 1077' })).toBeEnabled();
   });
 
+  it('shows system threads with kill disabled and a description column', async () => {
+    renderWithApp(<OperationsPanel connectionId={localConnectionId} />, {
+      api: await connectedApi(),
+    });
+    await screen.findByRole('button', { name: 'Kill operation 1077' });
+
+    fireEvent.click(screen.getByLabelText('Include system threads'));
+
+    expect(await screen.findByText('JournalFlusher')).toBeInTheDocument();
+    expect(screen.getByRole('columnheader', { name: 'Description' })).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Kill operation 12' })).toBeDisabled();
+  });
+
   it('filters rows by namespace', async () => {
     renderWithApp(<OperationsPanel connectionId={localConnectionId} />, {
       api: await connectedApi(),

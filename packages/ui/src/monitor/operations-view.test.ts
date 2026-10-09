@@ -1,6 +1,6 @@
 import type { RunningOperation } from '@mongo-gui/core';
 import { describe, expect, it } from 'vitest';
-import { commandExcerpt, filterOperations, isKillable } from './operations-view';
+import { commandExcerpt, filterOperations, killBlockReason } from './operations-view';
 
 function operation(opid: string | number, ns: string): RunningOperation {
   return { opid, active: true, op: 'query', ns };
@@ -34,9 +34,19 @@ describe('commandExcerpt', () => {
   });
 });
 
-describe('isKillable', () => {
-  it('refuses the idle connection placeholders only', () => {
-    expect(isKillable('conn:9')).toBe(false);
-    expect(isKillable(1041)).toBe(true);
+describe('killBlockReason', () => {
+  it('refuses idle placeholders and system threads, and allows real operations', () => {
+    expect(killBlockReason(operation('conn:9', ''))).toBe(
+      'Idle connections have no operation to kill.',
+    );
+    const system: RunningOperation = {
+      opid: 12,
+      active: false,
+      op: 'none',
+      ns: '',
+      desc: 'Checkpointer',
+    };
+    expect(killBlockReason(system)).toBe('System threads cannot be killed from here.');
+    expect(killBlockReason(operation(1041, 'shop.orders'))).toBeUndefined();
   });
 });

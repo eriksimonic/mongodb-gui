@@ -1,7 +1,7 @@
 import 'uplot/dist/uPlot.min.css';
 import uPlot from 'uplot';
 import { useEffect, useMemo, useRef, useState, type RefObject } from 'react';
-import { CHART_HEIGHT_PX, type ChartSeries } from './chart-types';
+import { CHART_HEIGHT_PX, type ChartSeries, type ChartWindow } from './chart-types';
 import { formatAxisValue, formatClock, formatValue, type MetricUnit } from './format';
 import { CHART_INK } from './palette';
 import './monitor.css';
@@ -15,6 +15,8 @@ export interface UPlotChartProps {
   readonly yUnit: MetricUnit;
   /** Charts with the same key share a cursor, so hovering one marks the same moment on all. */
   readonly syncKey: string;
+  /** The window the x axis shows. Without it the axis follows the data. */
+  readonly window?: ChartWindow | undefined;
   readonly height?: number;
 }
 
@@ -25,6 +27,7 @@ const X_TICK_SPACE_PX = 84;
 const Y_TICK_SPACE_PX = 40;
 const TOOLTIP_OFFSET_PX = 12;
 const HEADROOM = 1.1;
+const REFERENCE_DASH = [4, 3];
 
 interface BuildInput {
   readonly width: number;
@@ -32,6 +35,12 @@ interface BuildInput {
   readonly series: readonly ChartSeries[];
   readonly yUnit: MetricUnit;
   readonly syncKey: string;
+  readonly window: ChartWindow | undefined;
+}
+
+/** Spreads a value only when it is defined, for uPlot options that reject explicit undefined. */
+function ifDefined<T extends object>(value: boolean, build: () => T): T | Record<string, never> {
+  return value ? build() : {};
 }
 
 /** Writes an element's width to state and keeps it current. Zero until the element is laid out. */
@@ -57,12 +66,30 @@ function useElementWidth(ref: RefObject<HTMLDivElement | null>): number {
   return width;
 }
 
-/** Writes one readout per series at the hovered moment. Text goes in with textContent only. */
+/** Keeps a value inside [low, high]. When the range is inverted, the low bound wins. */
+function clamp(value: number, low: number, high: number): number {
+  return Math.max(low, Math.min(value, high));
+}
+
+/** Label positions every tick step, from the first multiple at or after the scale minimum. */
+function tickSplits(min: number, max: number, step: number): number[] {
+  const first = Math.ceil(min / step) * step;
+  const splits: number[] = [];
+  for (let tick = first; tick <= max; tick += step) {
+    splits.push(tick);
+  }
+  return splits;
+}
+
+/**
+ * Writes one readout per series at the hovered moment. It shows only in the chart under the
+ * pointer, so synced charts keep the crosshair without a tooltip each. Text goes in with textContent.
+ */
 function renderTooltip(plot: uPlot, element: HTMLDivElement, series: readonly ChartSeries[]): void {
   const index = plot.cursor.idx;
-  const xs = plot.data[0];
-  const time = index === null || index === undefined ? undefined : xs?.[index];
-  if (index === null || index === undefined || time === undefined || time === null) {
+  const time = index === null || index === undefined ? undefined : plot.data[0]?.[index];
+  const hovered = plot.over.matches(':hover');
+  if (!hovered || index === null || index === undefined || time === undefined || time === null) {
     element.hidden = true;
     return;
   }
@@ -91,12 +118,25 @@ function renderTooltip(plot: uPlot, element: HTMLDivElement, series: readonly Ch
   element.hidden = false;
   const left = plot.cursor.left ?? 0;
   const top = plot.cursor.top ?? 0;
-  const flipLeft = left > plot.over.clientWidth / 2;
-  const x = flipLeft ? left - element.offsetWidth - TOOLTIP_OFFSET_PX : left + TOOLTIP_OFFSET_PX;
-  element.style.transform = `translate(${Math.max(0, x)}px, ${Math.max(0, top)}px)`;
+  const overWidth = plot.over.clientWidth;
+  const overHeight = plot.over.clientHeight;
+  const preferredX =
+    left > overWidth / 2
+      ? left - element.offsetWidth - TOOLTIP_OFFSET_PX
+      : left + TOOLTIP_OFFSET_PX;
+  const x = clamp(preferredX, 0, overWidth - element.offsetWidth);
+  const y = clamp(top + TOOLTIP_OFFSET_PX, 0, overHeight - element.offsetHeight);
+  element.style.transform = `translate(${x}px, ${y}px)`;
 }
 
-function buildOptions({ width, height, series, yUnit, syncKey }: BuildInput): uPlot.Options {
+function buildOptions({
+  width,
+  height,
+  series,
+  yUnit,
+  syncKey,
+  window,
+}: BuildInput): uPlot.Options {
   let tooltip: HTMLDivElement | undefined;
   return {
     width,
@@ -110,7 +150,12 @@ function buildOptions({ width, height, series, yUnit, syncKey }: BuildInput): uP
       points: { size: 8, width: 2 },
     },
     scales: {
-      x: { time: true },
+      x: {
+        time: true,
+        // The window ends at the newest point, so a short history leaves blank space on the left.
+        range: (_plot, _min, max) =>
+          window === undefined ? [_min, max] : [max - window.windowSeconds, max],
+      },
       y: {
         range: (_plot, min, max) => [Math.min(0, min), max > 0 ? max * HEADROOM : 1],
       },
@@ -124,6 +169,10 @@ function buildOptions({ width, height, series, yUnit, syncKey }: BuildInput): uP
         grid: { show: false },
         ticks: { show: false },
         border: { show: true, stroke: CHART_INK.baseline, width: 1 },
+        ...ifDefined(window !== undefined, () => ({
+          splits: (_plot: uPlot, _axis: number, min: number, max: number) =>
+            tickSplits(min, max, window?.tickSeconds ?? 0),
+        })),
         values: (_plot, values) => values.map((value) => formatClock(value * 1000)),
       },
       {
@@ -142,7 +191,8 @@ function buildOptions({ width, height, series, yUnit, syncKey }: BuildInput): uP
       ...series.map((item) => ({
         label: item.label,
         stroke: item.color,
-        width: 2,
+        width: item.dashed === true ? 1 : 2,
+        ...ifDefined(item.dashed === true, () => ({ dash: REFERENCE_DASH })),
         points: { show: false },
         spanGaps: false,
       })),
@@ -169,7 +219,7 @@ function buildOptions({ width, height, series, yUnit, syncKey }: BuildInput): uP
 
 /**
  * A uPlot line chart in a box that fills its parent. The plot is rebuilt when the width, the
- * series set or the unit changes, and updated in place when only the data changes.
+ * series set, the unit or the window changes, and updated in place when only the data changes.
  */
 export function UPlotChart({
   label,
@@ -177,6 +227,7 @@ export function UPlotChart({
   series,
   yUnit,
   syncKey,
+  window,
   height = CHART_HEIGHT_PX,
 }: UPlotChartProps) {
   const hostRef = useRef<HTMLDivElement>(null);
@@ -186,12 +237,15 @@ export function UPlotChart({
     () => [times.slice(), ...series.map((item) => item.values.slice())] as uPlot.AlignedData,
     [times, series],
   );
-  const shape = series.map((item) => `${item.key}|${item.label}|${item.color}`).join(';');
-  const latest = useRef({ series, data });
+  const shape = series
+    .map((item) => `${item.key}|${item.label}|${item.color}|${item.dashed === true}`)
+    .join(';');
+  const windowKey = window === undefined ? 'none' : `${window.windowSeconds}/${window.tickSeconds}`;
+  const latest = useRef({ series, data, window });
 
   useEffect(() => {
-    latest.current = { series, data };
-  }, [series, data]);
+    latest.current = { series, data, window };
+  }, [series, data, window]);
 
   useEffect(() => {
     const host = hostRef.current;
@@ -200,7 +254,14 @@ export function UPlotChart({
       return undefined;
     }
     const plot = new uPlot(
-      buildOptions({ width, height, series: current.series, yUnit, syncKey }),
+      buildOptions({
+        width,
+        height,
+        series: current.series,
+        yUnit,
+        syncKey,
+        window: current.window,
+      }),
       current.data,
       host,
     );
@@ -211,7 +272,7 @@ export function UPlotChart({
         plotRef.current = undefined;
       }
     };
-  }, [width, height, shape, yUnit, syncKey]);
+  }, [width, height, shape, yUnit, syncKey, windowKey]);
 
   useEffect(() => {
     plotRef.current?.setData(data);

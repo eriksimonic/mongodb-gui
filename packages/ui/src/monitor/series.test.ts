@@ -118,6 +118,72 @@ describe('seriesFromSamples', () => {
   });
 });
 
+describe('series breaks and folding', () => {
+  it('inserts a null break point for a gap longer than 2.5 intervals', () => {
+    const samples = [sampleAt(0), sampleAt(1), sampleAt(10), sampleAt(11)];
+    const series = seriesFromSamples(samples, 1000);
+    expect(series.times).toHaveLength(5);
+    const query = series.operations[1]?.values ?? [];
+    expect(query).toEqual([10, 10, null, 10, 10]);
+  });
+
+  it('does not break a gap that is only two intervals long', () => {
+    const series = seriesFromSamples([sampleAt(0), sampleAt(2)], 1000);
+    expect(series.times).toHaveLength(2);
+    expect(series.operations[1]?.values).toEqual([10, 10]);
+  });
+
+  it('plots current connections and keeps available as a readout', () => {
+    const sample = sampleAt(0, { connections: { current: 40, available: 800_000, active: 12 } });
+    const series = seriesFromSamples([sample]);
+    expect(series.connections.map((line) => line.label)).toEqual(['Current', 'Active']);
+    expect(series.connectionsReadout.map((line) => line.label)).toEqual(['Available']);
+    expect(series.connectionsReadout[0]?.values).toEqual([800_000]);
+  });
+
+  it('marks the cache max line as a reference', () => {
+    const withCache = sampleAt(0, {
+      wiredTiger: {
+        cacheUsedMb: 300,
+        cacheMaxMb: 1024,
+        cacheDirtyMb: 2,
+        readIntoCachePerSec: 0,
+        writtenFromCachePerSec: 0,
+      },
+    });
+    const cacheMax = seriesFromSamples([withCache]).memory.find((line) => line.key === 'cache:max');
+    expect(cacheMax?.reference).toBe(true);
+  });
+
+  it('keeps at most eight lag lines and folds the rest into Other', () => {
+    const members = Array.from({ length: 10 }, (_, index) => ({
+      name: `node-${index}:27017`,
+      state: 'SECONDARY',
+      health: 1,
+      lagSeconds: index,
+      self: false,
+    }));
+    const lagged = sampleAt(0, { replication: { setName: 'rs0', members } });
+    const labels = seriesFromSamples([lagged]).replicationLag.map((line) => line.label);
+    expect(labels).toHaveLength(8);
+    expect(labels.at(-1)).toBe('Other');
+    expect(labels).toContain('node-0:27017');
+    expect(labels).not.toContain('node-9:27017');
+    const other = seriesFromSamples([lagged]).replicationLag.at(-1);
+    expect(other?.values).toEqual([9]);
+  });
+});
+
+describe('mergeSamples append path', () => {
+  it('appends newer samples without re-sorting the history', () => {
+    const existing = [sampleAt(0), sampleAt(1)];
+    const merged = mergeSamples(existing, [sampleAt(2), sampleAt(3)], RETENTION_MS);
+    expect(merged.map((item) => item.at)).toEqual(
+      [sampleAt(0), sampleAt(1), sampleAt(2), sampleAt(3)].map((item) => item.at),
+    );
+  });
+});
+
 describe('headlineOf', () => {
   it('sums the opcounters into operations per second', () => {
     expect(headlineOf(sampleAt(0)).opsPerSecond).toBe(20);

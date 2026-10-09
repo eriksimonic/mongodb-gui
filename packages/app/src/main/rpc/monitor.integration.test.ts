@@ -96,6 +96,34 @@ describe('monitor router against a real MongoDB 8.0 server', () => {
     },
     CALL_TIMEOUT_MS,
   );
+
+  it(
+    'stops the real sampler when the connection disconnects',
+    async () => {
+      if (mongo === undefined) {
+        throw new Error('container not started');
+      }
+      const created = valueOf(
+        await router.handle('connections.create', { name: 'disconnect', uri: mongo.rootUri }),
+      ) as { id: string };
+      const connectionId = created.id;
+      valueOf(await router.handle('connections.connect', { id: connectionId }));
+      valueOf(await router.handle('monitor.start', { connectionId, intervalMs: INTERVAL_MS }));
+      await waitForSamples(events, connectionId, 1, SAMPLE_WAIT_MS);
+
+      valueOf(await router.handle('connections.disconnect', { id: connectionId }));
+      const mark = events.length;
+      // Three intervals of silence, plus a margin for a sample that was already in flight.
+      await new Promise((resolve) => setTimeout(resolve, INTERVAL_MS * 3 + 500));
+
+      const after = events
+        .slice(mark)
+        .filter((event) => event.type === 'monitor:sample' && event.connectionId === connectionId);
+      expect(after).toHaveLength(0);
+      expect(valueOf(await router.handle('monitor.samples', { connectionId }))).toEqual([]);
+    },
+    CALL_TIMEOUT_MS,
+  );
 });
 
 /** Resolves once the event list holds the wanted number of samples for one connection. */
