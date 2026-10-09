@@ -1,0 +1,73 @@
+/* Connection tree. Rows are 28 px tall. Labels start at depth * 16 px + 42 px, which the message lines reuse. */
+
+.mg-tree {
+  font-size: 12.5px;
+  line-height: 1.3;
+  color: var(--mantine-color-gray-3);
+}
+
+.mg-tree-item {
+  display: flex;
+  align-items: center;
+  height: 28px;
+  padding-right: 6px;
+  border-radius: var(--mantine-radius-xs);
+  cursor: default;
+  outline: none;
+  white-space: nowrap;
+  user-select: none;
+}
+
+.mg-tree-item:hover {
+  background: var(--mantine-color-dark-6);
+}
+
+.mg-tree-item[aria-selected='true'] {
+  background: var(--mantine-color-dark-4);
+  color: var(--mantine-color-white);
+}
+
+.mg-tree-item:focus-visible {
+  outline: 1px solid var(--mantine-color-blue-6);
+  outline-offset: -1px;
+}
+
+.mg-tree-chevron {
+  display: inline-flex;
+  flex: none;
+  align-items: center;
+  justify-content: center;
+  width: 14px;
+  height: 14px;
+  margin-right: 4px;
+  color: var(--mantine-color-dark-1);
+}
+
+.mg-tree-icon {
+  display: inline-flex;
+  flex: none;
+  align-items: center;
+  width: 14px;
+  height: 14px;
+  margin-right: 6px;
+}
+
+.mg-tree-label {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.mg-tree-message {
+  padding: 2px 6px 2px 0;
+  font-size: 11.5px;
+  line-height: 1.4;
+  color: var(--mantine-color-dimmed);
+  white-space: normal;
+  overflow-wrap: anywhere;
+}
+
+.mg-tree-message[data-tone='red'] {
+  color: var(--mantine-color-red-4);
+}
