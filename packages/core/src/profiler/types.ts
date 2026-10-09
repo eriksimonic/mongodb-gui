@@ -54,6 +54,7 @@ export const ProfileEntrySchema = z.object({
   storage: z.unknown().optional(),
   responseLength: z.number().nonnegative().optional(),
   errMsg: z.string().optional(),
+  errCode: z.number().int().optional(),
   raw: z.unknown(),
 });
 

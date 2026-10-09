@@ -38,7 +38,7 @@ function buildEntry(raw: unknown): ProfileEntry {
   const command = readCommand(doc);
   const op = resolveOp(readText(doc, 'op'), command);
   const millis = Math.max(0, readNumber(doc, 'millis') ?? 0);
-  const id = entryId(doc, { ts, ns, op, millis, command });
+  const id = entryId(doc, ts);
   return {
     id,
     ts,
@@ -63,6 +63,7 @@ function buildEntry(raw: unknown): ProfileEntry {
     ...optional('storage', doc.storage),
     ...optional('responseLength', readNumber(doc, 'responseLength')),
     ...optional('errMsg', readText(doc, 'errMsg')),
+    ...optional('errCode', readNumber(doc, 'errCode')),
     raw,
   };
 }
@@ -119,11 +120,11 @@ function commandName(command: unknown): string | undefined {
   return Object.keys(command)[0];
 }
 
-function entryId(
-  doc: Plain,
-  fallback: { ts: string; ns: string; op: ProfileOp; millis: number; command: unknown },
-): string {
-  const parts = [fallback.ts];
+// Profile documents carry neither opid nor _id on most versions, so the whole document is hashed
+// in that case. Identical documents in the same millisecond still share an id. The adapter
+// suffixes such repeats to keep ids unique within a listing.
+function entryId(doc: Plain, ts: string): string {
+  const parts = [ts];
   const opid = scalarText(doc.opid);
   const docId = scalarText(doc._id);
   if (opid !== undefined) {
@@ -133,7 +134,7 @@ function entryId(
     parts.push(`_id:${docId}`);
   }
   if (parts.length === 1) {
-    parts.push(fallback.ns, fallback.op, String(fallback.millis), safeStringify(fallback.command));
+    parts.push(`doc:${safeStringify(doc)}`);
   }
   return stableHash(parts.join('|'));
 }
@@ -203,10 +204,14 @@ function optional<K extends string, V>(key: K, value: V | undefined): Partial<Re
 
 function safeStringify(value: unknown): string {
   try {
-    return JSON.stringify(value) ?? '';
+    return JSON.stringify(value, bigintAsText) ?? '';
   } catch {
     return '';
   }
+}
+
+function bigintAsText(_key: string, value: unknown): unknown {
+  return typeof value === 'bigint' ? value.toString() : value;
 }
 
 // FNV-1a with two offsets. The result identifies an entry for list keys and deduplication;

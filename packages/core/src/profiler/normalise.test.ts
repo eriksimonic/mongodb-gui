@@ -275,7 +275,22 @@ describe('toProfileEntry with insert and unknown shapes', () => {
   });
 });
 
+describe('toProfileEntry errCode', () => {
+  it('maps the server error code', () => {
+    const entry = toProfileEntry({ op: 'query', ns: 'shop.orders', errCode: 2, errMsg: 'bad' });
+    expect(entry).toMatchObject({ errCode: 2, errMsg: 'bad' });
+  });
+});
+
 describe('toProfileEntry id', () => {
+  it('hashes a bigint field instead of dropping it', () => {
+    const ts = '2026-10-05T08:15:00.000Z';
+    const first = toProfileEntry({ op: 'query', ts, big: BigInt(1) });
+    const second = toProfileEntry({ op: 'query', ts, big: BigInt(2) });
+    expect(first.id).toMatch(/^[0-9a-f]{16}$/);
+    expect(first.id).not.toBe(second.id);
+  });
+
   it('is 16 hex characters and the same for the same document', () => {
     const first = toProfileEntry(SHAPE_4_4_FIND);
     const second = toProfileEntry({ ...SHAPE_4_4_FIND });

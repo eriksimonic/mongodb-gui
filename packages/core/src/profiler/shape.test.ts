@@ -19,9 +19,50 @@ function find(filter: unknown, overrides: Partial<ProfileEntry> = {}): ProfileEn
 }
 
 describe('shapeKey', () => {
-  it('returns the queryHash when the entry has one', () => {
+  it('ends with the queryHash when the entry has one', () => {
     const key = shapeKey(find({ status: 'paid' }, { queryHash: 'DEADBEEF' }));
-    expect(key).toBe('DEADBEEF');
+    expect(key).toBe('shop.orders|query|find|DEADBEEF');
+  });
+
+  it('keeps a find and an aggregate with the same queryHash in different shapes', () => {
+    const hash = 'E6304EB6';
+    const aggregate = entry({
+      op: 'command',
+      queryHash: hash,
+      command: { aggregate: 'orders', pipeline: [{ $match: { status: 'paid' } }] },
+    });
+    expect(shapeKey(find({ status: 'paid' }, { queryHash: hash, op: 'query' }))).not.toBe(
+      shapeKey(aggregate),
+    );
+  });
+
+  it('keeps the stages of a pipeline in order and collapses their values', () => {
+    const key = shapeKey(
+      entry({
+        command: {
+          aggregate: 'orders',
+          pipeline: [{ $match: { status: 'paid' } }, { $count: 'n' }],
+        },
+      }),
+    );
+    expect(key).toContain('[{"$match":{"status":?}},{"$count":?}]');
+  });
+
+  it('shapes a getMore from the command that opened its cursor', () => {
+    const getMore = entry({
+      op: 'getmore',
+      command: {
+        getMore: 1,
+        collection: 'orders',
+        originatingCommand: { find: 'orders', filter: { status: 'paid' } },
+      },
+    });
+    expect(shapeKey(getMore)).toBe('shop.orders|getmore|find|{"status":?}');
+  });
+
+  it('names an update or remove by its op, not by its first command key', () => {
+    const update = entry({ op: 'update', command: { q: { a: 1 }, u: {} } });
+    expect(shapeKey(update)).toBe('shop.orders|update|-|{"a":?}');
   });
 
   it('ignores an empty queryHash and builds a key instead', () => {
@@ -102,7 +143,7 @@ describe('shapeKey', () => {
   });
 
   it('builds a key for an entry without a command', () => {
-    expect(shapeKey(entry({ op: 'insert' }))).toBe('insert|shop.orders|-|-');
+    expect(shapeKey(entry({ op: 'insert' }))).toBe('shop.orders|insert|-|-');
   });
 });
 
@@ -152,7 +193,7 @@ describe('groupByShape', () => {
       find({ a: 1, b: 2 }, { queryHash: 'HASH1' }),
     ]);
     expect(shapes).toHaveLength(1);
-    expect(shapes[0]).toMatchObject({ key: 'HASH1', count: 2 });
+    expect(shapes[0]).toMatchObject({ key: 'shop.orders|query|find|HASH1', count: 2 });
   });
 
   it('returns no shapes for no entries', () => {

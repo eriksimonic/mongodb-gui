@@ -1,5 +1,3 @@
-// shell-runtime compiles this source with no Node types of its own, and the tail uses timers.
-/// <reference types="node" />
 import { MongoServerError, type Document, type MongoClient } from 'mongodb';
 import {
   AppErrorException,
@@ -34,7 +32,14 @@ export interface ProfileTail {
 }
 
 const PROFILE_COLLECTION = 'system.profile';
+const PROFILE_NS_PATTERN = /\.system\.profile$/;
+// Every read this module makes carries this comment. The exclusion clause in buildQuery drops
+// those reads from listings and tails, so the profiler does not record its own polling.
+const PROFILER_COMMENT = 'mongo-gui:profiler';
 const DEFAULT_SLOW_MS = 100;
+const TEXT_SEARCH_FETCH_FACTOR = 25;
+const TEXT_SEARCH_FETCH_CAP = 50_000;
+const TEXT_SEARCH_MAX_TIME_MS = 10_000;
 const RAW_OPS: readonly ProfileOp[] = ['query', 'insert', 'update', 'remove', 'getmore', 'command'];
 
 // Command names that the server reports under op "command" (or under the legacy op of the same
@@ -50,7 +55,7 @@ const ALL_COMMAND_NAMES = Object.values(COMMAND_NAMES_BY_OP).flatMap((names) => 
 
 export async function getProfilingLevel(client: MongoClient, db: string): Promise<ProfilingLevel> {
   try {
-    const reply: unknown = await client.db(db).command({ profile: -1 });
+    const reply: unknown = await client.db(db).command({ profile: -1, comment: PROFILER_COMMENT });
     return toProfilingLevel(reply);
   } catch (error) {
     throw toException(error);
@@ -66,7 +71,7 @@ export async function setProfilingLevel(
   if (!parsed.success) {
     throw new AppErrorException(appError('VALIDATION', 'Invalid profiling settings'));
   }
-  const command: Document = { profile: parsed.data.level };
+  const command: Document = { profile: parsed.data.level, comment: PROFILER_COMMENT };
   if (parsed.data.slowMs !== undefined) {
     command.slowms = parsed.data.slowMs;
   }
@@ -91,17 +96,26 @@ export async function listProfileEntries(
 ): Promise<ProfileEntry[]> {
   const options = parseFilter(filter);
   const limit = options.limit ?? DEFAULT_PROFILE_LIMIT;
-  const cursor = client
+  const find = client
     .db(db)
     .collection(PROFILE_COLLECTION)
-    .find(buildQuery(options))
+    .find(buildQuery(options), { comment: PROFILER_COMMENT })
     .sort({ ts: -1 });
+  // Without a text search every fetched document is returned, so the server limit is exact.
+  // A text search runs in memory, so it fetches a larger window under a time budget.
+  const cursor =
+    options.textSearch === undefined
+      ? find.limit(limit)
+      : find
+          .limit(Math.min(limit * TEXT_SEARCH_FETCH_FACTOR, TEXT_SEARCH_FETCH_CAP))
+          .maxTimeMS(TEXT_SEARCH_MAX_TIME_MS);
+  const label = occurrenceLabeller();
   const entries: ProfileEntry[] = [];
   try {
     // The loop stops at the limit, so a text search that rejects documents keeps reading
-    // until it has enough matches or the collection is exhausted.
+    // until it has enough matches or the window is exhausted.
     for await (const doc of cursor) {
-      const entry = toProfileEntry(doc);
+      const entry = label(toProfileEntry(doc));
       if (matchesInMemory(entry, options)) {
         entries.push(entry);
         if (entries.length >= limit) {
@@ -116,9 +130,9 @@ export async function listProfileEntries(
 }
 
 // Polls system.profile with setTimeout chaining. Each poll reads entries at or after the newest
-// timestamp already delivered, in ascending order, and skips ids already delivered at that
-// timestamp. Polling works on every supported server version, unlike a tailable cursor, which
-// needs a capped collection that the profiler may recreate on a level change.
+// timestamp already delivered, in ascending order. Entries already delivered at that timestamp
+// are recognised by their labelled id. Polling works on every supported server version, unlike a
+// tailable cursor, which needs a capped collection that the profiler may recreate on a level change.
 export function tailProfileEntries(
   client: MongoClient,
   db: string,
@@ -133,6 +147,8 @@ export function tailProfileEntries(
   const entryListeners = new Set<(entries: ProfileEntry[]) => void>();
   const errorListeners = new Set<(error: AppError) => void>();
   let cursorTs = new Date(parsed.data.since).toISOString();
+  // Labelled ids already delivered at cursorTs. Each poll fetches the delivered rows again, so
+  // the window grows by their count and a timestamp with more than limit rows still advances.
   let delivered = new Set<string>();
   let timer: ReturnType<typeof setTimeout> | undefined;
   let stopped = false;
@@ -150,22 +166,17 @@ export function tailProfileEntries(
 
   const poll = async (): Promise<void> => {
     try {
-      const fetched = await fetchAfter(client, db, cursorTs, filter, limit);
+      const fetched = await fetchAfter(client, db, cursorTs, filter, limit + delivered.size);
       if (stopped) {
         return;
       }
-      if (fetched.length > 0) {
-        const newest = fetched[fetched.length - 1]?.ts ?? cursorTs;
+      const newest = fetched[fetched.length - 1]?.ts;
+      if (newest !== undefined) {
         const fresh = fetched.filter((entry) => entry.ts !== cursorTs || !delivered.has(entry.id));
-        const carried = newest === cursorTs ? delivered : new Set<string>();
-        const next = new Set(carried);
-        for (const entry of fetched) {
-          if (entry.ts === newest) {
-            next.add(entry.id);
-          }
-        }
         cursorTs = newest;
-        delivered = next;
+        delivered = new Set(
+          fetched.filter((entry) => entry.ts === newest).map((entry) => entry.id),
+        );
         const matches = fresh.filter((entry) => matchesInMemory(entry, filter));
         if (matches.length > 0) {
           for (const listener of entryListeners) {
@@ -218,16 +229,21 @@ export async function profileCollectionInfo(
   try {
     const rows: unknown[] = await client
       .db(db)
-      .listCollections({ name: PROFILE_COLLECTION }, { nameOnly: true })
+      .listCollections({ name: PROFILE_COLLECTION }, { nameOnly: true, comment: PROFILER_COMMENT })
       .toArray();
     if (rows.length === 0) {
       return { exists: false };
     }
-    const stats: unknown = await client.db(db).command({ collStats: PROFILE_COLLECTION });
+    const stats: unknown[] = await client
+      .db(db)
+      .collection(PROFILE_COLLECTION)
+      .aggregate([{ $collStats: { storageStats: {} } }], { comment: PROFILER_COMMENT })
+      .toArray();
+    const storage = readRecord(stats[0], 'storageStats');
     return {
       exists: true,
-      ...definedEntry('sizeBytes', readNumber(stats, 'size')),
-      ...definedEntry('count', readNumber(stats, 'count')),
+      ...definedEntry('sizeBytes', readNumber(storage, 'size')),
+      ...definedEntry('count', readNumber(storage, 'count')),
     };
   } catch (error) {
     throw toException(error);
@@ -249,20 +265,26 @@ async function fetchAfter(
   filter: ProfileFilter | undefined,
   limit: number,
 ): Promise<ProfileEntry[]> {
-  const base = buildQuery(filter ?? {});
-  const query: Document = { $and: [base, { ts: { $gte: new Date(cursorTs) } }] };
-  const cursor = client
+  const query: Document = {
+    $and: [buildQuery(filter ?? {}), { ts: { $gte: new Date(cursorTs) } }],
+  };
+  const docs = await client
     .db(db)
     .collection(PROFILE_COLLECTION)
-    .find(query)
+    .find(query, { comment: PROFILER_COMMENT })
     .sort({ ts: 1 })
-    .limit(limit);
-  const docs = await cursor.toArray();
-  return docs.map((doc) => toProfileEntry(doc));
+    .limit(limit)
+    .toArray();
+  const label = occurrenceLabeller();
+  return docs.map((doc) => label(toProfileEntry(doc)));
 }
 
+// Every query excludes the profiler's own reads and anything in system.profile itself.
 function buildQuery(filter: ProfileFilter): Document {
-  const clauses: Document[] = [];
+  const clauses: Document[] = [
+    { ns: { $not: PROFILE_NS_PATTERN } },
+    { 'command.comment': { $ne: PROFILER_COMMENT } },
+  ];
   if (filter.ns !== undefined) {
     clauses.push({ ns: filter.ns });
   }
@@ -282,7 +304,7 @@ function buildQuery(filter: ProfileFilter): Document {
   if (Object.keys(range).length > 0) {
     clauses.push({ ts: range });
   }
-  return clauses.length === 0 ? {} : { $and: clauses };
+  return { $and: clauses };
 }
 
 // Server-side approximation of the normalised op. matchesInMemory checks the normalised op too,
@@ -318,9 +340,27 @@ function matchesInMemory(entry: ProfileEntry, filter: ProfileFilter | undefined)
   }
   if (filter.textSearch !== undefined) {
     const needle = filter.textSearch.toLowerCase();
-    return safeJson(entry.command).toLowerCase().includes(needle);
+    const haystack = [
+      safeJson(entry.command),
+      entry.ns,
+      entry.planSummary ?? '',
+      entry.errMsg ?? '',
+    ].join('\n');
+    return haystack.toLowerCase().includes(needle);
   }
   return true;
+}
+
+// Profile documents with the same content in the same millisecond share a base id. Each repeat
+// gets a suffix with its occurrence index, so ids stay unique within one listing or poll.
+function occurrenceLabeller(): (entry: ProfileEntry) => ProfileEntry {
+  const occurrences = new Map<string, number>();
+  return (entry) => {
+    const key = `${entry.ts}|${entry.id}`;
+    const occurrence = occurrences.get(key) ?? 0;
+    occurrences.set(key, occurrence + 1);
+    return occurrence === 0 ? entry : { ...entry, id: `${entry.id}~${occurrence}` };
+  };
 }
 
 function safeJson(value: unknown): string {
@@ -328,7 +368,11 @@ function safeJson(value: unknown): string {
     return '';
   }
   try {
-    return JSON.stringify(value) ?? '';
+    return (
+      JSON.stringify(value, (_key, item: unknown) =>
+        typeof item === 'bigint' ? item.toString() : item,
+      ) ?? ''
+    );
   } catch {
     return '';
   }

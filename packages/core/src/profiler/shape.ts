@@ -5,17 +5,18 @@ type Plain = Record<string, unknown>;
 const FILTER_FIELDS = ['filter', 'pipeline', 'q', 'query'] as const;
 const P95 = 0.95;
 
-// The key that groups entries. The server's queryHash wins when present. Otherwise the key
-// holds the operation, namespace, command name and the filter structure with every value
-// replaced by "?".
+// The key that groups entries: namespace, operation, command name, then either the server's
+// queryHash or, when there is none, the filter structure with every value replaced by "?".
+// The queryHash alone does not name the command, so a find and an aggregate with the same filter
+// can share it on some versions. The leading parts keep those apart.
 export function shapeKey(entry: ProfileEntry): string {
+  const prefix = `${entry.ns}|${entry.op}|${operationName(entry)}`;
   if (entry.queryHash !== undefined && entry.queryHash !== '') {
-    return entry.queryHash;
+    return `${prefix}|${entry.queryHash}`;
   }
-  const name = commandName(entry.command) ?? '-';
   const source = filterSource(entry.command);
   const structure = source === undefined ? '-' : shapeOf(source);
-  return `${entry.op}|${entry.ns}|${name}|${structure}`;
+  return `${prefix}|${structure}`;
 }
 
 // One group per shape key, sorted by total time spent, slowest first.
@@ -86,6 +87,23 @@ function distinctPlanSummaries(members: readonly ProfileEntry[]): string[] {
   return [...summaries].sort(compareText);
 }
 
+// Update and remove entries are named by their op. Their command holds the match and the
+// update document, whose first key is not a command name.
+function operationName(entry: ProfileEntry): string {
+  if (entry.op === 'update' || entry.op === 'remove') {
+    return '-';
+  }
+  return commandName(effectiveCommand(entry.command)) ?? '-';
+}
+
+// A getMore carries the command that opened its cursor. That command describes the query.
+function effectiveCommand(command: unknown): unknown {
+  if (isPlainDocument(command) && isPlainDocument(command.originatingCommand)) {
+    return command.originatingCommand;
+  }
+  return command;
+}
+
 function commandName(command: unknown): string | undefined {
   if (!isPlainDocument(command)) {
     return undefined;
@@ -96,16 +114,17 @@ function commandName(command: unknown): string | undefined {
 // Returns the part of the command that holds the query: a find filter, an aggregate pipeline,
 // or the match of an update or delete.
 function filterSource(command: unknown): unknown {
-  if (!isPlainDocument(command)) {
+  const effective = effectiveCommand(command);
+  if (!isPlainDocument(effective)) {
     return undefined;
   }
   for (const field of FILTER_FIELDS) {
-    const value = command[field];
+    const value = effective[field];
     if (value !== undefined) {
       return value;
     }
   }
-  return firstStatementMatch(command.updates) ?? firstStatementMatch(command.deletes);
+  return firstStatementMatch(effective.updates) ?? firstStatementMatch(effective.deletes);
 }
 
 function firstStatementMatch(statements: unknown): unknown {
@@ -116,11 +135,16 @@ function firstStatementMatch(statements: unknown): unknown {
   return isPlainDocument(first) ? first.q : undefined;
 }
 
-// Values become "?", arrays become "[?]", and object keys are sorted so that field order does
-// not split a shape. Operator keys such as $gt stay in place because they are part of the shape.
+// Values become "?", and object keys are sorted so that field order does not split a shape.
+// Operator keys such as $gt stay in place because they are part of the shape. An array of
+// documents, such as an aggregate pipeline, keeps its stages in order. Any other array becomes
+// "[?]".
 function shapeOf(value: unknown): string {
   if (Array.isArray(value)) {
-    return '[?]';
+    const elements: unknown[] = value;
+    return elements.length > 0 && elements.every(isPlainDocument)
+      ? `[${elements.map((element) => shapeOf(element)).join(',')}]`
+      : '[?]';
   }
   if (isPlainDocument(value)) {
     const fields = Object.keys(value)

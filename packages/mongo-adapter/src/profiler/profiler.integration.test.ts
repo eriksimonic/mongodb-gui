@@ -37,14 +37,10 @@ const TAIL_POLL_MS = 200;
 const TAIL_DELIVERY_BUDGET_MS = 2 * TAIL_POLL_MS + 1000;
 const WAIT_STEP_MS = 20;
 
-// Counts of fast query shapes, sorted ascending, observed per server version. 4.4 and 6.0 give
-// the aggregates the same queryHash as the finds with the same filter structure, so all 20 fast
-// reads share one shape. 8.0 hashes the aggregate on its own, which gives 17 finds and 3 aggregates.
-const FAST_SHAPE_COUNTS: Readonly<Record<(typeof MONGO_IMAGES)[number], readonly number[]>> = {
-  'mongo:4.4': [20],
-  'mongo:6.0': [20],
-  'mongo:8.0.17': [3, 17],
-};
+// Fast shapes, sorted ascending, are the 17 finds and the 3 aggregates. The shape key includes the
+// command name, so a find and an aggregate with the same filter stay apart on every version,
+// even where the server gives them the same queryHash (4.4 and 6.0 do).
+const FAST_SHAPE_COUNTS = [AGGREGATES, FAST_FINDS];
 
 describe.each(MONGO_IMAGES)('MongoDB %s profiler', (image) => {
   const db = `profiler_${randomUUID().replaceAll('-', '')}`;
@@ -63,11 +59,12 @@ describe.each(MONGO_IMAGES)('MongoDB %s profiler', (image) => {
 
   afterAll(async () => {
     try {
+      // A failed beforeAll leaves client or mongo unset, so both are guarded.
       await setProfilingLevel(client, db, { level: 0 });
       await client.db(db).dropDatabase();
     } finally {
-      await client.close();
-      await mongo.stop();
+      await client?.close();
+      await mongo?.stop();
     }
   }, SETUP_TIMEOUT_MS);
 
@@ -126,6 +123,7 @@ describe.each(MONGO_IMAGES)('MongoDB %s profiler', (image) => {
         query: FAST_FINDS + SLOW_FINDS + AGGREGATES,
         update: UPDATES,
       });
+      expect(new Set(entries.map((entry) => entry.id)).size).toBe(entries.length);
     },
     TEST_TIMEOUT_MS,
   );
@@ -192,8 +190,12 @@ describe.each(MONGO_IMAGES)('MongoDB %s profiler', (image) => {
       expect(reads.every((entry) => entry.queryHash !== undefined)).toBe(true);
 
       const shapes = groupByShape(reads);
-      const hashes = new Set(reads.map((entry) => entry.queryHash));
-      expect(shapes.every((shape) => hashes.has(shape.key))).toBe(true);
+      const hashes = reads.flatMap((entry) =>
+        entry.queryHash === undefined ? [] : [entry.queryHash],
+      );
+      expect(shapes.every((shape) => hashes.some((hash) => shape.key.endsWith(`|${hash}`)))).toBe(
+        true,
+      );
 
       const slow = shapes.filter((shape) => shape.maxMillis >= SLOW_THRESHOLD_MS);
       expect(slow).toHaveLength(1);
@@ -204,7 +206,7 @@ describe.each(MONGO_IMAGES)('MongoDB %s profiler', (image) => {
         .filter((shape) => shape.maxMillis < SLOW_THRESHOLD_MS)
         .map((shape) => shape.count)
         .sort((a, b) => a - b);
-      expect(fast).toEqual([...FAST_SHAPE_COUNTS[image]]);
+      expect(fast).toEqual(FAST_SHAPE_COUNTS);
     },
     TEST_TIMEOUT_MS,
   );
@@ -275,6 +277,29 @@ describe.each(MONGO_IMAGES)('MongoDB %s profiler', (image) => {
       const neverProfiled = `${db}_never`;
       expect(await profileCollectionInfo(client, neverProfiled)).toEqual({ exists: false });
       expect(await listProfileEntries(client, neverProfiled, {})).toEqual([]);
+    },
+    TEST_TIMEOUT_MS,
+  );
+
+  it(
+    'hides its own polling from a tail with no namespace filter and from listings',
+    async () => {
+      // The server still records each poll in system.profile, because the profiler cannot be
+      // told to skip a read. The comment on the read keeps those records out of what this
+      // module returns, so the listing does not change while the tail polls.
+      const before = await listProfileEntries(client, db, { limit: MAX_PROFILE_LIMIT });
+      const since = new Date().toISOString();
+      const received: ProfileEntry[] = [];
+      const tail = tailProfileEntries(client, db, { since, pollMs: TAIL_POLL_MS });
+      tail.onEntries((batch) => received.push(...batch));
+      try {
+        await sleep(3 * TAIL_POLL_MS + 200);
+      } finally {
+        tail.stop();
+      }
+      const after = await listProfileEntries(client, db, { limit: MAX_PROFILE_LIMIT });
+      expect(received).toEqual([]);
+      expect(after).toHaveLength(before.length);
     },
     TEST_TIMEOUT_MS,
   );
