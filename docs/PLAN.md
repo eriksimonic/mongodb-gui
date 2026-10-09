@@ -116,7 +116,8 @@ DEK  --AES-256-GCM-->  every content column in the SQLite store
 
 - First launch: user sets a master password (minimum 10 characters, strength meter,
   confirmation). The app generates a random DEK, wraps it under the KEK, and writes
-  `keyring.json` containing `{ version, kdf: {salt, N, r, p}, wrappedDek, verifier }`.
+  `keyring.json` containing `{ version, kdf: {salt, N, r, p}, wrappedDek }`. The AES-GCM
+  tag on the wrapped DEK is the password verifier; there is no separate verifier field.
 - Every launch: the app shows the unlock screen before any window content. Wrong
   password yields a generic error with a 500 ms delay per attempt.
 - Password change: re-derive KEK, re-wrap the DEK. No data rewrite.
@@ -134,7 +135,9 @@ structural columns (`id`, `created_at`, `updated_at`, `kind`, foreign keys) and 
 `payload BLOB` column holding `nonce(12) || ciphertext || tag(16)` under AES-256-GCM, with
 AAD set to `table:id` so a row cannot be moved to another table or id. Query history
 search happens in memory after decrypt, capped at 20,000 entries with oldest-first
-eviction.
+eviction. History rows reference their connection with `ON DELETE CASCADE`, so removing a
+connection removes its history. Timestamps and connection ids stay in clear text, which
+reveals when queries ran per connection but not what they were.
 
 ### 3.4 Why not the OS keychain or TPM as the root
 
