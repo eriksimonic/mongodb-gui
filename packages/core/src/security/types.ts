@@ -104,8 +104,13 @@ export const CreateUserInputSchema = z
     path: ['password'],
   });
 
+// Users in $external have no MongoDB password to change, so the schema refuses them by name.
+const PasswordUserDatabaseSchema = UserDatabaseSchema.refine((db) => db !== EXTERNAL_DATABASE, {
+  message: 'Users in $external have no password',
+});
+
 export const ChangePasswordInputSchema = z.object({
-  db: DbSchema,
+  db: PasswordUserDatabaseSchema,
   user: UserNameSchema,
   password: PasswordSchema,
 });

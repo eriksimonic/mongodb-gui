@@ -406,6 +406,42 @@ describe.each(MONGO_IMAGES)('users, roles and privileges on %s', (image) => {
     );
   });
 
+  it('accepts $external for the capability lookup and refuses a password change there', async () => {
+    expect(await userManagementCapabilities(root, EXTERNAL_DB)).toEqual({
+      canCreateUsers: true,
+      canGrantRoles: true,
+      canManageRoles: true,
+    });
+    const refusal = await captureError(() =>
+      changePassword(root, { db: EXTERNAL_DB, user: EXTERNAL_USER, password: 'not-a-password' }),
+    );
+    expect(refusal.code).toBe('VALIDATION');
+    expect(refusal.message).toContain('Users in $external have no password');
+  });
+
+  it('counts a grant only on a database-wide resource, not on one collection', async () => {
+    await createRole(root, {
+      db: 'shop',
+      role: 'collGranter',
+      privileges: [{ resource: { db: 'shop', collection: 'orders' }, actions: ['grantRole'] }],
+      roles: [],
+    });
+    await createUser(root, {
+      db: 'shop',
+      user: 'collUser',
+      password: 'coll-user-pass-1',
+      roles: [{ role: 'collGranter', db: 'shop' }],
+    });
+    await withClient(
+      uriFor(mongo.rootUri, 'collUser', 'coll-user-pass-1', 'shop'),
+      async (client) => {
+        expect((await userManagementCapabilities(client, 'shop')).canGrantRoles).toBe(false);
+      },
+    );
+    await dropUser(root, { db: 'shop', user: 'collUser' });
+    await dropRole(root, { db: 'shop', role: 'collGranter' });
+  });
+
   it('splits the capabilities for a user that may only grant roles', async () => {
     await createRole(root, {
       db: 'shop',

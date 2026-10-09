@@ -150,6 +150,19 @@ describe('external users', () => {
     expect(CreateUserInputSchema.safeParse(withoutPassword).success).toBe(false);
   });
 
+  it('refuses to change the password of a user in $external, by name', () => {
+    const result = ChangePasswordInputSchema.safeParse({
+      db: '$external',
+      user: 'CN=test',
+      password: 'x',
+    });
+    expect(result.success).toBe(false);
+    expect(result.error?.issues[0]?.message).toBe('Users in $external have no password');
+    expect(
+      ChangePasswordInputSchema.safeParse({ db: 'shop', user: 'clerk', password: 'x' }).success,
+    ).toBe(true);
+  });
+
   it('keeps other databases free of $', () => {
     expect(UserRefSchema.safeParse({ db: 'bad$db', user: 'clerk' }).success).toBe(false);
   });

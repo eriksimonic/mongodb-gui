@@ -1,7 +1,7 @@
 import type { MongoClient } from 'mongodb';
 import {
   AuthStatusSchema,
-  DatabaseNameSchema,
+  UserDatabaseSchema,
   type AuthStatus,
   type Privilege,
   type UserManagementCapabilities,
@@ -46,7 +46,7 @@ export async function userManagementCapabilities(
   client: MongoClient,
   db: string,
 ): Promise<UserManagementCapabilities> {
-  const database = parseInput(DatabaseNameSchema, db);
+  const database = parseInput(UserDatabaseSchema, db);
   const status = await connectionStatus(client);
   const hasAdminRole = status.authenticatedUserRoles.some(
     (ref) => ref.db === ADMIN_DATABASE && ADMIN_ROLES.has(ref.role),
@@ -69,5 +69,10 @@ function grantsOn(privilege: Privilege, db: string, actions: ReadonlySet<string>
   if ('anyResource' in resource) {
     return true;
   }
-  return 'db' in resource && 'collection' in resource && (resource.db === db || resource.db === '');
+  // Only a database-wide resource counts: collection '' on the database, or on every database.
+  return (
+    'collection' in resource &&
+    resource.collection === '' &&
+    (resource.db === db || resource.db === '')
+  );
 }
