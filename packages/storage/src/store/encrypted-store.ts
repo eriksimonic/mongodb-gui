@@ -42,6 +42,9 @@ export class EncryptedStore {
 
   /** The open database. Repositories run their SQL through it. */
   get db(): DatabaseSync {
+    if (this.#closed) {
+      throw new AppErrorException(appError('INTERNAL', 'store is closed'));
+    }
     return this.#db;
   }
 

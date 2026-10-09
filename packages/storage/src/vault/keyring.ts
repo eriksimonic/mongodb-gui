@@ -1,61 +1,66 @@
 import {
   closeSync,
+  existsSync,
   fsyncSync,
   openSync,
   readFileSync,
   renameSync,
+  rmSync,
   writeFileSync,
-  existsSync,
 } from 'node:fs';
+import { dirname } from 'node:path';
+import { z } from 'zod';
 import { AppErrorException, appError } from '@mongo-gui/core';
+import { SCRYPT_MAX_MEMORY } from '../crypto/kdf';
 
 const SALT_BYTES = 32;
 const WRAPPED_DEK_BYTES = 12 + 32 + 16;
 const MAX_SCRYPT_N = 2 ** 30;
 
-/** The on-disk keyring. The wrapped DEK doubles as the password verifier. */
-export interface KeyringFile {
-  readonly version: 1;
-  readonly kdf: {
-    readonly salt: string;
-    readonly N: number;
-    readonly r: number;
-    readonly p: number;
-  };
-  readonly wrappedDek: string;
+/** Accepts only the canonical base64 form of exactly `bytes` bytes. */
+function canonicalBase64(bytes: number): z.ZodString {
+  return z.string().refine((text) => {
+    const decoded = Buffer.from(text, 'base64');
+    return decoded.length === bytes && decoded.toString('base64') === text;
+  });
 }
 
+const KdfSchema = z
+  .object({
+    salt: canonicalBase64(SALT_BYTES),
+    N: z
+      .number()
+      .int()
+      .min(2)
+      .max(MAX_SCRYPT_N)
+      .refine((n) => (n & (n - 1)) === 0),
+    r: z.number().int().positive(),
+    p: z.number().int().positive(),
+  })
+  .strict()
+  .refine((kdf) => 128 * kdf.N * kdf.r <= SCRYPT_MAX_MEMORY);
+
+export const KeyringFileSchema = z
+  .object({
+    version: z.literal(1),
+    kdf: KdfSchema,
+    wrappedDek: canonicalBase64(WRAPPED_DEK_BYTES),
+  })
+  .strict();
+
+/** The on-disk keyring. The wrapped DEK doubles as the password verifier. */
+export type KeyringFile = z.infer<typeof KeyringFileSchema>;
+
 /**
- * Validates an unknown value as a keyring file. Throws INTERNAL when the shape is wrong.
- * The message never echoes file contents.
+ * Validates an unknown value as a keyring file. Throws INTERNAL with one fixed message,
+ * so zod issue text and file contents never reach the caller.
  */
 export function parseKeyringFile(value: unknown): KeyringFile {
-  if (!isRecord(value) || value['version'] !== 1) {
+  const result = KeyringFileSchema.safeParse(value);
+  if (!result.success) {
     throw malformed();
   }
-  const kdf = value['kdf'];
-  if (!isRecord(kdf)) {
-    throw malformed();
-  }
-  const salt = decodeBase64(kdf['salt'], SALT_BYTES);
-  const wrappedDek = decodeBase64(value['wrappedDek'], WRAPPED_DEK_BYTES);
-  const N = kdf['N'];
-  const r = kdf['r'];
-  const p = kdf['p'];
-  if (
-    salt === undefined ||
-    wrappedDek === undefined ||
-    !isPowerOfTwo(N) ||
-    !isPositiveInteger(r) ||
-    !isPositiveInteger(p)
-  ) {
-    throw malformed();
-  }
-  return {
-    version: 1,
-    kdf: { salt: salt.toString('base64'), N, r, p },
-    wrappedDek: wrappedDek.toString('base64'),
-  };
+  return result.data;
 }
 
 /** Reads and validates the keyring. Returns undefined when the file does not exist. */
@@ -73,9 +78,13 @@ export function readKeyringFile(path: string): KeyringFile | undefined {
   return parseKeyringFile(parsed);
 }
 
-/** Writes the keyring to a temporary file, flushes it, then renames it over the target. */
+/**
+ * Writes the keyring to a temporary file, flushes it, renames it over the target, and
+ * flushes the directory so the rename survives a crash.
+ */
 export function writeKeyringFile(path: string, keyring: KeyringFile): void {
   const temporary = `${path}.tmp`;
+  rmSync(temporary, { force: true });
   const fd = openSync(temporary, 'w', 0o600);
   try {
     writeFileSync(fd, JSON.stringify(keyring, null, 2));
@@ -84,33 +93,29 @@ export function writeKeyringFile(path: string, keyring: KeyringFile): void {
     closeSync(fd);
   }
   renameSync(temporary, path);
+  fsyncDirectory(dirname(path));
+}
+
+/** Deletes the keyring and any leftover temporary file from an interrupted write. */
+export function removeKeyringFile(path: string): void {
+  rmSync(path, { force: true });
+  rmSync(`${path}.tmp`, { force: true });
+}
+
+function fsyncDirectory(dir: string): void {
+  let fd: number | undefined;
+  try {
+    fd = openSync(dir, 'r');
+    fsyncSync(fd);
+  } catch {
+    // Directory fsync is not supported on every platform (for example Windows).
+  } finally {
+    if (fd !== undefined) {
+      closeSync(fd);
+    }
+  }
 }
 
 function malformed(): AppErrorException {
-  return new AppErrorException(appError('INTERNAL', 'The vault keyring file is malformed.'));
-}
-
-function isRecord(value: unknown): value is Record<string, unknown> {
-  return typeof value === 'object' && value !== null && !Array.isArray(value);
-}
-
-function isPositiveInteger(value: unknown): value is number {
-  return typeof value === 'number' && Number.isSafeInteger(value) && value > 0;
-}
-
-function isPowerOfTwo(value: unknown): value is number {
-  return (
-    isPositiveInteger(value) && value >= 2 && value <= MAX_SCRYPT_N && (value & (value - 1)) === 0
-  );
-}
-
-function decodeBase64(value: unknown, byteLength: number): Buffer | undefined {
-  if (typeof value !== 'string') {
-    return undefined;
-  }
-  const decoded = Buffer.from(value, 'base64');
-  if (decoded.length !== byteLength || decoded.toString('base64') !== value) {
-    return undefined;
-  }
-  return decoded;
+  return new AppErrorException(appError('INTERNAL', 'malformed keyring'));
 }

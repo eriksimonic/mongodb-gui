@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { deriveKek } from './kdf';
+import { DEFAULT_KDF_PARAMS, deriveKek } from './kdf';
 
 const FAST = { N: 2 ** 10, r: 8, p: 1 };
 const SALT_A = Buffer.alloc(32, 1);
@@ -34,5 +34,11 @@ describe('deriveKek', () => {
 
   it('returns a 32 byte key', () => {
     expect(deriveKek('correct horse', SALT_A, FAST)).toHaveLength(32);
+  });
+});
+
+describe('deriveKek with production parameters', () => {
+  it('fits within the scrypt memory limit', () => {
+    expect(deriveKek('correct horse', SALT_A, DEFAULT_KDF_PARAMS)).toHaveLength(32);
   });
 });

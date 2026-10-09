@@ -1,6 +1,3 @@
-/// <reference types="node" />
-// Packages that compile this source directly, such as app, do not set Node types.
-
 export const storagePackageName = '@mongo-gui/storage';
 
 export { DEFAULT_KDF_PARAMS, deriveKek, type KdfParams } from './crypto/kdf';

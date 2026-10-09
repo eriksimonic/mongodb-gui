@@ -1,10 +1,10 @@
 import { randomBytes } from 'node:crypto';
-import { mkdirSync, rmSync, existsSync } from 'node:fs';
+import { mkdirSync, existsSync } from 'node:fs';
 import { join } from 'node:path';
 import { AppErrorException, appError, type VaultStatus } from '@mongo-gui/core';
 import { DEFAULT_KDF_PARAMS, deriveKek, type KdfParams } from '../crypto/kdf';
 import { DecryptError, open, seal } from '../crypto/aead';
-import { readKeyringFile, writeKeyringFile, type KeyringFile } from './keyring';
+import { readKeyringFile, removeKeyringFile, writeKeyringFile, type KeyringFile } from './keyring';
 
 export interface VaultOptions {
   /** Directory that holds keyring.json. Created on initialise. */
@@ -113,20 +113,25 @@ export class Vault {
   /** Locks the vault and deletes keyring.json. The caller deletes the store file. */
   reset(): void {
     this.lock();
-    rmSync(this.keyringPath, { force: true });
+    removeKeyringFile(this.keyringPath);
   }
 
   /**
    * Runs fn with the DEK. Throws VAULT_LOCKED when the vault is locked.
-   * Each call counts as activity for the idle timer.
+   * Each call counts as activity for the idle timer. The callback must be synchronous:
+   * if the vault locked during an await, the callback would use a zeroed key.
    */
-  withDek<T>(fn: (dek: Buffer) => T): T {
+  withDek<T>(fn: (dek: Buffer) => T extends PromiseLike<unknown> ? never : T): T {
     const dek = this.#dek;
     if (dek === undefined) {
       throw new AppErrorException(appError('VAULT_LOCKED', 'The vault is locked.'));
     }
     this.touch();
-    return fn(dek);
+    const result: unknown = fn(dek);
+    if (isThenable(result)) {
+      throw new AppErrorException(appError('INTERNAL', 'withDek callbacks must be synchronous.'));
+    }
+    return result as T;
   }
 
   /** Records activity and arms the idle timer. Does nothing while the vault is locked. */
@@ -240,4 +245,13 @@ function delay(ms: number): Promise<void> {
   return new Promise((resolve) => {
     setTimeout(resolve, ms);
   });
+}
+
+function isThenable(value: unknown): value is PromiseLike<unknown> {
+  return (
+    (typeof value === 'object' || typeof value === 'function') &&
+    value !== null &&
+    'then' in value &&
+    typeof value.then === 'function'
+  );
 }

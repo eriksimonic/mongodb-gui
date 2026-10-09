@@ -9,7 +9,7 @@ export interface KdfParams {
 export const DEFAULT_KDF_PARAMS: KdfParams = { N: 2 ** 17, r: 8, p: 1 };
 
 const KEK_BYTES = 32;
-const SCRYPT_MAX_MEMORY = 256 * 1024 * 1024;
+export const SCRYPT_MAX_MEMORY = 256 * 1024 * 1024;
 
 /**
  * Derives a 32-byte key-encryption key from the master password.

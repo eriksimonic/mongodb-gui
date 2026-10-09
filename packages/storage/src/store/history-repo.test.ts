@@ -175,3 +175,15 @@ describe('history rows of a removed connection', () => {
     expect(remaining?.['count']).toBe(0);
   });
 });
+
+describe('HistoryRepository.append at the limit', () => {
+  it('keeps every row when the count equals the limit', () => {
+    setUp();
+    test.settings.update({ historyLimit: 2 });
+    test.history.append(entry({ code: 'q1', startedAt: minute(1) }));
+    test.history.append(entry({ code: 'q2', startedAt: minute(2) }));
+    expect(test.history.list()).toHaveLength(2);
+    test.history.append(entry({ code: 'q3', startedAt: minute(3) }));
+    expect(test.history.list().map((item) => item.code)).toEqual(['q3', 'q2']);
+  });
+});

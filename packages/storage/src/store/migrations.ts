@@ -55,18 +55,16 @@ export function applyMigrations(
   db.exec(
     'CREATE TABLE IF NOT EXISTS schema_version (version INTEGER PRIMARY KEY, applied_at TEXT NOT NULL)',
   );
-  const current = currentSchemaVersion(db);
   for (const migration of available) {
-    if (migration.version <= current) {
-      continue;
-    }
     db.exec('BEGIN IMMEDIATE');
     try {
-      db.exec(migration.sql);
-      db.prepare('INSERT INTO schema_version (version, applied_at) VALUES (?, ?)').run(
-        migration.version,
-        new Date().toISOString(),
-      );
+      if (migration.version > currentSchemaVersion(db)) {
+        db.exec(migration.sql);
+        db.prepare('INSERT INTO schema_version (version, applied_at) VALUES (?, ?)').run(
+          migration.version,
+          new Date().toISOString(),
+        );
+      }
       db.exec('COMMIT');
     } catch (error) {
       db.exec('ROLLBACK');

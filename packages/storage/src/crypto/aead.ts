@@ -28,8 +28,16 @@ export function seal(key: Buffer, plaintext: Buffer, aad: Buffer): Buffer {
   const nonce = randomBytes(NONCE_BYTES);
   const cipher = createCipheriv(ALGORITHM, key, nonce, { authTagLength: TAG_BYTES });
   cipher.setAAD(aad);
-  const ciphertext = Buffer.concat([cipher.update(plaintext), cipher.final()]);
-  return Buffer.concat([nonce, ciphertext, cipher.getAuthTag()]);
+  let head: Buffer | undefined;
+  let tail: Buffer | undefined;
+  try {
+    head = cipher.update(plaintext);
+    tail = cipher.final();
+    return Buffer.concat([nonce, head, tail, cipher.getAuthTag()]);
+  } finally {
+    head?.fill(0);
+    tail?.fill(0);
+  }
 }
 
 /** Decrypts the output of seal. Throws DecryptError when the input is short or fails authentication. */
@@ -44,10 +52,17 @@ export function open(key: Buffer, sealed: Buffer, aad: Buffer): Buffer {
   const decipher = createDecipheriv(ALGORITHM, key, nonce, { authTagLength: TAG_BYTES });
   decipher.setAAD(aad);
   decipher.setAuthTag(tag);
+  let head: Buffer | undefined;
+  let tail: Buffer | undefined;
   try {
-    return Buffer.concat([decipher.update(ciphertext), decipher.final()]);
+    head = decipher.update(ciphertext);
+    tail = decipher.final();
+    return Buffer.concat([head, tail]);
   } catch {
     throw new DecryptError('authentication');
+  } finally {
+    head?.fill(0);
+    tail?.fill(0);
   }
 }
 

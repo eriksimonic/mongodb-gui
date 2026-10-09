@@ -1,4 +1,11 @@
-import { copyFileSync, mkdtempSync, readFileSync, rmSync } from 'node:fs';
+import {
+  copyFileSync,
+  existsSync,
+  mkdtempSync,
+  readFileSync,
+  rmSync,
+  writeFileSync,
+} from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { AppErrorException, type AppErrorCode } from '@mongo-gui/core';
@@ -288,5 +295,49 @@ describe('Vault idle lock', () => {
     vault.lock();
     vault.touch();
     expect(vi.getTimerCount()).toBe(0);
+  });
+});
+
+describe('Vault KDF parameters', () => {
+  it('unlocks with the parameters stored in the keyring, not the constructor options', async () => {
+    const dir = newDir();
+    const writer = newVault(dir, { kdf: { N: 2 ** 10, r: 8, p: 1 } });
+    writer.initialise(PASSWORD);
+    writer.lock();
+    const reader = new Vault({ dir, kdf: { N: 2 ** 12, r: 8, p: 1 }, failureDelayMs: 0 });
+    await reader.unlock(PASSWORD);
+    expect(reader.status()).toEqual({ state: 'unlocked' });
+    reader.lock();
+  });
+});
+
+describe('Vault withDek synchronous callbacks', () => {
+  it('rejects an async callback at compile time', () => {
+    const vault = newVault(newDir());
+    vault.initialise(PASSWORD);
+    // @ts-expect-error withDek callbacks must be synchronous
+    expect(() => vault.withDek(async () => 1)).toThrow(AppErrorException);
+    vault.lock();
+  });
+
+  it('throws INTERNAL at runtime when the callback returns a promise', () => {
+    const vault = newVault(newDir());
+    vault.initialise(PASSWORD);
+    const asyncCallback = (() => Promise.resolve(1)) as unknown as (dek: Buffer) => number;
+    expect(() => vault.withDek(asyncCallback)).toThrow(AppErrorException);
+    expect(() => vault.withDek(asyncCallback)).toThrow('withDek callbacks must be synchronous.');
+    vault.lock();
+  });
+});
+
+describe('Vault reset with a leftover temporary file', () => {
+  it('removes the temporary keyring too', () => {
+    const dir = newDir();
+    const vault = newVault(dir);
+    vault.initialise(PASSWORD);
+    writeFileSync(`${vault.keyringPath}.tmp`, 'leftover');
+    vault.reset();
+    expect(existsSync(`${vault.keyringPath}.tmp`)).toBe(false);
+    expect(vault.status()).toEqual({ state: 'uninitialised' });
   });
 });

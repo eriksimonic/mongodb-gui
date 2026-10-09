@@ -192,3 +192,18 @@ describe('EncryptedStore lifecycle', () => {
     expect(() => new EncryptedStore({ path, vault })).toThrow();
   });
 });
+
+describe('EncryptedStore after close', () => {
+  it('makes repository calls throw INTERNAL "store is closed"', () => {
+    const test = track(openTestStore());
+    test.store.close();
+    let caught: unknown;
+    try {
+      test.connections.list();
+    } catch (error) {
+      caught = error;
+    }
+    expect(caught).toBeInstanceOf(AppErrorException);
+    expect(caught).toMatchObject({ error: { code: 'INTERNAL', message: 'store is closed' } });
+  });
+});

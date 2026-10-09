@@ -3,7 +3,13 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { AppErrorException } from '@mongo-gui/core';
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
-import { parseKeyringFile, readKeyringFile, writeKeyringFile, type KeyringFile } from './keyring';
+import {
+  parseKeyringFile,
+  readKeyringFile,
+  removeKeyringFile,
+  writeKeyringFile,
+  type KeyringFile,
+} from './keyring';
 
 const SALT_B64 = Buffer.alloc(32, 3).toString('base64');
 const WRAPPED_B64 = Buffer.alloc(60, 4).toString('base64');
@@ -42,6 +48,27 @@ describe('parseKeyringFile', () => {
 
   it('rejects a wrong version', () => {
     expect(caughtInternal(() => parseKeyringFile({ ...validKeyring(), version: 2 }))).toBe(true);
+  });
+
+  it('rejects an N whose scrypt memory use exceeds the bound', () => {
+    const keyring = { ...validKeyring(), kdf: { ...validKeyring().kdf, r: 32 } };
+    expect(caughtInternal(() => parseKeyringFile(keyring))).toBe(true);
+  });
+
+  it('rejects unknown fields at either level', () => {
+    expect(caughtInternal(() => parseKeyringFile({ ...validKeyring(), extra: 1 }))).toBe(true);
+    const kdf = { ...validKeyring().kdf, extra: 1 };
+    expect(caughtInternal(() => parseKeyringFile({ ...validKeyring(), kdf }))).toBe(true);
+  });
+
+  it('does not put zod issue text into the error', () => {
+    let message = '';
+    try {
+      parseKeyringFile({ ...validKeyring(), wrappedDek: 'secret-looking-text' });
+    } catch (error) {
+      message = error instanceof AppErrorException ? error.error.message : '';
+    }
+    expect(message).toBe('malformed keyring');
   });
 
   it('rejects a non-object value', () => {
@@ -87,6 +114,23 @@ describe('readKeyringFile and writeKeyringFile', () => {
     const path = join(dir, 'keyring.json');
     writeKeyringFile(path, validKeyring());
     expect(readKeyringFile(path)).toEqual(validKeyring());
+    expect(existsSync(`${path}.tmp`)).toBe(false);
+  });
+
+  it('removes a leftover temporary file before writing', () => {
+    const path = join(dir, 'keyring.json');
+    writeFileSync(`${path}.tmp`, 'leftover');
+    writeKeyringFile(path, validKeyring());
+    expect(readKeyringFile(path)).toEqual(validKeyring());
+    expect(existsSync(`${path}.tmp`)).toBe(false);
+  });
+
+  it('removeKeyringFile deletes the keyring and a leftover temporary file', () => {
+    const path = join(dir, 'keyring.json');
+    writeKeyringFile(path, validKeyring());
+    writeFileSync(`${path}.tmp`, 'leftover');
+    removeKeyringFile(path);
+    expect(existsSync(path)).toBe(false);
     expect(existsSync(`${path}.tmp`)).toBe(false);
   });
 

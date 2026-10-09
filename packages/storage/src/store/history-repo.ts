@@ -56,7 +56,10 @@ export class HistoryRepository {
         entry.startedAt,
         this.#store.encryptPayload('history', entry.id, entry),
       );
-    this.prune(this.#settings.get().historyLimit);
+    const limit = this.#settings.get().historyLimit;
+    if (this.#count() > limit) {
+      this.prune(limit);
+    }
     return entry;
   }
 
@@ -106,6 +109,12 @@ export class HistoryRepository {
       )
       .run(limit);
     return Number(result.changes);
+  }
+
+  #count(): number {
+    const row = this.#store.db.prepare('SELECT count(*) AS count FROM history').get();
+    const count = row?.['count'];
+    return typeof count === 'number' ? count : 0;
   }
 
   #decode(row: Readonly<Record<string, unknown>>): HistoryEntry {
