@@ -1,0 +1,12 @@
+{
+  "files": [],
+  "references": [
+    { "path": "./packages/core" },
+    { "path": "./packages/mongo-adapter" },
+    { "path": "./packages/shell-runtime" },
+    { "path": "./packages/storage" },
+    { "path": "./packages/ui" },
+    { "path": "./packages/app" },
+    { "path": "./tsconfig.tooling.json" }
+  ]
+}
