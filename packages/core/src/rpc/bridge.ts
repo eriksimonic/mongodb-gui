@@ -7,9 +7,6 @@ import type { RpcClient } from './client';
 import { rpcContract } from './contract';
 import type { RpcCall } from './define';
 
-export const RPC_INVOKE_CHANNEL = 'rpc:invoke';
-export const RPC_EVENT_CHANNEL = 'rpc:event';
-
 export const RpcResultSchema = z.discriminatedUnion('ok', [
   z.object({ ok: z.literal(true), value: z.unknown() }),
   z.object({ ok: z.literal(false), error: AppErrorSchema }),

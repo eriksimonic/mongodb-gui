@@ -3,10 +3,12 @@ import {
   RPC_EVENT_CHANNEL,
   RPC_INVOKE_CHANNEL,
   appError,
+  toAppError,
   type RpcEvent,
   type RpcResult,
 } from '@mongo-gui/core';
 import { isAppUrl } from '../app-origin';
+import { log } from '../log';
 import type { Router } from './router';
 
 /**
@@ -18,16 +20,23 @@ export function registerIpc(router: Router, window: BrowserWindow): void {
   ipcMain.handle(
     RPC_INVOKE_CHANNEL,
     async (event: IpcMainInvokeEvent, method: unknown, input: unknown): Promise<RpcResult> => {
-      if (!isTrustedSender(event, window)) {
-        return {
-          ok: false,
-          error: appError('VALIDATION', 'The request came from an untrusted page.'),
-        };
+      try {
+        if (!isTrustedSender(event, window)) {
+          return {
+            ok: false,
+            error: appError('VALIDATION', 'The request came from an untrusted page.'),
+          };
+        }
+        if (typeof method !== 'string') {
+          return { ok: false, error: appError('VALIDATION', 'The method name must be a string.') };
+        }
+        return await router.handle(method, input);
+      } catch (error) {
+        // The router never throws, so this path means a bug in the checks above. The renderer
+        // still gets an answer, and the cause goes to the log.
+        log.error('ipc handler failed', { message: toAppError(error).message });
+        return { ok: false, error: appError('INTERNAL', 'Unexpected error') };
       }
-      if (typeof method !== 'string') {
-        return { ok: false, error: appError('VALIDATION', 'The method name must be a string.') };
-      }
-      return router.handle(method, input);
     },
   );
 }

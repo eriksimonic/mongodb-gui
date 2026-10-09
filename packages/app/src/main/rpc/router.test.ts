@@ -1,4 +1,4 @@
-import { mkdtempSync, rmSync } from 'node:fs';
+import { mkdtempSync, rmSync, statSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { afterEach, describe, expect, it, vi } from 'vitest';
@@ -15,6 +15,7 @@ import {
   type Settings,
 } from '@mongo-gui/core';
 import { EncryptedStore, Vault } from '@mongo-gui/storage';
+import type { Logger } from '../log';
 import {
   createAppServices,
   createRepos,
@@ -99,7 +100,7 @@ interface Harness {
   dispose(): void;
 }
 
-function buildHarness(): Harness {
+function buildHarness(logger?: Logger): Harness {
   const dir = mkdtempSync(join(tmpdir(), 'router-'));
   const lockListeners = new Set<() => void>();
   const vault = new Vault({
@@ -140,6 +141,7 @@ function buildHarness(): Harness {
         };
       },
     },
+    ...(logger === undefined ? {} : { log: logger }),
   });
   return {
     router,
@@ -505,6 +507,33 @@ describe('uninitialised vault', () => {
   });
 });
 
+/** Captures log records so tests can check what reached the logger. */
+function captureLogger(): {
+  logger: Logger;
+  records: { level: string; message: string; fields: unknown }[];
+} {
+  const records: { level: string; message: string; fields: unknown }[] = [];
+  const write =
+    (level: string) =>
+    (message: string, fields?: unknown): void => {
+      records.push({ level, message, fields });
+    };
+  return {
+    records,
+    logger: { info: write('info'), warn: write('warn'), error: write('error') },
+  };
+}
+
+/** Writes a settings value straight to the store, bypassing the router's validation. */
+function writeRawIdleLock(store: EncryptedStore, idleLockMinutes: number): void {
+  // 'app' is the settings row key used by SettingsRepository.
+  store.db
+    .prepare(
+      'INSERT INTO settings (key, payload) VALUES (?, ?) ON CONFLICT(key) DO UPDATE SET payload = excluded.payload',
+    )
+    .run('app', store.encryptPayload('settings', 'app', { idleLockMinutes }));
+}
+
 describe('idle lock setting', () => {
   afterEach(() => {
     vi.useRealTimers();
@@ -519,12 +548,12 @@ describe('idle lock setting', () => {
 
       expectValue(await router.handle('settings.update', { idleLockMinutes: 1 }));
       vi.advanceTimersByTime(59_000);
-      expect(expectValue(await router.handle('vault.status', undefined))).toEqual({
+      expect(harness.vault.status()).toEqual({
         state: 'unlocked',
       });
 
       vi.advanceTimersByTime(1_000);
-      expect(expectValue(await router.handle('vault.status', undefined))).toEqual({
+      expect(harness.vault.status()).toEqual({
         state: 'locked',
       });
       expect(events).toContainEqual({ type: 'vault:locked' });
@@ -533,63 +562,234 @@ describe('idle lock setting', () => {
     }
   });
 
-  it('applies the stored idleLockMinutes when the vault is unlocked after a restart', async () => {
-    vi.useFakeTimers();
-    const dir = mkdtempSync(join(tmpdir(), 'idle-restart-'));
-    const first = createAppServices({ userDataDir: dir, kdf: FAST_KDF, failureDelayMs: 0 });
-    const firstRouter = createRouter({ ...first, onEvent: () => undefined });
+  it('accepts the 24 hour maximum and rejects anything above it', async () => {
+    const harness = buildHarness();
     try {
-      expectValue(await firstRouter.handle('vault.initialise', { password: PASSWORD }));
-      expectValue(await firstRouter.handle('settings.update', { idleLockMinutes: 2 }));
-      expectValue(await firstRouter.handle('vault.lock', undefined));
-    } finally {
-      await first.dispose();
-    }
+      const { router } = harness;
+      expectValue(await router.handle('vault.initialise', { password: PASSWORD }));
 
-    const second = createAppServices({ userDataDir: dir, kdf: FAST_KDF, failureDelayMs: 0 });
-    const secondRouter = createRouter({ ...second, onEvent: () => undefined });
+      expectValue(await router.handle('settings.update', { idleLockMinutes: 24 * 60 }));
+      expectError(
+        await router.handle('settings.update', { idleLockMinutes: 24 * 60 + 1 }),
+        'VALIDATION',
+      );
+    } finally {
+      harness.dispose();
+    }
+  });
+
+  it('never stores a rejected idle lock value', async () => {
+    const harness = buildHarness();
     try {
-      expectValue(await secondRouter.handle('vault.unlock', { password: PASSWORD }));
-      vi.advanceTimersByTime(119_000);
-      expect(expectValue(await secondRouter.handle('vault.status', undefined))).toEqual({
+      const { router } = harness;
+      expectValue(await router.handle('vault.initialise', { password: PASSWORD }));
+
+      expectError(await router.handle('settings.update', { idleLockMinutes: 1e15 }), 'VALIDATION');
+
+      expect(expectValue(await router.handle('settings.get', undefined))).toEqual(
+        expect.objectContaining({ idleLockMinutes: 30 }),
+      );
+    } finally {
+      harness.dispose();
+    }
+  });
+
+  it('keeps the vault unlocked for browsing: successful calls touch the idle timer', async () => {
+    vi.useFakeTimers();
+    const harness = buildHarness();
+    try {
+      const { router } = harness;
+      expectValue(await router.handle('vault.initialise', { password: PASSWORD }));
+      expectValue(await router.handle('settings.update', { idleLockMinutes: 1 }));
+
+      vi.advanceTimersByTime(50_000);
+      expectValue(await router.handle('connections.list', undefined));
+      vi.advanceTimersByTime(50_000);
+      expect(harness.vault.status()).toEqual({
         state: 'unlocked',
       });
-      vi.advanceTimersByTime(1_000);
-      expect(expectValue(await secondRouter.handle('vault.status', undefined))).toEqual({
+
+      vi.advanceTimersByTime(10_000);
+      expect(harness.vault.status()).toEqual({
         state: 'locked',
       });
     } finally {
-      await second.dispose();
+      harness.dispose();
+    }
+  });
+
+  it('applies the stored idleLockMinutes when the vault is unlocked after a restart', async () => {
+    vi.useFakeTimers();
+    const dir = mkdtempSync(join(tmpdir(), 'idle-restart-'));
+    try {
+      const first = createAppServices({ userDataDir: dir, kdf: FAST_KDF, failureDelayMs: 0 });
+      try {
+        const firstRouter = createRouter({ ...first, onEvent: () => undefined });
+        expectValue(await firstRouter.handle('vault.initialise', { password: PASSWORD }));
+        expectValue(await firstRouter.handle('settings.update', { idleLockMinutes: 2 }));
+        expectValue(await firstRouter.handle('vault.lock', undefined));
+      } finally {
+        await first.dispose();
+      }
+
+      const second = createAppServices({ userDataDir: dir, kdf: FAST_KDF, failureDelayMs: 0 });
+      try {
+        const secondRouter = createRouter({ ...second, onEvent: () => undefined });
+        expectValue(await secondRouter.handle('vault.unlock', { password: PASSWORD }));
+        vi.advanceTimersByTime(119_000);
+        expect(second.vault.status()).toEqual({
+          state: 'unlocked',
+        });
+        vi.advanceTimersByTime(1_000);
+        expect(second.vault.status()).toEqual({
+          state: 'locked',
+        });
+      } finally {
+        await second.dispose();
+      }
+    } finally {
       rmSync(dir, { recursive: true, force: true });
     }
+  });
+
+  it('unlocks even when the stored idle lock is out of range, and logs the fallback', async () => {
+    const dir = mkdtempSync(join(tmpdir(), 'idle-bad-'));
+    try {
+      const first = createAppServices({ userDataDir: dir, kdf: FAST_KDF, failureDelayMs: 0 });
+      try {
+        const firstRouter = createRouter({ ...first, onEvent: () => undefined });
+        expectValue(await firstRouter.handle('vault.initialise', { password: PASSWORD }));
+        // An old store may hold a value the current schema rejects.
+        writeRawIdleLock(first.store, 1e15);
+        expectValue(await firstRouter.handle('vault.lock', undefined));
+      } finally {
+        await first.dispose();
+      }
+
+      const captured = captureLogger();
+      const second = createAppServices({ userDataDir: dir, kdf: FAST_KDF, failureDelayMs: 0 });
+      try {
+        const secondRouter = createRouter({
+          ...second,
+          onEvent: () => undefined,
+          log: captured.logger,
+        });
+        expectValue(await secondRouter.handle('vault.unlock', { password: PASSWORD }));
+        expect(second.vault.status()).toEqual({
+          state: 'unlocked',
+        });
+        expect(captured.records).toContainEqual(
+          expect.objectContaining({ level: 'warn', message: expect.stringContaining('default') }),
+        );
+      } finally {
+        await second.dispose();
+      }
+    } finally {
+      rmSync(dir, { recursive: true, force: true });
+    }
+  });
+});
+
+describe('failure logging and responses', () => {
+  let harness: Harness | undefined;
+  afterEach(() => {
+    harness?.dispose();
+    harness = undefined;
+  });
+
+  it('answers an unexpected exception with a fixed message and logs the raw text', async () => {
+    const captured = captureLogger();
+    harness = buildHarness(captured.logger);
+    const { router, handles } = harness;
+    expectValue(await router.handle('vault.initialise', { password: PASSWORD }));
+    vi.spyOn(handles.repos.connections, 'list').mockImplementation(() => {
+      throw new Error('driver said mongodb://app:hunter2@db.internal failed');
+    });
+
+    const error = expectError(await router.handle('connections.list', undefined), 'INTERNAL');
+
+    expect(error).toEqual({ code: 'INTERNAL', message: 'Unexpected error' });
+    expect(JSON.stringify(error)).not.toContain('hunter2');
+    expect(captured.records).toContainEqual(
+      expect.objectContaining({
+        level: 'error',
+        fields: expect.objectContaining({
+          method: 'connections.list',
+          code: 'INTERNAL',
+        }) as unknown,
+      }),
+    );
+    expect(JSON.stringify(captured.records)).toContain('driver said');
+  });
+
+  it('logs a known AppError with its method and code, without the input', async () => {
+    const captured = captureLogger();
+    harness = buildHarness(captured.logger);
+    const { router } = harness;
+    expectValue(await router.handle('vault.initialise', { password: PASSWORD }));
+
+    expectError(
+      await router.handle('connections.get', { id: 'b8c1b2e0-0000-4000-8000-000000000001' }),
+      'CONNECTION_NOT_FOUND',
+    );
+
+    expect(captured.records).toContainEqual(
+      expect.objectContaining({
+        level: 'warn',
+        fields: expect.objectContaining({
+          method: 'connections.get',
+          code: 'CONNECTION_NOT_FOUND',
+        }) as unknown,
+      }),
+    );
+    expect(JSON.stringify(captured.records)).not.toContain('b8c1b2e0');
   });
 });
 
 describe('createAppServices', () => {
   it('builds services over a temp directory and disposes them', async () => {
     const dir = mkdtempSync(join(tmpdir(), 'services-'));
-    const services = createAppServices({
-      userDataDir: dir,
-      kdf: FAST_KDF,
-      failureDelayMs: 0,
-    });
-    const events: RpcEvent[] = [];
-    const router = createRouter({
-      ...services,
-      onEvent: (event) => {
-        events.push(event);
-      },
-    });
     try {
-      expectValue(await router.handle('vault.initialise', { password: PASSWORD }));
-      expectValue(await router.handle('vault.lock', undefined));
-
-      expect(events).toContainEqual({ type: 'vault:locked' });
-      expect(expectValue(await router.handle('vault.status', undefined))).toEqual({
-        state: 'locked',
+      const services = createAppServices({
+        userDataDir: dir,
+        kdf: FAST_KDF,
+        failureDelayMs: 0,
       });
+      const events: RpcEvent[] = [];
+      const router = createRouter({
+        ...services,
+        onEvent: (event) => {
+          events.push(event);
+        },
+      });
+      try {
+        expectValue(await router.handle('vault.initialise', { password: PASSWORD }));
+        expectValue(await router.handle('vault.lock', undefined));
+
+        expect(events).toContainEqual({ type: 'vault:locked' });
+        expect(expectValue(await router.handle('vault.status', undefined))).toEqual({
+          state: 'locked',
+        });
+      } finally {
+        await services.dispose();
+      }
     } finally {
-      await services.dispose();
+      rmSync(dir, { recursive: true, force: true });
+    }
+  });
+
+  it('creates the store file readable by its owner only', async () => {
+    const dir = mkdtempSync(join(tmpdir(), 'services-mode-'));
+    try {
+      const services = createAppServices({ userDataDir: dir, kdf: FAST_KDF, failureDelayMs: 0 });
+      try {
+        if (process.platform !== 'win32') {
+          expect(statSync(join(dir, 'store.sqlite')).mode & 0o777).toBe(0o600);
+        }
+      } finally {
+        await services.dispose();
+      }
+    } finally {
       rmSync(dir, { recursive: true, force: true });
     }
   });

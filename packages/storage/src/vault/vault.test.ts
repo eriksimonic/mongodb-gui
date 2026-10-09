@@ -332,11 +332,34 @@ describe('Vault idle lock', () => {
     expect(onLocked).toHaveBeenCalledTimes(1);
   });
 
-  it('setIdleLockMs rejects a timeout below 1 ms', () => {
+  it('setIdleLockMs clamps a timeout below 1 ms to 1 ms', () => {
+    vi.useFakeTimers();
+    let clock = 0;
+    const vault = newVault(newDir(), { idleLockMs: 1000, now: () => clock });
+    vault.initialise(PASSWORD);
+    vault.setIdleLockMs(0);
+    clock = 1;
+    vi.advanceTimersByTime(1);
+    expect(vault.status()).toEqual({ state: 'locked' });
+  });
+
+  it('setIdleLockMs clamps an out-of-range timeout without throwing or looping', () => {
+    vi.useFakeTimers();
+    const vault = newVault(newDir(), { idleLockMs: 1000, now: () => 0 });
+    vault.initialise(PASSWORD);
+
+    expect(() => vault.setIdleLockMs(1e15)).not.toThrow();
+    expect(() => vault.setIdleLockMs(Number.POSITIVE_INFINITY)).not.toThrow();
+    // One pending timer, armed at the largest delay setTimeout accepts.
+    expect(vi.getTimerCount()).toBe(1);
+    vi.advanceTimersByTime(60_000);
+    expect(vault.status()).toEqual({ state: 'unlocked' });
+  });
+
+  it('setIdleLockMs still rejects NaN', () => {
     const vault = newVault(newDir(), { idleLockMs: 1000 });
     vault.initialise(PASSWORD);
-    expect(() => vault.setIdleLockMs(0)).toThrow(AppErrorException);
-    expect(() => vault.setIdleLockMs(1.5)).toThrow(AppErrorException);
+    expect(() => vault.setIdleLockMs(Number.NaN)).toThrow(AppErrorException);
   });
 
   it('setIdleLockMs arms no timer while locked', () => {

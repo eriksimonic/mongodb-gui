@@ -26,6 +26,8 @@ const KEYRING_FILE_NAME = 'keyring.json';
 const DEK_AAD = Buffer.from('mongo-gui:dek:v1', 'utf8');
 const DEFAULT_IDLE_LOCK_MS = 30 * 60 * 1000;
 const DEFAULT_FAILURE_DELAY_MS = 500;
+// setTimeout rejects delays above this and fires them after 1 ms instead.
+const MAX_TIMER_MS = 2_147_483_647;
 
 /**
  * Owns the data encryption key (DEK). The master password derives a key-encryption key
@@ -141,10 +143,12 @@ export class Vault {
    * time already idle, so a shorter timeout can lock the vault at once.
    */
   setIdleLockMs(ms: number): void {
-    if (!Number.isSafeInteger(ms) || ms < 1) {
-      throw new AppErrorException(appError('VALIDATION', 'The idle lock must be at least 1 ms.'));
+    if (Number.isNaN(ms)) {
+      throw new AppErrorException(appError('VALIDATION', 'The idle lock must be a number.'));
     }
-    this.#idleLockMs = ms;
+    // Values outside the timer range are clamped, so a stored value can never break the timer.
+    const clamped = Math.min(Math.max(1, Math.floor(ms)), Number.MAX_SAFE_INTEGER);
+    this.#idleLockMs = clamped;
     if (this.#dek === undefined) {
       return;
     }
@@ -153,7 +157,7 @@ export class Vault {
       this.#idleTimer = undefined;
     }
     const idleFor = this.#now() - this.#lastActivity;
-    this.#armIdleTimer(Math.max(0, ms - idleFor));
+    this.#armIdleTimer(Math.max(0, clamped - idleFor));
   }
 
   /** Records activity and arms the idle timer. Does nothing while the vault is locked. */
@@ -168,7 +172,7 @@ export class Vault {
   }
 
   #armIdleTimer(delayMs: number): void {
-    const timer = setTimeout(() => this.#onIdleTimer(), delayMs);
+    const timer = setTimeout(() => this.#onIdleTimer(), Math.min(delayMs, MAX_TIMER_MS));
     timer.unref();
     this.#idleTimer = timer;
   }

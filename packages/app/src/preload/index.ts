@@ -1,10 +1,6 @@
 import { contextBridge, ipcRenderer, type IpcRendererEvent } from 'electron';
-import {
-  RPC_EVENT_CHANNEL,
-  RPC_INVOKE_CHANNEL,
-  type PreloadBridge,
-  type RpcResult,
-} from '@mongo-gui/core';
+import type { PreloadBridge, RpcResult } from '@mongo-gui/core';
+import { RPC_EVENT_CHANNEL, RPC_INVOKE_CHANNEL } from '@mongo-gui/core/channels';
 
 // The only object the renderer can reach. It carries no ipcRenderer reference.
 const bridge: PreloadBridge = {

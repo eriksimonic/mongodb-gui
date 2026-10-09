@@ -9,6 +9,7 @@ export * from './domain/vault';
 export * from './ids';
 export * from './redact';
 export * from './rpc/bridge';
+export * from './rpc/channels';
 export * from './rpc/client';
 export * from './rpc/contract';
 export * from './rpc/define';

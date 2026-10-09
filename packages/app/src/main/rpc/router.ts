@@ -14,7 +14,6 @@ import {
   type RpcCall,
   type RpcEvent,
   type RpcResult,
-  type Settings,
 } from '@mongo-gui/core';
 import {
   ConnectionManager,
@@ -37,6 +36,7 @@ import {
   type KdfParams,
   type VaultOptions,
 } from '@mongo-gui/storage';
+import { log, type Logger } from '../log';
 import { redactText } from '../redact';
 
 /** The subset of ConnectionManager that the router uses. The real class satisfies it. */
@@ -76,6 +76,8 @@ export interface RouterDeps {
   readonly reopenStore?: () => StoreHandles;
   /** When present, a lock disconnects every connection and emits vault:locked. */
   readonly lockEvents?: LockEvents;
+  /** Receives failures as method, code and message. Inputs and raw driver text stay out. */
+  readonly log?: Logger;
 }
 
 export interface Router {
@@ -117,11 +119,11 @@ export function createRouter(deps: RouterDeps): Router {
     entry('vault.status', rpcContract.vault.status, () => deps.vault.status()),
     entry('vault.initialise', rpcContract.vault.initialise, (input) => {
       deps.vault.initialise(input.password);
-      applyIdleLock(repos().settings.get());
+      applyStoredIdleLock();
     }),
     entry('vault.unlock', rpcContract.vault.unlock, async (input) => {
       await deps.vault.unlock(input.password);
-      applyIdleLock(repos().settings.get());
+      applyStoredIdleLock();
     }),
     entry('vault.lock', rpcContract.vault.lock, () => {
       deps.vault.lock();
@@ -196,13 +198,13 @@ export function createRouter(deps: RouterDeps): Router {
       ),
     ),
 
-    // Vault has no setter for its idle timeout, so idleLockMinutes is stored but not applied
-    // yet. The vault keeps the 30 minute default it was constructed with.
     entry('settings.get', rpcContract.settings.get, () => repos().settings.get()),
     entry('settings.update', rpcContract.settings.update, (input) => {
-      const updated = repos().settings.update(input);
-      applyIdleLock(updated);
-      return updated;
+      // The timeout is applied before the value is stored, so a value the vault rejects is never saved.
+      if (input.idleLockMinutes !== undefined) {
+        applyIdleLock(input.idleLockMinutes);
+      }
+      return repos().settings.update(input);
     }),
 
     entry('history.list', rpcContract.history.list, (input) => repos().history.list(input)),
@@ -243,28 +245,59 @@ export function createRouter(deps: RouterDeps): Router {
         if (!parsedOutput.success) {
           return failure(appError('INTERNAL', 'The handler returned an unexpected value.', method));
         }
+        // Browsing keeps the vault unlocked. A locked vault ignores the touch.
+        deps.vault.touch();
         return { ok: true, value: parsedOutput.data };
       } catch (error) {
-        return failure(sanitize(describeFailure(error)));
+        return failure(describeFailure(method, error));
       }
     },
   };
 
-  /** Pushes the idle timeout from settings into the vault. */
-  function applyIdleLock(settings: Settings): void {
-    deps.vault.setIdleLockMs(settings.idleLockMinutes * MS_PER_MINUTE);
+  /** Pushes an idle timeout (in minutes) from settings into the vault. */
+  function applyIdleLock(minutes: number): void {
+    deps.vault.setIdleLockMs(minutes * MS_PER_MINUTE);
   }
 
   /**
-   * Repository calls report VAULT_LOCKED whether the vault is locked or was never set up.
-   * When no keyring exists, the caller needs the setup message instead.
+   * Applies the stored timeout after unlock or setup. A stored value the router cannot apply
+   * must not turn a successful unlock into an error, so the default stays and the failure is logged.
    */
-  function describeFailure(error: unknown): AppError {
-    const mapped = toAppError(error);
-    if (mapped.code === 'VAULT_LOCKED' && deps.vault.status().state === 'uninitialised') {
-      return appError('VAULT_NOT_INITIALISED', 'The vault has not been set up yet.');
+  function applyStoredIdleLock(): void {
+    try {
+      applyIdleLock(repos().settings.get().idleLockMinutes);
+    } catch (error) {
+      const mapped = toAppError(error);
+      deps.log?.warn('stored idle lock not applied, keeping the default', {
+        code: mapped.code,
+        message: mapped.message,
+      });
     }
-    return mapped;
+  }
+
+  /**
+   * Maps a thrown error to the response. Known AppErrors keep their code. Repository calls
+   * report VAULT_LOCKED whether the vault is locked or was never set up, so a missing keyring
+   * gets the setup message. Anything else becomes INTERNAL with a fixed message, and the raw
+   * text goes to the log only.
+   */
+  function describeFailure(method: string, error: unknown): AppError {
+    if (error instanceof AppErrorException) {
+      const known = sanitize(error.error);
+      const response =
+        known.code === 'VAULT_LOCKED' && deps.vault.status().state === 'uninitialised'
+          ? appError('VAULT_NOT_INITIALISED', 'The vault has not been set up yet.')
+          : known;
+      deps.log?.warn('rpc call failed', { method, code: response.code, message: response.message });
+      return response;
+    }
+    const raw = toAppError(error);
+    deps.log?.error('rpc call failed unexpectedly', {
+      method,
+      code: 'INTERNAL',
+      message: raw.message,
+    });
+    return appError('INTERNAL', 'Unexpected error');
   }
 }
 
@@ -299,6 +332,7 @@ export function createAppServices(options: AppServicesOptions): AppServices {
     store: handles.store,
     repos: handles.repos,
     connections,
+    log,
     reopenStore: () => {
       handles = openStore();
       return handles;
