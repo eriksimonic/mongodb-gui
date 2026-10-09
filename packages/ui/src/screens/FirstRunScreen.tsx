@@ -1,12 +1,11 @@
-import { Alert, Button, Group, PasswordInput, Progress, Stack, Text } from '@mantine/core';
+import { Alert, Button, Group, PasswordInput, Stack, Text } from '@mantine/core';
 import { toAppError } from '@mongo-gui/core';
 import { useState, type FormEvent } from 'react';
 import { useAppStore } from '../state/app-store-context';
 import { CenteredScreen } from './CenteredScreen';
 import { invalidInputStyles } from './field-state';
-import { passwordStrength, validateNewPassword } from './password-rules';
-
-const STRENGTH_COLORS = ['red', 'red', 'orange', 'yellow', 'green'] as const;
+import { PasswordStrengthMeter } from './PasswordStrengthMeter';
+import { validateNewPassword } from './password-rules';
 
 export function FirstRunScreen() {
   const initialise = useAppStore((state) => state.initialise);
@@ -17,7 +16,6 @@ export function FirstRunScreen() {
   const [failure, setFailure] = useState<string | undefined>(undefined);
 
   const errors = validateNewPassword(password, confirmation);
-  const strength = passwordStrength(password);
   const shownPassword = submitted ? errors.password : undefined;
   const shownConfirmation = submitted ? errors.confirmation : undefined;
 
@@ -54,17 +52,7 @@ export function FirstRunScreen() {
             autoFocus
           />
           {shownPassword === undefined ? null : <Text size="xs">{shownPassword}</Text>}
-          <Stack gap={4}>
-            <Progress
-              value={(strength.score / 4) * 100}
-              color={STRENGTH_COLORS[strength.score] ?? 'red'}
-              size="xs"
-            />
-            <Text size="xs" c="dimmed">
-              Strength: {strength.label}. Use 10 or more characters with upper and lower case,
-              digits and symbols.
-            </Text>
-          </Stack>
+          <PasswordStrengthMeter password={password} />
           <PasswordInput
             label="Confirm master password"
             value={confirmation}

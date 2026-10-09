@@ -13,10 +13,10 @@
   z-index: 2;
   min-width: 180px;
   padding: 6px 8px;
-  border: 1px solid var(--mantine-color-dark-4);
+  border: 1px solid var(--mg-border);
   border-radius: var(--mantine-radius-sm);
-  background: var(--mantine-color-dark-6);
-  box-shadow: 0 4px 12px rgb(0 0 0 / 35%);
+  background: var(--mg-surface-1);
+  box-shadow: 0 4px 12px var(--mg-shadow);
   font-size: 12px;
   line-height: 1.5;
   pointer-events: none;
@@ -28,7 +28,7 @@
 
 .mg-chart-tooltip-time {
   margin-bottom: 2px;
-  color: var(--mantine-color-dark-1);
+  color: var(--mg-text);
 }
 
 .mg-chart-tooltip-row {
@@ -46,11 +46,11 @@
 }
 
 .mg-chart-tooltip-label {
-  color: var(--mantine-color-dark-1);
+  color: var(--mg-text);
 }
 
 .mg-chart-tooltip-value {
-  color: var(--mantine-color-gray-0);
+  color: var(--mg-text-strong);
   font-weight: 600;
   font-variant-numeric: tabular-nums;
 }
@@ -60,7 +60,7 @@
   align-items: center;
   gap: 6px;
   font-size: 12px;
-  color: var(--mantine-color-dark-1);
+  color: var(--mg-text);
   white-space: nowrap;
 }
 
@@ -85,7 +85,7 @@
 .mg-chip-value {
   display: inline-block;
   min-width: 9ch;
-  color: var(--mantine-color-gray-0);
+  color: var(--mg-text-strong);
   font-weight: 600;
   font-variant-numeric: tabular-nums;
   text-align: right;

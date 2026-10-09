@@ -11,6 +11,8 @@ import {
   type DockerMongoContainerSummary,
   type DockerStatus,
   type RpcEvent,
+  type Settings,
+  type SettingsPatch,
   type UpdateState,
   type VaultStatus,
 } from '@mongo-gui/core';
@@ -26,6 +28,14 @@ import {
   type MonitorView,
 } from './monitor-state';
 import { catalogKey, connectionNodeId } from './node-ids';
+import type { ThemeSetting } from '../theme/color-scheme';
+import { readCachedPreferences, writeCachedPreferences } from '../theme/preferences-cache';
+
+/** The layout key the dockview layout is stored under. */
+export const DOCK_LAYOUT_KEY = 'dockview:main';
+
+/** Why the vault last locked. The unlock screen explains an idle lock. */
+export type LockReason = 'manual' | 'idle';
 
 export type VaultState = VaultStatus['state'];
 
@@ -107,6 +117,16 @@ export interface AppData {
   /** Counts catalog:changed events. Panels reload when it moves. */
   readonly catalogRevision: number;
   readonly settingsOpen: boolean;
+  readonly shortcutsOpen: boolean;
+  /** The saved settings, read after unlock. Undefined while the vault is locked. */
+  readonly settings: Settings | undefined;
+  /** The theme in effect. Read from the cache until the saved settings load after unlock. */
+  readonly theme: ThemeSetting;
+  /** Idle lock minutes for the unlock screen. Read from the cache until the settings load. */
+  readonly idleLockMinutes: number;
+  readonly lockReason: LockReason | undefined;
+  /** Moves when the layout is reset. The shell rebuilds the default panels then. */
+  readonly layoutRevision: number;
   /** The updater state, pushed by the backend and read on start. */
   readonly updates: UpdateState;
 }
@@ -156,6 +176,15 @@ export interface AppActions {
   disconnectContainer(containerId: string): Promise<void>;
   setDockerAutoConnect(enabled: boolean): Promise<void>;
   setSettingsOpen(open: boolean): void;
+  setShortcutsOpen(open: boolean): void;
+  /** Reads the saved settings and refreshes the cached theme and idle lock minutes. */
+  loadSettings(): Promise<void>;
+  /** Saves a settings patch. The theme and idle lock follow the saved values. */
+  updateSettings(patch: SettingsPatch): Promise<Settings>;
+  /** Clears the saved dockview layout. The shell rebuilds the default panels. */
+  resetLayout(): Promise<void>;
+  /** Deletes every saved history entry. */
+  clearHistory(): Promise<void>;
   refreshUpdates(): Promise<void>;
   checkForUpdates(): Promise<void>;
   downloadUpdate(): Promise<void>;
@@ -182,6 +211,7 @@ const SESSION_RESET: Pick<
   | 'managementDialog'
   | 'panelRequest'
   | 'settingsOpen'
+  | 'settings'
 > = {
   connections: { state: 'loading' },
   statuses: {},
@@ -196,6 +226,7 @@ const SESSION_RESET: Pick<
   managementDialog: undefined,
   panelRequest: undefined,
   settingsOpen: false,
+  settings: undefined,
 };
 
 /** Replaced by the first state the backend reports. */
@@ -205,6 +236,11 @@ const INITIAL_DATA: AppData = {
   vault: 'loading',
   catalogRevision: 0,
   ...SESSION_RESET,
+  shortcutsOpen: false,
+  lockReason: undefined,
+  theme: 'dark',
+  idleLockMinutes: 30,
+  layoutRevision: 0,
   updates: NO_UPDATE_STATE,
 };
 
@@ -260,12 +296,24 @@ function withoutConnectionCatalog(
  */
 export function createAppStore(api: UiApi, initial: Partial<AppData> = {}): AppStore {
   const { rpc } = api;
+  // The cache lets the locked screens use the chosen theme before the settings can be read.
+  const cached = readCachedPreferences();
   // Outside the state on purpose: these only matter to in-flight calls, not to rendering.
   const monitorGenerations = new Map<string, number>();
 
   return createStore<AppState>()((set, get) => {
     function clearSession(): void {
       set(SESSION_RESET);
+    }
+
+    /** Stores the settings the UI reads and keeps the cached copy for the locked screens. */
+    function applySettings(settings: Settings): void {
+      set({
+        settings,
+        theme: settings.theme,
+        idleLockMinutes: settings.idleLockMinutes,
+      });
+      writeCachedPreferences({ theme: settings.theme, idleLockMinutes: settings.idleLockMinutes });
     }
 
     function setStatus(id: string, status: ConnectionStatus): void {
@@ -293,6 +341,8 @@ export function createAppStore(api: UiApi, initial: Partial<AppData> = {}): AppS
 
     return {
       ...INITIAL_DATA,
+      theme: cached.theme,
+      idleLockMinutes: cached.idleLockMinutes,
       ...initial,
 
       async refreshVault() {
@@ -303,6 +353,8 @@ export function createAppStore(api: UiApi, initial: Partial<AppData> = {}): AppS
           }
           set({ vault: state });
           if (state === 'unlocked') {
+            // Settings load in the background, so the connection list is not held back.
+            void get().loadSettings();
             await get().loadConnections();
           }
         } catch {
@@ -312,18 +364,27 @@ export function createAppStore(api: UiApi, initial: Partial<AppData> = {}): AppS
 
       async initialise(password) {
         await rpc.vault.initialise({ password });
-        set({ vault: 'unlocked' });
+        set({ vault: 'unlocked', lockReason: undefined });
+        void get().loadSettings();
         await get().loadConnections();
       },
 
       async unlock(password) {
         await rpc.vault.unlock({ password });
-        set({ vault: 'unlocked' });
+        set({ vault: 'unlocked', lockReason: undefined });
+        void get().loadSettings();
         await get().loadConnections();
       },
 
       async lock() {
-        await rpc.vault.lock();
+        // Marked before the call, so the vault:locked event that follows reads as a manual lock.
+        set({ lockReason: 'manual' });
+        try {
+          await rpc.vault.lock();
+        } catch (error) {
+          set({ lockReason: undefined });
+          throw error;
+        }
         clearSession();
         set({ vault: 'locked' });
       },
@@ -597,6 +658,34 @@ export function createAppStore(api: UiApi, initial: Partial<AppData> = {}): AppS
         set({ settingsOpen: open });
       },
 
+      setShortcutsOpen(open) {
+        set({ shortcutsOpen: open });
+      },
+
+      async loadSettings() {
+        try {
+          const settings = await rpc.settings.get();
+          applySettings(settings);
+        } catch {
+          // The cached theme stays in effect. The next load or save reads the settings again.
+        }
+      },
+
+      async updateSettings(patch) {
+        const saved = await rpc.settings.update(patch);
+        applySettings(saved);
+        return saved;
+      },
+
+      async resetLayout() {
+        await rpc.layout.set({ key: DOCK_LAYOUT_KEY, value: null });
+        set((state) => ({ layoutRevision: state.layoutRevision + 1 }));
+      },
+
+      async clearHistory() {
+        await rpc.history.clear();
+      },
+
       async refreshUpdates() {
         set({ updates: await rpc.updates.state() });
       },
@@ -623,8 +712,12 @@ export function createAppStore(api: UiApi, initial: Partial<AppData> = {}): AppS
           return;
         }
         if (event.type === 'vault:locked') {
-          clearSession();
-          set({ vault: 'locked' });
+          // A lock the user asked for is already marked. Any other lock came from the idle timer.
+          set((state) => ({
+            ...SESSION_RESET,
+            vault: 'locked',
+            lockReason: state.lockReason === 'manual' ? 'manual' : 'idle',
+          }));
           return;
         }
         if (event.type === 'catalog:changed') {

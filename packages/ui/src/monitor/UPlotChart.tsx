@@ -1,9 +1,10 @@
 import 'uplot/dist/uPlot.min.css';
 import uPlot from 'uplot';
+import { useComputedColorScheme } from '@mantine/core';
 import { useEffect, useMemo, useRef, useState, type RefObject } from 'react';
 import { CHART_HEIGHT_PX, type ChartSeries, type ChartWindow } from './chart-types';
 import { formatAxisValue, formatClock, formatValue, type MetricUnit } from './format';
-import { CHART_INK } from './palette';
+import { chartPalette, type ChartPalette } from './palette';
 import './monitor.css';
 
 export interface UPlotChartProps {
@@ -30,6 +31,7 @@ const HEADROOM = 1.1;
 const REFERENCE_DASH = [4, 3];
 
 interface BuildInput {
+  readonly ink: ChartPalette['ink'];
   readonly width: number;
   readonly height: number;
   readonly series: readonly ChartSeries[];
@@ -133,6 +135,7 @@ function renderTooltip(plot: uPlot, element: HTMLDivElement, series: readonly Ch
 }
 
 function buildOptions({
+  ink,
   width,
   height,
   series,
@@ -165,13 +168,13 @@ function buildOptions({
     },
     axes: [
       {
-        stroke: CHART_INK.muted,
+        stroke: ink.muted,
         font: AXIS_FONT,
         size: X_AXIS_HEIGHT_PX,
         space: X_TICK_SPACE_PX,
         grid: { show: false },
         ticks: { show: false },
-        border: { show: true, stroke: CHART_INK.baseline, width: 1 },
+        border: { show: true, stroke: ink.baseline, width: 1 },
         ...ifDefined(window !== undefined, () => ({
           splits: (_plot: uPlot, _axis: number, min: number, max: number) =>
             tickSplits(min, max, window?.tickSeconds ?? 0),
@@ -179,11 +182,11 @@ function buildOptions({
         values: (_plot, values) => values.map((value) => formatClock(value * 1000)),
       },
       {
-        stroke: CHART_INK.muted,
+        stroke: ink.muted,
         font: AXIS_FONT,
         size: Y_AXIS_WIDTH_PX,
         space: Y_TICK_SPACE_PX,
-        grid: { show: true, stroke: CHART_INK.gridline, width: 1 },
+        grid: { show: true, stroke: ink.gridline, width: 1 },
         ticks: { show: false },
         border: { show: false },
         values: (_plot, values) => values.map((value) => formatAxisValue(value, yUnit)),
@@ -236,6 +239,9 @@ export function UPlotChart({
   const hostRef = useRef<HTMLDivElement>(null);
   const plotRef = useRef<uPlot | undefined>(undefined);
   const width = useElementWidth(hostRef);
+  // The axis, grid and tooltip ink follow the scheme. A scheme change rebuilds the plot.
+  const scheme = useComputedColorScheme('dark');
+  const ink = chartPalette(scheme).ink;
   const data = useMemo(
     () => [times.slice(), ...series.map((item) => item.values.slice())] as uPlot.AlignedData,
     [times, series],
@@ -258,6 +264,7 @@ export function UPlotChart({
     }
     const plot = new uPlot(
       buildOptions({
+        ink,
         width,
         height,
         series: current.series,
@@ -275,7 +282,7 @@ export function UPlotChart({
         plotRef.current = undefined;
       }
     };
-  }, [width, height, shape, yUnit, syncKey, windowKey]);
+  }, [width, height, shape, yUnit, syncKey, windowKey, ink]);
 
   useEffect(() => {
     plotRef.current?.setData(data);

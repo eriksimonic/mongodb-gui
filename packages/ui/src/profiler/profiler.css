@@ -26,7 +26,7 @@
   top: 0;
   z-index: 1;
   background: var(--mantine-color-body);
-  border-bottom: 1px solid var(--mantine-color-dark-4);
+  border-bottom: 1px solid var(--mg-border);
 }
 
 .mg-profiler-row {
@@ -35,11 +35,11 @@
   left: 0;
   right: 0;
   cursor: pointer;
-  border-bottom: 1px solid var(--mantine-color-dark-6);
+  border-bottom: 1px solid var(--mg-surface-1);
 }
 
 .mg-profiler-row:hover {
-  background: var(--mantine-color-dark-6);
+  background: var(--mg-surface-1);
 }
 
 .mg-profiler-row[aria-selected='true'] {
@@ -96,7 +96,7 @@
   min-width: 24px;
   height: 6px;
   border-radius: 3px;
-  background: var(--mantine-color-dark-5);
+  background: var(--mg-surface-2);
   overflow: hidden;
 }
 
@@ -110,7 +110,7 @@
 .mg-profiler-splitter {
   flex: 0 0 6px;
   cursor: col-resize;
-  border-left: 1px solid var(--mantine-color-dark-4);
+  border-left: 1px solid var(--mg-border);
   touch-action: none;
 }
 

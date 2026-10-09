@@ -1,8 +1,18 @@
 /// <reference types="vite/client" />
 import 'dockview/dist/styles/dockview.css';
 import '../theme/dockview-theme.css';
-import { Box, Button, Flex, Group, Text } from '@mantine/core';
-import { IconDatabase, IconLock, IconPlus, IconServer, IconSettings } from '@tabler/icons-react';
+import { Box, Button, Flex, Group, Menu, Text } from '@mantine/core';
+import { useHotkeys } from '@mantine/hooks';
+import {
+  IconDatabase,
+  IconHelp,
+  IconKeyboard,
+  IconLock,
+  IconPlus,
+  IconServer,
+  IconSettings,
+} from '@tabler/icons-react';
+import type { RpcClient } from '@mongo-gui/core';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import {
   DockviewReact,
@@ -13,9 +23,12 @@ import {
 } from 'dockview-react';
 import { ConnectionDialog } from '../components/connections/ConnectionDialog';
 import { ConnectionManager } from '../components/connections/ConnectionManager';
+import { useUiApi } from '../api/ui-api';
 import { ManagementDialogs } from '../components/management/ManagementDialogs';
 import { runReported } from '../components/notify-error';
 import { SettingsModal } from '../components/settings/SettingsModal';
+import { ShortcutsModal } from '../shortcuts/ShortcutsModal';
+import { shellHotkeys } from '../shortcuts/shortcuts';
 import { UpdateBanner } from '../components/updates/UpdateBanner';
 import { ProfilerOpenerContext, type ProfilerOpener } from '../profiler/profiler-opener';
 import type { PanelRequest } from '../state/app-store';
@@ -23,6 +36,7 @@ import { useAppStore } from '../state/app-store-context';
 import { PanelOpenerContext, type OpenPanel } from '../state/panel-opener';
 import { profilerPanelId } from '../state/node-ids';
 import { databasePanelIds, stalePanelIds } from './collection-panels';
+import { createLayoutSaver, loadDockLayout, restoreDockLayout } from './dock-layout';
 import {
   ConnectionsPanel,
   DocumentsDockPanel,
@@ -68,7 +82,7 @@ const PANEL_TITLE_SUFFIX: Readonly<Record<PanelRequest['panel'], string>> = {
  * Lays out the three default panels: connections on the left, welcome in the centre, and output
  * below at about 30% of the height. The panels are fixed, so their tabs have no close button.
  */
-function handleDockReady({ api }: DockviewReadyEvent) {
+function handleDockReady({ api }: { readonly api: DockviewApi }) {
   const height = api.height > 0 ? api.height : window.innerHeight;
   api.addPanel({
     id: 'connections',
@@ -94,6 +108,29 @@ function handleDockReady({ api }: DockviewReadyEvent) {
   // The initial sizes are set on the groups, because the panel options do not size the first split.
   api.getPanel('connections')?.group.api.setSize({ width: SIDEBAR_WIDTH_PX });
   api.getPanel('output')?.group.api.setSize({ height: Math.round(height * OUTPUT_SHARE) });
+}
+
+/**
+ * Restores the saved layout, or builds the default one when nothing is saved or the saved one does
+ * not load. Layout changes are written from then on. Returns false when the dock was replaced
+ * before the read finished, so the caller leaves it alone.
+ */
+async function initialiseLayout(
+  event: DockviewReadyEvent,
+  rpc: RpcClient,
+  saver: ReturnType<typeof createLayoutSaver>,
+  isCurrent: () => boolean,
+): Promise<void> {
+  const saved = await loadDockLayout(rpc);
+  if (!isCurrent()) {
+    return;
+  }
+  if (!restoreDockLayout(event.api, saved)) {
+    handleDockReady(event);
+  }
+  event.api.onDidLayoutChange(() => {
+    saver.call(event.api.toJSON());
+  });
 }
 
 /**
@@ -236,6 +273,13 @@ export function ShellScreen() {
   const [dock, setDock] = useState<DockviewApi | undefined>(undefined);
   // The collection panels this shell opened, by panel id.
   const collectionPanels = useRef(new Map<string, PanelRequest>());
+  const { rpc } = useUiApi();
+  const saver = useMemo(() => createLayoutSaver(rpc), [rpc]);
+  useEffect(() => () => saver.cancel(), [saver]);
+  const setShortcutsOpen = useAppStore((state) => state.setShortcutsOpen);
+  const layoutRevision = useAppStore((state) => state.layoutRevision);
+  // The revision seen at mount. Only a later change rebuilds the panels, so a remount keeps the layout.
+  const seenRevision = useRef(layoutRevision);
   const openPanel = useCallback<OpenPanel>((request) => {
     if (dockApi.current !== undefined) {
       openConnectionPanel(dockApi.current, request);
@@ -261,6 +305,25 @@ export function ShellScreen() {
     clearPanelRequest();
   }, [dock, panelRequest, clearPanelRequest]);
 
+  // A reset from settings clears the dock and rebuilds the default panels.
+  useEffect(() => {
+    if (dock === undefined || seenRevision.current === layoutRevision) {
+      return;
+    }
+    seenRevision.current = layoutRevision;
+    dock.clear();
+    collectionPanels.current.clear();
+    handleDockReady({ api: dock });
+  }, [dock, layoutRevision]);
+
+  useHotkeys(
+    shellHotkeys({
+      openSettings: () => setSettingsOpen(true),
+      lock: () => void runReported(() => lock()),
+      openHelp: () => setShortcutsOpen(true),
+    }),
+  );
+
   // Closes a collection panel once its database or collection is gone from a loaded list. A
   // database that was never expanded still counts, because the database list is loaded first.
   useEffect(() => {
@@ -283,7 +346,7 @@ export function ShellScreen() {
             justify="space-between"
             wrap="nowrap"
             gap={8}
-            style={{ borderBottom: '1px solid var(--mantine-color-dark-4)', flex: '0 0 auto' }}
+            style={{ borderBottom: '1px solid var(--mg-border)', flex: '0 0 auto' }}
           >
             <Group gap={8} wrap="nowrap">
               <IconDatabase size={18} color="var(--mantine-color-blue-5)" aria-hidden="true" />
@@ -307,6 +370,21 @@ export function ShellScreen() {
               <UpdateBanner />
             </Group>
             <Group gap={8} wrap="nowrap">
+              <Menu position="bottom-end" withinPortal>
+                <Menu.Target>
+                  <Button variant="default" leftSection={<IconHelp size={14} />}>
+                    Help
+                  </Button>
+                </Menu.Target>
+                <Menu.Dropdown>
+                  <Menu.Item
+                    leftSection={<IconKeyboard size={14} />}
+                    onClick={() => setShortcutsOpen(true)}
+                  >
+                    Keyboard shortcuts
+                  </Menu.Item>
+                </Menu.Dropdown>
+              </Menu>
               <Button
                 variant="default"
                 leftSection={<IconSettings size={14} />}
@@ -332,11 +410,11 @@ export function ShellScreen() {
                 onReady={(event) => {
                   dockApi.current = event.api;
                   setDock(event.api);
-                  handleDockReady(event);
                   event.api.onDidRemovePanel((panel) => {
                     collectionPanels.current.delete(panel.id);
                     stopSamplerWhenUnused(event.api, panel.id, stopMonitor);
                   });
+                  void initialiseLayout(event, rpc, saver, () => dockApi.current === event.api);
                 }}
               />
             </div>
@@ -362,6 +440,7 @@ export function ShellScreen() {
           />
           <ConnectionManager />
           <SettingsModal />
+          <ShortcutsModal />
         </Flex>
       </ProfilerOpenerContext.Provider>
     </PanelOpenerContext.Provider>

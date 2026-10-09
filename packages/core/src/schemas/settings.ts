@@ -12,6 +12,7 @@ export const SettingsSchema = z.object({
   sampleSize: z.number().int().positive(),
   dockerAutoConnect: z.boolean(),
   checkForUpdates: z.boolean(),
+  treeDensity: z.enum(['compact', 'comfortable']),
 });
 
 export const SettingsPatchSchema = SettingsSchema.partial();

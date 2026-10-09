@@ -2,6 +2,7 @@ import {
   Alert,
   Button,
   Group,
+  useComputedColorScheme,
   Paper,
   SegmentedControl,
   SimpleGrid,
@@ -129,17 +130,18 @@ export function MonitorDashboard({ connectionId }: MonitorDashboardProps) {
     () => ({ windowSeconds: RANGE_MS[range] / 1000, tickSeconds: RANGE_TICK_SECONDS[range] }),
     [range],
   );
+  const scheme = useComputedColorScheme('dark');
   const cards = useMemo(
     () => ({
-      operations: chartSeries(series.operations),
-      connections: chartSeries(series.connections),
-      connectionsReadout: chartSeries(series.connectionsReadout),
-      network: chartSeries(series.network),
-      memory: chartSeries(series.memory),
-      queues: chartSeries(series.queues),
-      replicationLag: chartSeries(series.replicationLag),
+      operations: chartSeries(series.operations, scheme),
+      connections: chartSeries(series.connections, scheme),
+      connectionsReadout: chartSeries(series.connectionsReadout, scheme),
+      network: chartSeries(series.network, scheme),
+      memory: chartSeries(series.memory, scheme),
+      queues: chartSeries(series.queues, scheme),
+      replicationLag: chartSeries(series.replicationLag, scheme),
     }),
-    [series],
+    [series, scheme],
   );
   const headline = headlineOf(windowed.at(-1));
   const hasReplication = windowed.at(-1)?.replication !== undefined;

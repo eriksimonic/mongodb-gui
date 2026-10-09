@@ -1,0 +1,37 @@
+/*
+ * Surface and ink tokens for the custom CSS and the dockview theme. Mantine's own colour variables
+ * are fixed palettes, so anything that must change with the scheme reads these instead.
+ * The dark values are the Mantine dark steps the app used before the light theme existed.
+ * Mantine sets data-mantine-color-scheme on <html>, and the default block covers the first paint.
+ */
+
+:root,
+:root[data-mantine-color-scheme='dark'] {
+  color-scheme: dark;
+  --mg-surface-0: var(--mantine-color-dark-7);
+  --mg-surface-1: var(--mantine-color-dark-6);
+  --mg-surface-2: var(--mantine-color-dark-5);
+  --mg-border: var(--mantine-color-dark-4);
+  --mg-text: var(--mantine-color-dark-1);
+  --mg-text-strong: var(--mantine-color-gray-0);
+  --mg-text-muted: var(--mantine-color-dark-2);
+  --mg-shadow: 0 4px 12px rgb(0 0 0 / 35%);
+  --mg-accent: var(--mantine-color-blue-6);
+  --mg-accent-text: var(--mantine-color-blue-5);
+  --mg-selected-text: var(--mantine-color-white);
+}
+
+:root[data-mantine-color-scheme='light'] {
+  color-scheme: light;
+  --mg-surface-0: var(--mantine-color-white);
+  --mg-surface-1: var(--mantine-color-gray-1);
+  --mg-surface-2: var(--mantine-color-gray-2);
+  --mg-border: var(--mantine-color-gray-3);
+  --mg-text: var(--mantine-color-gray-7);
+  --mg-text-strong: var(--mantine-color-gray-9);
+  --mg-text-muted: var(--mantine-color-gray-6);
+  --mg-shadow: 0 4px 12px rgb(0 0 0 / 12%);
+  --mg-accent: var(--mantine-color-blue-6);
+  --mg-accent-text: var(--mantine-color-blue-7);
+  --mg-selected-text: var(--mantine-color-gray-9);
+}

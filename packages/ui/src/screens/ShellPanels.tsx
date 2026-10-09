@@ -1,4 +1,11 @@
-import { Box, Center, Stack, Text, Title } from '@mantine/core';
+import { Box, Group, Paper, SimpleGrid, Stack, Text, ThemeIcon, Title } from '@mantine/core';
+import {
+  IconBrandDocker,
+  IconKeyboard,
+  IconLock,
+  IconPlus,
+  IconSettings,
+} from '@tabler/icons-react';
 import { useEffect, useState } from 'react';
 import {
   DockviewDefaultTab,
@@ -12,6 +19,9 @@ import { ValidationPanel } from '../components/management/ValidationPanel';
 import { ProfilerPanel } from '../profiler/ProfilerPanel';
 import { MonitorDashboard } from '../monitor/MonitorDashboard';
 import { OperationsPanel } from '../monitor/OperationsPanel';
+import { useAppStore } from '../state/app-store-context';
+import { runReported } from '../components/notify-error';
+import { idleLockHint, recentConnections } from './welcome-model';
 
 /** The params every collection panel gets from the dock. */
 export interface CollectionPanelParams {
@@ -45,19 +55,159 @@ export function ConnectionsPanel() {
   );
 }
 
-/** Centre panel placeholder until the editor arrives in phase 2. */
-export function WelcomePanel() {
+/** Centre panel shown until a collection or monitor opens. Quick actions, recent connections and a hint. */
+export function WelcomePanel(props: IDockviewPanelProps) {
+  const connections = useAppStore((state) => state.connections);
+  const idleLockMinutes = useAppStore((state) => state.idleLockMinutes);
+  const setDialog = useAppStore((state) => state.setDialog);
+  const setSettingsOpen = useAppStore((state) => state.setSettingsOpen);
+  const setShortcutsOpen = useAppStore((state) => state.setShortcutsOpen);
+  const expandConnection = useAppStore((state) => state.expandConnection);
+  const recent = connections.state === 'ready' ? recentConnections(connections.data) : [];
+
+  const actions: readonly WelcomeAction[] = [
+    {
+      id: 'new-connection',
+      title: 'New connection',
+      description: 'Add a server by URI, with TLS and read preference options.',
+      icon: IconPlus,
+      run: () => setDialog({ kind: 'create' }),
+    },
+    {
+      id: 'docker',
+      title: 'Docker instances',
+      description: 'Find MongoDB containers on this machine and connect them.',
+      icon: IconBrandDocker,
+      run: () => props.containerApi.getPanel('connections')?.api.setActive(),
+    },
+    {
+      id: 'settings',
+      title: 'Open settings',
+      description: 'Theme, idle lock, editor size, updates and the master password.',
+      icon: IconSettings,
+      run: () => setSettingsOpen(true),
+    },
+    {
+      id: 'shortcuts',
+      title: 'Shortcut reference',
+      description: 'The keys for the tree, dialogs and editors. Press ? anywhere.',
+      icon: IconKeyboard,
+      run: () => setShortcutsOpen(true),
+    },
+  ];
+
   return (
-    <Center h="100%" p="md">
-      <Stack gap="xs" maw={420}>
-        <Title order={4}>Welcome</Title>
-        <Text size="sm" c="dimmed">
-          Expand a connection in the Connections panel to browse its databases and collections. The
-          query editor arrives in a later phase.
-        </Text>
+    <Box h="100%" style={{ overflow: 'auto' }}>
+      <Stack gap="lg" maw={720} mx="auto" p="lg">
+        <Stack gap={4}>
+          <Title order={3}>Welcome to Mongo GUI</Title>
+          <Text size="sm" c="dimmed">
+            Connect to a server, browse its databases, and watch it live.
+          </Text>
+        </Stack>
+
+        <SimpleGrid cols={{ base: 1, sm: 2 }} spacing="sm">
+          {actions.map((action) => (
+            <Paper
+              key={action.id}
+              component="button"
+              type="button"
+              withBorder
+              p="sm"
+              radius="sm"
+              onClick={() => action.run()}
+              style={{ textAlign: 'left', cursor: 'pointer', font: 'inherit', color: 'inherit' }}
+            >
+              <Group gap="sm" wrap="nowrap" align="flex-start">
+                <ThemeIcon variant="light" size={30} radius="sm">
+                  <action.icon size={16} aria-hidden="true" />
+                </ThemeIcon>
+                <Stack gap={2}>
+                  <Text size="sm" fw={600}>
+                    {action.title}
+                  </Text>
+                  <Text size="xs" c="dimmed">
+                    {action.description}
+                  </Text>
+                </Stack>
+              </Group>
+            </Paper>
+          ))}
+        </SimpleGrid>
+
+        <Stack gap="xs">
+          <Title order={5}>Recent connections</Title>
+          {connections.state === 'loading' ? (
+            <Text size="sm" c="dimmed">
+              Loading connections
+            </Text>
+          ) : null}
+          {connections.state === 'ready' && recent.length === 0 ? (
+            <Text size="sm" c="dimmed">
+              No connections yet. Create one to get started.
+            </Text>
+          ) : null}
+          {recent.map((connection) => (
+            <Paper
+              key={connection.id}
+              component="button"
+              type="button"
+              withBorder
+              px="sm"
+              py={6}
+              radius="sm"
+              onClick={() => void runReported(() => expandConnection(connection.id))}
+              style={{ textAlign: 'left', cursor: 'pointer', font: 'inherit', color: 'inherit' }}
+            >
+              <Group gap="sm" wrap="nowrap">
+                <Box
+                  aria-hidden="true"
+                  w={8}
+                  h={8}
+                  style={{
+                    borderRadius: '50%',
+                    flex: 'none',
+                    background: connection.color ?? 'var(--mg-accent)',
+                  }}
+                />
+                <Stack gap={0} miw={0} style={{ flex: 1 }}>
+                  <Text size="sm" fw={500} truncate="end">
+                    {connection.name}
+                  </Text>
+                  <Text size="xs" c="dimmed" ff="monospace" truncate="end">
+                    {connection.uriRedacted}
+                  </Text>
+                </Stack>
+                <Text size="xs" c="dimmed" style={{ whiteSpace: 'nowrap' }}>
+                  {formatUpdated(connection.updatedAt)}
+                </Text>
+              </Group>
+            </Paper>
+          ))}
+        </Stack>
+
+        <Group gap="xs" wrap="nowrap" align="flex-start">
+          <IconLock size={14} aria-hidden="true" style={{ flex: 'none', marginTop: 2 }} />
+          <Text size="xs" c="dimmed">
+            {idleLockHint(idleLockMinutes)}
+          </Text>
+        </Group>
       </Stack>
-    </Center>
+    </Box>
   );
+}
+
+interface WelcomeAction {
+  readonly id: string;
+  readonly title: string;
+  readonly description: string;
+  readonly icon: typeof IconPlus;
+  readonly run: () => void;
+}
+
+function formatUpdated(iso: string): string {
+  const date = new Date(iso);
+  return Number.isNaN(date.getTime()) ? '' : date.toLocaleDateString();
 }
 
 interface ConnectionPanelParams {

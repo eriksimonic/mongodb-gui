@@ -1,8 +1,15 @@
-import { app, BrowserWindow, session, shell } from 'electron';
+import { app, BrowserWindow, screen, session, shell } from 'electron';
 import { autoUpdater } from 'electron-updater';
 import { join } from 'node:path';
 import { devServerUrl, isAppUrl, rendererDirectory } from './app-origin';
 import { log } from './log';
+import {
+  WINDOW_BOUNDS_KEY,
+  clampBounds,
+  debounce,
+  parseWindowBounds,
+  type WindowBounds,
+} from '@mongo-gui/core';
 import { createAppServices, createRouter, type AppServices, type Router } from './rpc/router';
 import { registerIpc, sendEvent } from './rpc/ipc';
 
@@ -18,6 +25,56 @@ let mainWindow: BrowserWindow | undefined;
 let services: AppServices | undefined;
 let router: Router | undefined;
 let quitting = false;
+
+const BOUNDS_SAVE_DELAY_MS = 500;
+
+/**
+ * Writes the window bounds under window:main. The vault must be unlocked, so a write while
+ * locked is skipped and the next move or resize tries again.
+ */
+function writeWindowBounds(): void {
+  const window = mainWindow;
+  if (window === undefined || window.isDestroyed() || services === undefined) {
+    return;
+  }
+  const { x, y, width, height } = window.getNormalBounds();
+  const bounds: WindowBounds = { x, y, width, height, maximized: window.isMaximized() };
+  try {
+    services.currentRepos().layout.set(WINDOW_BOUNDS_KEY, bounds);
+  } catch {
+    // Locked vault. Nothing is saved until the next unlock and move.
+  }
+}
+
+const boundsSaver = debounce(writeWindowBounds, BOUNDS_SAVE_DELAY_MS);
+
+/**
+ * Applies the saved bounds to the main window. Runs on window creation when the vault is open,
+ * and after every unlock. A locked vault, or a window without saved bounds, keeps the defaults.
+ */
+function restoreWindowBounds(): void {
+  const window = mainWindow;
+  if (window === undefined || window.isDestroyed() || services === undefined) {
+    return;
+  }
+  let stored: unknown;
+  try {
+    stored = services.currentRepos().layout.get(WINDOW_BOUNDS_KEY);
+  } catch {
+    return;
+  }
+  const saved = parseWindowBounds(stored);
+  if (saved === undefined) {
+    return;
+  }
+  // The display that holds most of the saved window, or the nearest one when none holds it.
+  const display = screen.getDisplayMatching(saved);
+  const fitted = clampBounds(saved, display.workArea);
+  window.setBounds({ x: fitted.x, y: fitted.y, width: fitted.width, height: fitted.height });
+  if (fitted.maximized) {
+    window.maximize();
+  }
+}
 
 function contentSecurityPolicy(): string {
   if (devServerUrl === undefined) {
@@ -87,6 +144,19 @@ function createMainWindow(): void {
 
   window.once('ready-to-show', () => {
     window.show();
+  });
+
+  // Bounds are read from the encrypted store, so they apply once the vault is open. The restore
+  // after unlock covers the usual case, where the window opens at the locked screen first.
+  restoreWindowBounds();
+  window.on('move', () => {
+    boundsSaver.call();
+  });
+  window.on('resize', () => {
+    boundsSaver.call();
+  });
+  window.on('close', () => {
+    boundsSaver.flush();
   });
 
   // The first update check runs ten seconds after the page loads and never blocks startup.
@@ -165,9 +235,18 @@ app
         }
       },
       openExternal: (url) => shell.openExternal(url),
+      versions: () => ({
+        app: app.getVersion(),
+        electron: process.versions.electron,
+        chrome: process.versions.chrome,
+        node: process.versions.node,
+      }),
     });
     // Forwarders left behind by a crash or a force quit are removed before the user can connect.
     void appServices.docker.cleanupAll();
+    appServices.unlockEvents.subscribe(() => {
+      restoreWindowBounds();
+    });
     createMainWindow();
 
     app.on('activate', () => {
@@ -190,6 +269,8 @@ app.on('before-quit', (event) => {
   event.preventDefault();
   quitting = true;
   const current = services;
+  // The bounds are written while the vault is still open, so the last move is not lost.
+  boundsSaver.flush();
   current.vault.lock();
   void current
     .dispose()

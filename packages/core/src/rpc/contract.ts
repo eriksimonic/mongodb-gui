@@ -15,6 +15,8 @@ import {
   IndexInfoSchema,
 } from '../schemas/catalog';
 import { SettingsPatchSchema, SettingsSchema } from '../schemas/settings';
+import { AppVersionsSchema } from '../schemas/app';
+import { LayoutGetOutputSchema, LayoutKeySchema, LayoutSetInputSchema } from '../schemas/layout';
 import {
   MonitorConfigOutputSchema,
   MonitorKillInputSchema,
@@ -279,7 +281,13 @@ export const rpcContract = {
     install: defineCall(z.void(), z.void()),
     dismiss: defineCall(z.object({ version: z.string().min(1).max(64) }), UpdateStateSchema),
   },
+  layout: {
+    /** Returns the stored value, or null when nothing is saved under the key. */
+    get: defineCall(z.object({ key: LayoutKeySchema }), LayoutGetOutputSchema),
+    set: defineCall(LayoutSetInputSchema, z.void()),
+  },
   app: {
     openExternal: defineCall(z.object({ url: externalUrl }), z.void()),
+    versions: defineCall(z.void(), AppVersionsSchema),
   },
 } satisfies RpcContract;

@@ -934,3 +934,83 @@ describe('createAppServices', () => {
     }
   });
 });
+
+describe('layout and app calls', () => {
+  let harness: Harness | undefined;
+  afterEach(() => {
+    harness?.dispose();
+    harness = undefined;
+  });
+
+  it('stores a JSON value per key and returns null for a missing key', async () => {
+    harness = buildHarness();
+    const { router } = harness;
+    expectValue(await router.handle('vault.initialise', { password: PASSWORD }));
+    const layout = { grid: { root: { type: 'branch', data: [] } }, activeGroup: 'main' };
+
+    expect(expectValue(await router.handle('layout.get', { key: 'dockview:main' }))).toEqual({
+      value: null,
+    });
+    expectValue(await router.handle('layout.set', { key: 'dockview:main', value: layout }));
+
+    expect(expectValue(await router.handle('layout.get', { key: 'dockview:main' }))).toEqual({
+      value: layout,
+    });
+  });
+
+  it('overwrites the value stored under a key', async () => {
+    harness = buildHarness();
+    const { router } = harness;
+    expectValue(await router.handle('vault.initialise', { password: PASSWORD }));
+    expectValue(await router.handle('layout.set', { key: 'window:main', value: { width: 1 } }));
+    expectValue(await router.handle('layout.set', { key: 'window:main', value: { width: 2 } }));
+
+    expect(expectValue(await router.handle('layout.get', { key: 'window:main' }))).toEqual({
+      value: { width: 2 },
+    });
+  });
+
+  it('rejects an empty key or a key with spaces with VALIDATION', async () => {
+    harness = buildHarness();
+    const { router } = harness;
+    expectValue(await router.handle('vault.initialise', { password: PASSWORD }));
+
+    expectError(await router.handle('layout.get', { key: '' }), 'VALIDATION');
+    expectError(await router.handle('layout.set', { key: 'has space', value: 1 }), 'VALIDATION');
+  });
+
+  it('rejects a value that is not JSON and a value over 256 KB', async () => {
+    harness = buildHarness();
+    const { router } = harness;
+    expectValue(await router.handle('vault.initialise', { password: PASSWORD }));
+
+    expectError(await router.handle('layout.set', { key: 'k', value: undefined }), 'VALIDATION');
+    const large = 'x'.repeat(256 * 1024);
+    expectError(await router.handle('layout.set', { key: 'k', value: large }), 'VALIDATION');
+  });
+
+  it('refuses layout calls while the vault is locked', async () => {
+    harness = buildHarness();
+    const { router } = harness;
+    expectValue(await router.handle('vault.initialise', { password: PASSWORD }));
+    expectValue(await router.handle('vault.lock', undefined));
+
+    expectError(await router.handle('layout.get', { key: 'dockview:main' }), 'VAULT_LOCKED');
+    expectError(
+      await router.handle('layout.set', { key: 'dockview:main', value: {} }),
+      'VAULT_LOCKED',
+    );
+  });
+
+  it('reports the app, Electron, Chrome and Node versions', async () => {
+    harness = buildHarness();
+    const { router } = harness;
+
+    expect(expectValue(await router.handle('app.versions', undefined))).toEqual({
+      app: expect.any(String),
+      electron: expect.any(String),
+      chrome: expect.any(String),
+      node: process.versions.node,
+    });
+  });
+});

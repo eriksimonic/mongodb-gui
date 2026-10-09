@@ -89,6 +89,8 @@ interface MockState {
   settings: Settings;
   history: HistoryEntry[];
   favourites: Favourite[];
+  /** Layout values by key. Stored as-is, like the encrypted store keeps them. */
+  layout: Map<string, unknown>;
   /** Databases and collections per connection id. Mutated by the management calls. */
   catalogs: Map<string, MockDatabase[]>;
   builds: Map<string, MockBuild[]>;
@@ -103,6 +105,9 @@ const DOCKER_ENGINE_VERSION = '29.8.2';
 const MOCK_DOCKER_PASSWORD = 'secret';
 
 const SERVER_VERSION = '8.0.4';
+
+/** Version strings the mock reports for the About panel. */
+const MOCK_VERSIONS = { app: '0.1.0', electron: '44.0.0', chrome: '152.0.0', node: '24.0.0' };
 const AVERAGE_OBJECT_SIZE = 420;
 const STORAGE_OVERHEAD = 4096;
 
@@ -115,6 +120,7 @@ function initialState(preset: MockPreset): MockState {
     settings: { ...defaultSettings },
     history: [],
     favourites: [],
+    layout: new Map(),
     catalogs: new Map(),
     builds: new Map(),
     dockerAvailable: true,
@@ -177,6 +183,7 @@ function mergeSettings(current: Settings, patch: SettingsPatch): Settings {
     sampleSize: patch.sampleSize ?? current.sampleSize,
     dockerAutoConnect: patch.dockerAutoConnect ?? current.dockerAutoConnect,
     checkForUpdates: patch.checkForUpdates ?? current.checkForUpdates,
+    treeDensity: patch.treeDensity ?? current.treeDensity,
   };
 }
 
@@ -442,8 +449,19 @@ export function createMockUiApi(options: MockUiApiOptions = {}): UiApi {
         return next;
       }),
     },
+    layout: {
+      get: method(rpcContract.layout.get, latencyMs, ({ key }) => {
+        requireUnlocked();
+        return { value: state.layout.get(key) ?? null };
+      }),
+      set: method(rpcContract.layout.set, latencyMs, ({ key, value }) => {
+        requireUnlocked();
+        state.layout.set(key, value);
+      }),
+    },
     app: {
       openExternal: method(rpcContract.app.openExternal, latencyMs, () => undefined),
+      versions: method(rpcContract.app.versions, latencyMs, () => ({ ...MOCK_VERSIONS })),
     },
     vault: {
       status: method(rpcContract.vault.status, latencyMs, () => ({ state: state.vault })),
@@ -486,6 +504,7 @@ export function createMockUiApi(options: MockUiApiOptions = {}): UiApi {
         state.settings = { ...defaultSettings };
         state.history = [];
         state.favourites = [];
+        state.layout.clear();
         state.catalogs.clear();
         state.builds.clear();
       }),

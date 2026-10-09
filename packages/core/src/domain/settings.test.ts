@@ -12,6 +12,7 @@ describe('defaultSettings', () => {
       sampleSize: 100,
       dockerAutoConnect: false,
       checkForUpdates: true,
+      treeDensity: 'compact',
     });
   });
 

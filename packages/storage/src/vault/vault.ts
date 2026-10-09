@@ -17,6 +17,8 @@ export interface VaultOptions {
   readonly now?: () => number;
   /** Called when the vault changes from unlocked to locked. */
   readonly onLocked?: () => void;
+  /** Called after initialise or unlock leaves the vault unlocked. */
+  readonly onUnlocked?: () => void;
 }
 
 const MIN_PASSWORD_LENGTH = 10;
@@ -43,6 +45,7 @@ export class Vault {
   readonly #failureDelayMs: number;
   readonly #now: () => number;
   readonly #onLocked: (() => void) | undefined;
+  readonly #onUnlocked: (() => void) | undefined;
 
   #dek: Buffer | undefined;
   #lastActivity = 0;
@@ -56,6 +59,7 @@ export class Vault {
     this.#failureDelayMs = options.failureDelayMs ?? DEFAULT_FAILURE_DELAY_MS;
     this.#now = options.now ?? Date.now;
     this.#onLocked = options.onLocked;
+    this.#onUnlocked = options.onUnlocked;
   }
 
   status(): VaultStatus {
@@ -77,6 +81,7 @@ export class Vault {
     mkdirSync(this.#dir, { recursive: true, mode: 0o700 });
     writeKeyringFile(this.keyringPath, keyring);
     this.#install(dek);
+    this.#onUnlocked?.();
   }
 
   /**
@@ -87,6 +92,7 @@ export class Vault {
     const keyring = this.#requireKeyring();
     const dek = await this.#unwrap(keyring, password);
     this.#install(dek);
+    this.#onUnlocked?.();
   }
 
   /** Zeroes the DEK, drops it, and calls onLocked when the vault was unlocked. */

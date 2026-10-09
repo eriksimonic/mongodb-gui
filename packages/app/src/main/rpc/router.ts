@@ -10,6 +10,7 @@ import {
   toAppError,
   type AppError,
   type CallInput,
+  type AppVersions,
   type ConnectionProfile,
   type ConnectionProfileInput,
   type ProfileCollectionInfo,
@@ -146,6 +147,8 @@ export interface RouterDeps {
   readonly updates?: UpdatesService;
   /** Opens a link in the user's browser. The caller checks the link before it gets here. */
   readonly openExternal?: (url: string) => Promise<void>;
+  /** Version strings for the About panel. Defaults to what process.versions reports. */
+  readonly versions?: () => AppVersions;
 }
 
 /** The driver client type, named without importing the driver into the main process. */
@@ -210,6 +213,10 @@ export interface AppServicesOptions {
 export type AppServices = Omit<RouterDeps, 'onEvent' | 'docker' | 'updates'> & {
   readonly docker: DockerRuntime;
   readonly updates: UpdatesService;
+  /** Fires after the vault unlocks. The main process restores the window bounds here. */
+  readonly unlockEvents: LockEvents;
+  /** The repositories of the open store. Repository calls throw VAULT_LOCKED while the vault is locked. */
+  readonly currentRepos: () => RouterRepos;
   dispose(): Promise<void>;
 };
 
@@ -294,6 +301,18 @@ export function createRouter(deps: RouterDeps): Router {
       throw new AppErrorException(appError('INTERNAL', 'Updates are not available.'));
     }
     return deps.updates;
+  };
+
+  const appVersions = (): AppVersions => {
+    if (deps.versions !== undefined) {
+      return deps.versions();
+    }
+    return {
+      app: '0.0.0',
+      electron: process.versions['electron'] ?? 'not running in Electron',
+      chrome: process.versions['chrome'] ?? 'unknown',
+      node: process.versions.node,
+    };
   };
 
   const resetVault = async (): Promise<void> => {
@@ -622,6 +641,13 @@ export function createRouter(deps: RouterDeps): Router {
       return saved;
     }),
 
+    entry('layout.get', rpcContract.layout.get, (input) => ({
+      value: repos().layout.get(input.key) ?? null,
+    })),
+    entry('layout.set', rpcContract.layout.set, (input) => {
+      repos().layout.set(input.key, input.value);
+    }),
+
     entry('history.list', rpcContract.history.list, (input) => repos().history.list(input)),
     entry('history.clear', rpcContract.history.clear, () => {
       repos().history.clear();
@@ -703,6 +729,7 @@ export function createRouter(deps: RouterDeps): Router {
       }
       await deps.openExternal(new URL(input.url).href);
     }),
+    entry('app.versions', rpcContract.app.versions, () => appVersions()),
   ]);
 
   const monitor = createMonitorService({
@@ -841,12 +868,18 @@ export function createRouter(deps: RouterDeps): Router {
 export function createAppServices(options: AppServicesOptions): AppServices {
   mkdirSync(options.userDataDir, { recursive: true, mode: KEYRING_DIR_MODE });
   const lockListeners = new Set<() => void>();
+  const unlockListeners = new Set<() => void>();
   const vaultOptions: VaultOptions = {
     dir: options.userDataDir,
     kdf: options.kdf ?? DEFAULT_KDF_PARAMS,
     ...(options.failureDelayMs === undefined ? {} : { failureDelayMs: options.failureDelayMs }),
     onLocked: () => {
       for (const listener of [...lockListeners]) {
+        listener();
+      }
+    },
+    onUnlocked: () => {
+      for (const listener of [...unlockListeners]) {
         listener();
       }
     },
@@ -883,11 +916,21 @@ export function createAppServices(options: AppServicesOptions): AppServices {
       handles = openStore();
       return handles;
     },
+    // The store is reopened on vault reset, so callers read the repos through this function.
+    currentRepos: () => handles.repos,
     lockEvents: {
       subscribe(listener) {
         lockListeners.add(listener);
         return () => {
           lockListeners.delete(listener);
+        };
+      },
+    },
+    unlockEvents: {
+      subscribe(listener) {
+        unlockListeners.add(listener);
+        return () => {
+          unlockListeners.delete(listener);
         };
       },
     },

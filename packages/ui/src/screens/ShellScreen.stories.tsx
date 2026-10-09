@@ -20,3 +20,18 @@ export default meta;
 type Story = StoryObj<typeof meta>;
 
 export const Unlocked: Story = {};
+
+/** The shell in the light scheme. The saved setting is set before the shell reads it. */
+export const LightTheme: Story = {
+  decorators: [
+    (Story) => {
+      const api = createMockUiApi({ preset: 'unlocked' });
+      void api.rpc.settings.update({ theme: 'light' });
+      return (
+        <AppRoot api={api}>
+          <Story />
+        </AppRoot>
+      );
+    },
+  ],
+};

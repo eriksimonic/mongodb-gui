@@ -118,6 +118,7 @@ export function ConnectionTree() {
   const connections = useAppStore((state) => state.connections);
   const statuses = useAppStore((state) => state.statuses);
   const expanded = useAppStore((state) => state.expanded);
+  const treeDensity = useAppStore((state) => state.settings?.treeDensity ?? 'compact');
   const databases = useAppStore((state) => state.databases);
   const collections = useAppStore((state) => state.collections);
   const selection = useAppStore((state) => state.selection);
@@ -463,7 +464,13 @@ export function ConnectionTree() {
           </Button>
         </Stack>
       )}
-      <div role="tree" aria-label="Connections" className="mg-tree" onKeyDown={handleKeyDown}>
+      <div
+        role="tree"
+        aria-label="Connections"
+        className="mg-tree"
+        data-density={treeDensity}
+        onKeyDown={handleKeyDown}
+      >
         {rows.map((row) =>
           row.kind === 'message' ? (
             <TreeMessage key={row.key} row={row} />
