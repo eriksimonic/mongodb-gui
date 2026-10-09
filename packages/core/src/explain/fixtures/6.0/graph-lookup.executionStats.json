@@ -1,0 +1,167 @@
+{
+  "explainVersion": "1",
+  "stages": [
+    {
+      "$cursor": {
+        "queryPlanner": {
+          "namespace": "explain_capture.customers",
+          "indexFilterSet": false,
+          "parsedQuery": {
+            "_id": {
+              "$eq": {
+                "$numberInt": "5"
+              }
+            }
+          },
+          "queryHash": "0AF833B2",
+          "planCacheKey": "19C9D71D",
+          "maxIndexedOrSolutionsReached": false,
+          "maxIndexedAndSolutionsReached": false,
+          "maxScansToExplodeReached": false,
+          "winningPlan": {
+            "stage": "IDHACK"
+          },
+          "rejectedPlans": []
+        },
+        "executionStats": {
+          "executionSuccess": true,
+          "nReturned": {
+            "$numberInt": "1"
+          },
+          "executionTimeMillis": {
+            "$numberInt": "0"
+          },
+          "totalKeysExamined": {
+            "$numberInt": "1"
+          },
+          "totalDocsExamined": {
+            "$numberInt": "1"
+          },
+          "executionStages": {
+            "stage": "IDHACK",
+            "nReturned": {
+              "$numberInt": "1"
+            },
+            "executionTimeMillisEstimate": {
+              "$numberInt": "0"
+            },
+            "works": {
+              "$numberInt": "2"
+            },
+            "advanced": {
+              "$numberInt": "1"
+            },
+            "needTime": {
+              "$numberInt": "0"
+            },
+            "needYield": {
+              "$numberInt": "0"
+            },
+            "saveState": {
+              "$numberInt": "1"
+            },
+            "restoreState": {
+              "$numberInt": "1"
+            },
+            "isEOF": {
+              "$numberInt": "1"
+            },
+            "keysExamined": {
+              "$numberInt": "1"
+            },
+            "docsExamined": {
+              "$numberInt": "1"
+            }
+          }
+        }
+      },
+      "nReturned": {
+        "$numberLong": "1"
+      },
+      "executionTimeMillisEstimate": {
+        "$numberLong": "0"
+      }
+    },
+    {
+      "$graphLookup": {
+        "from": "customers",
+        "as": "chain",
+        "connectToField": "_id",
+        "connectFromField": "referredBy",
+        "startWith": "$referredBy",
+        "maxDepth": {
+          "$numberLong": "3"
+        }
+      },
+      "nReturned": {
+        "$numberLong": "1"
+      },
+      "executionTimeMillisEstimate": {
+        "$numberLong": "0"
+      }
+    }
+  ],
+  "serverInfo": {
+    "host": "5366f353288c",
+    "port": {
+      "$numberInt": "27017"
+    },
+    "version": "6.0.28",
+    "gitVersion": "ef888a6df901622004aeb4b7362e007b8c4299da"
+  },
+  "serverParameters": {
+    "internalQueryFacetBufferSizeBytes": {
+      "$numberInt": "104857600"
+    },
+    "internalQueryFacetMaxOutputDocSizeBytes": {
+      "$numberInt": "104857600"
+    },
+    "internalLookupStageIntermediateDocumentMaxSizeBytes": {
+      "$numberInt": "104857600"
+    },
+    "internalDocumentSourceGroupMaxMemoryBytes": {
+      "$numberInt": "104857600"
+    },
+    "internalQueryMaxBlockingSortMemoryUsageBytes": {
+      "$numberInt": "104857600"
+    },
+    "internalQueryProhibitBlockingMergeOnMongoS": {
+      "$numberInt": "0"
+    },
+    "internalQueryMaxAddToSetBytes": {
+      "$numberInt": "104857600"
+    },
+    "internalDocumentSourceSetWindowFieldsMaxMemoryBytes": {
+      "$numberInt": "104857600"
+    }
+  },
+  "command": {
+    "aggregate": "customers",
+    "pipeline": [
+      {
+        "$match": {
+          "_id": {
+            "$numberInt": "5"
+          }
+        }
+      },
+      {
+        "$graphLookup": {
+          "from": "customers",
+          "startWith": "$referredBy",
+          "connectFromField": "referredBy",
+          "connectToField": "_id",
+          "as": "chain",
+          "maxDepth": {
+            "$numberInt": "3"
+          }
+        }
+      }
+    ],
+    "cursor": {},
+    "$db": "explain_capture"
+  },
+  "ok": {
+    "$numberDouble": "1.0"
+  }
+}

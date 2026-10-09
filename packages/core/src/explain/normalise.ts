@@ -39,6 +39,8 @@ const CHILD_KEYS = [
   'innerStage',
 ] as const;
 const UNKNOWN_STAGE = 'UNKNOWN';
+// Keys of the first pipeline stage that hold the query's own plan.
+const CURSOR_KEYS: readonly string[] = ['$cursor', '$geoNearCursor'];
 const SHARD_STAGE = 'SHARD_MERGE';
 // Slot-based stages that carry keys examined, documents read and sort or group spill counters.
 const KEY_STAGES: ReadonlySet<string> = new Set(['ixseek', 'IXSCAN']);
@@ -123,7 +125,10 @@ function normaliseAggregate(
   pipeline: unknown[],
   serverVersion: string | undefined,
 ): PlanTree | undefined {
-  const cursor = asRecord(asRecord(pipeline[0])?.['$cursor']);
+  // The first stage holds the query. A $geoNear runs its query under a differently named key.
+  const cursorKey =
+    CURSOR_KEYS.find((key) => asRecord(pipeline[0])?.[key] !== undefined) ?? '$cursor';
+  const cursor = asRecord(asRecord(pipeline[0])?.[cursorKey]);
   const cursorPlanner = asRecord(cursor?.['queryPlanner']);
   if (cursor === undefined || cursorPlanner === undefined) {
     return undefined;
@@ -136,7 +141,7 @@ function normaliseAggregate(
   const topExec = asRecord(doc['executionStats']);
   const wrappers: PlanStage[] = [
     {
-      name: '$cursor',
+      name: cursorKey,
       ...metricFields(cursorExec, 'top'),
       children: [planned.winning],
       raw: cursor,
@@ -165,22 +170,72 @@ function normaliseAggregate(
   });
 }
 
-// A pipeline stage after $cursor. The counters sit beside the stage name, next to its spec.
-function pipelineStage(entry: unknown, input: PlanStage): PlanStage | undefined {
+// A pipeline stage. The input is the stage before it, or none at the start of an inner pipeline.
+// The counters sit beside the stage name, next to its spec.
+function pipelineStage(entry: unknown, input: PlanStage | undefined): PlanStage | undefined {
   const record = asRecord(entry);
   const name = record === undefined ? undefined : Object.keys(record)[0];
   if (record === undefined || name === undefined) {
     return undefined;
   }
-  const sortPattern =
-    name === '$sort' ? sortPatternOf(asRecord(record[name])?.['sortKey']) : undefined;
+  const spec = record[name];
+  const sortPattern = name === '$sort' ? sortPatternOf(asRecord(spec)?.['sortKey']) : undefined;
   return {
     name,
     ...metricFields(record, 'estimate'),
     ...(sortPattern === undefined ? {} : { sortPattern }),
-    children: [input],
+    children: [...(input === undefined ? [] : [input]), ...innerSubtrees(name, spec)],
     raw: record,
   };
+}
+
+// Builds a chain of pipeline stages, each one fed by the stage before it. Returns the last stage.
+function chainOf(entries: unknown[]): PlanStage | undefined {
+  let current: PlanStage | undefined;
+  for (const entry of entries) {
+    current = pipelineStage(entry, current) ?? current;
+  }
+  return current;
+}
+
+// Sub-trees under a pipeline stage. A $lookup has an inner pipeline, a $facet has one branch per
+// name, and a $unionWith reads its own plan from each pipeline entry. Each sub-tree is labelled
+// with what it is, so the panel can show it under its parent.
+function innerSubtrees(name: string, spec: unknown): PlanStage[] {
+  const record = asRecord(spec);
+  if (record === undefined) {
+    return [];
+  }
+  if (name === '$lookup') {
+    const pipeline = asArray(record['pipeline']);
+    const chain = pipeline === undefined ? undefined : chainOf(pipeline);
+    const from = asString(record['from']) ?? 'another collection';
+    return chain === undefined
+      ? []
+      : [{ ...chain, label: `inner pipeline of $lookup from ${from}` }];
+  }
+  if (name === '$unionWith') {
+    const label = `union input from ${asString(record['coll']) ?? 'the collection'}`;
+    return (asArray(record['pipeline']) ?? []).flatMap((entry): PlanStage[] => {
+      const cursor = asRecord(asRecord(entry)?.['$cursor']);
+      if (cursor !== undefined) {
+        const planned = planTree(
+          asRecord(cursor['queryPlanner']) ?? {},
+          asRecord(cursor['executionStats']),
+        );
+        return planned === undefined ? [] : [{ ...planned.winning, label }];
+      }
+      const chain = chainOf([entry]);
+      return chain === undefined ? [] : [{ ...chain, label }];
+    });
+  }
+  if (name === '$facet') {
+    return Object.entries(record).flatMap(([branch, entries]) => {
+      const chain = chainOf(asArray(entries) ?? []);
+      return chain === undefined ? [] : [{ ...chain, label: `$facet branch ${branch}` }];
+    });
+  }
+  return [];
 }
 
 // Totals for an aggregate. The top-level block wins when present. Otherwise the wrapper stages
@@ -380,7 +435,7 @@ function shardChildren(planner: RawRecord | undefined, exec: RawRecord | undefin
       shardName,
     );
     if (child !== undefined) {
-      children.push(child);
+      children.push({ ...child, label: `shard ${shardName}` });
     }
   }
   return children;
@@ -457,8 +512,11 @@ function slotCounters(
       memLimitBytes: readNumber(spillStage?.['memLimit']),
       memUsageBytes:
         readNumber(spillStage?.['totalDataSizeSorted']) ??
-        readNumber(spillStage?.['totalDataSizeSortedBytesEstimate']),
+        readNumber(spillStage?.['totalDataSizeSortedBytesEstimate']) ??
+        largestAccumulator(spillStage?.['maxAccumulatorMemoryUsageBytes']),
       usedDisk: asBoolean(spillStage?.['usedDisk']),
+      spills: readNumber(spillStage?.['spills']),
+      spilledBytes: spilledBytesOf(spillStage),
     }),
     raw: top,
   };
@@ -501,19 +559,40 @@ function metricFields(
     nReturned: readNumber(node['nReturned']),
     executionTimeMs: time,
     works: readNumber(node['works']),
-    // Sorts report the bytes they sorted. The server does not report the memory held directly.
+    // Sorts report the bytes they sorted. A $group reports the memory of each accumulator, and the
+    // largest of them is kept. The server does not report the memory held directly.
     memUsageBytes:
       readNumber(node['memUsage']) ??
       readNumber(node['totalDataSizeSorted']) ??
-      readNumber(node['totalDataSizeSortedBytesEstimate']),
+      readNumber(node['totalDataSizeSortedBytesEstimate']) ??
+      largestAccumulator(node['maxAccumulatorMemoryUsageBytes']),
     memLimitBytes: readNumber(node['memLimit']),
     usedDisk: asBoolean(node['usedDisk']),
+    spills: readNumber(node['spills']),
+    spilledBytes: spilledBytesOf(node),
+    chunkSkips: readNumber(node['chunkSkips']),
     index: asString(node['indexName']),
     isMultiKey: asBoolean(node['isMultiKey']),
     indexBounds: readStringMap(node['indexBounds']),
     direction: directionOf(node['direction']),
     filter: isRawRecord(node['filter']) ? node['filter'] : undefined,
   });
+}
+
+// Bytes written to disk by a spill. Servers name the counter differently across versions.
+function spilledBytesOf(node: RawRecord | undefined): number | undefined {
+  return (
+    readNumber(node?.['spilledBytes']) ??
+    readNumber(node?.['spilledDataStorageSize']) ??
+    readNumber(node?.['numBytesSpilledEstimate'])
+  );
+}
+
+// The largest value of a per-accumulator memory object, as {count: bytes, ...}.
+function largestAccumulator(value: unknown): number | undefined {
+  const values = Object.values(asRecord(value) ?? {}).map((entry) => readNumber(entry));
+  const defined = values.filter((entry): entry is number => entry !== undefined);
+  return defined.length === 0 ? undefined : Math.max(...defined);
 }
 
 // Sort keys as field to direction. Canonical EJSON wraps the direction as a number.

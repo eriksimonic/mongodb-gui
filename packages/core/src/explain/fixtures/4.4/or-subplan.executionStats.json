@@ -1,0 +1,426 @@
+{
+  "queryPlanner": {
+    "plannerVersion": {
+      "$numberInt": "1"
+    },
+    "namespace": "explain_capture.places",
+    "indexFilterSet": false,
+    "parsedQuery": {
+      "$or": [
+        {
+          "$and": [
+            {
+              "cuisine": {
+                "$eq": "thai"
+              }
+            },
+            {
+              "rating": {
+                "$eq": {
+                  "$numberInt": "5"
+                }
+              }
+            }
+          ]
+        },
+        {
+          "$and": [
+            {
+              "open": {
+                "$eq": true
+              }
+            },
+            {
+              "tags": {
+                "$eq": "bar"
+              }
+            }
+          ]
+        }
+      ]
+    },
+    "winningPlan": {
+      "stage": "SUBPLAN",
+      "inputStage": {
+        "stage": "FETCH",
+        "inputStage": {
+          "stage": "OR",
+          "inputStages": [
+            {
+              "stage": "IXSCAN",
+              "keyPattern": {
+                "cuisine": {
+                  "$numberInt": "1"
+                },
+                "rating": {
+                  "$numberInt": "-1"
+                }
+              },
+              "indexName": "cuisine_1_rating_-1",
+              "isMultiKey": false,
+              "multiKeyPaths": {
+                "cuisine": [],
+                "rating": []
+              },
+              "isUnique": false,
+              "isSparse": false,
+              "isPartial": false,
+              "indexVersion": {
+                "$numberInt": "2"
+              },
+              "direction": "forward",
+              "indexBounds": {
+                "cuisine": [
+                  "[\"thai\", \"thai\"]"
+                ],
+                "rating": [
+                  "[5, 5]"
+                ]
+              }
+            },
+            {
+              "stage": "FETCH",
+              "filter": {
+                "tags": {
+                  "$eq": "bar"
+                }
+              },
+              "inputStage": {
+                "stage": "IXSCAN",
+                "keyPattern": {
+                  "open": {
+                    "$numberInt": "1"
+                  }
+                },
+                "indexName": "open_1",
+                "isMultiKey": false,
+                "multiKeyPaths": {
+                  "open": []
+                },
+                "isUnique": false,
+                "isSparse": false,
+                "isPartial": false,
+                "indexVersion": {
+                  "$numberInt": "2"
+                },
+                "direction": "forward",
+                "indexBounds": {
+                  "open": [
+                    "[true, true]"
+                  ]
+                }
+              }
+            }
+          ]
+        }
+      }
+    },
+    "rejectedPlans": []
+  },
+  "executionStats": {
+    "executionSuccess": true,
+    "nReturned": {
+      "$numberInt": "1000"
+    },
+    "executionTimeMillis": {
+      "$numberInt": "1"
+    },
+    "totalKeysExamined": {
+      "$numberInt": "2000"
+    },
+    "totalDocsExamined": {
+      "$numberInt": "3000"
+    },
+    "executionStages": {
+      "stage": "SUBPLAN",
+      "nReturned": {
+        "$numberInt": "1000"
+      },
+      "executionTimeMillisEstimate": {
+        "$numberInt": "1"
+      },
+      "works": {
+        "$numberInt": "2002"
+      },
+      "advanced": {
+        "$numberInt": "1000"
+      },
+      "needTime": {
+        "$numberInt": "1001"
+      },
+      "needYield": {
+        "$numberInt": "0"
+      },
+      "saveState": {
+        "$numberInt": "2"
+      },
+      "restoreState": {
+        "$numberInt": "2"
+      },
+      "isEOF": {
+        "$numberInt": "1"
+      },
+      "inputStage": {
+        "stage": "FETCH",
+        "nReturned": {
+          "$numberInt": "1000"
+        },
+        "executionTimeMillisEstimate": {
+          "$numberInt": "1"
+        },
+        "works": {
+          "$numberInt": "2002"
+        },
+        "advanced": {
+          "$numberInt": "1000"
+        },
+        "needTime": {
+          "$numberInt": "1001"
+        },
+        "needYield": {
+          "$numberInt": "0"
+        },
+        "saveState": {
+          "$numberInt": "2"
+        },
+        "restoreState": {
+          "$numberInt": "2"
+        },
+        "isEOF": {
+          "$numberInt": "1"
+        },
+        "docsExamined": {
+          "$numberInt": "1000"
+        },
+        "alreadyHasObj": {
+          "$numberInt": "1000"
+        },
+        "inputStage": {
+          "stage": "OR",
+          "nReturned": {
+            "$numberInt": "1000"
+          },
+          "executionTimeMillisEstimate": {
+            "$numberInt": "1"
+          },
+          "works": {
+            "$numberInt": "2002"
+          },
+          "advanced": {
+            "$numberInt": "1000"
+          },
+          "needTime": {
+            "$numberInt": "1001"
+          },
+          "needYield": {
+            "$numberInt": "0"
+          },
+          "saveState": {
+            "$numberInt": "2"
+          },
+          "restoreState": {
+            "$numberInt": "2"
+          },
+          "isEOF": {
+            "$numberInt": "1"
+          },
+          "dupsTested": {
+            "$numberInt": "1000"
+          },
+          "dupsDropped": {
+            "$numberInt": "0"
+          },
+          "inputStages": [
+            {
+              "stage": "IXSCAN",
+              "nReturned": {
+                "$numberInt": "0"
+              },
+              "executionTimeMillisEstimate": {
+                "$numberInt": "0"
+              },
+              "works": {
+                "$numberInt": "1"
+              },
+              "advanced": {
+                "$numberInt": "0"
+              },
+              "needTime": {
+                "$numberInt": "0"
+              },
+              "needYield": {
+                "$numberInt": "0"
+              },
+              "saveState": {
+                "$numberInt": "2"
+              },
+              "restoreState": {
+                "$numberInt": "2"
+              },
+              "isEOF": {
+                "$numberInt": "1"
+              },
+              "keyPattern": {
+                "cuisine": {
+                  "$numberInt": "1"
+                },
+                "rating": {
+                  "$numberInt": "-1"
+                }
+              },
+              "indexName": "cuisine_1_rating_-1",
+              "isMultiKey": false,
+              "multiKeyPaths": {
+                "cuisine": [],
+                "rating": []
+              },
+              "isUnique": false,
+              "isSparse": false,
+              "isPartial": false,
+              "indexVersion": {
+                "$numberInt": "2"
+              },
+              "direction": "forward",
+              "indexBounds": {
+                "cuisine": [
+                  "[\"thai\", \"thai\"]"
+                ],
+                "rating": [
+                  "[5, 5]"
+                ]
+              },
+              "keysExamined": {
+                "$numberInt": "0"
+              },
+              "seeks": {
+                "$numberInt": "1"
+              },
+              "dupsTested": {
+                "$numberInt": "0"
+              },
+              "dupsDropped": {
+                "$numberInt": "0"
+              }
+            },
+            {
+              "stage": "FETCH",
+              "filter": {
+                "tags": {
+                  "$eq": "bar"
+                }
+              },
+              "nReturned": {
+                "$numberInt": "1000"
+              },
+              "executionTimeMillisEstimate": {
+                "$numberInt": "1"
+              },
+              "works": {
+                "$numberInt": "2001"
+              },
+              "advanced": {
+                "$numberInt": "1000"
+              },
+              "needTime": {
+                "$numberInt": "1000"
+              },
+              "needYield": {
+                "$numberInt": "0"
+              },
+              "saveState": {
+                "$numberInt": "2"
+              },
+              "restoreState": {
+                "$numberInt": "2"
+              },
+              "isEOF": {
+                "$numberInt": "1"
+              },
+              "docsExamined": {
+                "$numberInt": "2000"
+              },
+              "alreadyHasObj": {
+                "$numberInt": "0"
+              },
+              "inputStage": {
+                "stage": "IXSCAN",
+                "nReturned": {
+                  "$numberInt": "2000"
+                },
+                "executionTimeMillisEstimate": {
+                  "$numberInt": "0"
+                },
+                "works": {
+                  "$numberInt": "2001"
+                },
+                "advanced": {
+                  "$numberInt": "2000"
+                },
+                "needTime": {
+                  "$numberInt": "0"
+                },
+                "needYield": {
+                  "$numberInt": "0"
+                },
+                "saveState": {
+                  "$numberInt": "2"
+                },
+                "restoreState": {
+                  "$numberInt": "2"
+                },
+                "isEOF": {
+                  "$numberInt": "1"
+                },
+                "keyPattern": {
+                  "open": {
+                    "$numberInt": "1"
+                  }
+                },
+                "indexName": "open_1",
+                "isMultiKey": false,
+                "multiKeyPaths": {
+                  "open": []
+                },
+                "isUnique": false,
+                "isSparse": false,
+                "isPartial": false,
+                "indexVersion": {
+                  "$numberInt": "2"
+                },
+                "direction": "forward",
+                "indexBounds": {
+                  "open": [
+                    "[true, true]"
+                  ]
+                },
+                "keysExamined": {
+                  "$numberInt": "2000"
+                },
+                "seeks": {
+                  "$numberInt": "1"
+                },
+                "dupsTested": {
+                  "$numberInt": "0"
+                },
+                "dupsDropped": {
+                  "$numberInt": "0"
+                }
+              }
+            }
+          ]
+        }
+      }
+    }
+  },
+  "serverInfo": {
+    "host": "b02cce1c0bc2",
+    "port": {
+      "$numberInt": "27017"
+    },
+    "version": "4.4.30",
+    "gitVersion": "4d7fa6a6260d25c5caa971dce10561690cb79dea"
+  },
+  "ok": {
+    "$numberDouble": "1.0"
+  }
+}

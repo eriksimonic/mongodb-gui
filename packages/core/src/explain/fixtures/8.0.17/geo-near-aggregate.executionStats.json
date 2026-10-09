@@ -1,0 +1,427 @@
+{
+  "explainVersion": "1",
+  "stages": [
+    {
+      "$geoNearCursor": {
+        "queryPlanner": {
+          "namespace": "explain_capture.places",
+          "parsedQuery": {
+            "loc": {
+              "$nearSphere": {
+                "type": "Point",
+                "coordinates": [
+                  {
+                    "$numberDouble": "16.37"
+                  },
+                  {
+                    "$numberDouble": "48.2"
+                  }
+                ]
+              }
+            }
+          },
+          "indexFilterSet": false,
+          "queryHash": "039F9B18",
+          "planCacheShapeHash": "039F9B18",
+          "planCacheKey": "D9FCB901",
+          "optimizationTimeMillis": {
+            "$numberInt": "0"
+          },
+          "maxIndexedOrSolutionsReached": false,
+          "maxIndexedAndSolutionsReached": false,
+          "maxScansToExplodeReached": false,
+          "prunedSimilarIndexes": false,
+          "winningPlan": {
+            "isCached": false,
+            "stage": "GEO_NEAR_2DSPHERE",
+            "keyPattern": {
+              "loc": "2dsphere"
+            },
+            "indexName": "loc_2dsphere",
+            "indexVersion": {
+              "$numberInt": "2"
+            },
+            "inputStage": {
+              "stage": "FETCH",
+              "inputStage": {
+                "stage": "IXSCAN",
+                "keyPattern": {
+                  "loc": "2dsphere"
+                },
+                "indexName": "loc_2dsphere",
+                "isMultiKey": false,
+                "multiKeyPaths": {
+                  "loc": []
+                },
+                "isUnique": false,
+                "isSparse": false,
+                "isPartial": false,
+                "indexVersion": {
+                  "$numberInt": "2"
+                },
+                "direction": "forward",
+                "indexBounds": {
+                  "loc": [
+                    "[5116089176692883456, 5116089176692883456]",
+                    "[5134103575202365440, 5134103575202365440]",
+                    "[5146488474177634304, 5146488474177634304]",
+                    "[5146769949154344960, 5146769949154344960]",
+                    "[5146770498910158849, 5146771048665972735]",
+                    "[5146771048665972736, 5146771048665972736]",
+                    "[5146771186104926209, 5146771323543879679]",
+                    "[5146771323543879680, 5146771323543879680]",
+                    "[5146774347200856064, 5146774347200856064]",
+                    "[5146776546224111617, 5146778745247367167]",
+                    "[5146778745247367169, 5146779295003181055]",
+                    "[5146779295003181057, 5146779432442134527]",
+                    "[5146779432442134529, 5146779466801872895]",
+                    "[5146779501161611264, 5146779501161611264]",
+                    "[5146779552701218816, 5146779552701218816]",
+                    "[5146779556996186112, 5146779556996186112]",
+                    "[5146779558069927936, 5146779558069927936]",
+                    "[5146779558338363392, 5146779558338363392]",
+                    "[5146779558405472256, 5146779558405472256]",
+                    "[5146779558422249472, 5146779558422249472]",
+                    "[5146779558422249473, 5146779558430638079]",
+                    "[5146779569881088000, 5146779569881088000]",
+                    "[5146779707320041473, 5146779844758994943]",
+                    "[5146779844758994944, 5146779844758994944]",
+                    "[5146783143293878272, 5146783143293878272]",
+                    "[5146787541340389376, 5146787541340389376]",
+                    "[5146840317898522624, 5146840317898522624]",
+                    "[5146950269061300224, 5146950269061300224]",
+                    "[5146953567596183552, 5146953567596183552]",
+                    "[5146954117351997441, 5146954667107811327]",
+                    "[5146954667107811329, 5146955216863625215]",
+                    "[5146955216863625217, 5146955354302578687]",
+                    "[5146955491741532160, 5146955491741532160]",
+                    "[5146955629180485633, 5146955766619439103]",
+                    "[5146955766619439104, 5146955766619439104]",
+                    "[5146955766619439105, 5146955904058392575]",
+                    "[5146956041497346048, 5146956041497346048]",
+                    "[5146956178936299521, 5146956316375252991]",
+                    "[5146956316375252993, 5146956866131066879]",
+                    "[5146956866131066881, 5146957415886880767]",
+                    "[5146957965642694656, 5146957965642694656]",
+                    "[5146958790276415488, 5146958790276415488]",
+                    "[5146958858995892224, 5146958858995892224]",
+                    "[5146958858995892225, 5146958893355630591]",
+                    "[5146959065154322432, 5146959065154322432]",
+                    "[5146963463200833536, 5146963463200833536]",
+                    "[5146981055386877952, 5146981055386877952]",
+                    "[5147614374084476928, 5147614374084476928]"
+                  ]
+                }
+              }
+            }
+          },
+          "rejectedPlans": []
+        },
+        "executionStats": {
+          "executionSuccess": true,
+          "nReturned": {
+            "$numberInt": "32"
+          },
+          "executionTimeMillis": {
+            "$numberInt": "1"
+          },
+          "totalKeysExamined": {
+            "$numberInt": "419"
+          },
+          "totalDocsExamined": {
+            "$numberInt": "405"
+          },
+          "executionStages": {
+            "isCached": false,
+            "stage": "GEO_NEAR_2DSPHERE",
+            "nReturned": {
+              "$numberInt": "32"
+            },
+            "executionTimeMillisEstimate": {
+              "$numberInt": "0"
+            },
+            "works": {
+              "$numberInt": "464"
+            },
+            "advanced": {
+              "$numberInt": "32"
+            },
+            "needTime": {
+              "$numberInt": "432"
+            },
+            "needYield": {
+              "$numberInt": "0"
+            },
+            "saveState": {
+              "$numberInt": "2"
+            },
+            "restoreState": {
+              "$numberInt": "1"
+            },
+            "isEOF": {
+              "$numberInt": "0"
+            },
+            "keyPattern": {
+              "loc": "2dsphere"
+            },
+            "indexName": "loc_2dsphere",
+            "indexVersion": {
+              "$numberInt": "2"
+            },
+            "searchIntervals": [
+              {
+                "minDistance": {
+                  "$numberDouble": "0.0"
+                },
+                "maxDistance": {
+                  "$numberDouble": "6816.658590692302"
+                },
+                "maxInclusive": false,
+                "nBuffered": {
+                  "$numberInt": "405"
+                },
+                "nReturned": {
+                  "$numberInt": "32"
+                }
+              }
+            ],
+            "inputStage": {
+              "stage": "FETCH",
+              "nReturned": {
+                "$numberInt": "405"
+              },
+              "executionTimeMillisEstimate": {
+                "$numberInt": "0"
+              },
+              "works": {
+                "$numberInt": "420"
+              },
+              "advanced": {
+                "$numberInt": "405"
+              },
+              "needTime": {
+                "$numberInt": "14"
+              },
+              "needYield": {
+                "$numberInt": "0"
+              },
+              "saveState": {
+                "$numberInt": "1"
+              },
+              "restoreState": {
+                "$numberInt": "0"
+              },
+              "isEOF": {
+                "$numberInt": "1"
+              },
+              "docsExamined": {
+                "$numberInt": "405"
+              },
+              "alreadyHasObj": {
+                "$numberInt": "0"
+              },
+              "inputStage": {
+                "stage": "IXSCAN",
+                "nReturned": {
+                  "$numberInt": "405"
+                },
+                "executionTimeMillisEstimate": {
+                  "$numberInt": "0"
+                },
+                "works": {
+                  "$numberInt": "420"
+                },
+                "advanced": {
+                  "$numberInt": "405"
+                },
+                "needTime": {
+                  "$numberInt": "14"
+                },
+                "needYield": {
+                  "$numberInt": "0"
+                },
+                "saveState": {
+                  "$numberInt": "1"
+                },
+                "restoreState": {
+                  "$numberInt": "0"
+                },
+                "isEOF": {
+                  "$numberInt": "1"
+                },
+                "keyPattern": {
+                  "loc": "2dsphere"
+                },
+                "indexName": "loc_2dsphere",
+                "isMultiKey": false,
+                "multiKeyPaths": {
+                  "loc": []
+                },
+                "isUnique": false,
+                "isSparse": false,
+                "isPartial": false,
+                "indexVersion": {
+                  "$numberInt": "2"
+                },
+                "direction": "forward",
+                "indexBounds": {
+                  "loc": [
+                    "[5116089176692883456, 5116089176692883456]",
+                    "[5134103575202365440, 5134103575202365440]",
+                    "[5146488474177634304, 5146488474177634304]",
+                    "[5146769949154344960, 5146769949154344960]",
+                    "[5146770498910158849, 5146771048665972735]",
+                    "[5146771048665972736, 5146771048665972736]",
+                    "[5146771186104926209, 5146771323543879679]",
+                    "[5146771323543879680, 5146771323543879680]",
+                    "[5146774347200856064, 5146774347200856064]",
+                    "[5146776546224111617, 5146778745247367167]",
+                    "[5146778745247367169, 5146779295003181055]",
+                    "[5146779295003181057, 5146779432442134527]",
+                    "[5146779432442134529, 5146779466801872895]",
+                    "[5146779501161611264, 5146779501161611264]",
+                    "[5146779552701218816, 5146779552701218816]",
+                    "[5146779556996186112, 5146779556996186112]",
+                    "[5146779558069927936, 5146779558069927936]",
+                    "[5146779558338363392, 5146779558338363392]",
+                    "[5146779558405472256, 5146779558405472256]",
+                    "[5146779558422249472, 5146779558422249472]",
+                    "[5146779558422249473, 5146779558430638079]",
+                    "[5146779569881088000, 5146779569881088000]",
+                    "[5146779707320041473, 5146779844758994943]",
+                    "[5146779844758994944, 5146779844758994944]",
+                    "[5146783143293878272, 5146783143293878272]",
+                    "[5146787541340389376, 5146787541340389376]",
+                    "[5146840317898522624, 5146840317898522624]",
+                    "[5146950269061300224, 5146950269061300224]",
+                    "[5146953567596183552, 5146953567596183552]",
+                    "[5146954117351997441, 5146954667107811327]",
+                    "[5146954667107811329, 5146955216863625215]",
+                    "[5146955216863625217, 5146955354302578687]",
+                    "[5146955491741532160, 5146955491741532160]",
+                    "[5146955629180485633, 5146955766619439103]",
+                    "[5146955766619439104, 5146955766619439104]",
+                    "[5146955766619439105, 5146955904058392575]",
+                    "[5146956041497346048, 5146956041497346048]",
+                    "[5146956178936299521, 5146956316375252991]",
+                    "[5146956316375252993, 5146956866131066879]",
+                    "[5146956866131066881, 5146957415886880767]",
+                    "[5146957965642694656, 5146957965642694656]",
+                    "[5146958790276415488, 5146958790276415488]",
+                    "[5146958858995892224, 5146958858995892224]",
+                    "[5146958858995892225, 5146958893355630591]",
+                    "[5146959065154322432, 5146959065154322432]",
+                    "[5146963463200833536, 5146963463200833536]",
+                    "[5146981055386877952, 5146981055386877952]",
+                    "[5147614374084476928, 5147614374084476928]"
+                  ]
+                },
+                "keysExamined": {
+                  "$numberInt": "419"
+                },
+                "seeks": {
+                  "$numberInt": "15"
+                },
+                "dupsTested": {
+                  "$numberInt": "0"
+                },
+                "dupsDropped": {
+                  "$numberInt": "0"
+                }
+              }
+            }
+          }
+        }
+      },
+      "nReturned": {
+        "$numberLong": "5"
+      },
+      "executionTimeMillisEstimate": {
+        "$numberLong": "1"
+      }
+    },
+    {
+      "$limit": {
+        "$numberLong": "5"
+      },
+      "nReturned": {
+        "$numberLong": "5"
+      },
+      "executionTimeMillisEstimate": {
+        "$numberLong": "1"
+      }
+    }
+  ],
+  "queryShapeHash": "B7D991D9EB9E432D27F619FEC86E69925C1FB54E083A647A206F92673DC03BE8",
+  "serverInfo": {
+    "host": "488f3bea497e",
+    "port": {
+      "$numberInt": "27017"
+    },
+    "version": "8.0.17",
+    "gitVersion": "b20e43625b72f4bb43cc15107f80ac966ae13b6d"
+  },
+  "serverParameters": {
+    "internalQueryFacetBufferSizeBytes": {
+      "$numberInt": "104857600"
+    },
+    "internalQueryFacetMaxOutputDocSizeBytes": {
+      "$numberInt": "104857600"
+    },
+    "internalLookupStageIntermediateDocumentMaxSizeBytes": {
+      "$numberInt": "104857600"
+    },
+    "internalDocumentSourceGroupMaxMemoryBytes": {
+      "$numberInt": "104857600"
+    },
+    "internalQueryMaxBlockingSortMemoryUsageBytes": {
+      "$numberInt": "104857600"
+    },
+    "internalQueryProhibitBlockingMergeOnMongoS": {
+      "$numberInt": "0"
+    },
+    "internalQueryMaxAddToSetBytes": {
+      "$numberInt": "104857600"
+    },
+    "internalDocumentSourceSetWindowFieldsMaxMemoryBytes": {
+      "$numberInt": "104857600"
+    },
+    "internalQueryFrameworkControl": "trySbeRestricted",
+    "internalQueryPlannerIgnoreIndexWithCollationForRegex": {
+      "$numberInt": "1"
+    }
+  },
+  "command": {
+    "aggregate": "places",
+    "pipeline": [
+      {
+        "$geoNear": {
+          "near": {
+            "type": "Point",
+            "coordinates": [
+              {
+                "$numberDouble": "16.37"
+              },
+              {
+                "$numberDouble": "48.2"
+              }
+            ]
+          },
+          "distanceField": "dist",
+          "key": "loc",
+          "spherical": true
+        }
+      },
+      {
+        "$limit": {
+          "$numberInt": "5"
+        }
+      }
+    ],
+    "cursor": {},
+    "$db": "explain_capture"
+  },
+  "ok": {
+    "$numberDouble": "1.0"
+  }
+}

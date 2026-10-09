@@ -104,8 +104,13 @@ export function rewriteForExplain(code: string, verbosity: PlanVerbosity): Expla
   }
   const collection = collectionSegment(segments[0]);
   // The prefix form db.<coll>.explain(<verbosity>).<method>(...) is the same query. Its own
-  // verbosity is dropped, and the requested one takes its place.
-  const hasPrefix = segments[1]?.name === 'explain' && segments.length > 2;
+  // verbosity is dropped, and the requested one takes its place. Without the call parentheses,
+  // explain is a property and not the prefix form, so the statement is refused.
+  const explainSegment = segments[1];
+  if (explainSegment?.name === 'explain' && explainSegment.args === undefined) {
+    return refused;
+  }
+  const hasPrefix = explainSegment?.name === 'explain' && segments.length > 2;
   const afterCollection = hasPrefix ? segments.slice(2) : segments.slice(1);
   const method = afterCollection[0];
   if (collection === undefined || method === undefined || method.args === undefined) {
@@ -185,6 +190,10 @@ function unquote(text: string): string | undefined {
     return undefined;
   }
   const inner = trimmed.slice(1, -1);
+  // A template placeholder would run code when the statement is evaluated, so it is refused.
+  if (inner.includes('${')) {
+    return undefined;
+  }
   for (const char of inner) {
     if (char === quote || char === '\\' || char === '`' || char === '"' || char === "'") {
       return undefined;

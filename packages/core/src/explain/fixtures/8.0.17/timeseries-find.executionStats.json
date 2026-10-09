@@ -1,0 +1,254 @@
+{
+  "explainVersion": "1",
+  "stages": [
+    {
+      "$cursor": {
+        "queryPlanner": {
+          "namespace": "explain_capture.system.buckets.readings",
+          "parsedQuery": {
+            "meta.sensor": {
+              "$eq": "s1"
+            }
+          },
+          "indexFilterSet": false,
+          "queryHash": "1AC4FE6B",
+          "planCacheShapeHash": "1AC4FE6B",
+          "planCacheKey": "F6907757",
+          "optimizationTimeMillis": {
+            "$numberInt": "0"
+          },
+          "maxIndexedOrSolutionsReached": false,
+          "maxIndexedAndSolutionsReached": false,
+          "maxScansToExplodeReached": false,
+          "prunedSimilarIndexes": false,
+          "winningPlan": {
+            "isCached": false,
+            "stage": "COLLSCAN",
+            "filter": {
+              "meta.sensor": {
+                "$eq": "s1"
+              }
+            },
+            "direction": "backward"
+          },
+          "rejectedPlans": []
+        },
+        "executionStats": {
+          "executionSuccess": true,
+          "nReturned": {
+            "$numberInt": "1"
+          },
+          "executionTimeMillis": {
+            "$numberInt": "0"
+          },
+          "totalKeysExamined": {
+            "$numberInt": "0"
+          },
+          "totalDocsExamined": {
+            "$numberInt": "2"
+          },
+          "executionStages": {
+            "isCached": false,
+            "stage": "COLLSCAN",
+            "filter": {
+              "meta.sensor": {
+                "$eq": "s1"
+              }
+            },
+            "nReturned": {
+              "$numberInt": "1"
+            },
+            "executionTimeMillisEstimate": {
+              "$numberInt": "0"
+            },
+            "works": {
+              "$numberInt": "3"
+            },
+            "advanced": {
+              "$numberInt": "1"
+            },
+            "needTime": {
+              "$numberInt": "1"
+            },
+            "needYield": {
+              "$numberInt": "0"
+            },
+            "saveState": {
+              "$numberInt": "1"
+            },
+            "restoreState": {
+              "$numberInt": "1"
+            },
+            "isEOF": {
+              "$numberInt": "1"
+            },
+            "direction": "backward",
+            "docsExamined": {
+              "$numberInt": "2"
+            }
+          }
+        }
+      },
+      "nReturned": {
+        "$numberLong": "1"
+      },
+      "executionTimeMillisEstimate": {
+        "$numberLong": "0"
+      }
+    },
+    {
+      "$match": {
+        "$expr": {
+          "$lte": [
+            {
+              "$subtract": [
+                "$control.max.t",
+                "$control.min.t"
+              ]
+            },
+            {
+              "$const": {
+                "$numberLong": "86400000"
+              }
+            }
+          ]
+        }
+      },
+      "nReturned": {
+        "$numberLong": "1"
+      },
+      "executionTimeMillisEstimate": {
+        "$numberLong": "0"
+      }
+    },
+    {
+      "$_internalUnpackBucket": {
+        "exclude": [],
+        "timeField": "t",
+        "metaField": "meta",
+        "bucketMaxSpanSeconds": {
+          "$numberInt": "86400"
+        },
+        "assumeNoMixedSchemaData": true,
+        "includeMinTimeAsMetadata": true,
+        "sbeCompatible": false
+      },
+      "nReturned": {
+        "$numberLong": "250"
+      },
+      "executionTimeMillisEstimate": {
+        "$numberLong": "0"
+      }
+    },
+    {
+      "$_internalBoundedSort": {
+        "sortKey": {
+          "t": {
+            "$numberInt": "-1"
+          }
+        },
+        "bound": {
+          "base": "min",
+          "offsetSeconds": {
+            "$numberLong": "86400"
+          }
+        },
+        "limit": {
+          "$numberLong": "0"
+        }
+      },
+      "totalDataSizeSortedBytesEstimate": {
+        "$numberLong": "206000"
+      },
+      "usedDisk": false,
+      "spills": {
+        "$numberLong": "0"
+      },
+      "spilledDataStorageSize": {
+        "$numberLong": "0"
+      },
+      "nReturned": {
+        "$numberLong": "250"
+      },
+      "executionTimeMillisEstimate": {
+        "$numberLong": "0"
+      }
+    }
+  ],
+  "queryShapeHash": "E4304B4D8BFC4B235B283E40CC2B4B542DDAB4D9D47F56097CA97DFF456DA908",
+  "serverInfo": {
+    "host": "488f3bea497e",
+    "port": {
+      "$numberInt": "27017"
+    },
+    "version": "8.0.17",
+    "gitVersion": "b20e43625b72f4bb43cc15107f80ac966ae13b6d"
+  },
+  "serverParameters": {
+    "internalQueryFacetBufferSizeBytes": {
+      "$numberInt": "104857600"
+    },
+    "internalQueryFacetMaxOutputDocSizeBytes": {
+      "$numberInt": "104857600"
+    },
+    "internalLookupStageIntermediateDocumentMaxSizeBytes": {
+      "$numberInt": "104857600"
+    },
+    "internalDocumentSourceGroupMaxMemoryBytes": {
+      "$numberInt": "104857600"
+    },
+    "internalQueryMaxBlockingSortMemoryUsageBytes": {
+      "$numberInt": "104857600"
+    },
+    "internalQueryProhibitBlockingMergeOnMongoS": {
+      "$numberInt": "0"
+    },
+    "internalQueryMaxAddToSetBytes": {
+      "$numberInt": "104857600"
+    },
+    "internalDocumentSourceSetWindowFieldsMaxMemoryBytes": {
+      "$numberInt": "104857600"
+    },
+    "internalQueryFrameworkControl": "trySbeRestricted",
+    "internalQueryPlannerIgnoreIndexWithCollationForRegex": {
+      "$numberInt": "1"
+    }
+  },
+  "command": {
+    "aggregate": "system.buckets.readings",
+    "pipeline": [
+      {
+        "$_internalUnpackBucket": {
+          "timeField": "t",
+          "metaField": "meta",
+          "bucketMaxSpanSeconds": {
+            "$numberInt": "86400"
+          },
+          "assumeNoMixedSchemaData": true,
+          "usesExtendedRange": false,
+          "fixedBuckets": false
+        }
+      },
+      {
+        "$match": {
+          "meta.sensor": "s1"
+        }
+      },
+      {
+        "$sort": {
+          "t": {
+            "$numberInt": "-1"
+          }
+        }
+      }
+    ],
+    "cursor": {},
+    "collation": {
+      "locale": "simple"
+    },
+    "querySettings": {}
+  },
+  "ok": {
+    "$numberDouble": "1.0"
+  }
+}

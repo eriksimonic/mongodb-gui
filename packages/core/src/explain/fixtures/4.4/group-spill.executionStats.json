@@ -1,0 +1,156 @@
+{
+  "stages": [
+    {
+      "$cursor": {
+        "queryPlanner": {
+          "plannerVersion": {
+            "$numberInt": "1"
+          },
+          "namespace": "explain_capture.places",
+          "indexFilterSet": false,
+          "parsedQuery": {},
+          "queryHash": "248F0BF0",
+          "planCacheKey": "248F0BF0",
+          "winningPlan": {
+            "stage": "PROJECTION_SIMPLE",
+            "transformBy": {
+              "name": {
+                "$numberInt": "1"
+              },
+              "_id": {
+                "$numberInt": "0"
+              }
+            },
+            "inputStage": {
+              "stage": "COLLSCAN",
+              "direction": "forward"
+            }
+          },
+          "rejectedPlans": []
+        },
+        "executionStats": {
+          "executionSuccess": true,
+          "nReturned": {
+            "$numberInt": "3000"
+          },
+          "executionTimeMillis": {
+            "$numberInt": "2"
+          },
+          "totalKeysExamined": {
+            "$numberInt": "0"
+          },
+          "totalDocsExamined": {
+            "$numberInt": "3000"
+          },
+          "executionStages": {
+            "stage": "PROJECTION_SIMPLE",
+            "nReturned": {
+              "$numberInt": "3000"
+            },
+            "executionTimeMillisEstimate": {
+              "$numberInt": "0"
+            },
+            "works": {
+              "$numberInt": "3002"
+            },
+            "advanced": {
+              "$numberInt": "3000"
+            },
+            "needTime": {
+              "$numberInt": "1"
+            },
+            "needYield": {
+              "$numberInt": "0"
+            },
+            "saveState": {
+              "$numberInt": "4"
+            },
+            "restoreState": {
+              "$numberInt": "4"
+            },
+            "isEOF": {
+              "$numberInt": "1"
+            },
+            "transformBy": {
+              "name": {
+                "$numberInt": "1"
+              },
+              "_id": {
+                "$numberInt": "0"
+              }
+            },
+            "inputStage": {
+              "stage": "COLLSCAN",
+              "nReturned": {
+                "$numberInt": "3000"
+              },
+              "executionTimeMillisEstimate": {
+                "$numberInt": "0"
+              },
+              "works": {
+                "$numberInt": "3002"
+              },
+              "advanced": {
+                "$numberInt": "3000"
+              },
+              "needTime": {
+                "$numberInt": "1"
+              },
+              "needYield": {
+                "$numberInt": "0"
+              },
+              "saveState": {
+                "$numberInt": "4"
+              },
+              "restoreState": {
+                "$numberInt": "4"
+              },
+              "isEOF": {
+                "$numberInt": "1"
+              },
+              "direction": "forward",
+              "docsExamined": {
+                "$numberInt": "3000"
+              }
+            }
+          }
+        }
+      },
+      "nReturned": {
+        "$numberLong": "3000"
+      },
+      "executionTimeMillisEstimate": {
+        "$numberLong": "0"
+      }
+    },
+    {
+      "$group": {
+        "_id": "$name",
+        "n": {
+          "$sum": {
+            "$const": {
+              "$numberInt": "1"
+            }
+          }
+        }
+      },
+      "nReturned": {
+        "$numberLong": "3000"
+      },
+      "executionTimeMillisEstimate": {
+        "$numberLong": "0"
+      }
+    }
+  ],
+  "serverInfo": {
+    "host": "b02cce1c0bc2",
+    "port": {
+      "$numberInt": "27017"
+    },
+    "version": "4.4.30",
+    "gitVersion": "4d7fa6a6260d25c5caa971dce10561690cb79dea"
+  },
+  "ok": {
+    "$numberDouble": "1.0"
+  }
+}

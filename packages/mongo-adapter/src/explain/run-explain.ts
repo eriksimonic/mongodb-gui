@@ -46,10 +46,15 @@ export function wrapWriteCommand(
   if (op === 'update') {
     return { update: collection, updates: [statement] };
   }
-  return {
-    delete: collection,
-    deletes: [{ q: statement['q'] ?? {}, limit: statement['limit'] ?? 0 }],
-  };
+  // hint and collation change the plan, so the wrapped delete carries them as the profile had them.
+  const entry: Document = { q: statement['q'] ?? {}, limit: statement['limit'] ?? 0 };
+  if (statement['hint'] !== undefined) {
+    entry['hint'] = statement['hint'];
+  }
+  if (statement['collation'] !== undefined) {
+    entry['collation'] = statement['collation'];
+  }
+  return { delete: collection, deletes: [entry] };
 }
 
 // Runs the explain command for a captured command on the database. The command runs with explain

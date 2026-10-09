@@ -1,0 +1,282 @@
+{
+  "explainVersion": "1",
+  "queryPlanner": {
+    "namespace": "explain_capture.places",
+    "parsedQuery": {
+      "$and": [
+        {
+          "cuisine": {
+            "$eq": "pizza"
+          }
+        },
+        {
+          "rating": {
+            "$gt": {
+              "$numberInt": "3"
+            }
+          }
+        }
+      ]
+    },
+    "indexFilterSet": false,
+    "queryHash": "0D4E6FE3",
+    "planCacheShapeHash": "0D4E6FE3",
+    "planCacheKey": "779DB2DC",
+    "optimizationTimeMillis": {
+      "$numberInt": "0"
+    },
+    "maxIndexedOrSolutionsReached": false,
+    "maxIndexedAndSolutionsReached": false,
+    "maxScansToExplodeReached": false,
+    "prunedSimilarIndexes": false,
+    "winningPlan": {
+      "isCached": true,
+      "stage": "FETCH",
+      "inputStage": {
+        "stage": "IXSCAN",
+        "keyPattern": {
+          "cuisine": {
+            "$numberInt": "1"
+          },
+          "rating": {
+            "$numberInt": "-1"
+          }
+        },
+        "indexName": "cuisine_1_rating_-1",
+        "isMultiKey": false,
+        "multiKeyPaths": {
+          "cuisine": [],
+          "rating": []
+        },
+        "isUnique": false,
+        "isSparse": false,
+        "isPartial": false,
+        "indexVersion": {
+          "$numberInt": "2"
+        },
+        "direction": "forward",
+        "indexBounds": {
+          "cuisine": [
+            "[\"pizza\", \"pizza\"]"
+          ],
+          "rating": [
+            "[inf.0, 3)"
+          ]
+        }
+      }
+    },
+    "rejectedPlans": [
+      {
+        "isCached": false,
+        "stage": "FETCH",
+        "filter": {
+          "cuisine": {
+            "$eq": "pizza"
+          }
+        },
+        "inputStage": {
+          "stage": "IXSCAN",
+          "keyPattern": {
+            "rating": {
+              "$numberInt": "1"
+            }
+          },
+          "indexName": "rating_1",
+          "isMultiKey": false,
+          "multiKeyPaths": {
+            "rating": []
+          },
+          "isUnique": false,
+          "isSparse": false,
+          "isPartial": false,
+          "indexVersion": {
+            "$numberInt": "2"
+          },
+          "direction": "forward",
+          "indexBounds": {
+            "rating": [
+              "(3, inf.0]"
+            ]
+          }
+        }
+      }
+    ]
+  },
+  "executionStats": {
+    "executionSuccess": true,
+    "nReturned": {
+      "$numberInt": "0"
+    },
+    "executionTimeMillis": {
+      "$numberInt": "0"
+    },
+    "totalKeysExamined": {
+      "$numberInt": "0"
+    },
+    "totalDocsExamined": {
+      "$numberInt": "0"
+    },
+    "executionStages": {
+      "isCached": true,
+      "stage": "FETCH",
+      "nReturned": {
+        "$numberInt": "0"
+      },
+      "executionTimeMillisEstimate": {
+        "$numberInt": "0"
+      },
+      "works": {
+        "$numberInt": "2"
+      },
+      "advanced": {
+        "$numberInt": "0"
+      },
+      "needTime": {
+        "$numberInt": "0"
+      },
+      "needYield": {
+        "$numberInt": "0"
+      },
+      "saveState": {
+        "$numberInt": "0"
+      },
+      "restoreState": {
+        "$numberInt": "0"
+      },
+      "isEOF": {
+        "$numberInt": "1"
+      },
+      "docsExamined": {
+        "$numberInt": "0"
+      },
+      "alreadyHasObj": {
+        "$numberInt": "0"
+      },
+      "inputStage": {
+        "stage": "IXSCAN",
+        "nReturned": {
+          "$numberInt": "0"
+        },
+        "executionTimeMillisEstimate": {
+          "$numberInt": "0"
+        },
+        "works": {
+          "$numberInt": "1"
+        },
+        "advanced": {
+          "$numberInt": "0"
+        },
+        "needTime": {
+          "$numberInt": "0"
+        },
+        "needYield": {
+          "$numberInt": "0"
+        },
+        "saveState": {
+          "$numberInt": "0"
+        },
+        "restoreState": {
+          "$numberInt": "0"
+        },
+        "isEOF": {
+          "$numberInt": "1"
+        },
+        "keyPattern": {
+          "cuisine": {
+            "$numberInt": "1"
+          },
+          "rating": {
+            "$numberInt": "-1"
+          }
+        },
+        "indexName": "cuisine_1_rating_-1",
+        "isMultiKey": false,
+        "multiKeyPaths": {
+          "cuisine": [],
+          "rating": []
+        },
+        "isUnique": false,
+        "isSparse": false,
+        "isPartial": false,
+        "indexVersion": {
+          "$numberInt": "2"
+        },
+        "direction": "forward",
+        "indexBounds": {
+          "cuisine": [
+            "[\"pizza\", \"pizza\"]"
+          ],
+          "rating": [
+            "[inf.0, 3)"
+          ]
+        },
+        "keysExamined": {
+          "$numberInt": "0"
+        },
+        "seeks": {
+          "$numberInt": "1"
+        },
+        "dupsTested": {
+          "$numberInt": "0"
+        },
+        "dupsDropped": {
+          "$numberInt": "0"
+        }
+      }
+    }
+  },
+  "queryShapeHash": "2C58E56A159413905582DCB0BF2151C79859CF4714F4C8F01A6043CEA9D8468B",
+  "command": {
+    "find": "places",
+    "filter": {
+      "cuisine": "pizza",
+      "rating": {
+        "$gt": {
+          "$numberInt": "3"
+        }
+      }
+    },
+    "$db": "explain_capture"
+  },
+  "serverInfo": {
+    "host": "488f3bea497e",
+    "port": {
+      "$numberInt": "27017"
+    },
+    "version": "8.0.17",
+    "gitVersion": "b20e43625b72f4bb43cc15107f80ac966ae13b6d"
+  },
+  "serverParameters": {
+    "internalQueryFacetBufferSizeBytes": {
+      "$numberInt": "104857600"
+    },
+    "internalQueryFacetMaxOutputDocSizeBytes": {
+      "$numberInt": "104857600"
+    },
+    "internalLookupStageIntermediateDocumentMaxSizeBytes": {
+      "$numberInt": "104857600"
+    },
+    "internalDocumentSourceGroupMaxMemoryBytes": {
+      "$numberInt": "104857600"
+    },
+    "internalQueryMaxBlockingSortMemoryUsageBytes": {
+      "$numberInt": "104857600"
+    },
+    "internalQueryProhibitBlockingMergeOnMongoS": {
+      "$numberInt": "0"
+    },
+    "internalQueryMaxAddToSetBytes": {
+      "$numberInt": "104857600"
+    },
+    "internalDocumentSourceSetWindowFieldsMaxMemoryBytes": {
+      "$numberInt": "104857600"
+    },
+    "internalQueryFrameworkControl": "trySbeRestricted",
+    "internalQueryPlannerIgnoreIndexWithCollationForRegex": {
+      "$numberInt": "1"
+    }
+  },
+  "ok": {
+    "$numberDouble": "1.0"
+  }
+}

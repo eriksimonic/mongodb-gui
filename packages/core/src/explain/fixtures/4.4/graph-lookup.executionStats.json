@@ -1,0 +1,114 @@
+{
+  "stages": [
+    {
+      "$cursor": {
+        "queryPlanner": {
+          "plannerVersion": {
+            "$numberInt": "1"
+          },
+          "namespace": "explain_capture.customers",
+          "indexFilterSet": false,
+          "parsedQuery": {
+            "_id": {
+              "$eq": {
+                "$numberInt": "5"
+              }
+            }
+          },
+          "queryHash": "A300CFDE",
+          "planCacheKey": "A2B33459",
+          "winningPlan": {
+            "stage": "IDHACK"
+          },
+          "rejectedPlans": []
+        },
+        "executionStats": {
+          "executionSuccess": true,
+          "nReturned": {
+            "$numberInt": "1"
+          },
+          "executionTimeMillis": {
+            "$numberInt": "0"
+          },
+          "totalKeysExamined": {
+            "$numberInt": "1"
+          },
+          "totalDocsExamined": {
+            "$numberInt": "1"
+          },
+          "executionStages": {
+            "stage": "IDHACK",
+            "nReturned": {
+              "$numberInt": "1"
+            },
+            "executionTimeMillisEstimate": {
+              "$numberInt": "0"
+            },
+            "works": {
+              "$numberInt": "2"
+            },
+            "advanced": {
+              "$numberInt": "1"
+            },
+            "needTime": {
+              "$numberInt": "0"
+            },
+            "needYield": {
+              "$numberInt": "0"
+            },
+            "saveState": {
+              "$numberInt": "1"
+            },
+            "restoreState": {
+              "$numberInt": "1"
+            },
+            "isEOF": {
+              "$numberInt": "1"
+            },
+            "keysExamined": {
+              "$numberInt": "1"
+            },
+            "docsExamined": {
+              "$numberInt": "1"
+            }
+          }
+        }
+      },
+      "nReturned": {
+        "$numberLong": "1"
+      },
+      "executionTimeMillisEstimate": {
+        "$numberLong": "0"
+      }
+    },
+    {
+      "$graphLookup": {
+        "from": "customers",
+        "as": "chain",
+        "connectToField": "_id",
+        "connectFromField": "referredBy",
+        "startWith": "$referredBy",
+        "maxDepth": {
+          "$numberLong": "3"
+        }
+      },
+      "nReturned": {
+        "$numberLong": "1"
+      },
+      "executionTimeMillisEstimate": {
+        "$numberLong": "0"
+      }
+    }
+  ],
+  "serverInfo": {
+    "host": "b02cce1c0bc2",
+    "port": {
+      "$numberInt": "27017"
+    },
+    "version": "4.4.30",
+    "gitVersion": "4d7fa6a6260d25c5caa971dce10561690cb79dea"
+  },
+  "ok": {
+    "$numberDouble": "1.0"
+  }
+}

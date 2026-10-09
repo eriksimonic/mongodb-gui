@@ -25,6 +25,11 @@ export const PlanWarningCodeSchema = z.enum([
   'MANY_REJECTED_PLANS',
   'MULTIKEY_INDEX',
   'NO_EXECUTION_STATS',
+  'GROUP_SPILLED',
+  'ORPHANS_FILTERED',
+  'LOOKUP_WITHOUT_INDEX',
+  'BLOCKING_STAGE_BEFORE_MATCH',
+  'UNBOUNDED_FACET',
 ]);
 
 export const PlanWarningSeveritySchema = z.enum(['info', 'warning', 'critical']);
@@ -40,6 +45,9 @@ export type PlanWarningSeverity = z.infer<typeof PlanWarningSeveritySchema>;
 // inputs). `raw` keeps the server's JSON for this node, so nothing is lost in normalisation.
 export interface PlanStage {
   name: string;
+  // What a sub-tree node is, for example "inner pipeline of $lookup from customers" or "shard
+  // shard01". Absent on the main chain of stages.
+  label?: string;
   index?: string;
   indexBounds?: Record<string, string[]>;
   direction?: PlanDirection;
@@ -53,6 +61,11 @@ export interface PlanStage {
   memUsageBytes?: number;
   memLimitBytes?: number;
   usedDisk?: boolean;
+  // Spill counters of a sort or group, as the server reports them.
+  spills?: number;
+  spilledBytes?: number;
+  // Documents a SHARDING_FILTER dropped because they belong to another shard's chunk.
+  chunkSkips?: number;
   shard?: string;
   // Field names of the index key pattern, in order.
   indexKeys?: string[];
@@ -81,6 +94,8 @@ export interface PlanWarning {
   severity: PlanWarningSeverity;
   message: string;
   stageName?: string;
+  // What to do about the warning, from the stage catalogue. Absent when the stage has no advice.
+  advice?: string;
 }
 
 export interface PlanTree {
@@ -101,6 +116,7 @@ export interface PlanTree {
 export const PlanStageSchema: z.ZodType<PlanStage> = z.lazy(() =>
   z.object({
     name: z.string(),
+    label: z.exactOptional(z.string()),
     index: z.exactOptional(z.string()),
     indexBounds: z.exactOptional(z.record(z.string(), z.array(z.string()))),
     direction: z.exactOptional(PlanDirectionSchema),
@@ -114,6 +130,9 @@ export const PlanStageSchema: z.ZodType<PlanStage> = z.lazy(() =>
     memUsageBytes: z.exactOptional(z.number()),
     memLimitBytes: z.exactOptional(z.number()),
     usedDisk: z.exactOptional(z.boolean()),
+    spills: z.exactOptional(z.number()),
+    spilledBytes: z.exactOptional(z.number()),
+    chunkSkips: z.exactOptional(z.number()),
     shard: z.exactOptional(z.string()),
     indexKeys: z.exactOptional(z.array(z.string())),
     projection: z.exactOptional(z.record(z.string(), z.unknown())),
@@ -140,6 +159,7 @@ export const PlanWarningSchema: z.ZodType<PlanWarning> = z.object({
   severity: PlanWarningSeveritySchema,
   message: z.string(),
   stageName: z.exactOptional(z.string()),
+  advice: z.exactOptional(z.string()),
 });
 
 export const PlanTreeSchema: z.ZodType<PlanTree> = z.object({

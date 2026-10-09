@@ -1,0 +1,490 @@
+{
+  "explainVersion": "1",
+  "stages": [
+    {
+      "$cursor": {
+        "queryPlanner": {
+          "namespace": "explain_capture.places",
+          "parsedQuery": {
+            "cuisine": {
+              "$eq": "thai"
+            }
+          },
+          "indexFilterSet": false,
+          "queryHash": "1CBC7AB7",
+          "planCacheShapeHash": "1CBC7AB7",
+          "planCacheKey": "92C1C5A3",
+          "optimizationTimeMillis": {
+            "$numberInt": "0"
+          },
+          "maxIndexedOrSolutionsReached": false,
+          "maxIndexedAndSolutionsReached": false,
+          "maxScansToExplodeReached": false,
+          "prunedSimilarIndexes": false,
+          "winningPlan": {
+            "isCached": false,
+            "stage": "PROJECTION_SIMPLE",
+            "transformBy": {
+              "_id": {
+                "$numberInt": "1"
+              },
+              "name": {
+                "$numberInt": "1"
+              },
+              "rating": {
+                "$numberInt": "1"
+              },
+              "tags": {
+                "$numberInt": "1"
+              }
+            },
+            "inputStage": {
+              "stage": "FETCH",
+              "inputStage": {
+                "stage": "IXSCAN",
+                "keyPattern": {
+                  "cuisine": {
+                    "$numberInt": "1"
+                  },
+                  "rating": {
+                    "$numberInt": "-1"
+                  }
+                },
+                "indexName": "cuisine_1_rating_-1",
+                "isMultiKey": false,
+                "multiKeyPaths": {
+                  "cuisine": [],
+                  "rating": []
+                },
+                "isUnique": false,
+                "isSparse": false,
+                "isPartial": false,
+                "indexVersion": {
+                  "$numberInt": "2"
+                },
+                "direction": "forward",
+                "indexBounds": {
+                  "cuisine": [
+                    "[\"thai\", \"thai\"]"
+                  ],
+                  "rating": [
+                    "[MaxKey, MinKey]"
+                  ]
+                }
+              }
+            }
+          },
+          "rejectedPlans": []
+        },
+        "executionStats": {
+          "executionSuccess": true,
+          "nReturned": {
+            "$numberInt": "600"
+          },
+          "executionTimeMillis": {
+            "$numberInt": "1"
+          },
+          "totalKeysExamined": {
+            "$numberInt": "600"
+          },
+          "totalDocsExamined": {
+            "$numberInt": "600"
+          },
+          "executionStages": {
+            "isCached": false,
+            "stage": "PROJECTION_SIMPLE",
+            "nReturned": {
+              "$numberInt": "600"
+            },
+            "executionTimeMillisEstimate": {
+              "$numberInt": "0"
+            },
+            "works": {
+              "$numberInt": "601"
+            },
+            "advanced": {
+              "$numberInt": "600"
+            },
+            "needTime": {
+              "$numberInt": "0"
+            },
+            "needYield": {
+              "$numberInt": "0"
+            },
+            "saveState": {
+              "$numberInt": "5"
+            },
+            "restoreState": {
+              "$numberInt": "5"
+            },
+            "isEOF": {
+              "$numberInt": "1"
+            },
+            "transformBy": {
+              "_id": {
+                "$numberInt": "1"
+              },
+              "name": {
+                "$numberInt": "1"
+              },
+              "rating": {
+                "$numberInt": "1"
+              },
+              "tags": {
+                "$numberInt": "1"
+              }
+            },
+            "inputStage": {
+              "stage": "FETCH",
+              "nReturned": {
+                "$numberInt": "600"
+              },
+              "executionTimeMillisEstimate": {
+                "$numberInt": "0"
+              },
+              "works": {
+                "$numberInt": "601"
+              },
+              "advanced": {
+                "$numberInt": "600"
+              },
+              "needTime": {
+                "$numberInt": "0"
+              },
+              "needYield": {
+                "$numberInt": "0"
+              },
+              "saveState": {
+                "$numberInt": "5"
+              },
+              "restoreState": {
+                "$numberInt": "5"
+              },
+              "isEOF": {
+                "$numberInt": "1"
+              },
+              "docsExamined": {
+                "$numberInt": "600"
+              },
+              "alreadyHasObj": {
+                "$numberInt": "0"
+              },
+              "inputStage": {
+                "stage": "IXSCAN",
+                "nReturned": {
+                  "$numberInt": "600"
+                },
+                "executionTimeMillisEstimate": {
+                  "$numberInt": "0"
+                },
+                "works": {
+                  "$numberInt": "601"
+                },
+                "advanced": {
+                  "$numberInt": "600"
+                },
+                "needTime": {
+                  "$numberInt": "0"
+                },
+                "needYield": {
+                  "$numberInt": "0"
+                },
+                "saveState": {
+                  "$numberInt": "5"
+                },
+                "restoreState": {
+                  "$numberInt": "5"
+                },
+                "isEOF": {
+                  "$numberInt": "1"
+                },
+                "keyPattern": {
+                  "cuisine": {
+                    "$numberInt": "1"
+                  },
+                  "rating": {
+                    "$numberInt": "-1"
+                  }
+                },
+                "indexName": "cuisine_1_rating_-1",
+                "isMultiKey": false,
+                "multiKeyPaths": {
+                  "cuisine": [],
+                  "rating": []
+                },
+                "isUnique": false,
+                "isSparse": false,
+                "isPartial": false,
+                "indexVersion": {
+                  "$numberInt": "2"
+                },
+                "direction": "forward",
+                "indexBounds": {
+                  "cuisine": [
+                    "[\"thai\", \"thai\"]"
+                  ],
+                  "rating": [
+                    "[MaxKey, MinKey]"
+                  ]
+                },
+                "keysExamined": {
+                  "$numberInt": "600"
+                },
+                "seeks": {
+                  "$numberInt": "1"
+                },
+                "dupsTested": {
+                  "$numberInt": "0"
+                },
+                "dupsDropped": {
+                  "$numberInt": "0"
+                }
+              }
+            }
+          }
+        }
+      },
+      "nReturned": {
+        "$numberLong": "600"
+      },
+      "executionTimeMillisEstimate": {
+        "$numberLong": "1"
+      }
+    },
+    {
+      "$unwind": {
+        "path": "$tags"
+      },
+      "nReturned": {
+        "$numberLong": "1200"
+      },
+      "executionTimeMillisEstimate": {
+        "$numberLong": "1"
+      }
+    },
+    {
+      "$addFields": {
+        "score": {
+          "$multiply": [
+            "$rating",
+            {
+              "$const": {
+                "$numberInt": "2"
+              }
+            }
+          ]
+        }
+      },
+      "nReturned": {
+        "$numberLong": "1200"
+      },
+      "executionTimeMillisEstimate": {
+        "$numberLong": "1"
+      }
+    },
+    {
+      "$project": {
+        "_id": true,
+        "name": true,
+        "score": true
+      },
+      "nReturned": {
+        "$numberLong": "1200"
+      },
+      "executionTimeMillisEstimate": {
+        "$numberLong": "1"
+      }
+    },
+    {
+      "$sort": {
+        "sortKey": {
+          "score": {
+            "$numberInt": "-1"
+          }
+        },
+        "limit": {
+          "$numberLong": "6"
+        }
+      },
+      "totalDataSizeSortedBytesEstimate": {
+        "$numberLong": "2624"
+      },
+      "usedDisk": false,
+      "spills": {
+        "$numberLong": "0"
+      },
+      "spilledDataStorageSize": {
+        "$numberLong": "0"
+      },
+      "nReturned": {
+        "$numberLong": "6"
+      },
+      "executionTimeMillisEstimate": {
+        "$numberLong": "1"
+      }
+    },
+    {
+      "$skip": {
+        "$numberLong": "1"
+      },
+      "nReturned": {
+        "$numberLong": "5"
+      },
+      "executionTimeMillisEstimate": {
+        "$numberLong": "1"
+      }
+    },
+    {
+      "$group": {
+        "_id": {
+          "$const": null
+        },
+        "n": {
+          "$sum": {
+            "$const": {
+              "$numberInt": "1"
+            }
+          }
+        }
+      },
+      "maxAccumulatorMemoryUsageBytes": {
+        "n": {
+          "$numberLong": "128"
+        }
+      },
+      "totalOutputDataSizeBytes": {
+        "$numberLong": "245"
+      },
+      "usedDisk": false,
+      "spills": {
+        "$numberLong": "0"
+      },
+      "spilledDataStorageSize": {
+        "$numberLong": "0"
+      },
+      "numBytesSpilledEstimate": {
+        "$numberLong": "0"
+      },
+      "spilledRecords": {
+        "$numberLong": "0"
+      },
+      "nReturned": {
+        "$numberLong": "1"
+      },
+      "executionTimeMillisEstimate": {
+        "$numberLong": "1"
+      }
+    },
+    {
+      "$project": {
+        "n": true,
+        "_id": false
+      },
+      "nReturned": {
+        "$numberLong": "1"
+      },
+      "executionTimeMillisEstimate": {
+        "$numberLong": "1"
+      }
+    }
+  ],
+  "queryShapeHash": "1272592DC6DB5B81B730B725AF13813525D8E1C5F076C82DF8CA2C093ACA4ACB",
+  "serverInfo": {
+    "host": "488f3bea497e",
+    "port": {
+      "$numberInt": "27017"
+    },
+    "version": "8.0.17",
+    "gitVersion": "b20e43625b72f4bb43cc15107f80ac966ae13b6d"
+  },
+  "serverParameters": {
+    "internalQueryFacetBufferSizeBytes": {
+      "$numberInt": "104857600"
+    },
+    "internalQueryFacetMaxOutputDocSizeBytes": {
+      "$numberInt": "104857600"
+    },
+    "internalLookupStageIntermediateDocumentMaxSizeBytes": {
+      "$numberInt": "104857600"
+    },
+    "internalDocumentSourceGroupMaxMemoryBytes": {
+      "$numberInt": "104857600"
+    },
+    "internalQueryMaxBlockingSortMemoryUsageBytes": {
+      "$numberInt": "104857600"
+    },
+    "internalQueryProhibitBlockingMergeOnMongoS": {
+      "$numberInt": "0"
+    },
+    "internalQueryMaxAddToSetBytes": {
+      "$numberInt": "104857600"
+    },
+    "internalDocumentSourceSetWindowFieldsMaxMemoryBytes": {
+      "$numberInt": "104857600"
+    },
+    "internalQueryFrameworkControl": "trySbeRestricted",
+    "internalQueryPlannerIgnoreIndexWithCollationForRegex": {
+      "$numberInt": "1"
+    }
+  },
+  "command": {
+    "aggregate": "places",
+    "pipeline": [
+      {
+        "$match": {
+          "cuisine": "thai"
+        }
+      },
+      {
+        "$unwind": "$tags"
+      },
+      {
+        "$addFields": {
+          "score": {
+            "$multiply": [
+              "$rating",
+              {
+                "$numberInt": "2"
+              }
+            ]
+          }
+        }
+      },
+      {
+        "$project": {
+          "name": {
+            "$numberInt": "1"
+          },
+          "score": {
+            "$numberInt": "1"
+          }
+        }
+      },
+      {
+        "$sort": {
+          "score": {
+            "$numberInt": "-1"
+          }
+        }
+      },
+      {
+        "$skip": {
+          "$numberInt": "1"
+        }
+      },
+      {
+        "$limit": {
+          "$numberInt": "5"
+        }
+      },
+      {
+        "$count": "n"
+      }
+    ],
+    "cursor": {},
+    "$db": "explain_capture"
+  },
+  "ok": {
+    "$numberDouble": "1.0"
+  }
+}

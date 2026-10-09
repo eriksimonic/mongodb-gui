@@ -1,0 +1,272 @@
+{
+  "explainVersion": "1",
+  "queryPlanner": {
+    "namespace": "explain_capture.places",
+    "parsedQuery": {
+      "$text": {
+        "$search": "coffee",
+        "$language": "english",
+        "$caseSensitive": false,
+        "$diacriticSensitive": false
+      }
+    },
+    "indexFilterSet": false,
+    "queryHash": "CF6F4CEE",
+    "planCacheShapeHash": "CF6F4CEE",
+    "planCacheKey": "08852285",
+    "optimizationTimeMillis": {
+      "$numberInt": "0"
+    },
+    "maxIndexedOrSolutionsReached": false,
+    "maxIndexedAndSolutionsReached": false,
+    "maxScansToExplodeReached": false,
+    "prunedSimilarIndexes": false,
+    "winningPlan": {
+      "isCached": false,
+      "stage": "TEXT_MATCH",
+      "indexPrefix": {},
+      "indexName": "description_text",
+      "parsedTextQuery": {
+        "terms": [
+          "coffe"
+        ],
+        "negatedTerms": [],
+        "phrases": [],
+        "negatedPhrases": []
+      },
+      "textIndexVersion": {
+        "$numberInt": "3"
+      },
+      "inputStage": {
+        "stage": "FETCH",
+        "inputStage": {
+          "stage": "IXSCAN",
+          "keyPattern": {
+            "_fts": "text",
+            "_ftsx": {
+              "$numberInt": "1"
+            }
+          },
+          "indexName": "description_text",
+          "isMultiKey": true,
+          "isUnique": false,
+          "isSparse": false,
+          "isPartial": false,
+          "indexVersion": {
+            "$numberInt": "2"
+          },
+          "direction": "backward",
+          "indexBounds": {}
+        }
+      }
+    },
+    "rejectedPlans": []
+  },
+  "executionStats": {
+    "executionSuccess": true,
+    "nReturned": {
+      "$numberInt": "750"
+    },
+    "executionTimeMillis": {
+      "$numberInt": "1"
+    },
+    "totalKeysExamined": {
+      "$numberInt": "750"
+    },
+    "totalDocsExamined": {
+      "$numberInt": "750"
+    },
+    "executionStages": {
+      "isCached": false,
+      "stage": "TEXT_MATCH",
+      "nReturned": {
+        "$numberInt": "750"
+      },
+      "executionTimeMillisEstimate": {
+        "$numberInt": "0"
+      },
+      "works": {
+        "$numberInt": "751"
+      },
+      "advanced": {
+        "$numberInt": "750"
+      },
+      "needTime": {
+        "$numberInt": "0"
+      },
+      "needYield": {
+        "$numberInt": "0"
+      },
+      "saveState": {
+        "$numberInt": "0"
+      },
+      "restoreState": {
+        "$numberInt": "0"
+      },
+      "isEOF": {
+        "$numberInt": "1"
+      },
+      "indexPrefix": {},
+      "indexName": "description_text",
+      "parsedTextQuery": {
+        "terms": [
+          "coffe"
+        ],
+        "negatedTerms": [],
+        "phrases": [],
+        "negatedPhrases": []
+      },
+      "textIndexVersion": {
+        "$numberInt": "3"
+      },
+      "docsRejected": {
+        "$numberInt": "0"
+      },
+      "inputStage": {
+        "stage": "FETCH",
+        "nReturned": {
+          "$numberInt": "750"
+        },
+        "executionTimeMillisEstimate": {
+          "$numberInt": "0"
+        },
+        "works": {
+          "$numberInt": "751"
+        },
+        "advanced": {
+          "$numberInt": "750"
+        },
+        "needTime": {
+          "$numberInt": "0"
+        },
+        "needYield": {
+          "$numberInt": "0"
+        },
+        "saveState": {
+          "$numberInt": "0"
+        },
+        "restoreState": {
+          "$numberInt": "0"
+        },
+        "isEOF": {
+          "$numberInt": "1"
+        },
+        "docsExamined": {
+          "$numberInt": "750"
+        },
+        "alreadyHasObj": {
+          "$numberInt": "0"
+        },
+        "inputStage": {
+          "stage": "IXSCAN",
+          "nReturned": {
+            "$numberInt": "750"
+          },
+          "executionTimeMillisEstimate": {
+            "$numberInt": "0"
+          },
+          "works": {
+            "$numberInt": "751"
+          },
+          "advanced": {
+            "$numberInt": "750"
+          },
+          "needTime": {
+            "$numberInt": "0"
+          },
+          "needYield": {
+            "$numberInt": "0"
+          },
+          "saveState": {
+            "$numberInt": "0"
+          },
+          "restoreState": {
+            "$numberInt": "0"
+          },
+          "isEOF": {
+            "$numberInt": "1"
+          },
+          "keyPattern": {
+            "_fts": "text",
+            "_ftsx": {
+              "$numberInt": "1"
+            }
+          },
+          "indexName": "description_text",
+          "isMultiKey": true,
+          "isUnique": false,
+          "isSparse": false,
+          "isPartial": false,
+          "indexVersion": {
+            "$numberInt": "2"
+          },
+          "direction": "backward",
+          "indexBounds": {},
+          "keysExamined": {
+            "$numberInt": "750"
+          },
+          "seeks": {
+            "$numberInt": "1"
+          },
+          "dupsTested": {
+            "$numberInt": "750"
+          },
+          "dupsDropped": {
+            "$numberInt": "0"
+          }
+        }
+      }
+    }
+  },
+  "queryShapeHash": "374A5EF2A261D72E8D78424B04984CBA91F9CA40CE43B12E20EBB60DBACD41F1",
+  "command": {
+    "find": "places",
+    "filter": {
+      "$text": {
+        "$search": "coffee"
+      }
+    },
+    "$db": "explain_capture"
+  },
+  "serverInfo": {
+    "host": "488f3bea497e",
+    "port": {
+      "$numberInt": "27017"
+    },
+    "version": "8.0.17",
+    "gitVersion": "b20e43625b72f4bb43cc15107f80ac966ae13b6d"
+  },
+  "serverParameters": {
+    "internalQueryFacetBufferSizeBytes": {
+      "$numberInt": "104857600"
+    },
+    "internalQueryFacetMaxOutputDocSizeBytes": {
+      "$numberInt": "104857600"
+    },
+    "internalLookupStageIntermediateDocumentMaxSizeBytes": {
+      "$numberInt": "104857600"
+    },
+    "internalDocumentSourceGroupMaxMemoryBytes": {
+      "$numberInt": "104857600"
+    },
+    "internalQueryMaxBlockingSortMemoryUsageBytes": {
+      "$numberInt": "104857600"
+    },
+    "internalQueryProhibitBlockingMergeOnMongoS": {
+      "$numberInt": "0"
+    },
+    "internalQueryMaxAddToSetBytes": {
+      "$numberInt": "104857600"
+    },
+    "internalDocumentSourceSetWindowFieldsMaxMemoryBytes": {
+      "$numberInt": "104857600"
+    },
+    "internalQueryFrameworkControl": "trySbeRestricted",
+    "internalQueryPlannerIgnoreIndexWithCollationForRegex": {
+      "$numberInt": "1"
+    }
+  },
+  "ok": {
+    "$numberDouble": "1.0"
+  }
+}

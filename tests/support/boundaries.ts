@@ -123,6 +123,8 @@ export function findBoundaryViolations(
   return violations;
 }
 
+const DEV_SCRIPT_PATHS: readonly string[] = ['packages/core/src/explain/fixtures/capture/'];
+
 export async function readPackageSources(repoRoot: string): Promise<SourceFile[]> {
   const packagesDir = join(repoRoot, 'packages');
   const packageEntries = await readdir(packagesDir, { withFileTypes: true });
@@ -138,6 +140,11 @@ export async function readPackageSources(repoRoot: string): Promise<SourceFile[]
         continue;
       }
       const path = `packages/${entry.name}/src/${relativePath.split(sep).join('/')}`;
+      // The explain fixture capture is a developer script that talks to a real server. It is not
+      // runtime code, so the core boundary does not apply to it.
+      if (DEV_SCRIPT_PATHS.some((prefix) => path.startsWith(prefix))) {
+        continue;
+      }
       files.push({ path, source: await readFile(join(srcDir, relativePath), 'utf8') });
     }
   }

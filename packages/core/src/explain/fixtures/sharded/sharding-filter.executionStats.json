@@ -1,0 +1,142 @@
+{
+  "queryPlanner": {
+    "mongosPlannerVersion": 1,
+    "winningPlan": {
+      "stage": "SHARD_MERGE",
+      "shards": [
+        {
+          "shardName": "shard01",
+          "connectionString": "shard01/localhost:27018",
+          "serverInfo": {
+            "host": "localhost",
+            "port": 27018,
+            "version": "8.0.17"
+          },
+          "plannerVersion": 1,
+          "namespace": "fixtures.orders",
+          "indexFilterSet": false,
+          "parsedQuery": {
+            "status": {
+              "$eq": "paid"
+            }
+          },
+          "winningPlan": {
+            "stage": "SHARDING_FILTER",
+            "inputStage": {
+              "stage": "COLLSCAN",
+              "filter": {
+                "status": {
+                  "$eq": "paid"
+                }
+              },
+              "direction": "forward"
+            }
+          },
+          "rejectedPlans": []
+        },
+        {
+          "shardName": "shard02",
+          "connectionString": "shard02/localhost:27019",
+          "serverInfo": {
+            "host": "localhost",
+            "port": 27019,
+            "version": "8.0.17"
+          },
+          "plannerVersion": 1,
+          "namespace": "fixtures.orders",
+          "indexFilterSet": false,
+          "parsedQuery": {
+            "status": {
+              "$eq": "paid"
+            }
+          },
+          "winningPlan": {
+            "stage": "SHARDING_FILTER",
+            "inputStage": {
+              "stage": "COLLSCAN",
+              "filter": {
+                "status": {
+                  "$eq": "paid"
+                }
+              },
+              "direction": "forward"
+            }
+          },
+          "rejectedPlans": []
+        }
+      ]
+    }
+  },
+  "executionStats": {
+    "executionSuccess": true,
+    "nReturned": 40,
+    "executionTimeMillis": 6,
+    "totalKeysExamined": 0,
+    "totalDocsExamined": 1000,
+    "executionStages": {
+      "stage": "SHARD_MERGE",
+      "nReturned": 40,
+      "executionTimeMillis": 6,
+      "totalKeysExamined": 0,
+      "totalDocsExamined": 1000,
+      "shards": [
+        {
+          "shardName": "shard01",
+          "executionSuccess": true,
+          "nReturned": 20,
+          "executionTimeMillis": 4,
+          "totalKeysExamined": 0,
+          "totalDocsExamined": 500,
+          "executionStages": {
+            "stage": "SHARDING_FILTER",
+            "nReturned": 20,
+            "executionTimeMillisEstimate": 3,
+            "chunkSkips": 480,
+            "inputStage": {
+              "stage": "COLLSCAN",
+              "filter": {
+                "status": {
+                  "$eq": "paid"
+                }
+              },
+              "nReturned": 500,
+              "docsExamined": 500,
+              "direction": "forward"
+            }
+          }
+        },
+        {
+          "shardName": "shard02",
+          "executionSuccess": true,
+          "nReturned": 20,
+          "executionTimeMillis": 4,
+          "totalKeysExamined": 0,
+          "totalDocsExamined": 500,
+          "executionStages": {
+            "stage": "SHARDING_FILTER",
+            "nReturned": 20,
+            "executionTimeMillisEstimate": 3,
+            "chunkSkips": 3,
+            "inputStage": {
+              "stage": "COLLSCAN",
+              "filter": {
+                "status": {
+                  "$eq": "paid"
+                }
+              },
+              "nReturned": 23,
+              "docsExamined": 500,
+              "direction": "forward"
+            }
+          }
+        }
+      ]
+    }
+  },
+  "serverInfo": {
+    "host": "localhost",
+    "port": 27017,
+    "version": "8.0.17"
+  },
+  "ok": 1
+}

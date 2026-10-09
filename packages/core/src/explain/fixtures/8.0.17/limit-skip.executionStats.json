@@ -1,0 +1,320 @@
+{
+  "explainVersion": "1",
+  "queryPlanner": {
+    "namespace": "explain_capture.places",
+    "parsedQuery": {
+      "cuisine": {
+        "$eq": "thai"
+      }
+    },
+    "indexFilterSet": false,
+    "queryHash": "B833B0E2",
+    "planCacheShapeHash": "B833B0E2",
+    "planCacheKey": "3AB0C6CC",
+    "optimizationTimeMillis": {
+      "$numberInt": "0"
+    },
+    "maxIndexedOrSolutionsReached": false,
+    "maxIndexedAndSolutionsReached": false,
+    "maxScansToExplodeReached": false,
+    "prunedSimilarIndexes": false,
+    "winningPlan": {
+      "isCached": false,
+      "stage": "LIMIT",
+      "limitAmount": {
+        "$numberInt": "10"
+      },
+      "inputStage": {
+        "stage": "FETCH",
+        "inputStage": {
+          "stage": "SKIP",
+          "skipAmount": {
+            "$numberInt": "5"
+          },
+          "inputStage": {
+            "stage": "IXSCAN",
+            "keyPattern": {
+              "cuisine": {
+                "$numberInt": "1"
+              },
+              "rating": {
+                "$numberInt": "-1"
+              }
+            },
+            "indexName": "cuisine_1_rating_-1",
+            "isMultiKey": false,
+            "multiKeyPaths": {
+              "cuisine": [],
+              "rating": []
+            },
+            "isUnique": false,
+            "isSparse": false,
+            "isPartial": false,
+            "indexVersion": {
+              "$numberInt": "2"
+            },
+            "direction": "forward",
+            "indexBounds": {
+              "cuisine": [
+                "[\"thai\", \"thai\"]"
+              ],
+              "rating": [
+                "[MaxKey, MinKey]"
+              ]
+            }
+          }
+        }
+      }
+    },
+    "rejectedPlans": []
+  },
+  "executionStats": {
+    "executionSuccess": true,
+    "nReturned": {
+      "$numberInt": "10"
+    },
+    "executionTimeMillis": {
+      "$numberInt": "0"
+    },
+    "totalKeysExamined": {
+      "$numberInt": "15"
+    },
+    "totalDocsExamined": {
+      "$numberInt": "10"
+    },
+    "executionStages": {
+      "isCached": false,
+      "stage": "LIMIT",
+      "nReturned": {
+        "$numberInt": "10"
+      },
+      "executionTimeMillisEstimate": {
+        "$numberInt": "0"
+      },
+      "works": {
+        "$numberInt": "16"
+      },
+      "advanced": {
+        "$numberInt": "10"
+      },
+      "needTime": {
+        "$numberInt": "5"
+      },
+      "needYield": {
+        "$numberInt": "0"
+      },
+      "saveState": {
+        "$numberInt": "0"
+      },
+      "restoreState": {
+        "$numberInt": "0"
+      },
+      "isEOF": {
+        "$numberInt": "1"
+      },
+      "limitAmount": {
+        "$numberInt": "10"
+      },
+      "inputStage": {
+        "stage": "FETCH",
+        "nReturned": {
+          "$numberInt": "10"
+        },
+        "executionTimeMillisEstimate": {
+          "$numberInt": "0"
+        },
+        "works": {
+          "$numberInt": "15"
+        },
+        "advanced": {
+          "$numberInt": "10"
+        },
+        "needTime": {
+          "$numberInt": "5"
+        },
+        "needYield": {
+          "$numberInt": "0"
+        },
+        "saveState": {
+          "$numberInt": "0"
+        },
+        "restoreState": {
+          "$numberInt": "0"
+        },
+        "isEOF": {
+          "$numberInt": "0"
+        },
+        "docsExamined": {
+          "$numberInt": "10"
+        },
+        "alreadyHasObj": {
+          "$numberInt": "0"
+        },
+        "inputStage": {
+          "stage": "SKIP",
+          "nReturned": {
+            "$numberInt": "10"
+          },
+          "executionTimeMillisEstimate": {
+            "$numberInt": "0"
+          },
+          "works": {
+            "$numberInt": "15"
+          },
+          "advanced": {
+            "$numberInt": "10"
+          },
+          "needTime": {
+            "$numberInt": "5"
+          },
+          "needYield": {
+            "$numberInt": "0"
+          },
+          "saveState": {
+            "$numberInt": "0"
+          },
+          "restoreState": {
+            "$numberInt": "0"
+          },
+          "isEOF": {
+            "$numberInt": "0"
+          },
+          "skipAmount": {
+            "$numberInt": "5"
+          },
+          "inputStage": {
+            "stage": "IXSCAN",
+            "nReturned": {
+              "$numberInt": "15"
+            },
+            "executionTimeMillisEstimate": {
+              "$numberInt": "0"
+            },
+            "works": {
+              "$numberInt": "15"
+            },
+            "advanced": {
+              "$numberInt": "15"
+            },
+            "needTime": {
+              "$numberInt": "0"
+            },
+            "needYield": {
+              "$numberInt": "0"
+            },
+            "saveState": {
+              "$numberInt": "0"
+            },
+            "restoreState": {
+              "$numberInt": "0"
+            },
+            "isEOF": {
+              "$numberInt": "0"
+            },
+            "keyPattern": {
+              "cuisine": {
+                "$numberInt": "1"
+              },
+              "rating": {
+                "$numberInt": "-1"
+              }
+            },
+            "indexName": "cuisine_1_rating_-1",
+            "isMultiKey": false,
+            "multiKeyPaths": {
+              "cuisine": [],
+              "rating": []
+            },
+            "isUnique": false,
+            "isSparse": false,
+            "isPartial": false,
+            "indexVersion": {
+              "$numberInt": "2"
+            },
+            "direction": "forward",
+            "indexBounds": {
+              "cuisine": [
+                "[\"thai\", \"thai\"]"
+              ],
+              "rating": [
+                "[MaxKey, MinKey]"
+              ]
+            },
+            "keysExamined": {
+              "$numberInt": "15"
+            },
+            "seeks": {
+              "$numberInt": "1"
+            },
+            "dupsTested": {
+              "$numberInt": "0"
+            },
+            "dupsDropped": {
+              "$numberInt": "0"
+            }
+          }
+        }
+      }
+    }
+  },
+  "queryShapeHash": "52E1880892325E8C7B04D28525A25CA4ED48D3A7E9EAC38FA253FBA34C248D54",
+  "command": {
+    "find": "places",
+    "filter": {
+      "cuisine": "thai"
+    },
+    "sort": {
+      "rating": {
+        "$numberInt": "-1"
+      }
+    },
+    "skip": {
+      "$numberInt": "5"
+    },
+    "limit": {
+      "$numberInt": "10"
+    },
+    "$db": "explain_capture"
+  },
+  "serverInfo": {
+    "host": "488f3bea497e",
+    "port": {
+      "$numberInt": "27017"
+    },
+    "version": "8.0.17",
+    "gitVersion": "b20e43625b72f4bb43cc15107f80ac966ae13b6d"
+  },
+  "serverParameters": {
+    "internalQueryFacetBufferSizeBytes": {
+      "$numberInt": "104857600"
+    },
+    "internalQueryFacetMaxOutputDocSizeBytes": {
+      "$numberInt": "104857600"
+    },
+    "internalLookupStageIntermediateDocumentMaxSizeBytes": {
+      "$numberInt": "104857600"
+    },
+    "internalDocumentSourceGroupMaxMemoryBytes": {
+      "$numberInt": "104857600"
+    },
+    "internalQueryMaxBlockingSortMemoryUsageBytes": {
+      "$numberInt": "104857600"
+    },
+    "internalQueryProhibitBlockingMergeOnMongoS": {
+      "$numberInt": "0"
+    },
+    "internalQueryMaxAddToSetBytes": {
+      "$numberInt": "104857600"
+    },
+    "internalDocumentSourceSetWindowFieldsMaxMemoryBytes": {
+      "$numberInt": "104857600"
+    },
+    "internalQueryFrameworkControl": "trySbeRestricted",
+    "internalQueryPlannerIgnoreIndexWithCollationForRegex": {
+      "$numberInt": "1"
+    }
+  },
+  "ok": {
+    "$numberDouble": "1.0"
+  }
+}

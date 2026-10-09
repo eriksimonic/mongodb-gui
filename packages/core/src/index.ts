@@ -16,6 +16,7 @@ export * from './explain/explain-text';
 export * from './explain/normalise';
 export * from './explain/rewrite';
 export * from './explain/rpc-schemas';
+export * from './explain/stage-catalog';
 export * from './explain/plan-tree';
 export * from './explain/warnings';
 export * from './gridfs/types';
