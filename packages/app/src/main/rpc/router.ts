@@ -1,5 +1,5 @@
-import { mkdirSync } from 'node:fs';
-import { join } from 'node:path';
+import { mkdirSync, statSync } from 'node:fs';
+import { dirname, join } from 'node:path';
 import {
   AppErrorException,
   ConnectionProfileSummarySchema,
@@ -11,6 +11,9 @@ import {
   type CallInput,
   type ConnectionProfile,
   type ConnectionProfileInput,
+  type DialogResult,
+  type OpenDialogInput,
+  type SaveDialogInput,
   type RpcCall,
   type RpcEvent,
   type RpcResult,
@@ -24,6 +27,7 @@ import {
   listDatabases,
   listIndexes,
   mapDriverError,
+  previewImport,
 } from '@mongo-gui/mongo-adapter';
 import {
   createDockerEngineClient,
@@ -56,6 +60,15 @@ import {
   defaultSamplerFactory,
   type SamplerFactory,
 } from './monitor-service';
+import type { RendererResetRegistry } from './renderer-reset';
+import { createTransferService, type TransferAdapter } from './transfer-service';
+
+/** Native file dialogs and the shell reveal. The main window's dialogs live in index.ts. */
+export interface NativeDialogs {
+  showOpenDialog(input: OpenDialogInput): Promise<DialogResult>;
+  showSaveDialog(input: SaveDialogInput): Promise<DialogResult>;
+  showItemInFolder(path: string): void;
+}
 
 /** The subset of ConnectionManager that the router uses. The real class satisfies it. */
 export type ConnectionRegistry = Pick<
@@ -109,6 +122,12 @@ export interface RouterDeps {
   readonly updates?: UpdatesService;
   /** Opens a link in the user's browser. The caller checks the link before it gets here. */
   readonly openExternal?: (url: string) => Promise<void>;
+  /** File dialogs for import and export. Calls to them fail with INTERNAL without it. */
+  readonly dialogs?: NativeDialogs;
+  /** Stops the work the renderer started when its page goes away. */
+  readonly rendererReset?: RendererResetRegistry;
+  /** The transfer functions. Tests inject a fake. Defaults to the adapter. */
+  readonly transferAdapter?: TransferAdapter;
 }
 
 export interface Router {
@@ -203,6 +222,18 @@ export function createRouter(deps: RouterDeps): Router {
       await deps.docker?.releaseProfile(profile);
     }
   }
+
+  const dialogs = (): NativeDialogs => {
+    if (deps.dialogs === undefined) {
+      throw new AppErrorException(appError('INTERNAL', 'File dialogs are not available.'));
+    }
+    return deps.dialogs;
+  };
+
+  /** Checks that a connection profile exists. A locked vault reports VAULT_LOCKED from the store. */
+  const requireConnectionProfile = (connectionId: string): void => {
+    repos().connections.get(connectionId);
+  };
 
   const operations = new Map<string, Operation>([
     entry('vault.status', rpcContract.vault.status, () => deps.vault.status()),
@@ -358,6 +389,29 @@ export function createRouter(deps: RouterDeps): Router {
     entry('docker.watch', rpcContract.docker.watch, (input) => {
       docker().watch(input.enabled, deps.onEvent);
     }),
+    entry('transfer.previewImport', rpcContract.transfer.previewImport, async (input) => {
+      const { connectionId, ...request } = input;
+      requireConnectionProfile(connectionId);
+      return previewImport(request);
+    }),
+    entry('transfer.startImport', rpcContract.transfer.startImport, (input) => {
+      const { connectionId, ...request } = input;
+      requireConnectionProfile(connectionId);
+      return { transferId: transfers.startImport(connectionId, request) };
+    }),
+    entry('transfer.startExport', rpcContract.transfer.startExport, (input) => {
+      const { connectionId, ...request } = input;
+      requireConnectionProfile(connectionId);
+      refuseMissingFolder(request.path);
+      return { transferId: transfers.startExport(connectionId, request) };
+    }),
+    entry('transfer.cancel', rpcContract.transfer.cancel, (input) => {
+      transfers.cancel(input.transferId);
+    }),
+    entry('transfer.status', rpcContract.transfer.status, (input) =>
+      transfers.status(input.transferId),
+    ),
+    entry('transfer.list', rpcContract.transfer.list, () => transfers.list()),
     entry('updates.state', rpcContract.updates.state, () => updatesService().state()),
     entry('updates.check', rpcContract.updates.check, () => updatesService().check()),
     entry('updates.download', rpcContract.updates.download, () => updatesService().download()),
@@ -374,7 +428,28 @@ export function createRouter(deps: RouterDeps): Router {
       }
       await deps.openExternal(new URL(input.url).href);
     }),
+    entry('app.showOpenDialog', rpcContract.app.showOpenDialog, (input) =>
+      dialogs().showOpenDialog(input),
+    ),
+    entry('app.showSaveDialog', rpcContract.app.showSaveDialog, (input) =>
+      dialogs().showSaveDialog(input),
+    ),
+    entry('app.showItemInFolder', rpcContract.app.showItemInFolder, (input) => {
+      // Only a file this session exported is revealed, so the renderer cannot open arbitrary paths.
+      if (!transfers.wroteFile(input.path)) {
+        throw new AppErrorException(
+          appError('VALIDATION', 'Only a file exported in this session can be shown.'),
+        );
+      }
+      dialogs().showItemInFolder(input.path);
+    }),
   ]);
+
+  const transfers = createTransferService({
+    ...(deps.transferAdapter === undefined ? {} : { adapter: deps.transferAdapter }),
+    getClient: (connectionId) => deps.connections.getClient(connectionId),
+    emit: deps.onEvent,
+  });
 
   const monitor = createMonitorService({
     getClient: (connectionId) => deps.connections.getClient(connectionId),
@@ -384,6 +459,10 @@ export function createRouter(deps: RouterDeps): Router {
 
   deps.connections.onStatusChange((connectionId, status) => {
     deps.onEvent({ type: 'connection:status', connectionId, status });
+    // A transfer reads or writes through the client of its connection, so it ends with the connection.
+    if (status.state !== 'connected') {
+      transfers.cancelConnection(connectionId);
+    }
     // A docker connection that errors (for example, the socket closed) gives its forwarder back.
     // A disconnect is not handled here, because a superseded attempt also reports disconnected
     // while the next attempt may be using the same forwarder.
@@ -397,6 +476,7 @@ export function createRouter(deps: RouterDeps): Router {
   });
   deps.lockEvents?.subscribe(() => {
     monitor.stopAll();
+    transfers.cancelAll();
     void deps.connections.disconnectAll();
     deps.docker?.suspend();
     void deps.docker?.cleanupAll();
@@ -405,6 +485,9 @@ export function createRouter(deps: RouterDeps): Router {
   });
   deps.updates?.subscribe((state) => {
     deps.onEvent({ type: 'updates:state', state });
+  });
+  deps.rendererReset?.register(() => {
+    transfers.cancelAll();
   });
 
   return {
@@ -641,6 +724,22 @@ function toSummary(profile: ConnectionProfile): unknown {
     ...profile,
     uriRedacted: redactUri(profile.uri),
   });
+}
+
+/** Refuses an export whose folder is missing, before any file is created. */
+function refuseMissingFolder(path: string): void {
+  const folder = dirname(path);
+  if (!isDirectory(folder)) {
+    throw new AppErrorException(appError('VALIDATION', 'The folder does not exist.', folder));
+  }
+}
+
+function isDirectory(path: string): boolean {
+  try {
+    return statSync(path).isDirectory();
+  } catch {
+    return false;
+  }
 }
 
 function failure(error: AppError): RpcResult {

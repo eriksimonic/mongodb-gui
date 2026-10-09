@@ -7,6 +7,7 @@ import { useAppStore } from '../../state/app-store-context';
 import { usePanelOpener } from '../../state/panel-opener';
 import { catalogKey, connectionNodeId, databaseNodeId } from '../../state/node-ids';
 import { runReported } from '../notify-error';
+import { CatalogContextMenu, type CatalogTarget } from './CatalogContextMenu';
 import { ConnectionContextMenu } from './ConnectionContextMenu';
 import { DockerContainerContextMenu } from './DockerContainerContextMenu';
 import { DockerLinkedContextMenu } from './DockerLinkedContextMenu';
@@ -28,7 +29,8 @@ type MenuTarget =
   | { readonly kind: 'connection'; readonly connectionId: string }
   | { readonly kind: 'linked'; readonly connectionId: string }
   | { readonly kind: 'container'; readonly containerId: string }
-  | { readonly kind: 'docker' };
+  | { readonly kind: 'docker' }
+  | ({ readonly kind: 'catalog' } & CatalogTarget);
 
 interface MenuAnchor {
   readonly target: MenuTarget;
@@ -82,6 +84,24 @@ function menuTargetFor(
         : { kind: 'container', containerId: row.container.id };
     case 'docker':
       return { kind: 'docker' };
+    case 'database':
+      return row.database === undefined
+        ? undefined
+        : {
+            kind: 'catalog',
+            connectionId: row.connectionId,
+            database: row.database,
+            collection: undefined,
+          };
+    case 'collection':
+      return row.database === undefined
+        ? undefined
+        : {
+            kind: 'catalog',
+            connectionId: row.connectionId,
+            database: row.database,
+            collection: row.collection,
+          };
     default:
       return undefined;
   }
@@ -357,6 +377,20 @@ export function ConnectionTree() {
         <DockerLinkedContextMenu
           connection={connection}
           container={container}
+          status={statuses[connection.id] ?? DISCONNECTED}
+          position={position}
+          onClose={closeMenu}
+        />
+      );
+    }
+    if (target.kind === 'catalog') {
+      const connection = readyConnections.find((item) => item.id === target.connectionId);
+      if (connection === undefined) {
+        return null;
+      }
+      return (
+        <CatalogContextMenu
+          target={target}
           status={statuses[connection.id] ?? DISCONNECTED}
           position={position}
           onClose={closeMenu}

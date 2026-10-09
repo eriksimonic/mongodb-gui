@@ -14,3 +14,12 @@ export async function runReported(action: () => Promise<unknown>): Promise<void>
     notifyError(error);
   }
 }
+
+/**
+ * The text every inline error shows: the message, then the detail when the backend gave one.
+ * Components render this instead of the raw error, so the wording is the same everywhere.
+ */
+export function errorText(error: unknown): string {
+  const failure = toAppError(error);
+  return failure.detail === undefined ? failure.message : `${failure.message}: ${failure.detail}`;
+}

@@ -1,10 +1,20 @@
-import { app, BrowserWindow, session, shell } from 'electron';
+import {
+  app,
+  BrowserWindow,
+  dialog,
+  session,
+  shell,
+  type OpenDialogOptions,
+  type SaveDialogOptions,
+} from 'electron';
 import { autoUpdater } from 'electron-updater';
 import { join } from 'node:path';
 import { devServerUrl, isAppUrl, rendererDirectory } from './app-origin';
 import { log } from './log';
 import { createAppServices, createRouter, type AppServices, type Router } from './rpc/router';
 import { registerIpc, sendEvent } from './rpc/ipc';
+import { createRendererResetRegistry } from './rpc/renderer-reset';
+import type { NativeDialogs } from './rpc/router';
 
 const preloadPath = join(import.meta.dirname, '../preload/index.cjs');
 
@@ -18,6 +28,50 @@ let mainWindow: BrowserWindow | undefined;
 let services: AppServices | undefined;
 let router: Router | undefined;
 let quitting = false;
+const rendererReset = createRendererResetRegistry();
+
+/**
+ * The file dialogs open over the main window. The renderer gets only the path the user picked.
+ * A cancelled dialog gives no path.
+ */
+const nativeDialogs: NativeDialogs = {
+  async showOpenDialog(input) {
+    const options: OpenDialogOptions = {
+      title: input.title,
+      properties: ['openFile'],
+      filters: input.filters.map((filter) => ({
+        name: filter.name,
+        extensions: filter.extensions,
+      })),
+    };
+    const owner = mainWindow;
+    const result =
+      owner === undefined
+        ? await dialog.showOpenDialog(options)
+        : await dialog.showOpenDialog(owner, options);
+    const first = result.filePaths[0];
+    return result.canceled || first === undefined ? {} : { path: first };
+  },
+  async showSaveDialog(input) {
+    const options: SaveDialogOptions = {
+      title: input.title,
+      filters: input.filters.map((filter) => ({
+        name: filter.name,
+        extensions: filter.extensions,
+      })),
+      ...(input.defaultPath === undefined ? {} : { defaultPath: input.defaultPath }),
+    };
+    const owner = mainWindow;
+    const result =
+      owner === undefined
+        ? await dialog.showSaveDialog(options)
+        : await dialog.showSaveDialog(owner, options);
+    return result.canceled || result.filePath === '' ? {} : { path: result.filePath };
+  },
+  showItemInFolder(path) {
+    shell.showItemInFolder(path);
+  },
+};
 
 function contentSecurityPolicy(): string {
   if (devServerUrl === undefined) {
@@ -92,10 +146,15 @@ function createMainWindow(): void {
     services?.updates.start();
   });
 
+  window.webContents.on('render-process-gone', () => {
+    rendererReset.resetRenderer();
+  });
+
   window.on('closed', () => {
     if (mainWindow === window) {
       mainWindow = undefined;
     }
+    rendererReset.resetRenderer();
   });
 
   window.webContents.setWindowOpenHandler(() => ({ action: 'deny' }));
@@ -150,6 +209,8 @@ app
         }
       },
       openExternal: (url) => shell.openExternal(url),
+      dialogs: nativeDialogs,
+      rendererReset,
     });
     // Forwarders left behind by a crash or a force quit are removed before the user can connect.
     void appServices.docker.cleanupAll();
@@ -174,6 +235,7 @@ app.on('before-quit', (event) => {
   }
   event.preventDefault();
   quitting = true;
+  rendererReset.resetRenderer();
   const current = services;
   current.vault.lock();
   void current

@@ -16,6 +16,7 @@ describe('rpcContract', () => {
         'history',
         'monitor',
         'settings',
+        'transfer',
         'updates',
         'vault',
       ].sort(),

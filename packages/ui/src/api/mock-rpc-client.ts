@@ -43,6 +43,7 @@ import {
   type DatabaseFixture,
 } from './mock-fixtures';
 import { createMockMonitor } from './mock-monitor';
+import { createMockTransfers, MOCK_DIALOG_PATH, mockImportPreview } from './mock-transfer';
 import type { UiApi } from './ui-api';
 
 export type MockPreset = 'fresh' | 'unlocked';
@@ -306,6 +307,13 @@ export function createMockUiApi(options: MockUiApiOptions = {}): UiApi {
     emit,
     hasReplication: () => options.replication === true,
   });
+  const transfers = createMockTransfers(
+    emit,
+    (database, collection) =>
+      fixtureDatabases(localConnectionId)
+        .find((item) => item.name === database)
+        ?.collections.find((item) => item.info.name === collection)?.count,
+  );
 
   function statusOf(connectionId: string): ConnectionStatus {
     return state.statuses.get(connectionId) ?? { state: 'disconnected' };
@@ -402,6 +410,52 @@ export function createMockUiApi(options: MockUiApiOptions = {}): UiApi {
     },
     app: {
       openExternal: method(rpcContract.app.openExternal, latencyMs, () => undefined),
+      showOpenDialog: method(rpcContract.app.showOpenDialog, latencyMs, () => ({
+        path: MOCK_DIALOG_PATH,
+      })),
+      showSaveDialog: method(rpcContract.app.showSaveDialog, latencyMs, () => ({
+        path: MOCK_DIALOG_PATH,
+      })),
+      showItemInFolder: method(rpcContract.app.showItemInFolder, latencyMs, ({ path }) => {
+        if (!transfers.wroteFile(path)) {
+          throw fail('VALIDATION', 'Only a file exported in this session can be shown.');
+        }
+      }),
+    },
+    transfer: {
+      previewImport: method(rpcContract.transfer.previewImport, latencyMs, ({ connectionId }) => {
+        requireUnlocked();
+        findConnection(connectionId);
+        return mockImportPreview();
+      }),
+      startImport: method(rpcContract.transfer.startImport, latencyMs, (input) => {
+        requireUnlocked();
+        requireConnected(input.connectionId);
+        const { connectionId, ...request } = input;
+        return { transferId: transfers.startImport(connectionId, request) };
+      }),
+      startExport: method(rpcContract.transfer.startExport, latencyMs, (input) => {
+        requireUnlocked();
+        requireConnected(input.connectionId);
+        const { connectionId, ...request } = input;
+        return { transferId: transfers.startExport(connectionId, request) };
+      }),
+      cancel: method(rpcContract.transfer.cancel, latencyMs, ({ transferId }) => {
+        requireUnlocked();
+        transfers.cancel(transferId);
+      }),
+      status: method(rpcContract.transfer.status, latencyMs, ({ transferId }) => {
+        requireUnlocked();
+        const progress = transfers.status(transferId);
+        if (progress === undefined) {
+          throw fail('VALIDATION', 'The transfer was not found.');
+        }
+        return progress;
+      }),
+      list: method(rpcContract.transfer.list, latencyMs, () => {
+        requireUnlocked();
+        return transfers.list();
+      }),
     },
     vault: {
       status: method(rpcContract.vault.status, latencyMs, () => ({ state: state.vault })),
