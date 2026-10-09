@@ -164,15 +164,24 @@ function memberLagSeconds(
   return Math.max(0, primaryOptime - memberOptime) / 1000;
 }
 
-// The window runs from the first to the last oplog entry, in the high 32 bits of the timestamp,
-// which hold Unix seconds.
+// The window runs from the first to the last oplog entry. A timestamp's seconds are unsigned, so
+// the high 32 bits are read as unsigned. A signed read would break after 2038-01-19.
 function deriveOplogWindow(first: unknown, last: unknown): number | undefined {
-  const firstSeconds = numberAt(first, ['ts', 'high']);
-  const lastSeconds = numberAt(last, ['ts', 'high']);
+  const firstSeconds = timestampSeconds(first);
+  const lastSeconds = timestampSeconds(last);
   if (firstSeconds === undefined || lastSeconds === undefined || lastSeconds < firstSeconds) {
     return undefined;
   }
   return lastSeconds - firstSeconds;
+}
+
+function timestampSeconds(entry: unknown): number | undefined {
+  const seconds = numberAt(entry, ['ts', 't']);
+  if (seconds !== undefined) {
+    return seconds;
+  }
+  const high = numberAt(entry, ['ts', 'high']);
+  return high === undefined ? undefined : high >>> 0;
 }
 
 function isPlainObject(value: unknown): value is PlainObject {

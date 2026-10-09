@@ -290,12 +290,24 @@ describe('deriveSample', () => {
       at: T0,
       serverStatus: standaloneStatus(ZERO, 100),
       replSetStatus: { set: 'rs0', members: [] },
-      oplogFirst: { ts: { high: 1_767_225_600, low: 1 } },
-      oplogLast: { ts: { high: 1_767_229_200, low: 7 } },
+      oplogFirst: { ts: { t: 2_200_000_000, i: 1 } },
+      oplogLast: { ts: { t: 2_200_003_600, i: 7 } },
     });
 
     expect(sample.replication?.oplogWindowSeconds).toBe(3600);
     expect(MonitorSampleSchema.safeParse(sample).success).toBe(true);
+  });
+
+  it('reads the high bits as unsigned seconds past 2038', () => {
+    const sample = deriveSample(undefined, {
+      at: T0,
+      serverStatus: standaloneStatus(ZERO, 100),
+      replSetStatus: { set: 'rs0', members: [] },
+      oplogFirst: { ts: { high: 2_200_000_000, low: 1 } },
+      oplogLast: { ts: { high: 2_200_000_060, low: 2 } },
+    });
+
+    expect(sample.replication?.oplogWindowSeconds).toBe(60);
   });
 
   it('leaves the oplog window undefined when an oplog entry is missing', () => {
