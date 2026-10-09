@@ -57,11 +57,13 @@ function clientWith(timeoutMs?: number): DockerEngineClient {
 beforeEach(() => {
   dir = mkdtempSync(join(tmpdir(), 'docker-engine-'));
   // Windows has no Unix domain sockets. Its equivalent is a named pipe, so a file path
-  // cannot be listened on there.
+  // cannot be listened on there. Unix socket paths are limited to about 104 bytes, and the
+  // macOS temp dir alone is longer than that, so the socket lives in a short path instead
+  // of the per-test directory.
   socketPath =
     process.platform === 'win32'
       ? `\\\\.\\pipe\\mongo-gui-test-${randomUUID()}`
-      : join(dir, 'docker.sock');
+      : join('/tmp', `mg-${randomUUID().slice(0, 8)}.sock`);
   recorded = [];
 });
 
@@ -74,6 +76,7 @@ afterEach(async () => {
     server = undefined;
   }
   rmSync(dir, { recursive: true, force: true });
+  if (process.platform !== 'win32') rmSync(socketPath, { force: true });
 });
 
 describe('DockerEngineClient against a fake engine', () => {

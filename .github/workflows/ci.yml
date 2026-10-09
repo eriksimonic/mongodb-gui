@@ -31,8 +31,16 @@ jobs:
       - name: Install dependencies
         run: pnpm install --frozen-lockfile
 
-      - name: Run checks
-        run: pnpm check
+      - name: Lint
+        run: pnpm lint
+
+      - name: Typecheck
+        run: pnpm typecheck
+
+      # The github-actions reporter turns failing tests into annotations, which are readable
+      # without downloading the job log.
+      - name: Unit tests
+        run: pnpm exec vitest run --project unit --reporter=default --reporter=github-actions
 
       - name: Check formatting
         run: pnpm format:check
