@@ -302,6 +302,45 @@ issues.
 - **P7-4 polish.** Light theme, settings screen, keyboard shortcut reference, idle
   lock, crash recovery of editor contents.
 
+### Phase 8: server administration
+
+Added on 2026-10-09 at Erik's request: the administrative features MongoDB exposes that a
+client is expected to cover. Each task has an adapter half (`core` types plus
+`mongo-adapter` functions with Testcontainers tests) and a UI half (contract namespace,
+router wiring, mock, panels, tests, screenshots). Adapter halves can run in parallel with
+anything; UI halves follow their adapter merge.
+
+- **P8-1 users and roles.** List users per database (`usersInfo` with roles and
+  authentication restrictions), create user (name, password, roles picker from built-in
+  and custom roles, mechanisms), change password, grant and revoke roles, drop user with
+  typed confirmation; custom roles: list (`rolesInfo` with inherited roles and
+  privileges), create and edit with a privilege editor (resource: cluster, database,
+  collection, any; actions picker grouped by category), drop. Passwords never leave the
+  main process in events or logs.
+- **P8-2 replica set administration.** `replSetGetStatus` and `replSetGetConfig` views:
+  members table (name, state, health, lag, priority, votes, hidden, delay, tags, arbiter),
+  oplog window, election history; actions with typed confirmation and a dry-run summary:
+  step down primary (with seconds), freeze member, add member, remove member, edit member
+  (priority, votes, hidden, slave delay, tags) via `replSetReconfig` with the version
+  bump, initiate a replica set on a standalone started with `--replSet`. Refuse
+  reconfigurations that would lose quorum and say why.
+- **P8-3 sharding overview.** `config` database readers: shards, databases with primary
+  shard and sharding state, sharded collections with shard key and chunk counts per
+  shard, balancer state and window, start and stop the balancer, enable sharding on a
+  database, shard a collection (key, unique, presplit option) with a summary, zones and
+  tags listing.
+- **P8-4 server logs and diagnostics.** `getLog` viewer (global, startupWarnings) with
+  filter and level, `getCmdLineOpts`, `getParameter: '*'` searchable table,
+  `hostInfo`, `buildInfo`, `serverStatus` as an explorable tree, `top` per collection,
+  `dbStats` and `collStats` panels, `connPoolStats`.
+- **P8-5 sessions.** List sessions (`$listLocalSessions`, `$listSessions`), kill a
+  session or all sessions of a user, with confirmation.
+- **P8-6 GridFS browser.** List buckets per database, list files with metadata, upload
+  (streaming from a chosen file), download to a chosen path, delete, rename.
+- **P8-7 change streams watcher.** Watch a collection, database or deployment with an
+  optional pipeline and full-document option; live event list with pause, filter and a
+  detail pane; resume token shown; stops on panel close and renderer reset.
+
 Order: P0 then P1 strictly sequential at the package level (P1-1 first, then P1-2,
 P1-3 and P1-5 in parallel, then P1-4, then P1-6). P2 follows P1. After P2, phases 3 and 4
 run in parallel with phases 5 and 6.
