@@ -36,7 +36,15 @@ export interface CreateIndexDialogProps {
   readonly connectionId: string;
   readonly database: string;
   readonly collection: string;
+  /** A field to put in the key builder first, for example from the schema panel. */
+  readonly initialField?: string | undefined;
   readonly onClose: () => void;
+}
+
+function draftFor(initialField: string | undefined): IndexDraft {
+  return initialField === undefined
+    ? EMPTY_INDEX_DRAFT
+    : { ...EMPTY_INDEX_DRAFT, fields: [{ field: initialField, order: '1' }] };
 }
 
 const ORDER_LABELS: Readonly<Record<IndexOrder, string>> = {
@@ -60,10 +68,11 @@ export function CreateIndexDialog({
   connectionId,
   database,
   collection,
+  initialField,
   onClose,
 }: CreateIndexDialogProps) {
   const { rpc } = useUiApi();
-  const [draft, setDraft] = useState<IndexDraft>(EMPTY_INDEX_DRAFT);
+  const [draft, setDraft] = useState<IndexDraft>(() => draftFor(initialField));
   const [suggestions, setSuggestions] = useState<string[]>([]);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | undefined>(undefined);

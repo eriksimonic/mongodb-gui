@@ -99,11 +99,32 @@ export type ManagementDialog =
       readonly database: string;
       readonly collection: string;
     }
-  | { readonly kind: 'dropDatabase'; readonly connectionId: string; readonly database: string };
+  | { readonly kind: 'dropDatabase'; readonly connectionId: string; readonly database: string }
+  | {
+      readonly kind: 'createIndex';
+      readonly connectionId: string;
+      readonly database: string;
+      readonly collection: string;
+      /** A field to index first. The dialog starts with it in the key builder. */
+      readonly field?: string | undefined;
+    };
+
+/**
+ * A field the validation panel should add a rule for. The panel applies it to its draft when the
+ * target collection matches, then the store clears it.
+ */
+export interface ValidationFieldRequest {
+  readonly connectionId: string;
+  readonly database: string;
+  readonly collection: string;
+  readonly path: string;
+  /** BSON type names the schema report saw at the path. */
+  readonly types: readonly string[];
+}
 
 /** A request to show a collection panel. The shell opens or focuses it, then clears the request. */
 export interface PanelRequest {
-  readonly panel: 'indexes' | 'validation' | 'documents';
+  readonly panel: 'indexes' | 'validation' | 'documents' | 'schema';
   readonly connectionId: string;
   readonly database: string;
   readonly collection: string;
@@ -133,6 +154,7 @@ export interface AppData {
   readonly managerOpen: boolean;
   readonly managementDialog: ManagementDialog | undefined;
   readonly panelRequest: PanelRequest | undefined;
+  readonly validationField: ValidationFieldRequest | undefined;
   /** Counts catalog:changed events. Panels reload when it moves. */
   readonly catalogRevision: number;
   readonly settingsOpen: boolean;
@@ -181,6 +203,9 @@ export interface AppActions extends ExplainActions {
   /** Asks the shell to show a collection panel. */
   requestPanel(request: PanelRequest): void;
   clearPanelRequest(): void;
+  /** Asks the validation panel of a collection to add a rule for a field. */
+  requestValidationField(request: ValidationFieldRequest): void;
+  clearValidationField(): void;
   /** Drops the cached collections of one database. The open tree nodes reload them. */
   refreshDatabase(connectionId: string, database: string): void;
   loadDocker(): Promise<void>;
@@ -224,6 +249,7 @@ const SESSION_RESET: Pick<
   | 'managerOpen'
   | 'managementDialog'
   | 'panelRequest'
+  | 'validationField'
   | 'settingsOpen'
   | 'transfers'
   | 'transferDialog'
@@ -242,6 +268,7 @@ const SESSION_RESET: Pick<
   managerOpen: false,
   managementDialog: undefined,
   panelRequest: undefined,
+  validationField: undefined,
   settingsOpen: false,
   transfers: {},
   transferDialog: { kind: 'closed' },
@@ -568,6 +595,14 @@ export function createAppStore(api: UiApi, initial: Partial<AppData> = {}): AppS
 
       clearPanelRequest() {
         set({ panelRequest: undefined });
+      },
+
+      requestValidationField(request) {
+        set({ validationField: request });
+      },
+
+      clearValidationField() {
+        set({ validationField: undefined });
       },
 
       refreshDatabase(connectionId, database) {

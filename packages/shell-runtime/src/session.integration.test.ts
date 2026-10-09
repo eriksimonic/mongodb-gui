@@ -206,17 +206,50 @@ describe.each(['mongo:8.0.17', 'mongo:6.0'])('shell runtime against %s', (image)
           database: DATABASE,
           collection: 'items',
           size: 100,
+          strategy: 'random',
         }),
         'schema',
       );
       expect(schema.sampled).toBe(DOCUMENT_COUNT);
-      expect(schema.fields).toContainEqual({ path: '_id', types: ['ObjectId'], presence: 1 });
+      expect(schema.fields).toContainEqual(
+        expect.objectContaining({ path: '_id', types: ['ObjectId'], presence: 1 }),
+      );
       // i / 2 is a whole number for even i, and the driver stores whole numbers as Int32.
-      expect(schema.fields).toContainEqual({
-        path: 'nested.score',
-        types: ['Double', 'Int32'],
-        presence: 1,
-      });
+      expect(schema.fields).toContainEqual(
+        expect.objectContaining({
+          path: 'nested.score',
+          types: ['Double', 'Int32'],
+          presence: 1,
+        }),
+      );
+    },
+    TEST_TIMEOUT_MS,
+  );
+
+  it(
+    'reads the first and last documents in _id order for the first and last strategies',
+    async () => {
+      const sampleWith = async (strategy: 'first' | 'last') =>
+        messageOf(
+          await run({
+            id: nextId(`schema-${strategy}`),
+            kind: 'sampleSchema',
+            database: DATABASE,
+            collection: 'items',
+            size: 3,
+            strategy,
+          }),
+          'schema',
+        );
+      const first = await sampleWith('first');
+      const last = await sampleWith('last');
+      expect(first.sampled).toBe(3);
+      expect(last.sampled).toBe(3);
+      // Documents were inserted with i counting up from zero, so _id order follows i.
+      const indexRange = (fields: typeof first.fields) =>
+        fields.find((field) => field.path === 'i')?.numeric;
+      expect(indexRange(first.fields)).toEqual({ min: 0, max: 2 });
+      expect(indexRange(last.fields)).toEqual({ min: DOCUMENT_COUNT - 3, max: DOCUMENT_COUNT - 1 });
     },
     TEST_TIMEOUT_MS,
   );

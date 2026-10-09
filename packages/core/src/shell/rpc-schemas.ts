@@ -1,6 +1,11 @@
 import { z } from 'zod';
 import { AppErrorSchema } from '../schemas/errors';
-import { CompletionItemSchema, MAX_BATCH_SIZE, SchemaFieldSchema } from './protocol';
+import { CompletionItemSchema, MAX_BATCH_SIZE } from './protocol';
+import {
+  SchemaFieldSchema,
+  SchemaSampleSizeSchema,
+  SchemaSampleStrategySchema,
+} from '../schema/types';
 import { ShellResultTypeSchema } from './result-type';
 
 export const DEFAULT_BATCH_SIZE = 50;
@@ -71,7 +76,8 @@ export const ShellSampleSchemaInputSchema = z.object({
   connectionId: z.uuid(),
   database: z.string().min(1),
   collection: z.string().min(1),
-  size: BatchSizeSchema.default(DEFAULT_SAMPLE_SIZE),
+  size: SchemaSampleSizeSchema.default(DEFAULT_SAMPLE_SIZE),
+  strategy: SchemaSampleStrategySchema.default('random'),
 });
 
 export const ShellSchemaSampleSchema = z.object({

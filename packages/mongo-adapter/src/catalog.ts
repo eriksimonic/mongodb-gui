@@ -61,6 +61,22 @@ export async function collectionStats(
   return toCollectionStats(ns, storage, count);
 }
 
+/**
+ * The collection's document count from its metadata, which is cheap and may be stale. A view has
+ * no count of its own, so it reports zero.
+ */
+export async function estimatedDocumentCount(
+  client: MongoClient,
+  db: string,
+  coll: string,
+): Promise<number> {
+  const info = await findCollection(client, db, coll);
+  if (info?.type === 'view') {
+    return 0;
+  }
+  return client.db(db).collection(coll).estimatedDocumentCount();
+}
+
 export async function databaseStats(client: MongoClient, db: string): Promise<DatabaseStats> {
   const reply: unknown = await client.db(db).stats();
   return {
