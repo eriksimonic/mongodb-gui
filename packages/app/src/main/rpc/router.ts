@@ -4,6 +4,7 @@ import {
   AppErrorException,
   ConnectionProfileSummarySchema,
   appError,
+  groupByShape,
   redactUri,
   rpcContract,
   toAppError,
@@ -11,18 +12,31 @@ import {
   type CallInput,
   type ConnectionProfile,
   type ConnectionProfileInput,
+  type ProfileCollectionInfo,
+  type ProfileEntry,
+  type ProfileFilter,
+  type ProfilingLevel,
   type RpcCall,
   type RpcEvent,
   type RpcResult,
+  type SetProfilingLevelInput,
+  type TailProfileOptions,
 } from '@mongo-gui/core';
 import {
   ConnectionManager,
   collectionStats,
   databaseStats,
+  getProfilingLevel,
   listCollections,
   listDatabases,
   listIndexes,
+  listProfileEntries,
   mapDriverError,
+  profileCollectionInfo,
+  setProfilingLevel,
+  tailProfileEntries,
+  toCanonicalEjson,
+  type ProfileTail,
 } from '@mongo-gui/mongo-adapter';
 import {
   ConnectionsRepository,
@@ -78,6 +92,38 @@ export interface RouterDeps {
   readonly lockEvents?: LockEvents;
   /** Receives failures as method, code and message. Inputs and raw driver text stay out. */
   readonly log?: Logger;
+  /** The profiler reads and writes. Defaults to the adapter functions; tests pass a fake. */
+  readonly profiler?: ProfilerPort;
+}
+
+/** The driver client type, named without importing the driver into the main process. */
+export type DriverClient = ReturnType<ConnectionRegistry['getClient']>;
+
+/** The adapter's profiler functions, as the router calls them. */
+export interface ProfilerPort {
+  level(client: DriverClient, database: string): Promise<ProfilingLevel>;
+  setLevel(
+    client: DriverClient,
+    database: string,
+    input: SetProfilingLevelInput,
+  ): Promise<ProfilingLevel>;
+  list(client: DriverClient, database: string, filter: ProfileFilter): Promise<ProfileEntry[]>;
+  info(client: DriverClient, database: string): Promise<ProfileCollectionInfo>;
+  tail(client: DriverClient, database: string, options: TailProfileOptions): ProfileTail;
+}
+
+const adapterProfilerPort: ProfilerPort = {
+  level: getProfilingLevel,
+  setLevel: setProfilingLevel,
+  list: listProfileEntries,
+  info: profileCollectionInfo,
+  tail: tailProfileEntries,
+};
+
+interface ActiveTail {
+  readonly connectionId: string;
+  readonly database: string;
+  readonly tail: ProfileTail;
 }
 
 export interface Router {
@@ -104,6 +150,52 @@ const STORE_FILE_NAME = 'store.sqlite';
 export function createRouter(deps: RouterDeps): Router {
   let active: StoreHandles = { store: deps.store, repos: deps.repos };
   const repos = (): RouterRepos => active.repos;
+  const profiler = deps.profiler ?? adapterProfilerPort;
+  // At most one tail per connection and database, keyed by both.
+  const tails = new Map<string, ActiveTail>();
+  const profilerClient = (connectionId: string): DriverClient =>
+    deps.connections.getClient(connectionId);
+
+  /** Stops and forgets every tail that matches. */
+  const stopTails = (matches: (active: ActiveTail) => boolean): void => {
+    for (const [key, candidate] of [...tails]) {
+      if (matches(candidate)) {
+        candidate.tail.stop();
+        tails.delete(key);
+      }
+    }
+  };
+
+  const startTail = (
+    connectionId: string,
+    database: string,
+    pollMs: number,
+    filter: ProfileFilter | undefined,
+  ): void => {
+    const client = profilerClient(connectionId);
+    const options: TailProfileOptions = {
+      since: new Date().toISOString(),
+      pollMs,
+      ...(filter === undefined ? {} : { filter }),
+    };
+    const tail = profiler.tail(client, database, options);
+    tail.onEntries((entries) => {
+      deps.onEvent({
+        type: 'profiler:entries',
+        connectionId,
+        database,
+        entries: entries.map(canonicalEntry),
+      });
+    });
+    tail.onError((error) => {
+      deps.onEvent({ type: 'profiler:error', connectionId, database, error });
+    });
+    tails.set(tailKey(connectionId, database), { connectionId, database, tail });
+  };
+
+  const stopTail = (connectionId: string, database: string): void => {
+    stopTails((active) => active.connectionId === connectionId && active.database === database);
+  };
 
   const resetVault = async (): Promise<void> => {
     if (deps.reopenStore === undefined) {
@@ -219,12 +311,55 @@ export function createRouter(deps: RouterDeps): Router {
     entry('favourites.remove', rpcContract.favourites.remove, (input) => {
       repos().favourites.remove(input.id);
     }),
+
+    entry('profiler.level', rpcContract.profiler.level, (input) =>
+      driverCall(() => profiler.level(profilerClient(input.connectionId), input.database)),
+    ),
+    entry('profiler.setLevel', rpcContract.profiler.setLevel, (input) =>
+      driverCall(() =>
+        profiler.setLevel(profilerClient(input.connectionId), input.database, {
+          level: input.level,
+          ...(input.slowMs === undefined ? {} : { slowMs: input.slowMs }),
+          ...(input.sampleRate === undefined ? {} : { sampleRate: input.sampleRate }),
+        }),
+      ),
+    ),
+    entry('profiler.list', rpcContract.profiler.list, (input) =>
+      driverCall(async () =>
+        (await profiler.list(profilerClient(input.connectionId), input.database, input.filter)).map(
+          canonicalEntry,
+        ),
+      ),
+    ),
+    entry('profiler.shapes', rpcContract.profiler.shapes, (input) =>
+      driverCall(async () => {
+        const entries = await profiler.list(
+          profilerClient(input.connectionId),
+          input.database,
+          input.filter,
+        );
+        return groupByShape(entries.map(canonicalEntry));
+      }),
+    ),
+    entry('profiler.info', rpcContract.profiler.info, (input) =>
+      driverCall(() => profiler.info(profilerClient(input.connectionId), input.database)),
+    ),
+    entry('profiler.tail', rpcContract.profiler.tail, (input) => {
+      stopTail(input.connectionId, input.database);
+      if (input.enabled) {
+        startTail(input.connectionId, input.database, input.pollMs, input.filter);
+      }
+    }),
   ]);
 
   deps.connections.onStatusChange((connectionId, status) => {
+    if (status.state !== 'connected') {
+      stopTails((active) => active.connectionId === connectionId);
+    }
     deps.onEvent({ type: 'connection:status', connectionId, status });
   });
   deps.lockEvents?.subscribe(() => {
+    stopTails(() => true);
     void deps.connections.disconnectAll();
     deps.onEvent({ type: 'vault:locked' });
   });
@@ -360,6 +495,24 @@ export function createRepos(store: EncryptedStore): RouterRepos {
     favourites: new FavouritesRepository(store),
     settings,
     layout: new LayoutRepository(store),
+  };
+}
+
+function tailKey(connectionId: string, database: string): string {
+  return `${connectionId}\u0000${database}`;
+}
+
+/**
+ * Profile entries carry BSON values in command, locks, storage and raw. They are sent in
+ * canonical extended JSON, so the renderer gets plain data with $oid and $date markers.
+ */
+function canonicalEntry(entry: ProfileEntry): ProfileEntry {
+  return {
+    ...entry,
+    raw: toCanonicalEjson(entry.raw),
+    ...(entry.command === undefined ? {} : { command: toCanonicalEjson(entry.command) }),
+    ...(entry.locks === undefined ? {} : { locks: toCanonicalEjson(entry.locks) }),
+    ...(entry.storage === undefined ? {} : { storage: toCanonicalEjson(entry.storage) }),
   };
 }
 

@@ -3,6 +3,7 @@ import { UiApiProvider, type UiApi } from './api/ui-api';
 import { AppProviders } from './theme/AppProviders';
 import type { AppData } from './state/app-store';
 import { AppStoreProvider } from './state/AppStoreProvider';
+import { ProfilerStoreProvider } from './profiler/ProfilerStoreProvider';
 
 export interface AppRootProps {
   readonly api: UiApi;
@@ -15,7 +16,9 @@ export function AppRoot({ api, initialState, children }: AppRootProps) {
   return (
     <AppProviders>
       <UiApiProvider api={api}>
-        <AppStoreProvider initialState={initialState}>{children}</AppStoreProvider>
+        <AppStoreProvider initialState={initialState}>
+          <ProfilerStoreProvider>{children}</ProfilerStoreProvider>
+        </AppStoreProvider>
       </UiApiProvider>
     </AppProviders>
   );

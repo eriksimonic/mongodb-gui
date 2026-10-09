@@ -10,6 +10,11 @@ if (typeof globalThis.ResizeObserver === 'undefined') {
   Object.assign(globalThis, { ResizeObserver: ResizeObserverShim });
 }
 
+// Mantine's combobox scrolls the highlighted option into view when it opens.
+if (typeof Element.prototype.scrollIntoView !== 'function') {
+  Element.prototype.scrollIntoView = (): void => undefined;
+}
+
 if (typeof window.matchMedia !== 'function') {
   Object.assign(window, {
     matchMedia: (query: string): MediaQueryList => ({

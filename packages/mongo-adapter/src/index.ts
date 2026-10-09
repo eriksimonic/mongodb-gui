@@ -10,6 +10,7 @@ export {
   listIndexes,
   type ListCollectionsOptions,
 } from './catalog';
+export { toCanonicalEjson } from './ejson';
 export { mapDriverError } from './errors';
 export { killOperation, listOperations, type ListOperationsOptions } from './monitor/operations';
 export {

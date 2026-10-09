@@ -1,4 +1,4 @@
-import { IconChevronDown, IconChevronRight, IconDatabase } from '@tabler/icons-react';
+import { IconChevronDown, IconChevronRight, IconDatabase, IconGauge } from '@tabler/icons-react';
 import type { MouseEvent } from 'react';
 import { CollectionIcon } from './CollectionIcon';
 import { ConnectionStatusIcon } from './ConnectionStatusIcon';
@@ -83,6 +83,9 @@ function RowIcon({ row }: { readonly row: TreeRowModel }) {
   }
   if (row.kind === 'collection' && row.collectionType !== undefined) {
     return <CollectionIcon type={row.collectionType} />;
+  }
+  if (row.kind === 'profiler') {
+    return <IconGauge size={14} aria-hidden="true" />;
   }
   return <IconDatabase size={14} />;
 }

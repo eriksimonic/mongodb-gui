@@ -5,9 +5,9 @@ import type {
   DatabaseInfo,
 } from '@mongo-gui/core';
 import type { Loadable } from '../../state/app-store';
-import { catalogKey, connectionNodeId, databaseNodeId } from '../../state/node-ids';
+import { catalogKey, connectionNodeId, databaseNodeId, profilerNodeId } from '../../state/node-ids';
 
-export type TreeRowKind = 'connection' | 'database' | 'collection' | 'message';
+export type TreeRowKind = 'connection' | 'database' | 'collection' | 'profiler' | 'message';
 
 /** One visible line of the tree, flattened. Children follow their parent in the list. */
 export interface TreeRow {
@@ -125,32 +125,49 @@ function databaseRows(
     return [row];
   }
   const depth = 2;
+  const profiler = makeRow({
+    key: profilerNodeId(connectionId, database),
+    kind: 'profiler',
+    depth,
+    label: 'Profiler',
+    connectionId,
+    database,
+    parentKey: key,
+  });
+  return [row, profiler, ...collectionRows(input, connectionId, database, key)];
+}
+
+/** The collections of an open database, or the line that says why there are none. */
+function collectionRows(
+  input: TreeInput,
+  connectionId: string,
+  database: string,
+  key: string,
+): TreeRow[] {
+  const depth = 2;
   const collections = input.collections[catalogKey(connectionId, database)];
   if (collections === undefined || collections.state === 'loading') {
-    return [row, messageRow(key, connectionId, depth, 'Loading collections')];
+    return [messageRow(key, connectionId, depth, 'Loading collections')];
   }
   if (collections.state === 'error') {
-    return [row, messageRow(key, connectionId, depth, collections.error.message, 'red')];
+    return [messageRow(key, connectionId, depth, collections.error.message, 'red')];
   }
   if (collections.data.length === 0) {
-    return [row, messageRow(key, connectionId, depth, 'No collections')];
+    return [messageRow(key, connectionId, depth, 'No collections')];
   }
-  return [
-    row,
-    ...collections.data.map((collection) =>
-      makeRow({
-        key: `col:${catalogKey(connectionId, database)}/${collection.name}`,
-        kind: 'collection',
-        depth,
-        label: collection.name,
-        connectionId,
-        database,
-        collection: collection.name,
-        collectionType: collection.type,
-        parentKey: key,
-      }),
-    ),
-  ];
+  return collections.data.map((collection) =>
+    makeRow({
+      key: `col:${catalogKey(connectionId, database)}/${collection.name}`,
+      kind: 'collection',
+      depth,
+      label: collection.name,
+      connectionId,
+      database,
+      collection: collection.name,
+      collectionType: collection.type,
+      parentKey: key,
+    }),
+  );
 }
 
 /** Flattens the connection tree into the rows the screen shows, in order. */

@@ -319,6 +319,10 @@ export function createAppStore(api: UiApi, initial: Partial<AppData> = {}): AppS
           set({ vault: 'locked' });
           return;
         }
+        // Profiler events belong to the profiler store.
+        if (event.type !== 'connection:status') {
+          return;
+        }
         setStatus(event.connectionId, event.status);
         if (event.status.state !== 'connected') {
           set((state) => withoutConnectionCatalog(state, event.connectionId));

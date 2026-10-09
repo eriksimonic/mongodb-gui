@@ -92,6 +92,7 @@ describe('buildTreeRows', () => {
     expect(rows.map((row) => `${row.depth}:${row.label}`)).toEqual([
       '0:Local dev',
       '1:shop',
+      '2:Profiler',
       '2:orders',
       '1:logs',
       '0:Staging',

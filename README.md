@@ -22,6 +22,10 @@ release.
 | ------------------------------------------------------------------------------------------------ | ----------------------------------------------------------------------------- |
 | ![Connection tree with databases and collections expanded](docs/screenshots/connection-tree.png) | ![New connection dialog in form mode](docs/screenshots/connection-dialog.png) |
 
+| Profiler                                                                               | Top query shapes                                                        |
+| -------------------------------------------------------------------------------------- | ----------------------------------------------------------------------- |
+| ![Profiler panel with slow queries and the detail pane](docs/screenshots/profiler.png) | ![Profiler top query shapes view](docs/screenshots/profiler-shapes.png) |
+
 ## Prerequisites
 
 - Node.js 24 (see `.nvmrc`)

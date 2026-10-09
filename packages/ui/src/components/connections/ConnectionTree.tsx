@@ -5,7 +5,9 @@ import type { ConnectionStatus } from '@mongo-gui/core';
 import type { Selection } from '../../state/app-store';
 import { useAppStore } from '../../state/app-store-context';
 import { catalogKey, connectionNodeId, databaseNodeId } from '../../state/node-ids';
+import { useProfilerOpener } from '../../profiler/profiler-opener';
 import { ConnectionContextMenu } from './ConnectionContextMenu';
+import { DatabaseContextMenu } from './DatabaseContextMenu';
 import { TreeMessage, TreeRow } from './TreeRow';
 import {
   buildTreeRows,
@@ -25,8 +27,15 @@ interface MenuAnchor {
   readonly y: number;
 }
 
+interface DatabaseMenuAnchor {
+  readonly connectionId: string;
+  readonly database: string;
+  readonly x: number;
+  readonly y: number;
+}
+
 function selectionFor(row: TreeRowModel): Selection | undefined {
-  if (row.kind === 'message') {
+  if (row.kind === 'message' || row.kind === 'profiler') {
     return undefined;
   }
   return {
@@ -73,6 +82,8 @@ export function ConnectionTree() {
   const select = useAppStore((state) => state.select);
   const [focusKey, setFocusKey] = useState<string | undefined>(undefined);
   const [menu, setMenu] = useState<MenuAnchor | undefined>(undefined);
+  const [databaseMenu, setDatabaseMenu] = useState<DatabaseMenuAnchor | undefined>(undefined);
+  const opener = useProfilerOpener();
   const items = useRef(new Map<string, HTMLDivElement>());
   const list = connections.state === 'ready' ? connections.data : undefined;
 
@@ -175,6 +186,10 @@ export function ConnectionTree() {
   /** Enter opens a collapsed connection, which also connects it. On an open one it connects if needed. */
   function openRow(row: TreeRowModel) {
     selectRow(row);
+    if (row.kind === 'profiler') {
+      openProfiler(row);
+      return;
+    }
     if (row.kind !== 'connection') {
       return;
     }
@@ -185,16 +200,24 @@ export function ConnectionTree() {
     }
   }
 
+  function openProfiler(row: TreeRowModel) {
+    if (row.database !== undefined) {
+      opener?.open(row.connectionId, row.database);
+    }
+  }
+
   function openMenuFor(row: TreeRowModel) {
-    if (row.kind !== 'connection') {
+    if (row.kind !== 'connection' && row.kind !== 'database') {
       return;
     }
     const rect = items.current.get(row.key)?.getBoundingClientRect();
-    setMenu({
-      connectionId: row.connectionId,
-      x: rect === undefined ? 0 : rect.left + 12,
-      y: rect === undefined ? 0 : rect.bottom,
-    });
+    const x = rect === undefined ? 0 : rect.left + 12;
+    const y = rect === undefined ? 0 : rect.bottom;
+    if (row.kind === 'database' && row.database !== undefined) {
+      setDatabaseMenu({ connectionId: row.connectionId, database: row.database, x, y });
+      return;
+    }
+    setMenu({ connectionId: row.connectionId, x, y });
   }
 
   function handleKeyDown(event: KeyboardEvent<HTMLDivElement>) {
@@ -245,6 +268,13 @@ export function ConnectionTree() {
     event.preventDefault();
     if (row.kind === 'connection') {
       setMenu({ connectionId: row.connectionId, x: event.clientX, y: event.clientY });
+    } else if (row.kind === 'database' && row.database !== undefined) {
+      setDatabaseMenu({
+        connectionId: row.connectionId,
+        database: row.database,
+        x: event.clientX,
+        y: event.clientY,
+      });
     }
   }
 
@@ -272,6 +302,8 @@ export function ConnectionTree() {
             onDoubleClick={() => {
               if (row.kind === 'connection' && canConnect(statuses[row.connectionId])) {
                 void connect(row.connectionId);
+              } else if (row.kind === 'profiler') {
+                openProfiler(row);
               }
             }}
             onContextMenu={(event) => handleContextMenu(row, event)}
@@ -284,6 +316,14 @@ export function ConnectionTree() {
           status={statuses[menu.connectionId] ?? DISCONNECTED}
           position={{ x: menu.x, y: menu.y }}
           onClose={() => setMenu(undefined)}
+        />
+      )}
+      {databaseMenu === undefined ? null : (
+        <DatabaseContextMenu
+          connectionId={databaseMenu.connectionId}
+          database={databaseMenu.database}
+          position={{ x: databaseMenu.x, y: databaseMenu.y }}
+          onClose={() => setDatabaseMenu(undefined)}
         />
       )}
     </div>

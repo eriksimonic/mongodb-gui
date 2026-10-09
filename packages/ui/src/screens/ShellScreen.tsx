@@ -3,22 +3,33 @@ import 'dockview/dist/styles/dockview.css';
 import '../theme/dockview-theme.css';
 import { Box, Button, Flex, Group, Text } from '@mantine/core';
 import { IconDatabase, IconLock, IconPlus, IconServer } from '@tabler/icons-react';
+import { useMemo, useState } from 'react';
 import {
   DockviewReact,
   themeDark,
+  type DockviewApi,
   type DockviewReadyEvent,
   type DockviewTheme,
 } from 'dockview-react';
 import { ConnectionDialog } from '../components/connections/ConnectionDialog';
 import { ConnectionManager } from '../components/connections/ConnectionManager';
 import { runReported } from '../components/notify-error';
+import { ProfilerOpenerContext, type ProfilerOpener } from '../profiler/profiler-opener';
 import { useAppStore } from '../state/app-store-context';
-import { ConnectionsPanel, FixedTab, OutputPanel, WelcomePanel } from './ShellPanels';
+import { profilerPanelId } from '../state/node-ids';
+import {
+  ConnectionsPanel,
+  FixedTab,
+  OutputPanel,
+  ProfilerDockPanel,
+  WelcomePanel,
+} from './ShellPanels';
 
 const PANEL_COMPONENTS = {
   connections: ConnectionsPanel,
   welcome: WelcomePanel,
   output: OutputPanel,
+  profiler: ProfilerDockPanel,
 };
 
 const TAB_COMPONENTS = { fixed: FixedTab };
@@ -64,12 +75,43 @@ function handleDockReady({ api }: DockviewReadyEvent) {
   api.getPanel('output')?.group.api.setSize({ height: Math.round(height * OUTPUT_SHARE) });
 }
 
+/**
+ * Adds the profiler panel of a database next to the welcome panel, or focuses it when it is open.
+ * One panel per database, titled "<database> profiler".
+ */
+function openProfilerPanel(api: DockviewApi, connectionId: string, database: string): void {
+  const id = profilerPanelId(connectionId, database);
+  const existing = api.getPanel(id);
+  if (existing !== undefined) {
+    existing.api.setActive();
+    return;
+  }
+  api.addPanel({
+    id,
+    component: 'profiler',
+    title: `${database} profiler`,
+    params: { connectionId, database },
+    position: { referencePanel: 'welcome', direction: 'within' },
+  });
+}
+
 /** The unlocked main window: toolbar, dockable panels, connection dialog and manager. */
 export function ShellScreen() {
   const lock = useAppStore((state) => state.lock);
   const dialog = useAppStore((state) => state.dialog);
   const setDialog = useAppStore((state) => state.setDialog);
   const setManagerOpen = useAppStore((state) => state.setManagerOpen);
+  const [dock, setDock] = useState<DockviewApi | undefined>(undefined);
+  const opener = useMemo<ProfilerOpener>(
+    () => ({
+      open(connectionId, database) {
+        if (dock !== undefined) {
+          openProfilerPanel(dock, connectionId, database);
+        }
+      },
+    }),
+    [dock],
+  );
 
   return (
     <Flex direction="column" h="100vh" style={{ overflow: 'hidden' }}>
@@ -110,14 +152,19 @@ export function ShellScreen() {
         </Button>
       </Group>
       <Box style={{ flex: 1, minHeight: 0 }}>
-        <div style={{ height: '100%' }}>
-          <DockviewReact
-            theme={MONGO_THEME}
-            components={PANEL_COMPONENTS}
-            tabComponents={TAB_COMPONENTS}
-            onReady={handleDockReady}
-          />
-        </div>
+        <ProfilerOpenerContext.Provider value={opener}>
+          <div style={{ height: '100%' }}>
+            <DockviewReact
+              theme={MONGO_THEME}
+              components={PANEL_COMPONENTS}
+              tabComponents={TAB_COMPONENTS}
+              onReady={(event) => {
+                handleDockReady(event);
+                setDock(event.api);
+              }}
+            />
+          </div>
+        </ProfilerOpenerContext.Provider>
       </Box>
       {dialog.kind === 'closed' ? null : (
         <ConnectionDialog
