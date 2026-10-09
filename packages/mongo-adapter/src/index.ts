@@ -11,3 +11,10 @@ export {
   type ListCollectionsOptions,
 } from './catalog';
 export { mapDriverError } from './errors';
+export { killOperation, listOperations, type ListOperationsOptions } from './monitor/operations';
+export {
+  Sampler,
+  type SampleErrorListener,
+  type SampleListener,
+  type SamplerOptions,
+} from './monitor/sampler';
