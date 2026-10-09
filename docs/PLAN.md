@@ -107,6 +107,11 @@ customer data) and favourites from anyone who copies the user's profile director
 reads a backup. Not in scope: an attacker with code running as the logged-in user while
 the app is unlocked.
 
+User code in the runtime process shares that process with the runtime's own state, so a
+script can change what later results show until the process restarts. That is the same
+trust as the user's own script, and the runtime process holds no secrets beyond the URI
+it was given.
+
 ### 3.2 Key hierarchy
 
 ```
@@ -275,6 +280,21 @@ issues.
   network in and out, memory (resident, virtual, WiredTiger cache), queued readers and
   writers, replication lag per member, oplog window. Operations tab with running
   operations, filters, and kill with confirmation.
+
+- **P5-3 configurable dashboard.** Added on 2026-10-09 at Erik's request. A panel
+  catalogue in core drives both the sampler and the UI: each panel declares the series it
+  needs (serverStatus paths, counter or gauge, unit), the chart type and a title. The
+  sampler collects the sections the catalogue references (`wiredTiger` cache, checkpoint,
+  eviction, tickets and transactions, block-manager bytes read and written for IO,
+  `network`, `metrics.document`, `metrics.cursor`, `metrics.operation`, `metrics.ttl`,
+  `metrics.repl`, `transactions`, `locks`, `asserts`, `extra_info` page faults,
+  `logicalSessionRecordCache`, replica set lag and oplog) and emits a flat
+  `series: Record<string, number>` per sample next to the existing headline fields. The
+  dashboard gets an "Add panel" picker grouped by category (operations, documents, memory
+  and cache, WiredTiger, IO and network, locks and tickets, transactions, sessions and
+  cursors, replication, errors), every panel can be closed, resized and reordered, and the
+  layout is saved per connection through the `layout` namespace, with a "Reset to
+  default" action and a default set that matches today's dashboard.
 
 ### Phase 6: profiler
 
