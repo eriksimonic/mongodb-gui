@@ -12,6 +12,8 @@
   "scripts": {
     "dev": "pnpm --filter @mongo-gui/app dev",
     "dev:ui": "pnpm --filter @mongo-gui/ui dev",
+    "storybook": "pnpm --filter @mongo-gui/ui storybook",
+    "build-storybook": "pnpm --filter @mongo-gui/ui build-storybook",
     "build": "pnpm --filter @mongo-gui/app build",
     "lint": "eslint .",
     "typecheck": "tsc -b",

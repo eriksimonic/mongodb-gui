@@ -1,20 +1,38 @@
 // @vitest-environment jsdom
-import '@testing-library/jest-dom/vitest';
-import { cleanup, fireEvent, render, screen } from '@testing-library/react';
-import { afterEach, describe, expect, it } from 'vitest';
+import { fireEvent, screen } from '@testing-library/react';
+import { describe, expect, it } from 'vitest';
 import { App } from './App';
-
-afterEach(cleanup);
+import { createMockUiApi } from './api/mock-rpc-client';
+import { renderApp } from './test-support/render';
 
 describe('App', () => {
-  it('renders the Mongo GUI heading', () => {
-    render(<App />);
-    expect(screen.getByRole('heading', { name: 'Mongo GUI' })).toBeInTheDocument();
+  it('opens on the first-run screen when the store is fresh', async () => {
+    renderApp({ mock: { preset: 'fresh' } });
+    expect(
+      await screen.findByRole('heading', { name: 'Create master password' }),
+    ).toBeInTheDocument();
   });
 
-  it('reports that ping is not available when window.mongoGui is missing', async () => {
-    render(<App />);
-    fireEvent.click(screen.getByRole('button', { name: 'Ping main' }));
-    expect(await screen.findByRole('status')).toHaveTextContent('not available in browser');
+  it('shows the shell when the vault is unlocked', async () => {
+    renderApp({ mock: { preset: 'unlocked' } });
+    expect(await screen.findByRole('button', { name: 'Lock' })).toBeInTheDocument();
+    expect(await screen.findByText('Local dev')).toBeInTheDocument();
+  });
+
+  it('returns to the unlock screen when the vault locks', async () => {
+    renderApp({ mock: { preset: 'unlocked' } });
+    fireEvent.click(await screen.findByRole('button', { name: 'Lock' }));
+    expect(await screen.findByRole('heading', { name: 'Unlock Mongo GUI' })).toBeInTheDocument();
+  });
+
+  it('shows the unlock screen when the app starts locked', async () => {
+    const api = createMockUiApi({ preset: 'unlocked' });
+    await api.rpc.vault.lock();
+    renderApp({ api });
+    expect(await screen.findByRole('heading', { name: 'Unlock Mongo GUI' })).toBeInTheDocument();
+  });
+
+  it('is exported as a component taking an api prop', () => {
+    expect(typeof App).toBe('function');
   });
 });
