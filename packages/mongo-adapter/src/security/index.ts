@@ -1,4 +1,4 @@
-export { canManageUsers, connectionStatus } from './current';
+export { connectionStatus, userManagementCapabilities } from './current';
 export { redactPassword } from './redact';
 export {
   createRole,

@@ -4,11 +4,12 @@ import {
   appError,
   ChangePasswordInputSchema,
   CreateUserInputSchema,
-  DatabaseNameSchema,
   DropUserInputSchema,
   GrantRolesInputSchema,
   RevokeRolesInputSchema,
   UpdateUserRestrictionsInputSchema,
+  UserDatabaseSchema,
+  UserInfoSchema,
   UserRefSchema,
   type ChangePasswordInput,
   type CreateUserInput,
@@ -21,12 +22,16 @@ import {
 } from '@mongo-gui/core';
 import { definedEntry, readArray, readField, readString, readStringArray } from '../documents';
 import { parseInput } from '../management/errors';
-import { runSecurityCommand } from './errors';
+import { mapWithConcurrency } from './concurrency';
+import { parseServerRecord, runSecurityCommand } from './errors';
 import { optionalPrivileges, optionalRoleRefs, toRestrictions, toRoleRefs } from './mapping';
 
+// Users are read one at a time through an exact match, with this many reads in flight.
+const DETAIL_CONCURRENCY = 8;
+
 // The server refuses showPrivileges and showAuthenticationRestrictions on list queries. Those
-// flags work only on an exact match of one user, so the list is read first and each user is then
-// read again with its exact name. Credentials are never requested.
+// flags work only on an exact match of one user, so the list is read first and each user is
+// then read again with its exact name. Credentials are never requested.
 export async function listUsers(client: MongoClient, db?: string): Promise<UserInfo[]> {
   return runSecurityCommand([], async () => {
     const reply =
@@ -35,14 +40,12 @@ export async function listUsers(client: MongoClient, db?: string): Promise<UserI
             .db('admin')
             .command({ usersInfo: { forAllDBs: true }, showCredentials: false })
         : await client
-            .db(parseInput(DatabaseNameSchema, db))
+            .db(parseInput(UserDatabaseSchema, db))
             .command({ usersInfo: 1, showCredentials: false });
-    const listed = readArray(reply, 'users').flatMap(toUserInfo);
-    const detailed: UserInfo[] = [];
-    for (const user of listed) {
-      detailed.push((await readUserDetail(client, user.db, user.user)) ?? user);
-    }
-    return detailed;
+    const listed = readArray(reply, 'users').map((source) => toUserInfo(source));
+    return mapWithConcurrency(listed, DETAIL_CONCURRENCY, async (user) => {
+      return (await readUserDetail(client, user.db, user.user)) ?? user;
+    });
   });
 }
 
@@ -58,32 +61,17 @@ export async function getUser(
   });
 }
 
-async function readUserDetail(
-  client: MongoClient,
-  db: string,
-  user: string,
-): Promise<UserInfo | null> {
-  const reply = await client.db(db).command({
-    usersInfo: { user, db },
-    showCredentials: false,
-    showPrivileges: true,
-    showAuthenticationRestrictions: true,
-  });
-  return readArray(reply, 'users').flatMap(toUserInfo)[0] ?? null;
-}
-
 export async function createUser(client: MongoClient, input: unknown): Promise<UserInfo> {
   const parsed: CreateUserInput = parseInput(CreateUserInputSchema, input);
-  return runSecurityCommand([parsed.password], async () => {
+  const secrets = parsed.password === undefined ? [] : [parsed.password];
+  return runSecurityCommand(secrets, async () => {
     await client.db(parsed.db).command({
       createUser: parsed.user,
-      pwd: parsed.password,
+      ...definedEntry('pwd', parsed.password),
       roles: parsed.roles,
-      ...(parsed.mechanisms === undefined ? {} : { mechanisms: parsed.mechanisms }),
-      ...(parsed.authenticationRestrictions === undefined
-        ? {}
-        : { authenticationRestrictions: parsed.authenticationRestrictions }),
-      ...(parsed.customData === undefined ? {} : { customData: parsed.customData }),
+      ...definedEntry('mechanisms', parsed.mechanisms),
+      ...definedEntry('authenticationRestrictions', parsed.authenticationRestrictions),
+      ...definedEntry('customData', parsed.customData),
     });
     const created = await getUser(client, parsed.db, parsed.user);
     if (created === null) {
@@ -133,23 +121,34 @@ export async function dropUser(client: MongoClient, input: unknown): Promise<voi
   });
 }
 
-function toUserInfo(source: unknown): UserInfo[] {
+async function readUserDetail(
+  client: MongoClient,
+  db: string,
+  user: string,
+): Promise<UserInfo | null> {
+  const reply = await client.db(db).command({
+    usersInfo: { user, db },
+    showCredentials: false,
+    showPrivileges: true,
+    showAuthenticationRestrictions: true,
+  });
+  const source = readArray(reply, 'users')[0];
+  return source === undefined ? null : toUserInfo(source);
+}
+
+function toUserInfo(source: unknown): UserInfo {
   const user = readString(source, 'user');
   const db = readString(source, 'db');
-  if (user === undefined || db === undefined) {
-    return [];
-  }
-  return [
-    {
-      id: `${db}.${user}`,
-      user,
-      db,
-      roles: toRoleRefs(source, 'roles'),
-      mechanisms: readStringArray(source, 'mechanisms'),
-      authenticationRestrictions: toRestrictions(source, 'authenticationRestrictions'),
-      ...definedEntry('customData', readField(source, 'customData')),
-      ...definedEntry('inheritedRoles', optionalRoleRefs(source, 'inheritedRoles')),
-      ...definedEntry('inheritedPrivileges', optionalPrivileges(source, 'inheritedPrivileges')),
-    },
-  ];
+  const candidate = {
+    id: `${db ?? ''}.${user ?? ''}`,
+    user,
+    db,
+    roles: toRoleRefs(source, 'roles'),
+    mechanisms: readStringArray(source, 'mechanisms'),
+    authenticationRestrictions: toRestrictions(source, 'authenticationRestrictions'),
+    ...definedEntry('customData', readField(source, 'customData')),
+    ...definedEntry('inheritedRoles', optionalRoleRefs(source, 'inheritedRoles')),
+    ...definedEntry('inheritedPrivileges', optionalPrivileges(source, 'inheritedPrivileges')),
+  };
+  return parseServerRecord(UserInfoSchema, candidate, 'user');
 }

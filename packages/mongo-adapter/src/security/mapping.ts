@@ -53,6 +53,10 @@ function toResource(source: unknown): PrivilegeResource | undefined {
     return { anyResource: true };
   }
   const db = readString(source, 'db');
+  const systemBuckets = readString(source, 'system_buckets');
+  if (db !== undefined && systemBuckets !== undefined) {
+    return { db, system_buckets: systemBuckets };
+  }
   const collection = readString(source, 'collection');
   return db === undefined || collection === undefined ? undefined : { db, collection };
 }

@@ -10,6 +10,7 @@ import {
   isBuiltinRole,
   RevokePrivilegesInputSchema,
   RevokeRolesFromRoleInputSchema,
+  RoleInfoSchema,
   RoleRefSchema,
   UpdateRoleInputSchema,
   type CreateRoleInput,
@@ -24,7 +25,7 @@ import {
 } from '@mongo-gui/core';
 import { definedEntry, readArray, readString } from '../documents';
 import { parseInput, validationError } from '../management/errors';
-import { runSecurityCommand } from './errors';
+import { parseServerRecord, runSecurityCommand } from './errors';
 import {
   builtinFlag,
   optionalPrivileges,
@@ -60,7 +61,8 @@ export async function getRole(
       showPrivileges: true,
       showAuthenticationRestrictions: true,
     });
-    return readArray(reply, 'roles').flatMap(toRoleInfo)[0] ?? null;
+    const source = readArray(reply, 'roles')[0];
+    return source === undefined ? null : toRoleInfo(source);
   });
 }
 
@@ -157,7 +159,7 @@ async function rolesInfoFor(client: MongoClient, db: string): Promise<RoleInfo[]
     showPrivileges: true,
     showAuthenticationRestrictions: true,
   });
-  return readArray(reply, 'roles').flatMap(toRoleInfo);
+  return readArray(reply, 'roles').map((source) => toRoleInfo(source));
 }
 
 async function listDatabaseNames(client: MongoClient): Promise<string[]> {
@@ -168,23 +170,19 @@ async function listDatabaseNames(client: MongoClient): Promise<string[]> {
   });
 }
 
-function toRoleInfo(source: unknown): RoleInfo[] {
+function toRoleInfo(source: unknown): RoleInfo {
   const role = readString(source, 'role');
   const db = readString(source, 'db');
-  if (role === undefined || db === undefined) {
-    return [];
-  }
-  return [
-    {
-      id: `${db}.${role}`,
-      role,
-      db,
-      isBuiltin: builtinFlag(source, role),
-      roles: toRoleRefs(source, 'roles'),
-      privileges: toPrivileges(source, 'privileges'),
-      authenticationRestrictions: toRestrictions(source, 'authenticationRestrictions'),
-      ...definedEntry('inheritedRoles', optionalRoleRefs(source, 'inheritedRoles')),
-      ...definedEntry('inheritedPrivileges', optionalPrivileges(source, 'inheritedPrivileges')),
-    },
-  ];
+  const candidate = {
+    id: `${db ?? ''}.${role ?? ''}`,
+    role,
+    db,
+    isBuiltin: builtinFlag(source, role ?? ''),
+    roles: toRoleRefs(source, 'roles'),
+    privileges: toPrivileges(source, 'privileges'),
+    authenticationRestrictions: toRestrictions(source, 'authenticationRestrictions'),
+    ...definedEntry('inheritedRoles', optionalRoleRefs(source, 'inheritedRoles')),
+    ...definedEntry('inheritedPrivileges', optionalPrivileges(source, 'inheritedPrivileges')),
+  };
+  return parseServerRecord(RoleInfoSchema, candidate, 'role');
 }

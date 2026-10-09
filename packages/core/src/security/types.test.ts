@@ -13,6 +13,7 @@ import {
   UpdateRoleInputSchema,
   UpdateUserRestrictionsInputSchema,
   UserInfoSchema,
+  UserRefSchema,
 } from './types';
 
 const READ_WRITE_ROLE = { role: 'readWrite', db: 'shop' };
@@ -132,6 +133,33 @@ describe('create and update role', () => {
 
   it('requires a role name for drop', () => {
     expect(DropRoleInputSchema.safeParse({ db: 'shop', role: '' }).success).toBe(false);
+  });
+});
+
+describe('external users', () => {
+  it('accepts a user in $external without a password', () => {
+    const input = { db: '$external', user: 'CN=test', roles: [READ_WRITE_ROLE] };
+    expect(CreateUserInputSchema.safeParse(input).success).toBe(true);
+    expect(UserRefSchema.safeParse({ db: '$external', user: 'CN=test' }).success).toBe(true);
+  });
+
+  it('rejects a password for a user in $external and a missing password elsewhere', () => {
+    const withPassword = { db: '$external', user: 'CN=test', password: 'x', roles: [] };
+    const withoutPassword = { db: 'shop', user: 'clerk', roles: [] };
+    expect(CreateUserInputSchema.safeParse(withPassword).success).toBe(false);
+    expect(CreateUserInputSchema.safeParse(withoutPassword).success).toBe(false);
+  });
+
+  it('keeps other databases free of $', () => {
+    expect(UserRefSchema.safeParse({ db: 'bad$db', user: 'clerk' }).success).toBe(false);
+  });
+});
+
+describe('system buckets resources', () => {
+  it('accepts a time series buckets resource', () => {
+    expect(
+      PrivilegeResourceSchema.safeParse({ db: 'shop', system_buckets: 'metrics' }).success,
+    ).toBe(true);
   });
 });
 

@@ -2,10 +2,14 @@ import { MongoClient } from 'mongodb';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import {
   AppErrorException,
+  availableOn,
   BUILTIN_ROLES,
+  BUILTIN_ROLE_MIN_SERIES,
   PRIVILEGE_ACTIONS,
+  PRIVILEGE_ACTION_MIN_SERIES,
   type AppError,
   type RoleInfo,
+  type ServerSeries,
   type UserInfo,
 } from '@mongo-gui/core';
 import {
@@ -14,7 +18,7 @@ import {
   startMongo,
   type StartedMongo,
 } from '../test/mongo-container';
-import { canManageUsers, connectionStatus } from './current';
+import { connectionStatus, userManagementCapabilities } from './current';
 import {
   createRole,
   dropRole,
@@ -43,10 +47,13 @@ type Doc = { _id: string; [field: string]: unknown };
 const CLERK_PASSWORD = 'clerk-initial-pass';
 const CLERK_ROTATED_PASSWORD = 'clerk-rotated-pass';
 const EDITOR_PASSWORD = 'editor-pass-123';
+const GRANTER_PASSWORD = 'granter-pass-789';
 const RESTRICTED_PASSWORD = 'restricted-pass-456';
 const INTRUDER_PASSWORD = 'intruder-attempt-pass';
 const AUTH_FAILED_CODE = 18;
 const NOT_AUTHORIZED_CODE = 13;
+const EXTERNAL_DB = '$external';
+const EXTERNAL_USER = 'CN=test';
 const ORDERS_RESOURCE = { db: 'shop', collection: 'orders' };
 const ORDER_ACTIONS = ['find', 'update'];
 // The server keeps action lists sorted.
@@ -57,47 +64,10 @@ const UPDATED_ORDER_ACTIONS = ['find', 'remove', 'update'];
 const PROBE_RESOURCES = [{ db: 'shop', collection: '' }, { cluster: true }, { anyResource: true }];
 const UNRECOGNIZED_ACTION = 'Unrecognized action';
 
-// Actions that the probe test found unknown on a given image. Each list is what the server
-// reported when the test was written. Later servers recognise more actions, never fewer.
-const UNKNOWN_ACTIONS_BY_IMAGE: Record<string, readonly string[]> = {
-  'mongo:4.4': [
-    'querySettings',
-    'analyzeShardKey',
-    'checkMetadataConsistency',
-    'moveCollection',
-    'reshardCollection',
-    'rewriteCollection',
-    'unshardCollection',
-    'getClusterParameter',
-    'shardedDataDistribution',
-    'transitionFromDedicatedConfigServer',
-    'transitionToDedicatedConfigServer',
-    'bypassWriteBlockingMode',
-    'bypassDefaultMaxTimeMS',
-    'compactStructuredEncryptionData',
-    'rotateCertificates',
-    'setUserWriteBlockMode',
-    'createSearchIndexes',
-    'dropSearchIndex',
-    'listSearchIndexes',
-    'updateSearchIndex',
-    'listClusterCatalog',
-    'queryStatsRead',
-    'queryStatsReadTransformed',
-  ],
-  'mongo:6.0': [
-    'querySettings',
-    'analyzeShardKey',
-    'checkMetadataConsistency',
-    'moveCollection',
-    'rewriteCollection',
-    'unshardCollection',
-    'transitionFromDedicatedConfigServer',
-    'transitionToDedicatedConfigServer',
-    'bypassDefaultMaxTimeMS',
-    'listClusterCatalog',
-  ],
-  'mongo:8.0.17': [],
+const SERIES_BY_IMAGE: Record<string, ServerSeries> = {
+  'mongo:4.4': '4.4',
+  'mongo:6.0': '6.0',
+  'mongo:8.0.17': '8.0',
 };
 
 // Builds a URI for another user on the same container, reusing the host and port of rootUri.
@@ -156,7 +126,13 @@ function findRole(roles: RoleInfo[], id: string): RoleInfo | undefined {
   return roles.find((role) => role.id === id);
 }
 
+function setDifference(left: Iterable<string>, right: Iterable<string>): string[] {
+  const excluded = new Set(right);
+  return [...new Set(left)].filter((name) => !excluded.has(name)).sort();
+}
+
 describe.each(MONGO_IMAGES)('users, roles and privileges on %s', (image) => {
+  const series = SERIES_BY_IMAGE[image] ?? '8.0';
   let mongo: StartedMongo;
   let root: MongoClient;
 
@@ -188,13 +164,23 @@ describe.each(MONGO_IMAGES)('users, roles and privileges on %s', (image) => {
     expect(findUser(adminUsers, 'admin.root')).toBeDefined();
   });
 
-  it('shows the built-in roles that the server reports for admin', async () => {
+  it('lists exactly the built-in roles that this server has on admin', async () => {
     const roles = await listRoles(root, 'admin');
-    const names = new Set(roles.filter((role) => role.isBuiltin).map((role) => role.role));
-    const missing = Object.values(BUILTIN_ROLES)
+    const serverNames = roles.filter((role) => role.isBuiltin).map((role) => role.role);
+    const expectedNames = Object.values(BUILTIN_ROLES)
       .flatMap((group) => group)
-      .filter((name) => !names.has(name));
-    expect(missing).toEqual([]);
+      .filter((name) => availableOn(BUILTIN_ROLE_MIN_SERIES[name], series));
+    expect(setDifference(serverNames, expectedNames)).toEqual([]);
+    expect(setDifference(expectedNames, serverNames)).toEqual([]);
+  });
+
+  it('lists every privilege action that the built-in roles use on this server', async () => {
+    const roles = await listRoles(root, 'admin');
+    const serverActions = roles
+      .filter((role) => role.isBuiltin)
+      .flatMap((role) => role.privileges.flatMap((privilege) => privilege.actions));
+    const listed = Object.values(PRIVILEGE_ACTIONS).flatMap((group) => group);
+    expect(setDifference(serverActions, listed)).toEqual([]);
   });
 
   it('creates a user with readWrite on shop and SCRAM mechanisms', async () => {
@@ -402,14 +388,50 @@ describe.each(MONGO_IMAGES)('users, roles and privileges on %s', (image) => {
     );
   });
 
-  it('reports user management rights for root and not for the limited user', async () => {
-    expect(await canManageUsers(root, 'shop')).toBe(true);
+  it('reports every user management capability for root and none for the limited user', async () => {
+    expect(await userManagementCapabilities(root, 'shop')).toEqual({
+      canCreateUsers: true,
+      canGrantRoles: true,
+      canManageRoles: true,
+    });
     await withClient(
       uriFor(mongo.rootUri, 'clerk', CLERK_ROTATED_PASSWORD, 'shop'),
       async (client) => {
-        expect(await canManageUsers(client, 'shop')).toBe(false);
+        expect(await userManagementCapabilities(client, 'shop')).toEqual({
+          canCreateUsers: false,
+          canGrantRoles: false,
+          canManageRoles: false,
+        });
       },
     );
+  });
+
+  it('splits the capabilities for a user that may only grant roles', async () => {
+    await createRole(root, {
+      db: 'shop',
+      role: 'granter',
+      privileges: [{ resource: { db: 'shop', collection: '' }, actions: ['grantRole'] }],
+      roles: [],
+    });
+    await createUser(root, {
+      db: 'shop',
+      user: 'granter',
+      password: GRANTER_PASSWORD,
+      roles: [{ role: 'granter', db: 'shop' }],
+    });
+    await withClient(uriFor(mongo.rootUri, 'granter', GRANTER_PASSWORD, 'shop'), async (client) => {
+      expect(await userManagementCapabilities(client, 'shop')).toEqual({
+        canCreateUsers: false,
+        canGrantRoles: true,
+        canManageRoles: false,
+      });
+      const error = await captureError(() =>
+        createUser(client, { db: 'shop', user: 'intruder2', password: 'x-intruder-2', roles: [] }),
+      );
+      expect(error.code).toBe('COMMAND_FAILED');
+    });
+    await dropUser(root, { db: 'shop', user: 'granter' });
+    await dropRole(root, { db: 'shop', role: 'granter' });
   });
 
   it('refuses user creation from the limited user with a detail that has no password', async () => {
@@ -453,6 +475,52 @@ describe.each(MONGO_IMAGES)('users, roles and privileges on %s', (image) => {
     await dropUser(root, { db: 'shop', user: 'restricted' });
   });
 
+  it('manages an external x.509 style user in $external without a password', async () => {
+    const created = await createUser(root, {
+      db: EXTERNAL_DB,
+      user: EXTERNAL_USER,
+      roles: [{ role: 'read', db: 'shop' }],
+    });
+    expect(created.id).toBe(`${EXTERNAL_DB}.${EXTERNAL_USER}`);
+    expect(created.roles).toEqual([{ role: 'read', db: 'shop' }]);
+
+    const listed = await listUsers(root, EXTERNAL_DB);
+    expect(findUser(listed, `${EXTERNAL_DB}.${EXTERNAL_USER}`)).toBeDefined();
+    const everyone = await listUsers(root);
+    expect(findUser(everyone, `${EXTERNAL_DB}.${EXTERNAL_USER}`)).toBeDefined();
+
+    await grantRoles(root, {
+      db: EXTERNAL_DB,
+      user: EXTERNAL_USER,
+      roles: [{ role: 'read', db: 'other' }],
+    });
+    expect((await getUser(root, EXTERNAL_DB, EXTERNAL_USER))?.roles).toContainEqual({
+      role: 'read',
+      db: 'other',
+    });
+    await revokeRoles(root, {
+      db: EXTERNAL_DB,
+      user: EXTERNAL_USER,
+      roles: [{ role: 'read', db: 'other' }],
+    });
+    expect((await getUser(root, EXTERNAL_DB, EXTERNAL_USER))?.roles).toEqual([
+      { role: 'read', db: 'shop' },
+    ]);
+
+    const withPassword = await captureError(() =>
+      createUser(root, {
+        db: EXTERNAL_DB,
+        user: 'CN=other',
+        password: 'should-not-be-accepted',
+        roles: [],
+      }),
+    );
+    expect(withPassword.code).toBe('VALIDATION');
+
+    await dropUser(root, { db: EXTERNAL_DB, user: EXTERNAL_USER });
+    expect(await getUser(root, EXTERNAL_DB, EXTERNAL_USER)).toBeNull();
+  });
+
   it('drops the limited user, after which it cannot connect', async () => {
     await dropUser(root, { db: 'shop', user: 'clerk' });
     expect(await getUser(root, 'shop', 'clerk')).toBeNull();
@@ -470,7 +538,7 @@ describe.each(MONGO_IMAGES)('users, roles and privileges on %s', (image) => {
     expect(findRole(roles, 'shop.orderEditor')?.isBuiltin).toBe(false);
   });
 
-  it('recognises every privilege action in PRIVILEGE_ACTIONS, with the known exceptions', async () => {
+  it('recognises exactly the privilege actions that this server knows, with the known exceptions', async () => {
     await createRole(root, { db: 'shop', role: 'actionProbe', privileges: [], roles: [] });
     const unknown: string[] = [];
     for (const action of Object.values(PRIVILEGE_ACTIONS).flatMap((group) => group)) {
@@ -484,6 +552,10 @@ describe.each(MONGO_IMAGES)('users, roles and privileges on %s', (image) => {
       }
     }
     await dropRole(root, { db: 'shop', role: 'actionProbe' });
-    expect(unknown).toEqual(UNKNOWN_ACTIONS_BY_IMAGE[image]);
+    const expected = Object.keys(PRIVILEGE_ACTION_MIN_SERIES).filter(
+      (action) => !availableOn(PRIVILEGE_ACTION_MIN_SERIES[action], series),
+    );
+    expect(setDifference(unknown, expected)).toEqual([]);
+    expect(setDifference(expected, unknown)).toEqual([]);
   });
 });

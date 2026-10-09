@@ -17,9 +17,12 @@ export const AuthRestrictionSchema = z.object({
 });
 
 // An empty db or collection string means "all databases" or "all collections".
+// system_buckets names the buckets of a time series collection. The server reports it as its
+// own resource shape, so it is kept apart from a plain collection.
 export const PrivilegeResourceSchema = z.union([
   z.object({ cluster: z.literal(true) }),
   z.object({ db: z.string(), collection: z.string() }),
+  z.object({ db: z.string(), system_buckets: z.string() }),
   z.object({ anyResource: z.literal(true) }),
 ]);
 
@@ -58,9 +61,21 @@ export const AuthStatusSchema = z.object({
   authenticatedUserPrivileges: z.array(PrivilegeSchema),
 });
 
+// What the signed-in user may do on one database. The UI shows a control only when its flag is
+// true. The server still checks every command.
+export const UserManagementCapabilitiesSchema = z.object({
+  canCreateUsers: z.boolean(),
+  canGrantRoles: z.boolean(),
+  canManageRoles: z.boolean(),
+});
+
 // Input schemas. A password is never echoed back, so the schemas carry no value in issue text.
 
 const DbSchema = DatabaseNameSchema;
+// Users of the $external database (LDAP, Kerberos and x.509) live there. Every other user lives
+// in a normal database.
+export const UserDatabaseSchema = z.union([DatabaseNameSchema, z.literal('$external')]);
+export const EXTERNAL_DATABASE = '$external';
 const UserNameSchema = NonEmptySchema;
 const RoleNameSchema = NonEmptySchema;
 const RoleListSchema = z.array(UserRoleRefSchema);
@@ -68,19 +83,26 @@ const RestrictionListSchema = z.array(AuthRestrictionSchema);
 const PrivilegeListSchema = z.array(PrivilegeSchema);
 
 export const UserRefSchema = z.object({
-  db: DbSchema,
+  db: UserDatabaseSchema,
   user: UserNameSchema,
 });
 
-export const CreateUserInputSchema = z.object({
-  db: DbSchema,
-  user: UserNameSchema,
-  password: PasswordSchema,
-  roles: RoleListSchema,
-  mechanisms: z.array(ScramMechanismSchema).min(1).optional(),
-  authenticationRestrictions: RestrictionListSchema.optional(),
-  customData: z.record(z.string(), z.unknown()).optional(),
-});
+// A password is required for every user except one in $external, which authenticates outside
+// MongoDB and so has none.
+export const CreateUserInputSchema = z
+  .object({
+    db: UserDatabaseSchema,
+    user: UserNameSchema,
+    password: PasswordSchema.optional(),
+    roles: RoleListSchema,
+    mechanisms: z.array(ScramMechanismSchema).min(1).optional(),
+    authenticationRestrictions: RestrictionListSchema.optional(),
+    customData: z.record(z.string(), z.unknown()).optional(),
+  })
+  .refine((input) => (input.db === EXTERNAL_DATABASE) === (input.password === undefined), {
+    message: 'Give a password for a user in a database, and none for a user in $external',
+    path: ['password'],
+  });
 
 export const ChangePasswordInputSchema = z.object({
   db: DbSchema,
@@ -89,7 +111,7 @@ export const ChangePasswordInputSchema = z.object({
 });
 
 export const GrantRolesInputSchema = z.object({
-  db: DbSchema,
+  db: UserDatabaseSchema,
   user: UserNameSchema,
   roles: RoleListSchema.min(1),
 });
@@ -99,7 +121,7 @@ export const RevokeRolesInputSchema = GrantRolesInputSchema;
 export const DropUserInputSchema = UserRefSchema;
 
 export const UpdateUserRestrictionsInputSchema = z.object({
-  db: DbSchema,
+  db: UserDatabaseSchema,
   user: UserNameSchema,
   authenticationRestrictions: RestrictionListSchema,
 });
@@ -158,8 +180,10 @@ export type Privilege = z.infer<typeof PrivilegeSchema>;
 export type UserInfo = z.infer<typeof UserInfoSchema>;
 export type RoleInfo = z.infer<typeof RoleInfoSchema>;
 export type AuthStatus = z.infer<typeof AuthStatusSchema>;
+export type UserManagementCapabilities = z.infer<typeof UserManagementCapabilitiesSchema>;
 export type ScramMechanism = z.infer<typeof ScramMechanismSchema>;
 export type UserRef = z.infer<typeof UserRefSchema>;
+export type UserDatabase = z.infer<typeof UserDatabaseSchema>;
 export type RoleRef = z.infer<typeof RoleRefSchema>;
 export type CreateUserInput = z.infer<typeof CreateUserInputSchema>;
 export type ChangePasswordInput = z.infer<typeof ChangePasswordInputSchema>;

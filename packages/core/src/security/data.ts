@@ -1,10 +1,24 @@
-// Built-in role names and privilege actions, taken from the MongoDB manual. Grouped by the
-// categories the manual uses so the UI can render pickers without a second copy of the list.
+// Built-in role names and privilege actions, taken from the MongoDB manual and from the
+// built-in roles that the 4.4, 6.0 and 8.0.17 servers report. Grouped by the categories the
+// manual uses so the UI can render pickers without a second copy of the list.
+
+// The server series the adapter tests against. A minimum series marks the first series that
+// knows a name, so a name without one is known on 4.4 as well.
+export const SERVER_SERIES = ['4.4', '6.0', '8.0'] as const;
+export type ServerSeries = (typeof SERVER_SERIES)[number];
 
 export const BUILTIN_ROLES = {
   databaseUser: ['read', 'readWrite'],
   databaseAdmin: ['dbAdmin', 'dbOwner', 'userAdmin'],
-  clusterAdmin: ['clusterAdmin', 'clusterManager', 'clusterMonitor', 'hostManager'],
+  clusterAdmin: [
+    'clusterAdmin',
+    'clusterManager',
+    'clusterMonitor',
+    'hostManager',
+    'enableSharding',
+    'directShardOperations',
+    'searchCoordinator',
+  ],
   backupRestore: ['backup', 'restore'],
   allDatabase: [
     'readAnyDatabase',
@@ -13,16 +27,34 @@ export const BUILTIN_ROLES = {
     'dbAdminAnyDatabase',
   ],
   superuser: ['root'],
-  internal: ['__system'],
+  internal: ['__queryableBackup', '__system'],
 } as const;
 
+// Built-in roles that a server series does not have. Roles not listed here exist on 4.4.
+export const BUILTIN_ROLE_MIN_SERIES: Readonly<Record<string, ServerSeries>> = {
+  directShardOperations: '6.0',
+  searchCoordinator: '8.0',
+};
+
 export const PRIVILEGE_ACTIONS = {
-  queryAndWrite: ['find', 'insert', 'remove', 'update', 'bypassDocumentValidation', 'useUUID'],
+  queryAndWrite: [
+    'find',
+    'insert',
+    'remove',
+    'update',
+    'bypassDocumentValidation',
+    'useUUID',
+    'exportCollection',
+    'importCollection',
+  ],
   databaseManagement: [
+    'analyze',
     'changeCustomData',
     'changeOwnCustomData',
     'changeOwnPassword',
     'changePassword',
+    'cleanupStructuredEncryptionData',
+    'configureQueryAnalyzer',
     'createCollection',
     'createIndex',
     'createRole',
@@ -34,6 +66,7 @@ export const PRIVILEGE_ACTIONS = {
     'grantRole',
     'killCursors',
     'killAnyCursor',
+    'listSampledQueries',
     'planCacheIndexFilter',
     'querySettings',
     'revokeRole',
@@ -50,16 +83,19 @@ export const PRIVILEGE_ACTIONS = {
     'inprog',
     'invalidateUserCache',
     'killop',
+    'listCachedAndActiveUsers',
     'planCacheRead',
     'planCacheWrite',
+    'trafficRecord',
   ],
-  changeStream: ['changeStream'],
+  changeStream: ['changeStream', 'getChangeStreamState', 'setChangeStreamState'],
   replication: [
     'appendOplogNote',
     'replSetConfigure',
     'replSetGetConfig',
     'replSetGetStatus',
     'replSetHeartbeat',
+    'replSetResizeOplog',
     'replSetStateChange',
     'resync',
   ],
@@ -77,17 +113,21 @@ export const PRIVILEGE_ACTIONS = {
     'flushRouterConfig',
     'getClusterParameter',
     'getShardMap',
+    'getShardVersion',
+    'issueDirectShardOperations',
     'listShards',
     'moveChunk',
     'removeShard',
     'shardedDataDistribution',
     'shardingState',
     'splitChunk',
+    'splitVector',
     'transitionFromDedicatedConfigServer',
     'transitionToDedicatedConfigServer',
   ],
   serverAdministration: [
     'applicationMessage',
+    'auditConfigure',
     'bypassWriteBlockingMode',
     'bypassDefaultMaxTimeMS',
     'closeAllDatabases',
@@ -99,6 +139,7 @@ export const PRIVILEGE_ACTIONS = {
     'dropConnections',
     'dropDatabase',
     'dropIndex',
+    'emptycapped',
     'forceUUID',
     'fsync',
     'getDefaultRWConcern',
@@ -109,11 +150,14 @@ export const PRIVILEGE_ACTIONS = {
     'reIndex',
     'renameCollectionSameDB',
     'rotateCertificates',
+    'runTenantMigration',
+    'setClusterParameter',
     'setDefaultRWConcern',
     'setParameter',
     'setUserWriteBlockMode',
     'shutdown',
     'touch',
+    'useTenant',
   ],
   session: ['impersonate', 'listSessions', 'killAnySession'],
   searchIndex: ['createSearchIndexes', 'dropSearchIndex', 'listSearchIndexes', 'updateSearchIndex'],
@@ -121,25 +165,83 @@ export const PRIVILEGE_ACTIONS = {
   // monitoring commands of servers from 4.4 and earlier.
   freeMonitoring: ['checkFreeMonitoringStatus', 'setFreeMonitoring'],
   diagnostic: [
+    'allCollectionStats',
     'collStats',
     'connPoolStats',
+    'dbCheck',
     'dbHash',
     'dbStats',
     'getCmdLineOpts',
+    'getDatabaseVersion',
     'getLog',
     'indexStats',
     'listClusterCatalog',
     'listDatabases',
     'listCollections',
     'listIndexes',
+    'netstat',
+    'operationMetrics',
     'queryStatsRead',
     'queryStatsReadTransformed',
     'serverStatus',
+    'storageDetails',
     'validate',
     'top',
   ],
-  internal: ['anyAction', 'internal', 'applyOps'],
+  internal: [
+    'anyAction',
+    'internal',
+    'applyOps',
+    'oidcListKeys',
+    'oidcRefreshKeys',
+    'readBackupFile',
+  ],
 } as const;
+
+// The first series that knows an action. Actions missing here are known on 4.4.
+export const PRIVILEGE_ACTION_MIN_SERIES: Readonly<Record<string, ServerSeries>> = {
+  allCollectionStats: '6.0',
+  analyze: '8.0',
+  analyzeShardKey: '8.0',
+  auditConfigure: '6.0',
+  bypassDefaultMaxTimeMS: '8.0',
+  bypassWriteBlockingMode: '6.0',
+  checkMetadataConsistency: '8.0',
+  cleanupStructuredEncryptionData: '8.0',
+  compactStructuredEncryptionData: '6.0',
+  configureQueryAnalyzer: '8.0',
+  createSearchIndexes: '6.0',
+  dropSearchIndex: '6.0',
+  exportCollection: '6.0',
+  getChangeStreamState: '8.0',
+  getClusterParameter: '6.0',
+  importCollection: '6.0',
+  issueDirectShardOperations: '8.0',
+  listClusterCatalog: '8.0',
+  listSampledQueries: '8.0',
+  listSearchIndexes: '6.0',
+  moveCollection: '8.0',
+  oidcListKeys: '8.0',
+  oidcRefreshKeys: '8.0',
+  operationMetrics: '6.0',
+  querySettings: '8.0',
+  queryStatsRead: '6.0',
+  queryStatsReadTransformed: '6.0',
+  readBackupFile: '8.0',
+  reshardCollection: '6.0',
+  rewriteCollection: '8.0',
+  rotateCertificates: '6.0',
+  runTenantMigration: '6.0',
+  setChangeStreamState: '8.0',
+  setClusterParameter: '6.0',
+  setUserWriteBlockMode: '6.0',
+  shardedDataDistribution: '6.0',
+  transitionFromDedicatedConfigServer: '8.0',
+  transitionToDedicatedConfigServer: '8.0',
+  unshardCollection: '8.0',
+  updateSearchIndex: '6.0',
+  useTenant: '6.0',
+};
 
 const BUILTIN_ROLE_NAMES: ReadonlySet<string> = new Set(
   Object.values(BUILTIN_ROLES).flatMap((names) => names),
@@ -147,4 +249,12 @@ const BUILTIN_ROLE_NAMES: ReadonlySet<string> = new Set(
 
 export function isBuiltinRole(role: string): boolean {
   return BUILTIN_ROLE_NAMES.has(role);
+}
+
+// True when a name exists on the given series. Names without a minimum exist on every series.
+export function availableOn(minimum: ServerSeries | undefined, series: ServerSeries): boolean {
+  if (minimum === undefined) {
+    return true;
+  }
+  return SERVER_SERIES.indexOf(series) >= SERVER_SERIES.indexOf(minimum);
 }

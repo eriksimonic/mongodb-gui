@@ -35,10 +35,12 @@ function mapCommandError(error: unknown): AppError {
   return mapped;
 }
 
+// The message is fixed text written by the adapter, so only the server detail and cause are
+// searched for secrets.
 function redactAppError(error: AppError, secrets: readonly string[]): AppError {
   const redact = (text: string): string =>
     secrets.reduce((value, secret) => redactPassword(value, secret), redactPassword(text));
-  const redacted: AppError = { code: error.code, message: redact(error.message) };
+  const redacted: AppError = { code: error.code, message: error.message };
   if (error.detail !== undefined) {
     redacted.detail = redact(error.detail);
   }
@@ -46,4 +48,20 @@ function redactAppError(error: AppError, secrets: readonly string[]): AppError {
     redacted.cause = redact(error.cause);
   }
   return redacted;
+}
+
+// Checks a record read from the server against its core schema. A reply the schema rejects is
+// an adapter or server mismatch, reported as INTERNAL rather than as a connection failure.
+export function parseServerRecord<T>(
+  schema: { safeParse(input: unknown): { success: true; data: T } | { success: false } },
+  value: unknown,
+  what: string,
+): T {
+  const parsed = schema.safeParse(value);
+  if (!parsed.success) {
+    throw new AppErrorException(
+      appError('INTERNAL', 'The server sent a ' + what + ' that the adapter cannot read'),
+    );
+  }
+  return parsed.data;
 }
