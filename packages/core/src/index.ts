@@ -8,6 +8,7 @@ export * from './domain/settings';
 export * from './domain/vault';
 export * from './ids';
 export * from './redact';
+export * from './rpc/bridge';
 export * from './rpc/client';
 export * from './rpc/contract';
 export * from './rpc/define';

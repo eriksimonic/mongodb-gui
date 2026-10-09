@@ -1,18 +1,30 @@
-import { app, BrowserWindow, ipcMain, session } from 'electron';
+import { app, BrowserWindow, session } from 'electron';
 import { join } from 'node:path';
-import { pathToFileURL } from 'node:url';
+import { devServerUrl, isAppUrl, rendererDirectory } from './app-origin';
+import { log } from './log';
+import { createAppServices, createRouter, type AppServices, type Router } from './rpc/router';
+import { registerIpc, sendEvent } from './rpc/ipc';
 
-// One source of truth for "dev": a packaged app never uses the dev server, even if the
-// environment variable is set.
-const devServerUrl = app.isPackaged ? undefined : process.env['ELECTRON_RENDERER_URL'];
-const rendererDirectory = join(import.meta.dirname, '../renderer');
 const preloadPath = join(import.meta.dirname, '../preload/index.cjs');
+
+// Tests point the profile at a temporary directory. A packaged app never honours this.
+const userDataOverride = app.isPackaged ? undefined : process.env['MONGO_GUI_USER_DATA'];
+if (userDataOverride !== undefined && userDataOverride !== '') {
+  app.setPath('userData', userDataOverride);
+}
+
+let mainWindow: BrowserWindow | undefined;
+let services: AppServices | undefined;
+let router: Router | undefined;
+let quitting = false;
 
 function contentSecurityPolicy(): string {
   if (devServerUrl === undefined) {
     return [
       "default-src 'self'",
       "script-src 'self'",
+      "style-src 'self' 'unsafe-inline'",
+      "font-src 'self' data:",
       "object-src 'none'",
       "base-uri 'none'",
       "frame-ancestors 'none'",
@@ -26,6 +38,7 @@ function contentSecurityPolicy(): string {
     `default-src 'self' ${origin} ${socketOrigin}`,
     `script-src 'self' ${origin} 'unsafe-inline'`,
     `style-src 'self' ${origin} 'unsafe-inline'`,
+    `font-src 'self' ${origin} data:`,
     `connect-src 'self' ${origin} ${socketOrigin}`,
     "object-src 'none'",
     "base-uri 'none'",
@@ -47,14 +60,6 @@ function installContentSecurityPolicy(): void {
   });
 }
 
-// Only the renderer pages this app ships may load in the window.
-function isAppUrl(url: string): boolean {
-  if (devServerUrl !== undefined) {
-    return url.startsWith(`${new URL(devServerUrl).origin}/`);
-  }
-  return url.startsWith(`${pathToFileURL(rendererDirectory).href}/`);
-}
-
 function createMainWindow(): void {
   const window = new BrowserWindow({
     width: 1200,
@@ -68,9 +73,19 @@ function createMainWindow(): void {
       webSecurity: true,
     },
   });
+  mainWindow = window;
+  if (router !== undefined) {
+    registerIpc(router, window);
+  }
 
   window.once('ready-to-show', () => {
     window.show();
+  });
+
+  window.on('closed', () => {
+    if (mainWindow === window) {
+      mainWindow = undefined;
+    }
   });
 
   window.webContents.setWindowOpenHandler(() => ({ action: 'deny' }));
@@ -103,16 +118,53 @@ app.on('web-contents-created', (_event, contents) => {
   });
 });
 
-app.whenReady().then(() => {
-  installContentSecurityPolicy();
-  ipcMain.handle('app:ping', () => 'pong');
-  createMainWindow();
+app
+  .whenReady()
+  .then(() => {
+    installContentSecurityPolicy();
+    const appServices = createAppServices({ userDataDir: app.getPath('userData') });
+    services = appServices;
+    router = createRouter({
+      ...appServices,
+      onEvent: (event) => {
+        if (mainWindow !== undefined) {
+          sendEvent(mainWindow, event);
+        }
+      },
+    });
+    createMainWindow();
 
-  app.on('activate', () => {
-    if (BrowserWindow.getAllWindows().length === 0) {
-      createMainWindow();
-    }
+    app.on('activate', () => {
+      if (BrowserWindow.getAllWindows().length === 0) {
+        createMainWindow();
+      }
+    });
+  })
+  .catch((error: unknown) => {
+    log.error('startup failed', { error: error instanceof Error ? error.message : String(error) });
+    app.exit(1);
   });
+
+// Locking first disconnects every client and drops the key. Disposal then closes the store,
+// and only after that does the quit go through.
+app.on('before-quit', (event) => {
+  if (quitting || services === undefined) {
+    return;
+  }
+  event.preventDefault();
+  quitting = true;
+  const current = services;
+  current.vault.lock();
+  void current
+    .dispose()
+    .catch((error: unknown) => {
+      log.error('dispose failed', {
+        error: error instanceof Error ? error.message : String(error),
+      });
+    })
+    .finally(() => {
+      app.quit();
+    });
 });
 
 app.on('window-all-closed', () => {
