@@ -33,6 +33,7 @@ import {
   fixtureBuilds,
   fixtureCatalog,
   findDatabase,
+  findMockCollection,
   type MockBuild,
   type MockCollection,
   type MockDatabase,
@@ -58,6 +59,7 @@ import {
   mockSavePath,
 } from './mock-transfer';
 import { createMockProfiler } from './mock-profiler';
+import { createMockExplain } from './mock-explain';
 import type { UiApi } from './ui-api';
 
 export type MockPreset = 'fresh' | 'unlocked';
@@ -452,6 +454,8 @@ export function createMockUiApi(options: MockUiApiOptions = {}): UiApi {
     emit,
   });
 
+  const explain = createMockExplain({ wrap: wrapCall, requireUnlocked, requireConnected });
+
   const rpc: RpcClient = {
     updates: {
       state: method(rpcContract.updates.state, latencyMs, () => currentUpdate()),
@@ -743,6 +747,33 @@ export function createMockUiApi(options: MockUiApiOptions = {}): UiApi {
         return { ...state.settings };
       }),
     },
+    schema: {
+      analyse: method(rpcContract.schema.analyse, latencyMs, (input) => {
+        requireUnlocked();
+        requireConnected(input.connectionId);
+        const found = findMockCollection(
+          catalogOf(input.connectionId),
+          input.database,
+          input.collection,
+        );
+        if (found === undefined) {
+          throw fail(
+            'COMMAND_FAILED',
+            'Collection not found',
+            `${input.database}.${input.collection}`,
+          );
+        }
+        const sample = shell.sampleSchema(input);
+        return {
+          database: input.database,
+          collection: input.collection,
+          sampled: sample.sampled,
+          total: found.documents.length,
+          fields: sample.fields,
+          at: new Date().toISOString(),
+        };
+      }),
+    },
     monitor: {
       start: method(rpcContract.monitor.start, latencyMs, ({ connectionId, intervalMs }) => {
         requireUnlocked();
@@ -828,6 +859,7 @@ export function createMockUiApi(options: MockUiApiOptions = {}): UiApi {
       }),
     },
     profiler,
+    explain,
     docker: {
       status: method(rpcContract.docker.status, latencyMs, (): DockerStatus => {
         return state.dockerAvailable

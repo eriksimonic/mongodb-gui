@@ -23,6 +23,7 @@ const member = {
   buildIndexes: true,
   secondaryDelaySecs: 0,
   tags: {},
+  extraEjson: '{}',
 };
 
 const config = {
@@ -30,6 +31,7 @@ const config = {
   version: 1,
   members: [member],
   settingsEjson: '{}',
+  extraEjson: '{}',
 };
 
 describe('ReplicaSetConfigSchema', () => {

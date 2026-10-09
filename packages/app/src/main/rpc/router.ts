@@ -1,10 +1,14 @@
 import { existsSync, mkdirSync, statSync } from 'node:fs';
 import { dirname, join } from 'node:path';
+import { randomUUID } from 'node:crypto';
 import {
   AppErrorException,
   ConnectionProfileSummarySchema,
+  DEFAULT_BATCH_SIZE,
   appError,
   groupByShape,
+  normaliseExplain,
+  rewriteForExplain,
   redactUri,
   rpcContract,
   toAppError,
@@ -15,6 +19,9 @@ import {
   type DialogResult,
   type OpenDialogInput,
   type SaveDialogInput,
+  type ExplainResult,
+  type ExplainRunCommandInput,
+  type ExplainRunInput,
   type ProfileCollectionInfo,
   type ProfileEntry,
   type ProfileFilter,
@@ -22,12 +29,17 @@ import {
   type RpcCall,
   type RpcEvent,
   type RpcResult,
+  type SchemaReport,
   type SetProfilingLevelInput,
   type TailProfileOptions,
   type UpdateState,
 } from '@mongo-gui/core';
 import {
   ConnectionManager,
+  explainableCommand,
+  parseCommandEjson,
+  runExplainCommand,
+  wrapWriteCommand,
   checkDocumentsAgainstValidator,
   clearCollection,
   collectionStats,
@@ -39,6 +51,7 @@ import {
   deleteByFilter,
   deleteDocuments,
   dropCollection,
+  estimatedDocumentCount,
   dropDatabase,
   dropIndex,
   findDocumentById,
@@ -658,12 +671,41 @@ export function createRouter(deps: RouterDeps): Router {
     entry('shell.sampleSchema', rpcContract.shell.sampleSchema, (input) =>
       shellCall(input.connectionId, (shell) => shell.sampleSchema(input)),
     ),
+    // The sample comes from the shell runtime. The total comes from the server's metadata.
+    entry('schema.analyse', rpcContract.schema.analyse, async (input): Promise<SchemaReport> => {
+      const sample = await shellCall(input.connectionId, (shell) =>
+        shell.sampleSchema({
+          connectionId: input.connectionId,
+          database: input.database,
+          collection: input.collection,
+          size: input.size,
+          strategy: input.strategy,
+        }),
+      );
+      const total = await driverCall(() =>
+        estimatedDocumentCount(
+          deps.connections.getClient(input.connectionId),
+          input.database,
+          input.collection,
+        ),
+      );
+      return {
+        database: input.database,
+        collection: input.collection,
+        sampled: sample.sampled,
+        total,
+        fields: sample.fields,
+        at: new Date().toISOString(),
+      };
+    }),
     entry('shell.restart', rpcContract.shell.restart, (input) =>
       shellCall(input.connectionId, (shell) => shell.restart(input.connectionId)),
     ),
     entry('shell.state', rpcContract.shell.state, (input) => ({
       state: deps.shell?.state(input.connectionId) ?? 'stopped',
     })),
+    entry('explain.run', rpcContract.explain.run, (input) => explainStatement(input)),
+    entry('explain.runCommand', rpcContract.explain.runCommand, (input) => explainCommand(input)),
     ...managementOperations(),
 
     entry('monitor.start', rpcContract.monitor.start, (input) =>
@@ -938,6 +980,60 @@ export function createRouter(deps: RouterDeps): Router {
   };
 
   /**
+   * Explains the single collection query in a statement. The rewritten statement runs on the
+   * connection's runtime, and the server returns the plan without running the query.
+   */
+  async function explainStatement(input: ExplainRunInput): Promise<ExplainResult> {
+    const rewrite = rewriteForExplain(input.code, input.verbosity);
+    if (!rewrite.ok) {
+      throw new AppErrorException(appError('VALIDATION', rewrite.message));
+    }
+    const requestId = randomUUID();
+    const evaluation = await shellCall(input.connectionId, (shell) =>
+      shell.evaluate({
+        connectionId: input.connectionId,
+        requestId,
+        database: input.database,
+        code: rewrite.code,
+        batchSize: DEFAULT_BATCH_SIZE,
+      }),
+    );
+    if (evaluation.error !== undefined) {
+      throw new AppErrorException(evaluation.error);
+    }
+    if (evaluation.result === undefined) {
+      throw new AppErrorException(appError('INTERNAL', 'The explain returned no result.'));
+    }
+    return explainResult(requestId, evaluation.result.printableEjson, evaluation.elapsedMs);
+  }
+
+  /** Explains a captured command, such as a profiler entry, through the connection's driver. */
+  async function explainCommand(input: ExplainRunCommandInput): Promise<ExplainResult> {
+    if (deps.connections.status(input.connectionId).state !== 'connected') {
+      throw new AppErrorException(appError('NOT_CONNECTED', 'Connect to the server first.'));
+    }
+    const parsed = parseCommandEjson(input.commandEjson);
+    const command =
+      parsed !== undefined && input.profileOp !== undefined && input.collection !== undefined
+        ? wrapWriteCommand(parsed, input.profileOp, input.collection)
+        : parsed;
+    if (command === undefined || explainableCommand(command) === undefined) {
+      throw new AppErrorException(appError('VALIDATION', 'This command cannot be explained.'));
+    }
+    const result = await driverCall(() =>
+      runExplainCommand(deps.connections.getClient(input.connectionId), {
+        database: input.database,
+        command,
+        verbosity: input.verbosity,
+      }),
+    );
+    if (result === undefined) {
+      throw new AppErrorException(appError('VALIDATION', 'This command cannot be explained.'));
+    }
+    return explainResult(randomUUID(), JSON.stringify(result.raw), result.elapsedMs);
+  }
+
+  /**
    * Runs a shell call for an open connection. A connection that is not open is refused before
    * any runtime process starts.
    */
@@ -1147,6 +1243,26 @@ function canonicalEntry(entry: ProfileEntry): ProfileEntry {
     ...(entry.command === undefined ? {} : { command: toCanonicalEjson(entry.command) }),
     ...(entry.locks === undefined ? {} : { locks: toCanonicalEjson(entry.locks) }),
     ...(entry.storage === undefined ? {} : { storage: toCanonicalEjson(entry.storage) }),
+  };
+}
+
+/**
+ * Builds the explain result from a server explain document. The text is canonical EJSON, which
+ * the normaliser reads. The raw text is pretty printed for the raw tab.
+ */
+function explainResult(requestId: string, printable: string, elapsedMs: number): ExplainResult {
+  let raw: unknown;
+  try {
+    raw = JSON.parse(printable);
+  } catch {
+    throw new AppErrorException(appError('INTERNAL', 'The explain output is not JSON.'));
+  }
+  return {
+    requestId,
+    tree: normaliseExplain(raw),
+    rawEjson: JSON.stringify(raw, null, 2),
+    // Whole milliseconds, so the header and the result do not show sub-millisecond noise.
+    elapsedMs: Math.round(elapsedMs),
   };
 }
 

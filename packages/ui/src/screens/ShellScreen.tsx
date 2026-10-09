@@ -27,12 +27,14 @@ import { databasePanelIds, stalePanelIds } from './collection-panels';
 import {
   ConnectionsPanel,
   DocumentsDockPanel,
+  ExplainDockPanel,
   FixedTab,
   IndexesDockPanel,
   MonitorPanel,
   OperationsPanelView,
   OutputPanel,
   ProfilerDockPanel,
+  SchemaDockPanel,
   ValidationDockPanel,
   WelcomePanel,
 } from './ShellPanels';
@@ -47,6 +49,8 @@ const PANEL_COMPONENTS = {
   indexes: IndexesDockPanel,
   validation: ValidationDockPanel,
   documents: DocumentsDockPanel,
+  explain: ExplainDockPanel,
+  schema: SchemaDockPanel,
 };
 
 const TAB_COMPONENTS = { fixed: FixedTab };
@@ -63,6 +67,7 @@ const PANEL_TITLE_SUFFIX: Readonly<Record<PanelRequest['panel'], string>> = {
   indexes: 'indexes',
   validation: 'validation',
   documents: 'documents',
+  schema: 'schema',
 };
 
 /**
@@ -138,6 +143,23 @@ function openConnectionPanel(api: DockviewApi, request: Parameters<OpenPanel>[0]
     ...(centre === undefined
       ? {}
       : { position: { referencePanel: centre, direction: 'within' as const } }),
+  });
+}
+
+/**
+ * Adds the explain panel of the store to the centre group, or focuses it when it is open. The
+ * panel reads its request and result from the store.
+ */
+function openExplainPanel(api: DockviewApi, id: string, title: string): void {
+  if (api.getPanel(id) !== undefined) {
+    return;
+  }
+  api.addPanel({
+    id,
+    component: 'explain',
+    title,
+    params: { panelId: id },
+    position: { referencePanel: 'welcome', direction: 'within' },
   });
 }
 
@@ -233,6 +255,9 @@ export function ShellScreen() {
   const clearPanelRequest = useAppStore((state) => state.clearPanelRequest);
   const databases = useAppStore((state) => state.databases);
   const collections = useAppStore((state) => state.collections);
+  const explainPanels = useAppStore((state) => state.explainPanels);
+  const explainFocus = useAppStore((state) => state.explainFocus);
+  const closeExplainPanel = useAppStore((state) => state.closeExplainPanel);
   const dockApi = useRef<DockviewApi | undefined>(undefined);
   const [dock, setDock] = useState<DockviewApi | undefined>(undefined);
   // The collection panels this shell opened, by panel id.
@@ -261,6 +286,23 @@ export function ShellScreen() {
     openCollectionPanel(dock, panelRequest, collectionPanels.current);
     clearPanelRequest();
   }, [dock, panelRequest, clearPanelRequest]);
+
+  // Adds the explain panels the store holds, then shows the one a request asked for.
+  useEffect(() => {
+    if (dock === undefined) {
+      return;
+    }
+    for (const panel of Object.values(explainPanels)) {
+      openExplainPanel(dock, panel.id, panel.title);
+    }
+  }, [dock, explainPanels]);
+
+  useEffect(() => {
+    if (dock === undefined || explainFocus === undefined) {
+      return;
+    }
+    dock.getPanel(explainFocus.id)?.api.setActive();
+  }, [dock, explainFocus]);
 
   // Closes a collection panel once its database or collection is gone from a loaded list. A
   // database that was never expanded still counts, because the database list is loaded first.
@@ -337,6 +379,9 @@ export function ShellScreen() {
                   event.api.onDidRemovePanel((panel) => {
                     collectionPanels.current.delete(panel.id);
                     stopSamplerWhenUnused(event.api, panel.id, stopMonitor);
+                    if (panel.id.startsWith('explain:')) {
+                      closeExplainPanel(panel.id);
+                    }
                   });
                 }}
               />

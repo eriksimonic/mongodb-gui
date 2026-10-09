@@ -243,4 +243,40 @@ describe('shell namespace through the router against MongoDB 8.0', () => {
     },
     CALL_TIMEOUT_MS,
   );
+
+  it(
+    'analyses the schema with the sample from the shell and the total from the server',
+    async () => {
+      const report = valueOf(
+        await call('schema.analyse', {
+          connectionId,
+          database: DATABASE,
+          collection: 'orders',
+          size: 25,
+          strategy: 'first',
+        }),
+      ) as {
+        database: string;
+        collection: string;
+        sampled: number;
+        total: number;
+        fields: { path: string; types: string[]; presence: number; numeric?: unknown }[];
+      };
+      expect(report).toMatchObject({
+        database: DATABASE,
+        collection: 'orders',
+        sampled: 25,
+        total: DOCUMENT_COUNT,
+      });
+      // The first strategy reads the earliest _id values, which were inserted with n from 0 up.
+      expect(report.fields).toContainEqual(
+        expect.objectContaining({ path: 'n', types: ['Int32'], presence: 1 }),
+      );
+      expect(report.fields.find((field) => field.path === 'n')?.numeric).toEqual({
+        min: 0,
+        max: 24,
+      });
+    },
+    CALL_TIMEOUT_MS,
+  );
 });

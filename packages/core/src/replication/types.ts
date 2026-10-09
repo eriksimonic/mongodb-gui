@@ -73,6 +73,8 @@ export const ReplicaSetMemberConfigSchema = z.object({
   buildIndexes: z.boolean(),
   secondaryDelaySecs: NonNegativeInt,
   tags: TagsSchema,
+  // Canonical EJSON of the member fields the planner does not model, such as horizons.
+  extraEjson: z.string(),
 });
 
 export const ReplicaSetConfigSchema = z.object({
@@ -85,6 +87,8 @@ export const ReplicaSetConfigSchema = z.object({
   // Canonical EJSON of the settings document. Core holds no driver values, so an ObjectId such as
   // replicaSetId travels as its $oid form.
   settingsEjson: z.string(),
+  // Canonical EJSON of the top-level fields the planner does not model, such as configsvr.
+  extraEjson: z.string(),
 });
 
 // Omitted member fields take the planner's defaults: priority 1 for a normal voting member, and
@@ -134,6 +138,8 @@ export const ReconfigChangeSchema = z.discriminatedUnion('kind', [
 ]);
 
 export const StepDownInputSchema = z.object({
+  // The adapter takes its connection from the client argument. This field is reserved, so callers
+  // must leave it out.
   connectionId: z.never().optional(),
   stepDownSeconds: NonNegativeInt.default(60),
   secondaryCatchUpSeconds: NonNegativeInt.optional(),

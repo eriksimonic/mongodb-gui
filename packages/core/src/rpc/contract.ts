@@ -83,6 +83,7 @@ import {
   DockerStatusSchema,
 } from '../docker/types';
 import { UpdateStateSchema } from '../updates/types';
+import { SchemaAnalyseInputSchema, SchemaReportSchema } from '../schema/types';
 import {
   DialogResultSchema,
   OpenDialogInputSchema,
@@ -96,6 +97,11 @@ import {
   TransferListOutputSchema,
 } from '../transfer/calls';
 import { ImportPreviewSchema, TransferProgressSchema } from '../transfer/types';
+import {
+  ExplainResultSchema,
+  ExplainRunCommandInputSchema,
+  ExplainRunInputSchema,
+} from '../explain/rpc-schemas';
 import { defineCall, type RpcContract } from './define';
 
 const idParam = z.object({ id: z.uuid() });
@@ -198,6 +204,12 @@ export const rpcContract = {
     restart: defineCall(ShellConnectionInputSchema, z.void()),
     state: defineCall(ShellConnectionInputSchema, ShellStateSchema),
   },
+  // Explain runs the statement's single collection query with explain on the connection's
+  // runtime (run) or the connection's driver (runCommand). Nothing is written by explain.
+  explain: {
+    run: defineCall(ExplainRunInputSchema, ExplainResultSchema),
+    runCommand: defineCall(ExplainRunCommandInputSchema, ExplainResultSchema),
+  },
   // Every input carries connectionId plus the adapter input. Mutating calls emit catalog:changed.
   management: {
     createCollection: defineCall(onConnection(CreateCollectionInputSchema), CollectionInfoSchema),
@@ -236,6 +248,10 @@ export const rpcContract = {
     ),
     findDocumentById: defineCall(onConnection(FindDocumentByIdInputSchema), z.string().nullable()),
     sampleDocuments: defineCall(onConnection(SampleDocumentsInputSchema), z.array(z.string())),
+  },
+  // The sample is read by the shell runtime and the total from the server's metadata.
+  schema: {
+    analyse: defineCall(SchemaAnalyseInputSchema, SchemaReportSchema),
   },
   settings: {
     get: defineCall(z.void(), SettingsSchema),

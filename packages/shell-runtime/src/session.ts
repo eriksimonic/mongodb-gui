@@ -1,5 +1,6 @@
 import { randomUUID } from 'node:crypto';
 import { EventEmitter } from 'node:events';
+import type { Collection } from 'mongodb';
 import { ElectronRuntime } from '@mongosh/browser-runtime-electron';
 import { NodeDriverServiceProvider } from '@mongosh/service-provider-node-driver';
 import {
@@ -34,6 +35,20 @@ const SAMPLE_OPTIONS = { promoteValues: false, promoteLongs: false };
 const CURSOR_NEXT_CODE = 'it';
 
 export type Emit = (message: ShellResponse) => void;
+
+/**
+ * Reads the documents a schema sample holds. Random uses $sample. First and last read the start or
+ * the end of the _id order, which costs an index scan instead of a random pick.
+ */
+function readSample(collection: Collection, request: SampleSchemaRequest): Promise<unknown> {
+  if (request.strategy === 'random') {
+    return collection.aggregate([{ $sample: { size: request.size } }], SAMPLE_OPTIONS).toArray();
+  }
+  const direction = request.strategy === 'first' ? 1 : -1;
+  return collection
+    .find({}, { ...SAMPLE_OPTIONS, sort: { _id: direction }, limit: request.size })
+    .toArray();
+}
 
 type RuntimeListener = Parameters<ElectronRuntime['setEvaluationListener']>[0];
 type RuntimeResult = Awaited<ReturnType<ElectronRuntime['evaluate']>>;
@@ -157,12 +172,11 @@ export class ShellSession {
   async sampleSchema(request: SampleSchemaRequest, emit: Emit): Promise<void> {
     try {
       const connection = await this.ensureConnection();
-      const rows: unknown = await connection.provider
+      const collection = connection.provider
         .getRawClient()
         .db(request.database)
-        .collection(request.collection)
-        .aggregate([{ $sample: { size: request.size } }], SAMPLE_OPTIONS)
-        .toArray();
+        .collection(request.collection);
+      const rows: unknown = await readSample(collection, request);
       const summary = summarizeDocuments(Array.isArray(rows) ? rows : []);
       emit({
         id: request.id,

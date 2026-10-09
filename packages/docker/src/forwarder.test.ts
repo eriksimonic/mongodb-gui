@@ -3,7 +3,9 @@ import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 import { AppErrorException, type DockerMongoContainer } from '@mongo-gui/core';
 import { FORWARDER_LABEL } from './discovery';
 import {
+  DEFAULT_FORWARDER_SCOPE,
   FORWARDER_IMAGE,
+  FORWARDER_SCOPE_LABEL,
   createForwarderManager,
   forwarderLabelFor,
   type ForwarderManager,
@@ -333,7 +335,116 @@ describe('ForwarderManager', () => {
     expect(engine.removed).toEqual(['stale-1']);
     expect([...engine.containers.keys()]).toEqual(['unrelated']);
   });
+
+  it('labels a forwarder with its scope and does not reuse another scope for the same target', async () => {
+    const engine = fakeEngine(() => listenPort);
+    const first = createForwarderManager({
+      client: engine.client,
+      readyTimeoutMs: 500,
+      scope: 'run-a',
+    });
+    const second = createForwarderManager({
+      client: engine.client,
+      readyTimeoutMs: 500,
+      scope: 'run-b',
+    });
+
+    await first.ensure(target());
+    expect(engine.containers.get('fwd-1')?.labels).toEqual({
+      [FORWARDER_LABEL]: TARGET_ID,
+      [FORWARDER_SCOPE_LABEL]: 'run-a',
+    });
+
+    const handle = await second.ensure(target());
+
+    expect(handle.forwarderId).toBe('fwd-2');
+    expect(engine.containers.size).toBe(2);
+  });
+
+  it('cleans up only the forwarders of its own scope', async () => {
+    const engine = fakeEngine(() => listenPort);
+    addForwarder(engine, 'mine', {
+      [FORWARDER_LABEL]: 'gone-target',
+      [FORWARDER_SCOPE_LABEL]: 'run-a',
+    });
+    addForwarder(engine, 'theirs', {
+      [FORWARDER_LABEL]: 'gone-target',
+      [FORWARDER_SCOPE_LABEL]: 'run-b',
+    });
+
+    await createForwarderManager({ client: engine.client, scope: 'run-a' }).cleanupAll();
+
+    expect(engine.removed).toEqual(['mine']);
+    expect([...engine.containers.keys()]).toEqual(['theirs']);
+  });
+
+  it('treats a forwarder without a scope label as the default scope', async () => {
+    const engine = fakeEngine(() => listenPort);
+    addForwarder(engine, 'legacy', { [FORWARDER_LABEL]: 'gone-target' });
+    addForwarder(engine, 'app', {
+      [FORWARDER_LABEL]: 'gone-target',
+      [FORWARDER_SCOPE_LABEL]: DEFAULT_FORWARDER_SCOPE,
+    });
+    addForwarder(engine, 'test-run', {
+      [FORWARDER_LABEL]: 'gone-target',
+      [FORWARDER_SCOPE_LABEL]: 'run-a',
+    });
+
+    await managerFor(engine).cleanupAll();
+
+    expect([...engine.removed].sort()).toEqual(['app', 'legacy']);
+    expect([...engine.containers.keys()]).toEqual(['test-run']);
+  });
+
+  it('removes a stale default-scope forwarder from an earlier run through a new manager', async () => {
+    const engine = fakeEngine(() => listenPort);
+    await managerFor(engine).ensure(target());
+
+    await managerFor(engine).cleanupAll();
+
+    expect(engine.removed).toEqual(['fwd-1']);
+    expect(engine.containers.size).toBe(0);
+  });
+
+  it('release touches only its own scope for the same target', async () => {
+    const engine = fakeEngine(() => listenPort);
+    await createForwarderManager({
+      client: engine.client,
+      readyTimeoutMs: 500,
+      scope: 'run-a',
+    }).ensure(target());
+
+    await managerFor(engine).release(TARGET_ID);
+
+    expect(engine.removed).toEqual([]);
+    expect(engine.containers.has('fwd-1')).toBe(true);
+  });
+
+  it('names the container state when the forwarder reports no host port', async () => {
+    const engine = fakeEngine(() => listenPort);
+    engine.client.inspectContainer = async () => ({
+      State: { Status: 'exited' },
+      NetworkSettings: { Ports: {} },
+    });
+
+    const failure = await managerFor(engine)
+      .ensure(target())
+      .catch((error: unknown) => error);
+
+    expect(failure).toMatchObject({
+      error: {
+        code: 'INTERNAL',
+        message: 'The forwarder has no host port.',
+        detail: 'state: exited',
+      },
+    });
+    expect(engine.removed).toEqual(['fwd-1']);
+  });
 });
+
+function addForwarder(engine: FakeEngine, id: string, labels: Record<string, string>): void {
+  engine.containers.set(id, { id, labels, state: 'exited', hostPort: 1, spec: undefined });
+}
 
 /** A loopback port with nothing listening on it. */
 async function closedPort(): Promise<number> {

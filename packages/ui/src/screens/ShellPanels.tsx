@@ -10,7 +10,9 @@ import { TransfersPanel } from '../components/transfers/TransfersPanel';
 import { DocumentsPanel } from '../components/management/DocumentsPanel';
 import { IndexesPanel } from '../components/management/IndexesPanel';
 import { ValidationPanel } from '../components/management/ValidationPanel';
+import { ExplainPanel } from '../explain/ExplainPanel';
 import { ProfilerPanel } from '../profiler/ProfilerPanel';
+import { SchemaPanel } from '../schema/SchemaPanel';
 import { MonitorDashboard } from '../monitor/MonitorDashboard';
 import { OperationsPanel } from '../monitor/OperationsPanel';
 
@@ -25,6 +27,20 @@ export interface CollectionPanelParams {
 export interface ProfilerPanelParams {
   readonly connectionId: string;
   readonly database: string;
+}
+
+/** Params of an explain panel. The id names the panel in the app store. */
+export interface ExplainPanelParams {
+  readonly panelId: string;
+}
+
+/** An explain panel in the centre group. Its request and result live in the app store. */
+export function ExplainDockPanel({ params }: IDockviewPanelProps<ExplainPanelParams>) {
+  return (
+    <Box h="100%" style={{ overflow: 'auto' }}>
+      <ExplainPanel panelId={params.panelId} />
+    </Box>
+  );
 }
 
 /** A profiler panel of one database. Closing the tab drops its state and stops its tail. */
@@ -120,6 +136,15 @@ export function ValidationDockPanel({ params }: IDockviewPanelProps<CollectionPa
   return (
     <Box h="100%" style={{ overflow: 'auto' }}>
       <ValidationPanel {...params} />
+    </Box>
+  );
+}
+
+/** Dock panel: schema analysis of one collection. The panel scrolls its own table. */
+export function SchemaDockPanel({ params }: IDockviewPanelProps<CollectionPanelParams>) {
+  return (
+    <Box h="100%" style={{ overflow: 'hidden' }}>
+      <SchemaPanel {...params} />
     </Box>
   );
 }

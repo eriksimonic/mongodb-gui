@@ -54,17 +54,18 @@ export async function startMongoNode(image: string, options: StartNodeOptions): 
     container = container.withNetwork(options.network).withNetworkAliases(options.alias);
   }
   const started = await container.start();
-  const port = started.getMappedPort(MONGO_PORT);
-  const directUri = `mongodb://${started.getHost()}:${port}/?directConnection=true`;
   await waitUntil(
-    () => canPing(directUri),
+    () => canPing(directUriOf(started)),
     CONTAINER_STARTUP_TIMEOUT_MS,
     'the node accepts connections',
   );
   return {
     host:
       options.alias === undefined ? `localhost:${MONGO_PORT}` : `${options.alias}:${MONGO_PORT}`,
-    directUri,
+    // Read on every access, so a restarted container reports its current published port.
+    get directUri() {
+      return directUriOf(started);
+    },
     container: started,
   };
 }
@@ -163,6 +164,10 @@ export async function waitUntil(
     await new Promise((resolve) => setTimeout(resolve, POLL_INTERVAL_MS));
   }
   throw new Error(`Timed out after ${timeoutMs} ms waiting for ${description}`);
+}
+
+function directUriOf(container: StartedTestContainer): string {
+  return `mongodb://${container.getHost()}:${container.getMappedPort(MONGO_PORT)}/?directConnection=true`;
 }
 
 async function canPing(uri: string): Promise<boolean> {
