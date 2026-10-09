@@ -11,3 +11,5 @@ allowBuilds:
   kerberos: false
   mongodb-client-encryption: false
   os-dns-native: false
+  macos-export-certificate-and-key: false
+  win-export-certificate-and-key: false
