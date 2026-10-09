@@ -1,5 +1,6 @@
 const MONGO_SCHEME = /^\s*mongodb(\+srv)?:\/\//i;
-const TLS_KEY_PASSWORD = /(tlsCertificateKeyFilePassword=)[^&]*/gi;
+const PASSWORD_OPTION = /((?:tlsCertificateKeyFilePassword|sslPEMKeyPassword)=)[^&]*/gi;
+const QUERY_PARAMETER = /[?&][A-Za-z0-9_]+=/;
 const MASK = '***';
 
 export function redactUri(uri: string): string {
@@ -7,7 +8,7 @@ export function redactUri(uri: string): string {
   if (scheme === undefined) {
     return uri;
   }
-  return maskTlsKeyPassword(maskUserInfo(uri, scheme));
+  return maskPasswordOptions(maskUserInfo(uri, scheme));
 }
 
 function maskUserInfo(uri: string, scheme: string): string {
@@ -16,8 +17,8 @@ function maskUserInfo(uri: string, scheme: string): string {
   const authority = authorityEnd === -1 ? rest : rest.slice(0, authorityEnd);
   let at = authority.lastIndexOf('@');
   if (at === -1) {
-    const eq = rest.indexOf('=');
-    at = (eq === -1 ? rest : rest.slice(0, eq)).lastIndexOf('@');
+    const parameter = rest.search(QUERY_PARAMETER);
+    at = (parameter === -1 ? rest : rest.slice(0, parameter)).lastIndexOf('@');
   }
   if (at === -1) {
     return uri;
@@ -31,6 +32,6 @@ function maskUserInfo(uri: string, scheme: string): string {
   return `${scheme}${user}:${MASK}${rest.slice(at)}`;
 }
 
-function maskTlsKeyPassword(uri: string): string {
-  return uri.replace(TLS_KEY_PASSWORD, `$1${MASK}`);
+function maskPasswordOptions(uri: string): string {
+  return uri.replace(PASSWORD_OPTION, `$1${MASK}`);
 }

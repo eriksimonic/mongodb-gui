@@ -19,6 +19,14 @@ export function appError(code: AppErrorCode, message: string, detail?: string): 
 }
 
 export function toAppError(value: unknown): AppError {
+  try {
+    return convert(value);
+  } catch {
+    return { code: 'INTERNAL', message: 'unrepresentable error' };
+  }
+}
+
+function convert(value: unknown): AppError {
   if (value instanceof AppErrorException) {
     return value.error;
   }

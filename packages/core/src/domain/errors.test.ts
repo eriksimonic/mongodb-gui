@@ -67,6 +67,15 @@ describe('toAppError', () => {
     expect(Object.keys(toAppError(new Error('plain')))).not.toContain('cause');
   });
 
+  it('never throws when reading the error message throws', () => {
+    const hostile = Object.defineProperty(new Error('x'), 'message', {
+      get() {
+        throw new Error('getter failed');
+      },
+    });
+    expect(toAppError(hostile)).toEqual({ code: 'INTERNAL', message: 'unrepresentable error' });
+  });
+
   it('never throws, even for a value whose string conversion fails', () => {
     const hostile = Object.create(null) as object;
     expect(toAppError(hostile)).toEqual({

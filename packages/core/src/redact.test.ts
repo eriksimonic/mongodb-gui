@@ -87,4 +87,19 @@ describe('redactUri', () => {
       'mongodb://localhost/?tlsCertificateKeyFilePassword=***&tls=true',
     );
   });
+
+  it('masks the legacy sslPEMKeyPassword query value', () => {
+    expect(redactUri('mongodb://localhost/?sslPEMKeyPassword=s3cret&ssl=true')).toBe(
+      'mongodb://localhost/?sslPEMKeyPassword=***&ssl=true',
+    );
+  });
+
+  it('masks a password containing an equals sign and an unencoded slash', () => {
+    expect(redactUri('mongodb://u:p=w/ss@h')).toBe('mongodb://u:***@h');
+  });
+
+  it('leaves a query option with an at sign unchanged when the uri has no credentials', () => {
+    const uri = 'mongodb://localhost/?authMechanismProperties=user:a@b';
+    expect(redactUri(uri)).toBe(uri);
+  });
 });
