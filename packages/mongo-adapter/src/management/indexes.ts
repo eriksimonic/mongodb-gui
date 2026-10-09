@@ -177,7 +177,10 @@ function toBuildRow(row: unknown, scope: string | undefined): BuildRow[] {
   const progress = readRecord(row, 'progress');
   const done = readNumber(progress, 'done');
   const total = readNumber(progress, 'total');
-  const phase = msg.replace(INDEX_BUILD_MESSAGE_PATTERN, '').trim();
+  // The phase is the text before the first colon or repeated "Index Build" prefix, so the
+  // progress detail that follows it is dropped.
+  const stripped = msg.replace(INDEX_BUILD_MESSAGE_PATTERN, '');
+  const phase = (stripped.split(/:|Index Build/)[0] ?? '').trim();
   const percent =
     done !== undefined && total !== undefined && total > 0
       ? Math.min(PERCENT, (done / total) * PERCENT)

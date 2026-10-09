@@ -125,7 +125,10 @@ async function readStoredRules(
 ): Promise<StoredRules> {
   const rows: unknown[] = await client
     .db(database)
-    .listCollections({ name: collection }, { nameOnly: false })
+    .listCollections(
+      { name: collection },
+      { nameOnly: false, promoteLongs: false, promoteValues: false },
+    )
     .toArray();
   const row = rows[0];
   if (row === undefined) {

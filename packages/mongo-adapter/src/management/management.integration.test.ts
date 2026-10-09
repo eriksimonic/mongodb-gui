@@ -464,7 +464,7 @@ describe.each(MONGO_IMAGES)('management on %s', (image) => {
             expect(builds.map((build) => build.indexName)).toEqual(['s_1_n_1']);
             for (const build of builds) {
               expect(build.collection).toBe('large');
-              expect(build.phase).not.toMatch(/^Index Build/);
+              expect(build.phase).not.toMatch(/Index Build/);
               expect(build.phase.length).toBeGreaterThan(0);
               if (build.progressPercent !== undefined) {
                 expect(build.progressPercent).toBeGreaterThanOrEqual(0);
@@ -482,6 +482,26 @@ describe.each(MONGO_IMAGES)('management on %s', (image) => {
   });
 
   describe('validation', () => {
+    it('keeps a Long value in the stored validator as $numberLong', async () => {
+      const database = uniqueDatabase();
+      await client.db(database).collection<Fixture>('counters').insertOne({ count: 1 });
+      await setValidation(client, {
+        database,
+        collection: 'counters',
+        rules: {
+          validatorEjson: '{"count": {"$gte": {"$numberLong": "5"}}}',
+          validationLevel: 'strict',
+          validationAction: 'error',
+        },
+      });
+      const rules = await getValidation(client, database, 'counters');
+      expect(rules.validatorEjson).toContain('"$numberLong":"5"');
+      const validator = EJSON.parse(rules.validatorEjson, { relaxed: false }) as {
+        count: { $gte: unknown };
+      };
+      expect(validator.count.$gte).toBeInstanceOf(BSON.Long);
+    });
+
     it('rejects an invalid collection name before it reaches the server', async () => {
       const error = await captureError(() => getValidation(client, uniqueDatabase(), ''));
       expect(error.code).toBe('VALIDATION');
