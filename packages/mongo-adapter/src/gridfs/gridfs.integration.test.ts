@@ -299,7 +299,7 @@ for (const image of IMAGES) {
           bucket,
           idsEjson: [first.idEjson, second.idEjson],
         });
-        expect(removed).toEqual({ deleted: 2, failed: 0 });
+        expect(removed).toEqual({ deleted: 2 });
         expect(await listFiles(client, { database: DB, bucket })).toEqual([]);
         expect(await countIn(client, `${bucket}.chunks`)).toBe(0);
       },
@@ -504,7 +504,7 @@ for (const image of IMAGES) {
           bucket,
           idsEjson: ['"legacy-1"'],
         });
-        expect(removed).toEqual({ deleted: 1, failed: 0 });
+        expect(removed).toEqual({ deleted: 1 });
         expect(await countIn(client, `${bucket}.chunks`)).toBe(0);
       },
       TEST_TIMEOUT_MS,

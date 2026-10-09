@@ -55,7 +55,6 @@ const PROGRESS_STEP_BYTES = 1024 * 1024;
 
 export interface GridFsDeleteResult {
   readonly deleted: number;
-  readonly failed: number;
 }
 
 // Lists files of a bucket, newest first unless a sort and direction are given. The limit applies
@@ -293,15 +292,29 @@ async function refuseExistingTarget(path: string, overwrite: boolean): Promise<v
   }
 }
 
+// Filesystems such as FAT, exFAT and some network shares refuse hard links. For those, the target
+// is checked and then renamed into place. That check is not atomic, so it is the fallback only.
+const NO_HARD_LINK_CODES: ReadonlySet<unknown> = new Set([
+  'EPERM',
+  'ENOTSUP',
+  'EOPNOTSUPP',
+  'ENOSYS',
+]);
+
 // A hard link fails with EEXIST when the target exists, so the check and the creation are one step.
-async function linkExclusive(source: string, target: string): Promise<void> {
+// The temporary file is left in place for the caller to remove.
+export async function linkExclusive(source: string, target: string): Promise<void> {
   try {
     await link(source, target);
   } catch (error) {
     if (readField(error, 'code') === 'EEXIST') {
       throw validationError('The target file already exists');
     }
-    throw error;
+    if (!NO_HARD_LINK_CODES.has(readField(error, 'code'))) {
+      throw error;
+    }
+    await refuseExistingTarget(target, false);
+    await moveEntry(source, target);
   }
 }
 
@@ -325,9 +338,11 @@ function cancellationAware(error: unknown, signal: AbortSignal | undefined): unk
 }
 
 // Deletes files and their chunks. Every id must exist before anything is removed, so a stale id
-// refuses the whole request with NOT_FOUND. A file that disappears between the check and its
-// delete already has the wanted result, so it counts as deleted. If any delete fails, the other
-// files are still deleted, and the error detail gives both counts.
+// refuses the whole request with NOT_FOUND. Each file's chunks are deleted before its document, so
+// a document never outlives its chunks. A file that disappears between the check and its delete
+// already has the wanted result, so it counts as deleted. When a delete fails, the other files are
+// still deleted, and the error is COMMAND_FAILED with the counts and the first error's message in
+// the detail. A partial failure therefore throws and does not return a count.
 export async function deleteFiles(
   client: MongoClient,
   request: unknown,
@@ -344,13 +359,15 @@ export async function deleteFiles(
     }
     let deleted = 0;
     let failed = 0;
+    let firstError: unknown;
     for (const id of ids) {
       try {
-        await files.deleteOne(idQuery(id));
         await chunks.deleteMany({ files_id: id });
+        await files.deleteOne(idQuery(id));
         deleted += 1;
-      } catch {
+      } catch (error) {
         failed += 1;
+        firstError ??= error;
       }
     }
     if (failed > 0) {
@@ -358,14 +375,18 @@ export async function deleteFiles(
         appError(
           'COMMAND_FAILED',
           'Some files could not be deleted',
-          `deleted ${deleted}, failed ${failed}`,
+          `deleted ${deleted}, failed ${failed}: ${errorText(firstError)}`,
         ),
       );
     }
-    return { deleted, failed };
+    return { deleted };
   } catch (error) {
     throw new AppErrorException(toGridFsFailure(error));
   }
+}
+
+function errorText(error: unknown): string {
+  return error instanceof Error ? error.message : 'unknown error';
 }
 
 function idsQuery(ids: readonly unknown[]): Document {
@@ -389,7 +410,10 @@ export async function renameFile(client: MongoClient, request: unknown): Promise
     const id = parseFileId(input.idEjson);
     const files = filesCollection(client, input.database, input.bucket);
     const doc = await requireFile(files, id);
-    await files.updateOne(idQuery(id), { $set: { filename: input.filename } });
+    const result = await files.updateOne(idQuery(id), { $set: { filename: input.filename } });
+    if (result.matchedCount === 0) {
+      throw notFoundError();
+    }
     return toGridFsFile({ ...doc, filename: input.filename });
   } catch (error) {
     throw new AppErrorException(toGridFsFailure(error));
