@@ -11,3 +11,12 @@ export {
   type ListCollectionsOptions,
 } from './catalog';
 export { mapDriverError } from './errors';
+export {
+  getProfilingLevel,
+  listProfileEntries,
+  profileCollectionInfo,
+  setProfilingLevel,
+  tailProfileEntries,
+  type ProfileCollectionInfo,
+  type ProfileTail,
+} from './profiler/profiler';
