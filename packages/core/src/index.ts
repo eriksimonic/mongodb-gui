@@ -40,6 +40,8 @@ export * from './schemas/history';
 export * from './schemas/monitor';
 export * from './schemas/settings';
 export * from './schemas/vault';
+export { summarizeCanonicalSample, type SchemaSummary } from './schema/sample';
+export * from './schema/types';
 export * from './updates/types';
 export * from './shell/protocol';
 export * from './shell/result-type';

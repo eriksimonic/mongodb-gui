@@ -32,6 +32,7 @@ import {
   OperationsPanelView,
   OutputPanel,
   ProfilerDockPanel,
+  SchemaDockPanel,
   ValidationDockPanel,
   WelcomePanel,
 } from './ShellPanels';
@@ -46,6 +47,7 @@ const PANEL_COMPONENTS = {
   indexes: IndexesDockPanel,
   validation: ValidationDockPanel,
   documents: DocumentsDockPanel,
+  schema: SchemaDockPanel,
 };
 
 const TAB_COMPONENTS = { fixed: FixedTab };
@@ -62,6 +64,7 @@ const PANEL_TITLE_SUFFIX: Readonly<Record<PanelRequest['panel'], string>> = {
   indexes: 'indexes',
   validation: 'validation',
   documents: 'documents',
+  schema: 'schema',
 };
 
 /**

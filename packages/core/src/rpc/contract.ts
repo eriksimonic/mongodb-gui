@@ -83,6 +83,7 @@ import {
   DockerStatusSchema,
 } from '../docker/types';
 import { UpdateStateSchema } from '../updates/types';
+import { SchemaAnalyseInputSchema, SchemaReportSchema } from '../schema/types';
 import { defineCall, type RpcContract } from './define';
 
 const idParam = z.object({ id: z.uuid() });
@@ -223,6 +224,10 @@ export const rpcContract = {
     ),
     findDocumentById: defineCall(onConnection(FindDocumentByIdInputSchema), z.string().nullable()),
     sampleDocuments: defineCall(onConnection(SampleDocumentsInputSchema), z.array(z.string())),
+  },
+  // The sample is read by the shell runtime and the total from the server's metadata.
+  schema: {
+    analyse: defineCall(SchemaAnalyseInputSchema, SchemaReportSchema),
   },
   settings: {
     get: defineCall(z.void(), SettingsSchema),

@@ -84,6 +84,11 @@ export function CollectionContextMenu({
     },
     {
       kind: 'item',
+      label: 'Analyse schema',
+      onSelect: () => requestPanel({ panel: 'schema', ...target }),
+    },
+    {
+      kind: 'item',
       label: 'Rename',
       onSelect: () => setManagementDialog({ kind: 'renameCollection', ...target }),
     },

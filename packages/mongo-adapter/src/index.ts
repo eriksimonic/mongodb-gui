@@ -5,6 +5,7 @@ export { ConnectionManager, type StatusListener } from './connection-manager';
 export {
   collectionStats,
   databaseStats,
+  estimatedDocumentCount,
   listCollections,
   listDatabases,
   listIndexes,
