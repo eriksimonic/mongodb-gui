@@ -16,9 +16,11 @@ describe('rpcContract', () => {
         'explain',
         'favourites',
         'history',
+        'layout',
         'management',
         'monitor',
         'profiler',
+        'schema',
         'settings',
         'transfer',
         'shell',
@@ -26,6 +28,26 @@ describe('rpcContract', () => {
         'vault',
       ].sort(),
     );
+  });
+
+  it('declares schema.analyse with a sample size up to 5000 and a strategy', () => {
+    const { analyse } = rpcContract.schema;
+    const ok = analyse.input.safeParse({
+      connectionId: '3f2b8c1e-5d4a-4b7e-9c1f-2a6d8e0b7f10',
+      database: 'shop',
+      collection: 'orders',
+      size: 5000,
+      strategy: 'first',
+    });
+    expect(ok.success).toBe(true);
+    const tooLarge = analyse.input.safeParse({
+      connectionId: '3f2b8c1e-5d4a-4b7e-9c1f-2a6d8e0b7f10',
+      database: 'shop',
+      collection: 'orders',
+      size: 5001,
+      strategy: 'first',
+    });
+    expect(tooLarge.success).toBe(false);
   });
 
   it('declares the profiler calls with the level, list, shapes, info and tail inputs', () => {

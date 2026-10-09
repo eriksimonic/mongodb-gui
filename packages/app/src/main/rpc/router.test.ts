@@ -5,7 +5,9 @@ import { afterEach, describe, expect, it, vi } from 'vitest';
 import {
   AppErrorException,
   appError,
+  dashboardLayoutKey,
   defaultSettings,
+  LAYOUT_VALUE_LIMIT_BYTES,
   rpcContract,
   type AppError,
   type ConnectionProfile,
@@ -932,5 +934,41 @@ describe('createAppServices', () => {
     } finally {
       rmSync(dir, { recursive: true, force: true });
     }
+  });
+});
+
+describe('layout calls', () => {
+  let harness: Harness | undefined;
+  afterEach(() => {
+    harness?.dispose();
+    harness = undefined;
+  });
+
+  it('round-trips a saved layout under its key and reads null for a key nothing saved', async () => {
+    harness = buildHarness();
+    const { router } = harness;
+    expectValue(await router.handle('vault.initialise', { password: PASSWORD }));
+    const key = dashboardLayoutKey('connection-one');
+    const layout = { version: 1, panels: [{ id: 'memory', w: 2, h: 2 }] };
+
+    expectValue(await router.handle('layout.set', { key, value: layout }));
+
+    expect(expectValue(await router.handle('layout.get', { key }))).toEqual({ value: layout });
+    const other = dashboardLayoutKey('connection-two');
+    expect(expectValue(await router.handle('layout.get', { key: other }))).toEqual({ value: null });
+  });
+
+  it('refuses a layout value over the size limit before it is stored', async () => {
+    harness = buildHarness();
+    const { router } = harness;
+    expectValue(await router.handle('vault.initialise', { password: PASSWORD }));
+    const key = dashboardLayoutKey('connection-one');
+
+    expectError(
+      await router.handle('layout.set', { key, value: 'x'.repeat(LAYOUT_VALUE_LIMIT_BYTES) }),
+      'VALIDATION',
+    );
+
+    expect(expectValue(await router.handle('layout.get', { key }))).toEqual({ value: null });
   });
 });

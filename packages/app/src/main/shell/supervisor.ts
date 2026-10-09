@@ -12,6 +12,7 @@ import {
   type ResultResponse,
   type RpcEvent,
   type SchemaField,
+  type SchemaSampleStrategy,
   type ShellEvaluation,
   type ShellRequest,
   type ShellResponse,
@@ -108,6 +109,7 @@ export interface SampleRequest {
   readonly database: string;
   readonly collection: string;
   readonly size: number;
+  readonly strategy: SchemaSampleStrategy;
 }
 
 // What a request produced. It holds the messages before done, and the abort reason when the
@@ -346,6 +348,7 @@ export class RuntimeSupervisor {
           database: input.database,
           collection: input.collection,
           size: input.size,
+          strategy: input.strategy,
         },
         {
           deadlineMs: this.timings.defaultRequestTimeoutMs,

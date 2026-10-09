@@ -83,6 +83,7 @@ import {
   DockerStatusSchema,
 } from '../docker/types';
 import { UpdateStateSchema } from '../updates/types';
+import { SchemaAnalyseInputSchema, SchemaReportSchema } from '../schema/types';
 import {
   DialogResultSchema,
   OpenDialogInputSchema,
@@ -102,6 +103,7 @@ import {
   ExplainRunInputSchema,
 } from '../explain/rpc-schemas';
 import { defineCall, type RpcContract } from './define';
+import { LAYOUT_VALUE_LIMIT_BYTES, layoutValueBytes } from '../monitor/dashboard-layout';
 
 const idParam = z.object({ id: z.uuid() });
 const connectionParam = z.object({ connectionId: z.uuid() });
@@ -161,6 +163,17 @@ const externalUrl = z
   .string()
   .max(MAX_LINK_LENGTH)
   .refine(isProjectLink, 'The link must point to a page of the project on GitHub.');
+
+/** Layout keys name one saved setting, such as `layout:dashboard:<connection id>`. */
+const layoutKey = z.string().min(1).max(200);
+// Layout values have no core schema. The contract checks only their size. The UI checks each
+// stored layout with DashboardLayoutSchema (through readStoredLayout) when it reads one back.
+const layoutValue = z
+  .unknown()
+  .refine(
+    (value) => value !== undefined && layoutValueBytes(value) <= LAYOUT_VALUE_LIMIT_BYTES,
+    'The layout value must be a JSON value under 256 KB.',
+  );
 
 export const rpcContract = {
   vault: {
@@ -247,6 +260,10 @@ export const rpcContract = {
     ),
     findDocumentById: defineCall(onConnection(FindDocumentByIdInputSchema), z.string().nullable()),
     sampleDocuments: defineCall(onConnection(SampleDocumentsInputSchema), z.array(z.string())),
+  },
+  // The sample is read by the shell runtime and the total from the server's metadata.
+  schema: {
+    analyse: defineCall(SchemaAnalyseInputSchema, SchemaReportSchema),
   },
   settings: {
     get: defineCall(z.void(), SettingsSchema),
@@ -339,5 +356,9 @@ export const rpcContract = {
     showSaveDialog: defineCall(SaveDialogInputSchema, DialogResultSchema),
     /** Reveals a file this session exported. Other paths are refused by the router. */
     showItemInFolder: defineCall(ShowItemInFolderInputSchema, z.void()),
+  },
+  layout: {
+    get: defineCall(z.object({ key: layoutKey }), z.object({ value: z.unknown().nullable() })),
+    set: defineCall(z.object({ key: layoutKey, value: layoutValue }), z.void()),
   },
 } satisfies RpcContract;

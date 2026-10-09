@@ -174,10 +174,11 @@ describe('mock shell', () => {
       database: DATABASE,
       collection: COLLECTION,
       size: 100,
+      strategy: 'random',
     });
     expect(schema.sampled).toBe(100);
     const status = schema.fields.find((field) => field.path === 'status');
-    expect(status).toEqual({ path: 'status', types: ['string'], presence: 1 });
+    expect(status).toMatchObject({ path: 'status', types: ['String'], presence: 1 });
     expect(schema.fields.find((field) => field.path === '_id')?.types).toEqual(['ObjectId']);
   });
 

@@ -33,6 +33,7 @@ import {
   fixtureBuilds,
   fixtureCatalog,
   findDatabase,
+  findMockCollection,
   type MockBuild,
   type MockCollection,
   type MockDatabase,
@@ -307,6 +308,8 @@ export function createMockUiApi(options: MockUiApiOptions = {}): UiApi {
     emit,
     hasReplication: () => options.replication === true,
   });
+  // Layout values live in memory only, so a reload of the mock starts from the default layouts.
+  const layouts = new Map<string, unknown>();
   const transfers = createMockTransfers(
     emit,
     (database, collection) =>
@@ -746,6 +749,33 @@ export function createMockUiApi(options: MockUiApiOptions = {}): UiApi {
         return { ...state.settings };
       }),
     },
+    schema: {
+      analyse: method(rpcContract.schema.analyse, latencyMs, (input) => {
+        requireUnlocked();
+        requireConnected(input.connectionId);
+        const found = findMockCollection(
+          catalogOf(input.connectionId),
+          input.database,
+          input.collection,
+        );
+        if (found === undefined) {
+          throw fail(
+            'COMMAND_FAILED',
+            'Collection not found',
+            `${input.database}.${input.collection}`,
+          );
+        }
+        const sample = shell.sampleSchema(input);
+        return {
+          database: input.database,
+          collection: input.collection,
+          sampled: sample.sampled,
+          total: found.documents.length,
+          fields: sample.fields,
+          at: new Date().toISOString(),
+        };
+      }),
+    },
     monitor: {
       start: method(rpcContract.monitor.start, latencyMs, ({ connectionId, intervalMs }) => {
         requireUnlocked();
@@ -790,6 +820,16 @@ export function createMockUiApi(options: MockUiApiOptions = {}): UiApi {
           return monitor.setInterval(connectionId, intervalMs);
         },
       ),
+    },
+    layout: {
+      get: method(rpcContract.layout.get, latencyMs, ({ key }) => {
+        requireUnlocked();
+        return { value: layouts.get(key) ?? null };
+      }),
+      set: method(rpcContract.layout.set, latencyMs, ({ key, value }) => {
+        requireUnlocked();
+        layouts.set(key, value);
+      }),
     },
     history: {
       list: method(rpcContract.history.list, latencyMs, ({ connectionId, search, limit }) => {
