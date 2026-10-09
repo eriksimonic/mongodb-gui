@@ -170,10 +170,12 @@ export function importOptionsFor(
   format: ImportFormat,
   rows: readonly MappingRow[],
 ): ImportOptions {
+  // JSON values already carry their BSON types. A field whose type was not changed is sent as
+  // auto, so the backend keeps the parsed value (a Long stays a Long). CSV cells always convert.
   const mappings: FieldMapping[] = rows.map((row) => ({
     source: row.source,
     target: row.target.trim(),
-    type: row.type,
+    type: format !== 'csv' && row.type === row.inferredType ? 'auto' : row.type,
     skip: row.skip,
   }));
   return {

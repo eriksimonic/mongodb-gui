@@ -19,8 +19,8 @@ const COUNTERS: { label: string; pick: (progress: TransferProgress) => number }[
   { label: 'Failed', pick: (progress) => progress.failed },
 ];
 
-/** Counters an export never changes, so it does not show them. */
-const IMPORT_ONLY = ['Inserted', 'Updated'];
+/** Counters only an import changes. An export shows the processed count alone. */
+const IMPORT_ONLY = ['Inserted', 'Updated', 'Failed'];
 
 /**
  * Live progress of one import or export. Row numbers in the error table count data records,

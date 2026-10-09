@@ -261,6 +261,7 @@ export function ExportDialogBody({
             }}
           />
           <TagsInput
+            size="sm"
             label="Columns"
             description="In this order. Empty writes every field found in the first 1,000 documents."
             placeholder="Add a field name"

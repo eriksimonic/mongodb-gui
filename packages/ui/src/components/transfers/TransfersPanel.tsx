@@ -1,4 +1,5 @@
-import { Button, Group, Progress, Stack, Text } from '@mantine/core';
+import { Badge, Button, Group, Progress, Stack, Text } from '@mantine/core';
+import type { TransferProgress } from '@mongo-gui/core';
 import { useEffect } from 'react';
 import { useAppStore } from '../../state/app-store-context';
 import { listTransfers, transferFraction, type TransferView } from '../../state/transfer-state';
@@ -32,6 +33,14 @@ export function TransfersPanel() {
   );
 }
 
+/** Blue while running or done, red on failure, grey when the user cancelled. */
+function barColor(progress: TransferProgress): string {
+  if (progress.error?.code === 'CANCELLED') {
+    return 'gray';
+  }
+  return progress.error === undefined ? 'blue' : 'red';
+}
+
 function TransferLine({ view }: { view: TransferView }) {
   const cancelTransfer = useAppStore((state) => state.cancelTransfer);
   const progress = view.progress;
@@ -46,14 +55,20 @@ function TransferLine({ view }: { view: TransferView }) {
         <Text size="sm" fw={500} truncate>
           {label}
         </Text>
-        <Text size="xs" c="dimmed">
-          {statusLine(progress)}
-        </Text>
+        {progress.error?.code === 'CANCELLED' ? (
+          <Badge color="gray" variant="light" size="sm">
+            Cancelled
+          </Badge>
+        ) : (
+          <Text size="xs" c="dimmed">
+            {statusLine(progress)}
+          </Text>
+        )}
       </Group>
       <Progress
         value={progress.done ? 100 : fraction === undefined ? 100 : fraction * 100}
         animated={!progress.done && fraction === undefined}
-        color={progress.error === undefined || progress.error.code === 'CANCELLED' ? 'blue' : 'red'}
+        color={barColor(progress)}
         size="sm"
         aria-label={`${label} progress`}
       />

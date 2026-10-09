@@ -3,10 +3,13 @@ import { fireEvent, screen, waitFor } from '@testing-library/react';
 import { describe, expect, it, vi } from 'vitest';
 import { createMockUiApi } from '../../api/mock-rpc-client';
 import { localConnectionId } from '../../api/mock-fixtures';
-import { MOCK_DIALOG_PATH } from '../../api/mock-transfer';
+import { mockSavePath } from '../../api/mock-transfer';
 import type { UiApi } from '../../api/ui-api';
 import { renderWithApp } from '../../test-support/render';
 import { ExportDialogBody } from './ExportDialog';
+
+/** The save dialog returns the default NDJSON file for the default format. */
+const MOCK_DIALOG_PATH = mockSavePath('ndjson');
 
 async function connectedApi(): Promise<UiApi> {
   const api = createMockUiApi({ preset: 'unlocked' });

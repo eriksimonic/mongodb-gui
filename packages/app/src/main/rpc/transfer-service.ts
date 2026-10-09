@@ -147,8 +147,13 @@ export function createTransferService(options: TransferServiceOptions): Transfer
     entry.finished = true;
     entry.latest = progress;
     send(entry, progress);
-    if (entry.kind === 'export' && progress.error === undefined) {
-      written.add(entry.path);
+    if (entry.kind === 'export') {
+      if (progress.error === undefined) {
+        written.add(entry.path);
+      } else {
+        // A failed export leaves no file, so the path can no longer be shown.
+        written.delete(entry.path);
+      }
     }
     entry.retentionTimer = setTimeout(() => {
       entries.delete(entry.transferId);

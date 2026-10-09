@@ -21,5 +21,6 @@ export async function runReported(action: () => Promise<unknown>): Promise<void>
  */
 export function errorText(error: unknown): string {
   const failure = toAppError(error);
-  return failure.detail === undefined ? failure.message : `${failure.message}: ${failure.detail}`;
+  const message = failure.message.replace(/\.$/, '');
+  return failure.detail === undefined ? failure.message : `${message}: ${failure.detail}`;
 }

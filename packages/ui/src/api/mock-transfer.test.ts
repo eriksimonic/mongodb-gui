@@ -107,4 +107,21 @@ describe('mock transfers', () => {
     expect(preview.warnings.length).toBeGreaterThan(0);
     expect(preview.fields.some((field) => field.nullCount > 0)).toBe(true);
   });
+
+  it('stops the scripted export at the requested limit', async () => {
+    const transfers = createMockTransfers(
+      () => undefined,
+      () => 250,
+    );
+    const transferId = transfers.startExport('conn', {
+      database: 'shop',
+      collection: 'orders',
+      path: '/mock/limited.ndjson',
+      options: { format: 'ndjson', ejsonMode: 'canonical', limit: 40 },
+    });
+    await vi.advanceTimersByTimeAsync(2000);
+    expect(transfers.status(transferId)).toEqual(
+      expect.objectContaining({ done: true, processed: 40 }),
+    );
+  });
 });

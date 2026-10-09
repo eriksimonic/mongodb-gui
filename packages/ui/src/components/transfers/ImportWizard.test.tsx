@@ -1,6 +1,7 @@
 // @vitest-environment jsdom
-import { fireEvent, screen, waitFor } from '@testing-library/react';
+import { fireEvent, screen, waitFor, within } from '@testing-library/react';
 import { describe, expect, it, vi } from 'vitest';
+import type { ImportPreview } from '@mongo-gui/core';
 import { createMockUiApi } from '../../api/mock-rpc-client';
 import { localConnectionId } from '../../api/mock-fixtures';
 import { MOCK_DIALOG_PATH } from '../../api/mock-transfer';
@@ -214,5 +215,89 @@ describe('ImportWizard, step three: options and run', () => {
 
     fireEvent.click(screen.getByRole('button', { name: 'Import another' }));
     expect(screen.getByLabelText('File path')).toHaveValue('');
+  });
+});
+
+const NDJSON_PREVIEW: ImportPreview = {
+  detectedFormat: 'ndjson',
+  fields: [
+    { name: '_id', inferredType: 'int', examples: ['1', '2'], nullCount: 0 },
+    { name: 'total', inferredType: 'double', examples: ['19.9'], nullCount: 0 },
+    { name: 'placed_at', inferredType: 'date', examples: ['2026-03-01T09:15:00Z'], nullCount: 0 },
+  ],
+  sampleRows: [{ _id: 1, total: 19.9, placed_at: '2026-03-01T09:15:00Z' }],
+  estimatedRows: 2,
+  warnings: [],
+};
+
+describe('ImportWizard, JSON input', () => {
+  it('sends the fields whose type was not changed as auto and marks them as inferred', async () => {
+    const api = await connectedApi();
+    vi.spyOn(api.rpc.transfer, 'previewImport').mockResolvedValue(NDJSON_PREVIEW);
+    const start = vi.spyOn(api.rpc.transfer, 'startImport');
+    renderWithApp(
+      <ImportWizardBody
+        connectionId={localConnectionId}
+        database="shop"
+        collection="orders"
+        onClose={vi.fn()}
+      />,
+      { api },
+    );
+    fireEvent.change(screen.getByLabelText('File path'), {
+      target: { value: '/mock/orders.ndjson' },
+    });
+    fireEvent.click(screen.getByRole('button', { name: 'Next' }));
+
+    await screen.findByRole('table', { name: 'Field mapping' });
+    expect(screen.queryByLabelText('CSV options')).not.toBeInTheDocument();
+    expect(screen.getAllByText('Inferred. Sent as auto.')).toHaveLength(3);
+
+    fireEvent.click(screen.getByRole('button', { name: 'Next' }));
+    fireEvent.click(screen.getByRole('button', { name: 'Start import' }));
+    await waitFor(() => expect(start).toHaveBeenCalled());
+    const sent = start.mock.calls[0]?.[0];
+    expect(sent?.options.format).toBe('ndjson');
+    expect(sent?.options.mappings?.map((mapping) => mapping.type)).toEqual([
+      'auto',
+      'auto',
+      'auto',
+    ]);
+  });
+
+  it('sends a field the user retyped with its own type', async () => {
+    const api = await connectedApi();
+    vi.spyOn(api.rpc.transfer, 'previewImport').mockResolvedValue(NDJSON_PREVIEW);
+    const start = vi.spyOn(api.rpc.transfer, 'startImport');
+    renderWithApp(
+      <ImportWizardBody
+        connectionId={localConnectionId}
+        database="shop"
+        collection="orders"
+        onClose={vi.fn()}
+      />,
+      { api },
+    );
+    fireEvent.change(screen.getByLabelText('File path'), {
+      target: { value: '/mock/orders.ndjson' },
+    });
+    fireEvent.click(screen.getByRole('button', { name: 'Next' }));
+    await screen.findByRole('table', { name: 'Field mapping' });
+
+    const typeInput = screen.getByLabelText('Type for total', { selector: 'input' });
+    fireEvent.click(typeInput);
+    const listbox = document.getElementById(typeInput.getAttribute('aria-controls') ?? '');
+    if (listbox === null) {
+      throw new Error('the type select has no options list');
+    }
+    fireEvent.click(within(listbox).getByRole('option', { name: 'string', hidden: true }));
+    fireEvent.click(screen.getByRole('button', { name: 'Next' }));
+    fireEvent.click(screen.getByRole('button', { name: 'Start import' }));
+    await waitFor(() => expect(start).toHaveBeenCalled());
+    expect(start.mock.calls[0]?.[0].options.mappings?.map((mapping) => mapping.type)).toEqual([
+      'auto',
+      'string',
+      'auto',
+    ]);
   });
 });

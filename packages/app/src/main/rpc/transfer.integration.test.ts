@@ -1,9 +1,14 @@
-import { mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
+import { mkdtempSync, readdirSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
-import { MongoClient, type Document } from 'mongodb';
+import { Decimal128, Long, MongoClient, type Document } from 'mongodb';
 import { afterAll, beforeAll, describe, expect, it, vi } from 'vitest';
-import type { RpcEvent, RpcResult, TransferProgress } from '@mongo-gui/core';
+import type { ImportPreview, RpcEvent, RpcResult, TransferProgress } from '@mongo-gui/core';
+import {
+  DEFAULT_IMPORT_DRAFT,
+  importOptionsFor,
+  mappingRowsFrom,
+} from '../../../../ui/src/components/transfers/import-model';
 import { createAppServices, createRouter, type AppServices, type Router } from './router';
 // The Testcontainers harness lives with the adapter tests. It is not exported from the
 // adapter package, so this test reads it from the workspace source.
@@ -63,6 +68,8 @@ describe('transfers through the router against a real MongoDB 8.0 server', () =>
   let connectionId = '';
   const events: RpcEvent[] = [];
   const showItemInFolder = vi.fn<(path: string) => void>();
+  // The path the save dialog returns next. Undefined means the user cancelled.
+  let savePick: string | undefined;
 
   beforeAll(async () => {
     mongo = await startMongo(IMAGE);
@@ -80,7 +87,7 @@ describe('transfers through the router against a real MongoDB 8.0 server', () =>
       },
       dialogs: {
         showOpenDialog: async () => ({}),
-        showSaveDialog: async () => ({}),
+        showSaveDialog: async () => (savePick === undefined ? {} : { path: savePick }),
         showItemInFolder,
       },
     });
@@ -254,4 +261,155 @@ describe('transfers through the router against a real MongoDB 8.0 server', () =>
       'VALIDATION',
     );
   });
+
+  it(
+    'round trips typed values: export, preview, the wizard options, import',
+    async () => {
+      if (mongo === undefined) {
+        throw new Error('container not started');
+      }
+      const seeder = new MongoClient(mongo.rootUri);
+      try {
+        const typedDocs: Document[] = [
+          {
+            _id: 1,
+            big: Long.fromString('9007199254740993'),
+            price: Decimal128.fromString('19.99'),
+            placed: new Date('2026-03-01T09:15:00.000Z'),
+            count: 7,
+          },
+          {
+            _id: 2,
+            big: Long.fromString('-42'),
+            price: Decimal128.fromString('0.5'),
+            placed: new Date('2026-03-02T09:15:00.000Z'),
+            count: 8,
+          },
+        ];
+        await seeder.db(DATABASE).collection('typed').insertMany(typedDocs);
+      } finally {
+        await seeder.close();
+      }
+      const path = join(dir ?? '', 'typed.ndjson');
+      const exported = valueOf(
+        await router.handle('transfer.startExport', {
+          connectionId,
+          database: DATABASE,
+          collection: 'typed',
+          path,
+          options: { format: 'ndjson', ejsonMode: 'canonical' },
+        }),
+      ) as { transferId: string };
+      expect((await waitForDone(router, exported.transferId)).error).toBeUndefined();
+
+      const preview = valueOf(
+        await router.handle('transfer.previewImport', { connectionId, path, sampleRows: 5 }),
+      ) as ImportPreview;
+      const big = preview.fields.find((field) => field.name === 'big');
+      expect(big?.inferredType).toBe('long');
+      expect(big?.examples).toContain('9007199254740993');
+
+      const draft = { ...DEFAULT_IMPORT_DRAFT, path, mode: 'insert' as const, batchSize: 10 };
+      const options = importOptionsFor(draft, 'ndjson', mappingRowsFrom(preview));
+      expect(options.mappings?.every((mapping) => mapping.type === 'auto')).toBe(true);
+      const imported = valueOf(
+        await router.handle('transfer.startImport', {
+          connectionId,
+          database: DATABASE,
+          collection: 'typed_copy',
+          path,
+          options,
+        }),
+      ) as { transferId: string };
+      const done = await waitForDone(router, imported.transferId);
+      expect(done.error).toBeUndefined();
+      expect(done.inserted).toBe(2);
+      expect(done.failed).toBe(0);
+
+      const copy = new MongoClient(mongo.rootUri);
+      try {
+        const stored = await copy
+          .db(DATABASE)
+          .collection('typed_copy')
+          .find({}, { sort: { _id: 1 } })
+          .toArray();
+        expect(stored).toHaveLength(2);
+        const first = stored[0];
+        expect(first?.big).toBeInstanceOf(Long);
+        expect((first?.big as Long).equals(Long.fromString('9007199254740993'))).toBe(true);
+        expect(first?.price).toBeInstanceOf(Decimal128);
+        expect(first?.placed).toBeInstanceOf(Date);
+      } finally {
+        await copy.close();
+      }
+    },
+    SUITE_TIMEOUT_MS,
+  );
+
+  it(
+    'refuses an existing file the user did not pick, and replaces a picked one only on success',
+    async () => {
+      const target = join(dir ?? '', 'picked.ndjson');
+      writeFileSync(target, 'keep me\n');
+
+      expect(
+        errorOf(
+          await router.handle('transfer.startExport', {
+            connectionId,
+            database: DATABASE,
+            collection: SOURCE,
+            path: target,
+            options: { format: 'ndjson', ejsonMode: 'canonical' },
+          }),
+        ),
+      ).toBe('VALIDATION');
+      expect(readFileSync(target, 'utf8')).toBe('keep me\n');
+
+      savePick = target;
+      const picked = valueOf(
+        await router.handle('app.showSaveDialog', {
+          title: 'Save export as',
+          filters: [{ name: 'NDJSON', extensions: ['ndjson'] }],
+        }),
+      ) as { path?: string };
+      savePick = undefined;
+      expect(picked.path).toBe(target);
+
+      // A filter the server rejects makes the export fail after the temporary file is open.
+      const failing = valueOf(
+        await router.handle('transfer.startExport', {
+          connectionId,
+          database: DATABASE,
+          collection: SOURCE,
+          path: target,
+          options: {
+            format: 'ndjson',
+            ejsonMode: 'canonical',
+            filterEjson: '{"$bogusOperator": 1}',
+          },
+        }),
+      ) as { transferId: string };
+      const failed = await waitForDone(router, failing.transferId);
+      expect(failed.error).toBeDefined();
+      expect(readFileSync(target, 'utf8')).toBe('keep me\n');
+      expect(readdirSync(dir ?? '').filter((name) => name.endsWith('.tmp'))).toEqual([]);
+      expect(errorOf(await router.handle('app.showItemInFolder', { path: target }))).toBe(
+        'VALIDATION',
+      );
+
+      const replaced = valueOf(
+        await router.handle('transfer.startExport', {
+          connectionId,
+          database: DATABASE,
+          collection: SOURCE,
+          path: target,
+          options: { format: 'ndjson', ejsonMode: 'canonical' },
+        }),
+      ) as { transferId: string };
+      expect((await waitForDone(router, replaced.transferId)).error).toBeUndefined();
+      expect(readFileSync(target, 'utf8').trim().split('\n')).toHaveLength(DOCUMENT_COUNT);
+      expect(readdirSync(dir ?? '').filter((name) => name.endsWith('.tmp'))).toEqual([]);
+    },
+    SUITE_TIMEOUT_MS,
+  );
 });

@@ -43,7 +43,12 @@ import {
   type DatabaseFixture,
 } from './mock-fixtures';
 import { createMockMonitor } from './mock-monitor';
-import { createMockTransfers, MOCK_DIALOG_PATH, mockImportPreview } from './mock-transfer';
+import {
+  createMockTransfers,
+  MOCK_DIALOG_PATH,
+  mockImportPreview,
+  mockSavePath,
+} from './mock-transfer';
 import type { UiApi } from './ui-api';
 
 export type MockPreset = 'fresh' | 'unlocked';
@@ -413,8 +418,8 @@ export function createMockUiApi(options: MockUiApiOptions = {}): UiApi {
       showOpenDialog: method(rpcContract.app.showOpenDialog, latencyMs, () => ({
         path: MOCK_DIALOG_PATH,
       })),
-      showSaveDialog: method(rpcContract.app.showSaveDialog, latencyMs, () => ({
-        path: MOCK_DIALOG_PATH,
+      showSaveDialog: method(rpcContract.app.showSaveDialog, latencyMs, ({ filters }) => ({
+        path: mockSavePath(filters[0]?.extensions[0] ?? 'csv'),
       })),
       showItemInFolder: method(rpcContract.app.showItemInFolder, latencyMs, ({ path }) => {
         if (!transfers.wroteFile(path)) {

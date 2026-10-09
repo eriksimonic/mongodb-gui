@@ -297,4 +297,25 @@ describe('transfer service', () => {
       service.cancel('00000000-0000-4000-8000-000000000000');
     }).toThrow(AppErrorException);
   });
+
+  it('forgets a file a later failed export of the same path has removed', async () => {
+    let attempt = 0;
+    const adapter: TransferAdapter = {
+      importFile: async () => finalOf({}),
+      exportCollection: async () => {
+        attempt += 1;
+        return attempt === 1
+          ? finalOf({ processed: 3 })
+          : finalOf({ error: appError('COMMAND_FAILED', 'The query failed') });
+      },
+    };
+    const { service } = setup(adapter);
+    service.startExport(CONNECTION_A, EXPORT_REQUEST);
+    await settle();
+    expect(service.wroteFile('/tmp/orders.ndjson')).toBe(true);
+
+    service.startExport(CONNECTION_A, EXPORT_REQUEST);
+    await settle();
+    expect(service.wroteFile('/tmp/orders.ndjson')).toBe(false);
+  });
 });

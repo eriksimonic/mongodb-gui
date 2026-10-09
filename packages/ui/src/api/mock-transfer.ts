@@ -10,8 +10,13 @@ import {
   type TransferSummary,
 } from '@mongo-gui/core';
 
-/** The file the mock dialogs return, whatever the user would pick. */
+/** The file the mock open dialog returns, whatever the user would pick. */
 export const MOCK_DIALOG_PATH = '/mock/orders.csv';
+
+/** The file the mock save dialog returns for a format: the extension the user's filter names. */
+export function mockSavePath(extension: string): string {
+  return `/mock/orders.${extension}`;
+}
 
 const IMPORT_STEPS = 10;
 const IMPORT_STEP_MS = 200;
@@ -190,9 +195,10 @@ export function createMockTransfers(
     entry.timer = setTimeout(tick, IMPORT_STEP_MS);
   }
 
-  function runExport(transferId: string, entry: MockEntry): void {
+  function runExport(transferId: string, entry: MockEntry, limit: number | undefined): void {
     const total = Math.min(
       EXPORT_MAX_ROWS,
+      limit ?? Number.POSITIVE_INFINITY,
       countOf(entry.database, entry.collection) ?? EXPORT_DEFAULT_ROWS,
     );
     let step = 0;
@@ -222,7 +228,13 @@ export function createMockTransfers(
     entry.timer = setTimeout(tick, EXPORT_STEP_MS);
   }
 
-  function start(kind: TransferKind, database: string, collection: string, path: string): string {
+  function start(
+    kind: TransferKind,
+    database: string,
+    collection: string,
+    path: string,
+    limit?: number,
+  ): string {
     const transferId = newId();
     const entry: MockEntry = {
       kind,
@@ -246,7 +258,7 @@ export function createMockTransfers(
     if (kind === 'import') {
       runImport(transferId, entry);
     } else {
-      runExport(transferId, entry);
+      runExport(transferId, entry, limit);
     }
     return transferId;
   }
@@ -256,7 +268,13 @@ export function createMockTransfers(
       return start('import', request.database, request.collection, request.path);
     },
     startExport(_connectionId, request) {
-      return start('export', request.database, request.collection, request.path);
+      return start(
+        'export',
+        request.database,
+        request.collection,
+        request.path,
+        request.options.limit,
+      );
     },
     cancel(transferId) {
       const entry = entries.get(transferId);

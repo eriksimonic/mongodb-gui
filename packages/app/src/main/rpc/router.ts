@@ -1,4 +1,4 @@
-import { mkdirSync, statSync } from 'node:fs';
+import { existsSync, mkdirSync, statSync } from 'node:fs';
 import { dirname, join } from 'node:path';
 import {
   AppErrorException,
@@ -223,6 +223,9 @@ export function createRouter(deps: RouterDeps): Router {
     }
   }
 
+  // Paths the user picked in a save dialog this session. An export may replace only these.
+  const savePaths = new Set<string>();
+
   const dialogs = (): NativeDialogs => {
     if (deps.dialogs === undefined) {
       throw new AppErrorException(appError('INTERNAL', 'File dialogs are not available.'));
@@ -403,6 +406,7 @@ export function createRouter(deps: RouterDeps): Router {
       const { connectionId, ...request } = input;
       requireConnectionProfile(connectionId);
       refuseMissingFolder(request.path);
+      refuseUnpickedFile(request.path, savePaths);
       return { transferId: transfers.startExport(connectionId, request) };
     }),
     entry('transfer.cancel', rpcContract.transfer.cancel, (input) => {
@@ -431,9 +435,13 @@ export function createRouter(deps: RouterDeps): Router {
     entry('app.showOpenDialog', rpcContract.app.showOpenDialog, (input) =>
       dialogs().showOpenDialog(input),
     ),
-    entry('app.showSaveDialog', rpcContract.app.showSaveDialog, (input) =>
-      dialogs().showSaveDialog(input),
-    ),
+    entry('app.showSaveDialog', rpcContract.app.showSaveDialog, async (input) => {
+      const picked = await dialogs().showSaveDialog(input);
+      if (picked.path !== undefined) {
+        savePaths.add(picked.path);
+      }
+      return picked;
+    }),
     entry('app.showItemInFolder', rpcContract.app.showItemInFolder, (input) => {
       // Only a file this session exported is revealed, so the renderer cannot open arbitrary paths.
       if (!transfers.wroteFile(input.path)) {
@@ -731,6 +739,18 @@ function refuseMissingFolder(path: string): void {
   const folder = dirname(path);
   if (!isDirectory(folder)) {
     throw new AppErrorException(appError('VALIDATION', 'The folder does not exist.', folder));
+  }
+}
+
+/**
+ * An export never replaces a file the user did not pick in a save dialog this session. A file the
+ * user did pick is replaced only when the export succeeds.
+ */
+function refuseUnpickedFile(path: string, picked: ReadonlySet<string>): void {
+  if (existsSync(path) && !picked.has(path)) {
+    throw new AppErrorException(
+      appError('VALIDATION', 'The file exists. Choose it with Save as to replace it.'),
+    );
   }
 }
 

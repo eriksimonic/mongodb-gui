@@ -420,6 +420,7 @@ export function ChooseFileStep({
               if (value !== null) {
                 onChange({
                   csv: { ...draft.csv, delimiter: value as ImportDraft['csv']['delimiter'] },
+                  formatChoice: 'csv',
                 });
               }
             }}
@@ -429,14 +430,20 @@ export function ChooseFileStep({
             label="First row is a header"
             checked={draft.csv.hasHeader}
             onChange={(event) =>
-              onChange({ csv: { ...draft.csv, hasHeader: event.currentTarget.checked } })
+              onChange({
+                csv: { ...draft.csv, hasHeader: event.currentTarget.checked },
+                formatChoice: 'csv',
+              })
             }
           />
           <Switch
             label="Trim spaces around values"
             checked={draft.csv.trim}
             onChange={(event) =>
-              onChange({ csv: { ...draft.csv, trim: event.currentTarget.checked } })
+              onChange({
+                csv: { ...draft.csv, trim: event.currentTarget.checked },
+                formatChoice: 'csv',
+              })
             }
           />
           <TextInput
@@ -444,7 +451,10 @@ export function ChooseFileStep({
             description="Comma separated. Empty cells are always null."
             value={draft.csv.nullText}
             onChange={(event) =>
-              onChange({ csv: { ...draft.csv, nullText: event.currentTarget.value } })
+              onChange({
+                csv: { ...draft.csv, nullText: event.currentTarget.value },
+                formatChoice: 'csv',
+              })
             }
           />
         </Stack>
@@ -532,6 +542,11 @@ export function MappingStep({ preview, rows, problems, onRowsChange }: MappingSt
                     value={row.type}
                     allowDeselect={false}
                     disabled={row.skip}
+                    description={
+                      preview.detectedFormat !== 'csv' && row.type === row.inferredType && !row.skip
+                        ? 'Inferred. Sent as auto.'
+                        : undefined
+                    }
                     onChange={(value) => {
                       if (value !== null) {
                         update(index, { type: value as MappingRow['type'] });
@@ -707,7 +722,7 @@ export function ImportSummary({
   return (
     <Stack gap="sm" data-testid="import-summary">
       <Alert
-        color={failed ? 'red' : cancelled ? 'yellow' : 'green'}
+        color={failed ? 'red' : cancelled || progress.failed > 0 ? 'yellow' : 'green'}
         title={failed ? 'The import stopped' : cancelled ? 'Cancelled' : 'Import finished'}
       >
         {message}
