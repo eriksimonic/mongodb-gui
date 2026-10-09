@@ -2,6 +2,7 @@ import './zod-config';
 
 export const corePackageName = '@mongo-gui/core';
 
+export * from './changes/types';
 export * from './docker/types';
 export * from './domain/catalog';
 export * from './domain/connection';
