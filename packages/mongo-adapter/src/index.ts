@@ -13,9 +13,20 @@ export {
 export { toCanonicalEjson } from './ejson';
 export { mapDriverError } from './errors';
 export { exportCollection } from './transfer/export';
+export { dropBucket, listBuckets } from './gridfs/buckets';
+export {
+  deleteFiles,
+  downloadFile,
+  getFile,
+  listFiles,
+  renameFile,
+  uploadFile,
+} from './gridfs/files';
 export { importFile, previewImport } from './transfer/import';
 export { readServerInfo, type ServerInfo } from './server-info';
+export * from './diagnostics/index';
 export * from './management/index';
+export * from './security/index';
 export { killOperation, listOperations, type ListOperationsOptions } from './monitor/operations';
 export {
   Sampler,
@@ -42,3 +53,4 @@ export {
 } from './replication/reconfig';
 export { freeze, initiate, stepDown } from './replication/operations';
 export { getReplicaSetConfig, getReplicaSetStatus, isReplicaSet } from './replication/status';
+export * from './sharding/index';

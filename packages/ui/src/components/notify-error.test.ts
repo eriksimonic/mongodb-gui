@@ -25,4 +25,16 @@ describe('errorText', () => {
       'TTL indexes are single-field indexes',
     );
   });
+
+  it('drops the trailing period of the message before the detail', () => {
+    expect(errorText(failure('The folder does not exist.', '/exports'))).toBe(
+      'The folder does not exist: /exports',
+    );
+  });
+
+  it('keeps a detail that starts with the message without its period', () => {
+    expect(
+      errorText(failure('The folder does not exist.', 'The folder does not exist (/exports)')),
+    ).toBe('The folder does not exist (/exports)');
+  });
 });

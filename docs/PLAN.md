@@ -107,6 +107,11 @@ customer data) and favourites from anyone who copies the user's profile director
 reads a backup. Not in scope: an attacker with code running as the logged-in user while
 the app is unlocked.
 
+User code in the runtime process shares that process with the runtime's own state, so a
+script can change what later results show until the process restarts. That is the same
+trust as the user's own script, and the runtime process holds no secrets beyond the URI
+it was given.
+
 ### 3.2 Key hierarchy
 
 ```
@@ -253,6 +258,26 @@ issues.
   hot stage highlighting, a summary bar (index used, examined, returned, time), a plain
   language explanation generated from the normalised tree, and a raw JSON tab.
 
+- **P3-4 stage coverage.** Added on 2026-10-09 at Erik's request. A stage catalogue in
+  core describes every stage the planner can emit, with a plain-language description, its
+  category (scan, fetch, filter, sort, projection, limit, lookup, group, merge, sharding,
+  text, geo, write, cache, express), which metrics are meaningful for it, and specific
+  advice. Covered at least: COLLSCAN, IXSCAN, FETCH, SORT (in memory and spilling),
+  SORT_MERGE, SORT_KEY_GENERATOR, PROJECTION_SIMPLE/COVERED/DEFAULT, LIMIT, SKIP, OR,
+  AND_SORTED, AND_HASH, SUBPLAN, CACHED_PLAN, IDHACK and the 8.0 EXPRESS stages,
+  COUNT, COUNT_SCAN, DISTINCT_SCAN, TEXT_MATCH, TEXT_OR, GEO_NEAR_2D, GEO_NEAR_2DSPHERE,
+  SHARDING_FILTER, SHARD_MERGE, SHARD_MERGE_SORT, EQ_LOOKUP and `$lookup` with an inner
+  pipeline shown as a sub-tree, `$unionWith`, `$facet`, `$graphLookup`, `$group`
+  (with spill to disk), `$unwind`, `$match`, `$project`, `$addFields`, `$sort`,
+  `$limit`, `$skip`, `$count`, `$out`/`$merge` (explain only), UPDATE, DELETE,
+  BATCHED_DELETE, and the timeseries unpack stage. Fixtures captured from real servers
+  for each case on 4.4, 6.0 and 8.0 where the stage exists, plus hand-written sharded
+  ones. The panel shows an icon and category per stage, hover descriptions, the
+  metrics that apply, lookup and union sub-trees, and the advice. The raw tab is always
+  present: it shows the exact explain document the server returned, as canonical EJSON
+  with search, folding and copy, and it works even when the normaliser produces an
+  `UNKNOWN` tree, so an unexpected plan shape is still inspectable.
+
 ### Phase 4: collection management
 
 - **P4-1 collections and databases.** Create database, create collection (capped,
@@ -275,6 +300,21 @@ issues.
   network in and out, memory (resident, virtual, WiredTiger cache), queued readers and
   writers, replication lag per member, oplog window. Operations tab with running
   operations, filters, and kill with confirmation.
+
+- **P5-3 configurable dashboard.** Added on 2026-10-09 at Erik's request. A panel
+  catalogue in core drives both the sampler and the UI: each panel declares the series it
+  needs (serverStatus paths, counter or gauge, unit), the chart type and a title. The
+  sampler collects the sections the catalogue references (`wiredTiger` cache, checkpoint,
+  eviction, tickets and transactions, block-manager bytes read and written for IO,
+  `network`, `metrics.document`, `metrics.cursor`, `metrics.operation`, `metrics.ttl`,
+  `metrics.repl`, `transactions`, `locks`, `asserts`, `extra_info` page faults,
+  `logicalSessionRecordCache`, replica set lag and oplog) and emits a flat
+  `series: Record<string, number>` per sample next to the existing headline fields. The
+  dashboard gets an "Add panel" picker grouped by category (operations, documents, memory
+  and cache, WiredTiger, IO and network, locks and tickets, transactions, sessions and
+  cursors, replication, errors), every panel can be closed, resized and reordered, and the
+  layout is saved per connection through the `layout` namespace, with a "Reset to
+  default" action and a default set that matches today's dashboard.
 
 ### Phase 6: profiler
 
