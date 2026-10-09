@@ -16,26 +16,46 @@ export type StatusListener = (connectionId: string, status: ConnectionStatus) =>
 interface Entry {
   readonly status: ConnectionStatus;
   readonly client: MongoClient | undefined;
+  readonly attempt: number;
 }
 
 export class ConnectionManager {
   private readonly entries = new Map<string, Entry>();
   private readonly listeners = new Set<StatusListener>();
+  private attemptCounter = 0;
 
   async connect(profile: ConnectionProfile): Promise<ConnectionStatus> {
-    await this.disconnect(profile.id);
-    this.store(profile.id, { state: 'connecting' }, undefined);
+    const id = profile.id;
+    const previous = this.entries.get(id);
+    if (previous !== undefined) {
+      this.entries.delete(id);
+      this.emit(id, { state: 'disconnected' });
+    }
+    // The connecting entry is stored before the first await, so a disconnect that
+    // runs right after connect() sees it and supersedes this attempt.
+    this.attemptCounter += 1;
+    const attempt = this.attemptCounter;
+    this.store(id, { state: 'connecting' }, undefined, attempt);
+    await closeQuietly(previous?.client);
+
     let client: MongoClient | undefined;
     try {
       client = createClient(profile);
       await client.connect();
       const info = await readServerInfo(client);
+      if (!this.isCurrent(id, attempt)) {
+        await closeQuietly(client);
+        return this.status(id);
+      }
       const connected = client;
-      connected.on('topologyClosed', () => this.handleTopologyClosed(profile.id, connected));
-      return this.store(profile.id, { state: 'connected', ...info }, connected);
+      connected.on('topologyClosed', () => this.handleTopologyClosed(id, connected));
+      return this.store(id, { state: 'connected', ...info }, connected, attempt);
     } catch (error) {
       await closeQuietly(client);
-      return this.store(profile.id, { state: 'error', error: mapDriverError(error) }, undefined);
+      if (!this.isCurrent(id, attempt)) {
+        return this.status(id);
+      }
+      return this.store(id, { state: 'error', error: mapDriverError(error) }, undefined, attempt);
     }
   }
 
@@ -90,14 +110,20 @@ export class ConnectionManager {
     };
   }
 
+  private isCurrent(connectionId: string, attempt: number): boolean {
+    return this.entries.get(connectionId)?.attempt === attempt;
+  }
+
   private handleTopologyClosed(connectionId: string, client: MongoClient): void {
-    if (this.entries.get(connectionId)?.client !== client) {
+    const entry = this.entries.get(connectionId);
+    if (entry?.client !== client) {
       return;
     }
     this.store(
       connectionId,
       { state: 'error', error: appError('CONNECTION_FAILED', 'Connection to the server closed') },
       undefined,
+      entry.attempt,
     );
   }
 
@@ -105,8 +131,9 @@ export class ConnectionManager {
     connectionId: string,
     status: ConnectionStatus,
     client: MongoClient | undefined,
+    attempt: number,
   ): ConnectionStatus {
-    this.entries.set(connectionId, { status, client });
+    this.entries.set(connectionId, { status, client, attempt });
     this.emit(connectionId, status);
     return status;
   }

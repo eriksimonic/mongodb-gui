@@ -1,6 +1,6 @@
 import { MongoServerError, type MongoClient } from 'mongodb';
 import type { ClusterTopology, ConnectionStatus } from '@mongo-gui/core';
-import { definedEntry, hasKey, readBoolean, readString, readStringArray } from './documents';
+import { definedEntry, readBoolean, readString, readStringArray } from './documents';
 
 export type ServerInfo = Omit<Extract<ConnectionStatus, { state: 'connected' }>, 'state'>;
 
@@ -13,11 +13,11 @@ export async function readServerInfo(client: MongoClient): Promise<ServerInfo> {
   if (serverVersion === undefined) {
     throw new Error('buildInfo reply has no version');
   }
-  return toServerInfo(hello, serverVersion);
+  return toServerInfo(hello, serverVersion, client.options.loadBalanced);
 }
 
-export function detectTopology(hello: unknown): ClusterTopology {
-  if (hasKey(hello, 'serviceId')) {
+export function detectTopology(hello: unknown, loadBalanced: boolean): ClusterTopology {
+  if (loadBalanced) {
     return 'loadBalanced';
   }
   if (readString(hello, 'msg') === 'isdbgrid') {
@@ -54,10 +54,10 @@ function isCommandNotFound(error: unknown): boolean {
   );
 }
 
-function toServerInfo(hello: unknown, serverVersion: string): ServerInfo {
+function toServerInfo(hello: unknown, serverVersion: string, loadBalanced: boolean): ServerInfo {
   return {
     serverVersion,
-    topology: detectTopology(hello),
+    topology: detectTopology(hello, loadBalanced),
     hosts: readStringArray(hello, 'hosts'),
     ...definedEntry('setName', readString(hello, 'setName')),
   };

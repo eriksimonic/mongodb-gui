@@ -52,9 +52,12 @@ export async function collectionStats(
   const ns = `${db}.${coll}`;
   const info = await findCollection(client, db, coll);
   if (info?.type === 'view') {
-    return toCollectionStats(ns, undefined);
+    return toCollectionStats(ns, undefined, 0);
   }
-  return toCollectionStats(ns, await readStorageStats(client, db, coll));
+  const storage = await readStorageStats(client, db, coll);
+  const count =
+    readNumber(storage, 'count') ?? (await client.db(db).collection(coll).estimatedDocumentCount());
+  return toCollectionStats(ns, storage, count);
 }
 
 export async function databaseStats(client: MongoClient, db: string): Promise<DatabaseStats> {
@@ -209,10 +212,10 @@ function toUuidHex(value: unknown): string | undefined {
   return typeof value === 'string' ? value : undefined;
 }
 
-function toCollectionStats(ns: string, storage: unknown): CollectionStats {
+function toCollectionStats(ns: string, storage: unknown, count: number): CollectionStats {
   return {
     ns,
-    count: readNumber(storage, 'count') ?? 0,
+    count,
     size: readNumber(storage, 'size') ?? 0,
     storageSize: readNumber(storage, 'storageSize') ?? 0,
     avgObjSize: readNumber(storage, 'avgObjSize') ?? 0,

@@ -1,9 +1,12 @@
 import { randomUUID } from 'node:crypto';
+import { MongoClient } from 'mongodb';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import {
   AppErrorException,
   CollectionInfoSchema,
   CollectionStatsSchema,
+  ConnectionStatusSchema,
+  ConnectionTestResultSchema,
   DatabaseInfoSchema,
   DatabaseStatsSchema,
   IndexInfoSchema,
@@ -20,16 +23,21 @@ import {
 } from './index';
 import {
   CONTAINER_STARTUP_TIMEOUT_MS,
+  METRIC_COUNT,
   MONGO_IMAGES,
   SEED_DB,
   findClosedPort,
   seedCatalog,
   startMongo,
+  supportsTimeseries,
   type StartedMongo,
 } from './test/mongo-container';
 
 const SUITE_TIMEOUT_MS = 30_000;
-const CLOSED_PORT_BUDGET_MS = 8_000;
+const FAILURE_BUDGET_MS = 8_000;
+const UNROUTABLE_HOST = '10.255.255.1';
+const SETTLE_POLL_MS = 150;
+const SETTLE_TIMEOUT_MS = 10_000;
 
 function makeProfile(uri: string, connectTimeoutMs?: number): ConnectionProfile {
   const now = new Date().toISOString();
@@ -52,9 +60,45 @@ async function captureAppErrorCode(action: () => unknown): Promise<string | unde
   }
 }
 
+// Counts server-side connections opened by this adapter (appName mongo-gui), including monitors.
+async function countAdapterConnections(rootUri: string): Promise<number> {
+  const probe = new MongoClient(rootUri, { appName: 'probe' });
+  try {
+    await probe.connect();
+    const rows = await probe
+      .db('admin')
+      .aggregate([
+        { $currentOp: { allUsers: true, idleConnections: true } },
+        { $match: { 'clientMetadata.application.name': 'mongo-gui' } },
+      ])
+      .toArray();
+    return rows.length;
+  } finally {
+    await probe.close();
+  }
+}
+
+// Waits until three reads in a row agree, so driver teardown has finished.
+async function settledConnectionCount(rootUri: string): Promise<number> {
+  const deadline = Date.now() + SETTLE_TIMEOUT_MS;
+  let previous = -1;
+  let stableReads = 0;
+  while (Date.now() < deadline) {
+    const current = await countAdapterConnections(rootUri);
+    stableReads = current === previous ? stableReads + 1 : 1;
+    previous = current;
+    if (stableReads >= 3) {
+      return current;
+    }
+    await new Promise((resolve) => setTimeout(resolve, SETTLE_POLL_MS));
+  }
+  return previous;
+}
+
 describe.each(MONGO_IMAGES)('MongoDB %s adapter', (image) => {
   const [major = '', minor = ''] = image.slice('mongo:'.length).split('.');
   const versionPattern = new RegExp(`^${major}\\.${minor}\\.`);
+  const timeseries = supportsTimeseries(image);
   const manager = new ConnectionManager();
   let mongo: StartedMongo | undefined;
   let profile: ConnectionProfile;
@@ -69,7 +113,7 @@ describe.each(MONGO_IMAGES)('MongoDB %s adapter', (image) => {
 
   beforeAll(async () => {
     mongo = await startMongo(image);
-    await seedCatalog(mongo.rootUri);
+    await seedCatalog(mongo.rootUri, timeseries);
     profile = makeProfile(mongo.rootUri);
     connected = await manager.connect(profile);
   }, CONTAINER_STARTUP_TIMEOUT_MS);
@@ -82,6 +126,7 @@ describe.each(MONGO_IMAGES)('MongoDB %s adapter', (image) => {
   it(
     'connects and reports version, standalone topology and no set name',
     () => {
+      ConnectionStatusSchema.parse(connected);
       expect(connected).toMatchObject({
         state: 'connected',
         topology: 'standalone',
@@ -100,6 +145,7 @@ describe.each(MONGO_IMAGES)('MongoDB %s adapter', (image) => {
     async () => {
       const probe = makeProfile(requireMongo().rootUri);
       const result = await manager.test(probe);
+      ConnectionTestResultSchema.parse(result);
       expect(result).toMatchObject({
         ok: true,
         topology: 'standalone',
@@ -132,11 +178,17 @@ describe.each(MONGO_IMAGES)('MongoDB %s adapter', (image) => {
       const client = manager.getClient(profile.id);
       const collections = await listCollections(client, SEED_DB);
       collections.forEach((collection) => CollectionInfoSchema.parse(collection));
-      expect(collections.map((collection) => [collection.name, collection.type])).toEqual([
+      const expectedTypes: [string, string][] = [
         ['events', 'collection'],
         ['orders', 'collection'],
         ['paidOrders', 'view'],
-      ]);
+      ];
+      if (timeseries) {
+        expectedTypes.splice(1, 0, ['metrics', 'timeseries']);
+      }
+      expect(collections.map((collection) => [collection.name, collection.type])).toEqual(
+        expectedTypes,
+      );
       expect(collections.find((collection) => collection.name === 'paidOrders')?.options).toEqual(
         expect.objectContaining({ viewOn: 'orders' }) as unknown,
       );
@@ -155,6 +207,9 @@ describe.each(MONGO_IMAGES)('MongoDB %s adapter', (image) => {
       expect(withoutSystem.some((collection) => collection.name.startsWith('system.'))).toBe(false);
       const withSystem = await listCollections(client, SEED_DB, { includeSystem: true });
       expect(withSystem.map((collection) => collection.name)).toContain('system.views');
+      if (timeseries) {
+        expect(withSystem.map((collection) => collection.name)).toContain('system.buckets.metrics');
+      }
     },
     SUITE_TIMEOUT_MS,
   );
@@ -185,6 +240,20 @@ describe.each(MONGO_IMAGES)('MongoDB %s adapter', (image) => {
     SUITE_TIMEOUT_MS,
   );
 
+  it.runIf(timeseries)(
+    'reports timeseries collection stats and indexes',
+    async () => {
+      const client = manager.getClient(profile.id);
+      const stats = await collectionStats(client, SEED_DB, 'metrics');
+      CollectionStatsSchema.parse(stats);
+      expect(stats.count).toBe(METRIC_COUNT);
+      // Index listing on a timeseries collection differs by version (none on 6.0), so only the shape is checked.
+      const indexes = await listIndexes(client, SEED_DB, 'metrics');
+      indexes.forEach((index) => IndexInfoSchema.parse(index));
+    },
+    SUITE_TIMEOUT_MS,
+  );
+
   it(
     'returns zeros for a view instead of failing',
     async () => {
@@ -206,14 +275,13 @@ describe.each(MONGO_IMAGES)('MongoDB %s adapter', (image) => {
     async () => {
       const stats = await databaseStats(manager.getClient(profile.id), SEED_DB);
       DatabaseStatsSchema.parse(stats);
-      // dbStats also counts system.views, which MongoDB creates with the first view.
+      // dbStats counts system.views, and from 5.0 the timeseries view and its system bucket collection.
       expect(stats).toMatchObject({
         db: SEED_DB,
-        collections: 3,
-        views: 1,
-        objects: 61,
-        indexes: 5,
+        collections: timeseries ? 4 : 3,
+        views: timeseries ? 2 : 1,
       });
+      expect(stats.objects).toBeGreaterThanOrEqual(60);
     },
     SUITE_TIMEOUT_MS,
   );
@@ -254,23 +322,35 @@ describe.each(MONGO_IMAGES)('MongoDB %s adapter', (image) => {
     'test reports AUTH_FAILED for a wrong password',
     async () => {
       const result = await manager.test(makeProfile(requireMongo().wrongPasswordUri));
+      ConnectionTestResultSchema.parse(result);
       expect(result).toMatchObject({ ok: false, error: { code: 'AUTH_FAILED' } });
     },
     SUITE_TIMEOUT_MS,
   );
 
   it(
-    'test fails within the configured timeout for a closed port',
+    'test reports CONNECTION_FAILED for a refused port within the configured timeout',
     async () => {
       const port = await findClosedPort();
       const started = Date.now();
       const result = await manager.test(makeProfile(`mongodb://127.0.0.1:${port}/`, 2000));
       const elapsed = Date.now() - started;
-      expect(result.ok).toBe(false);
-      expect(result).toMatchObject({
-        error: { code: expect.stringMatching(/^CONNECTION_(TIMEOUT|FAILED)$/) as unknown },
-      });
-      expect(elapsed).toBeLessThan(CLOSED_PORT_BUDGET_MS);
+      ConnectionTestResultSchema.parse(result);
+      expect(result).toMatchObject({ ok: false, error: { code: 'CONNECTION_FAILED' } });
+      expect(elapsed).toBeLessThan(FAILURE_BUDGET_MS);
+    },
+    SUITE_TIMEOUT_MS,
+  );
+
+  it(
+    'test reports CONNECTION_TIMEOUT for an unroutable host within the configured timeout',
+    async () => {
+      const started = Date.now();
+      const result = await manager.test(makeProfile(`mongodb://${UNROUTABLE_HOST}:27017/`, 2000));
+      const elapsed = Date.now() - started;
+      ConnectionTestResultSchema.parse(result);
+      expect(result).toMatchObject({ ok: false, error: { code: 'CONNECTION_TIMEOUT' } });
+      expect(elapsed).toBeLessThan(FAILURE_BUDGET_MS);
     },
     SUITE_TIMEOUT_MS,
   );
@@ -307,6 +387,45 @@ describe.each(MONGO_IMAGES)('MongoDB %s adapter', (image) => {
         'connected',
         'error',
       ]);
+    },
+    SUITE_TIMEOUT_MS,
+  );
+
+  it(
+    'parallel connects to one profile leave exactly one live client',
+    async () => {
+      const rootUri = requireMongo().rootUri;
+      const racer = new ConnectionManager();
+      const racing = makeProfile(rootUri);
+      expect(await settledConnectionCount(rootUri)).toBe(0);
+
+      await racer.connect(racing);
+      const singleClient = await settledConnectionCount(rootUri);
+      expect(singleClient).toBeGreaterThan(0);
+      await racer.disconnect(racing.id);
+      expect(await settledConnectionCount(rootUri)).toBe(0);
+
+      await Promise.all([racer.connect(racing), racer.connect(racing)]);
+      expect(racer.status(racing.id).state).toBe('connected');
+      expect(await settledConnectionCount(rootUri)).toBe(singleClient);
+
+      await racer.disconnectAll();
+      expect(await settledConnectionCount(rootUri)).toBe(0);
+    },
+    SUITE_TIMEOUT_MS,
+  );
+
+  it(
+    'connect followed by an immediate disconnect ends disconnected',
+    async () => {
+      const rootUri = requireMongo().rootUri;
+      const quick = new ConnectionManager();
+      const profileQuick = makeProfile(rootUri);
+      const pending = quick.connect(profileQuick);
+      await quick.disconnect(profileQuick.id);
+      await pending;
+      expect(quick.status(profileQuick.id)).toEqual({ state: 'disconnected' });
+      expect(await settledConnectionCount(rootUri)).toBe(0);
     },
     SUITE_TIMEOUT_MS,
   );

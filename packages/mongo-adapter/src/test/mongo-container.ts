@@ -14,6 +14,7 @@ const READY_TIMEOUT_MS = 120_000;
 const READY_RETRY_DELAY_MS = 500;
 const ORDER_COUNT = 50;
 const EVENT_COUNT = 10;
+export const METRIC_COUNT = 5;
 
 export interface StartedMongo {
   readonly rootUri: string;
@@ -53,7 +54,12 @@ export async function findClosedPort(): Promise<number> {
   return port;
 }
 
-export async function seedCatalog(uri: string): Promise<void> {
+export function supportsTimeseries(image: string): boolean {
+  const major = Number(image.slice('mongo:'.length).split('.')[0]);
+  return major >= 5;
+}
+
+export async function seedCatalog(uri: string, withTimeseries: boolean): Promise<void> {
   const client = new MongoClient(uri);
   try {
     await client.connect();
@@ -68,6 +74,10 @@ export async function seedCatalog(uri: string): Promise<void> {
       viewOn: 'orders',
       pipeline: [{ $match: { status: 'paid' } }],
     });
+    if (withTimeseries) {
+      await db.createCollection('metrics', { timeseries: { timeField: 't', metaField: 'm' } });
+      await db.collection('metrics').insertMany(metricDocuments());
+    }
   } finally {
     await client.close();
   }
@@ -80,6 +90,15 @@ function orderDocuments(): Record<string, unknown>[] {
     status: index % 2 === 0 ? 'paid' : 'open',
     createdAt: new Date(start + index * 1000),
     expiresAt: new Date(Date.UTC(2030, 0, 1)),
+  }));
+}
+
+function metricDocuments(): Record<string, unknown>[] {
+  const start = Date.UTC(2026, 0, 1);
+  return Array.from({ length: METRIC_COUNT }, (_, index) => ({
+    t: new Date(start + index * 60_000),
+    m: { sensor: 'a' },
+    value: index,
   }));
 }
 

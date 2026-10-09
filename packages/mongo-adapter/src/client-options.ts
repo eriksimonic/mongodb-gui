@@ -6,45 +6,42 @@ const APP_NAME = 'mongo-gui';
 
 type TlsProfile = NonNullable<ConnectionProfileInput['tls']>;
 
-export function buildClientOptions(profile: ConnectionProfileInput): {
+export interface ClientConfig {
   uri: string;
   options: MongoClientOptions;
-} {
-  // The driver types its TLS socket fields as required under exactOptionalPropertyTypes,
-  // so a partially filled options object cannot satisfy MongoClientOptions without a cast.
+}
+
+export function buildClientOptions(profile: ConnectionProfileInput): ClientConfig {
   const options: Partial<MongoClientOptions> = {
     appName: APP_NAME,
     serverSelectionTimeoutMS: profile.connectTimeoutMs ?? DEFAULT_TIMEOUT_MS,
-    ...connectTimeoutOptions(profile.connectTimeoutMs),
-    ...readPreferenceOptions(profile.readPreference),
-    ...tlsOptions(profile.tls),
   };
+  if (profile.connectTimeoutMs !== undefined) {
+    options.connectTimeoutMS = profile.connectTimeoutMs;
+  }
+  if (profile.readPreference !== undefined) {
+    options.readPreference = profile.readPreference;
+  }
+  if (profile.tls !== undefined) {
+    applyTls(options, profile.tls);
+  }
+  // The declaration build rejects a partially filled MongoClientOptions because the driver
+  // types TLS socket fields as required. Every key set above is optional in the driver API.
   return { uri: profile.uri, options: options as MongoClientOptions };
 }
 
-function connectTimeoutOptions(timeoutMs: number | undefined): Partial<MongoClientOptions> {
-  return timeoutMs === undefined ? {} : { connectTimeoutMS: timeoutMs };
-}
-
-function readPreferenceOptions(
-  mode: ConnectionProfileInput['readPreference'],
-): Partial<MongoClientOptions> {
-  return mode === undefined ? {} : { readPreference: mode };
-}
-
-function tlsOptions(tls: TlsProfile | undefined): Partial<MongoClientOptions> {
-  if (tls === undefined) {
-    return {};
-  }
+function applyTls(options: Partial<MongoClientOptions>, tls: TlsProfile): void {
+  options.tls = tls.enabled;
   if (!tls.enabled) {
-    return { tls: false };
+    return;
   }
-  return {
-    tls: true,
-    ...(tls.caFile === undefined ? {} : { tlsCAFile: tls.caFile }),
-    ...(tls.certFile === undefined ? {} : { tlsCertificateKeyFile: tls.certFile }),
-    ...(tls.allowInvalidCertificates === undefined
-      ? {}
-      : { tlsAllowInvalidCertificates: tls.allowInvalidCertificates }),
-  };
+  if (tls.caFile !== undefined) {
+    options.tlsCAFile = tls.caFile;
+  }
+  if (tls.certFile !== undefined) {
+    options.tlsCertificateKeyFile = tls.certFile;
+  }
+  if (tls.allowInvalidCertificates !== undefined) {
+    options.tlsAllowInvalidCertificates = tls.allowInvalidCertificates;
+  }
 }

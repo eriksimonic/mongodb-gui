@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import {
+  MongoNetworkError,
   MongoNetworkTimeoutError,
   MongoServerError,
   MongoServerSelectionError,
@@ -12,12 +13,19 @@ function serverError(code: number, codeName: string): MongoServerError {
   return new MongoServerError({ message: 'driver says no', code, codeName });
 }
 
-function selectionError(message: string): MongoServerSelectionError {
-  return new MongoServerSelectionError(message, {} as TopologyDescription);
+function withCode(message: string, code: string): Error {
+  return Object.assign(new Error(message), { code });
+}
+
+function selectionError(message: string, serverErrors: Error[] = []): MongoServerSelectionError {
+  const servers = new Map(
+    serverErrors.map((error, index) => [`host${index}:27017`, { error }] as const),
+  );
+  return new MongoServerSelectionError(message, { servers } as unknown as TopologyDescription);
 }
 
 describe('mapDriverError', () => {
-  it('maps a server selection timeout to CONNECTION_TIMEOUT', () => {
+  it('maps a server selection timeout with no server errors to CONNECTION_TIMEOUT', () => {
     const error = selectionError('Server selection timed out after 2000 ms');
     expect(mapDriverError(error)).toEqual({
       code: 'CONNECTION_TIMEOUT',
@@ -26,13 +34,41 @@ describe('mapDriverError', () => {
     });
   });
 
+  it('maps a socket timeout reported by a server to CONNECTION_TIMEOUT', () => {
+    const error = selectionError('Server selection timed out after 2000 ms', [
+      withCode('connect ETIMEDOUT 10.255.255.1:27017', 'ETIMEDOUT'),
+    ]);
+    expect(mapDriverError(error).code).toBe('CONNECTION_TIMEOUT');
+  });
+
   it('maps a network timeout to CONNECTION_TIMEOUT', () => {
     const error = new MongoNetworkTimeoutError('connection timed out');
     expect(mapDriverError(error).code).toBe('CONNECTION_TIMEOUT');
   });
 
-  it('maps a server selection failure without a timeout to CONNECTION_FAILED', () => {
-    const error = selectionError('connect ECONNREFUSED 127.0.0.1:1');
+  it('maps a refused connection reported by a server to CONNECTION_FAILED exactly', () => {
+    const error = selectionError('Server selection timed out after 2000 ms', [
+      withCode('connect ECONNREFUSED 127.0.0.1:1', 'ECONNREFUSED'),
+    ]);
+    expect(mapDriverError(error).code).toBe('CONNECTION_FAILED');
+  });
+
+  it('finds a refused connection in the cause of a network error', () => {
+    const cause = withCode('connect ECONNREFUSED 127.0.0.1:1', 'ECONNREFUSED');
+    const error = new MongoNetworkError('connection failed', { cause });
+    expect(mapDriverError(error).code).toBe('CONNECTION_FAILED');
+  });
+
+  it('gives refusal priority over a timeout in the same failure', () => {
+    const error = selectionError('Server selection timed out after 2000 ms', [
+      withCode('connect ECONNREFUSED 127.0.0.1:1', 'ECONNREFUSED'),
+      withCode('connect ETIMEDOUT 10.0.0.1:27017', 'ETIMEDOUT'),
+    ]);
+    expect(mapDriverError(error).code).toBe('CONNECTION_FAILED');
+  });
+
+  it('maps a network error without refusal or timeout to CONNECTION_FAILED', () => {
+    const error = new MongoNetworkError('socket closed');
     expect(mapDriverError(error).code).toBe('CONNECTION_FAILED');
   });
 
