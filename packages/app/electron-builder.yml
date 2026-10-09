@@ -11,12 +11,14 @@ asar: true
 # No native modules: SQLite, AES and scrypt come from Node 24, so there is nothing to rebuild.
 npmRebuild: false
 artifactName: ${productName}-${version}-${os}-${arch}.${ext}
+# Packaged package.json name. The package is @mongo-gui/app, and electron-builder derives the
+# updater cache directory from this name. productName still sets userData.
+extraMetadata:
+  name: mongo-gui
 publish:
   provider: github
   owner: eriksimonic
   repo: mongodb-mager
-  # The package name is @mongo-gui/app. Name the updater cache after the product instead.
-  updaterCacheDirName: mongo-gui-updater
   # The release starts as a draft. The publish job in release.yml marks it public once all
   # platforms have uploaded, so users never see a partial release.
   releaseType: draft

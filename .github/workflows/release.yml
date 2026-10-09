@@ -31,7 +31,7 @@ jobs:
   build:
     name: build (${{ matrix.os }})
     needs: prepare
-    if: ${{ always() && needs.prepare.result != 'failure' && needs.prepare.result != 'cancelled' }}
+    if: ${{ !cancelled() && (needs.prepare.result == 'success' || needs.prepare.result == 'skipped') }}
     runs-on: ${{ matrix.os }}
     timeout-minutes: 40
     # The prepare job creates the draft first, so every build finds it and none races to create it.

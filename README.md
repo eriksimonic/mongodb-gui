@@ -61,26 +61,22 @@ Releases come from CI. To release a version:
 The tag must match the version in `packages/app/package.json`. The `prepare` job stops the
 release before any build starts if they differ.
 
-The updater cache directory that electron-builder writes into `app-update.yml` comes from
-the scoped package name (`@mongo-gui/app`), not from `productName`. The in-app updater
-task sets the cache directory explicitly.
-
-The `prepare` job creates a draft GitHub Release for the tag. The builds on Ubuntu, Windows
-and macOS then run in parallel and upload their installers to that draft. When all three builds succeed, a final job marks
-the release public. If one build fails, the release stays a draft, so users never see a
-partial set of files. Fix the failure and re-run the failed job from the Actions page. The re-run adds its
-files to the same draft.
+The `prepare` job creates a draft GitHub Release for the tag. The builds on Ubuntu,
+Windows and macOS then run in parallel and upload their installers to that draft. When all
+three builds succeed, a final job marks the release public. If one build fails, the
+release stays a draft, so users never see a partial set of files. Fix the failure and
+re-run the failed job from the Actions page. The re-run adds its files to the same draft.
 
 A manual run of the workflow from a branch builds the installers and keeps them as
-workflow artifacts for seven days. A manual run from a tag ref behaves like a tag push:
-it validates the version, publishes to the draft release, and marks it public.
+workflow artifacts for seven days. A manual run from a tag ref behaves like a tag push: it
+validates the version, publishes to the draft release, and marks it public.
 
-The builds are unsigned for now. On Windows, SmartScreen shows "Windows protected your
-PC" on the first run. Choose "More info", then "Run anyway". On macOS, the builds use
-ad-hoc signing, which needs no certificate. Gatekeeper still refuses the first launch
-with a "cannot verify the developer" dialog. Open System Settings, go to Privacy and
-Security, and choose "Open Anyway". On Linux, no signature check applies. Run `chmod +x`
-on the AppImage, or install the `.deb` with `apt install ./<file>.deb`.
+The builds are unsigned for now. On Windows, SmartScreen shows "Windows protected your PC"
+on the first run. Choose "More info", then "Run anyway". On macOS, the builds use ad-hoc
+signing, which needs no certificate. Gatekeeper still refuses the first launch with a
+"cannot verify the developer" dialog. Open System Settings, go to Privacy and Security,
+and choose "Open Anyway". On Linux, no signature check applies. Run `chmod +x` on the
+AppImage, or install the `.deb` with `apt install ./<file>.deb`.
 
 Downloads appear on the [Releases page](https://github.com/eriksimonic/mongodb-mager/releases).
 The app does not check for updates yet. Install each new version by hand until the
