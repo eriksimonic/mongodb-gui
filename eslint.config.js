@@ -36,13 +36,7 @@ function importBoundary({ packages, nodeBuiltins }) {
 
 export default [
   {
-<<<<<<< HEAD
-    ignores: ['**/dist/**', '**/coverage/**', 'out/**', '.vite/**', '.claude/**'],
-||||||| 1c60d89
-    ignores: ['**/dist/**', '**/coverage/**', 'out/**', '.vite/**'],
-=======
-    ignores: ['**/dist/**', '**/coverage/**', '**/out/**', '**/.vite/**'],
->>>>>>> worktree-agent-ab0ce3fbef5fa88c6
+    ignores: ['**/dist/**', '**/coverage/**', '**/out/**', '**/.vite/**', '.claude/**'],
   },
   js.configs.recommended,
   ...tseslint.configs.strict,
