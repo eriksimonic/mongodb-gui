@@ -35,6 +35,12 @@ describe('ConnectionProfileSchema', () => {
     expect(ConnectionProfileSchema.safeParse(minimal).success).toBe(true);
   });
 
+  it('rejects a mongo uri with no characters after the scheme', () => {
+    expect(ConnectionProfileSchema.safeParse({ ...profile, uri: 'mongodb://' }).success).toBe(
+      false,
+    );
+  });
+
   it('rejects a uri without a mongo scheme', () => {
     const result = ConnectionProfileSchema.safeParse({
       ...profile,

@@ -43,4 +43,35 @@ describe('toAppError', () => {
     expect(toAppError(42)).toEqual({ code: 'INTERNAL', message: '42' });
     expect(toAppError(undefined)).toEqual({ code: 'INTERNAL', message: 'undefined' });
   });
+
+  it('passes an AppError-shaped plain object through, as received over IPC', () => {
+    const received = { code: 'NOT_CONNECTED', message: 'Not connected', detail: 'db1' };
+    expect(toAppError(received)).toEqual(received);
+  });
+
+  it('fills cause from an Error cause message', () => {
+    const error = new Error('outer', { cause: new Error('socket closed') });
+    expect(toAppError(error)).toEqual({
+      code: 'INTERNAL',
+      message: 'outer',
+      cause: 'socket closed',
+    });
+  });
+
+  it('fills cause from a non-Error cause using its string form', () => {
+    const error = new Error('outer', { cause: 'ECONNRESET' });
+    expect(toAppError(error)).toEqual({ code: 'INTERNAL', message: 'outer', cause: 'ECONNRESET' });
+  });
+
+  it('omits cause when the Error has none', () => {
+    expect(Object.keys(toAppError(new Error('plain')))).not.toContain('cause');
+  });
+
+  it('never throws, even for a value whose string conversion fails', () => {
+    const hostile = Object.create(null) as object;
+    expect(toAppError(hostile)).toEqual({
+      code: 'INTERNAL',
+      message: 'unrepresentable error',
+    });
+  });
 });

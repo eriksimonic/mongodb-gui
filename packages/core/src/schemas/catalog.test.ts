@@ -103,7 +103,11 @@ describe('IndexInfoSchema', () => {
     expect(IndexInfoSchema.safeParse(index).success).toBe(true);
   });
 
-  it('rejects a key direction other than 1 or -1 when given as a number', () => {
-    expect(IndexInfoSchema.safeParse({ name: 'a_2', key: { a: 2 } }).success).toBe(false);
+  it('accepts legacy numeric key values such as 0 and -1.0', () => {
+    expect(IndexInfoSchema.safeParse({ name: 'a_0', key: { a: 0, b: -1.0 } }).success).toBe(true);
+  });
+
+  it('rejects a key value that is neither a number nor a string', () => {
+    expect(IndexInfoSchema.safeParse({ name: 'a_1', key: { a: true } }).success).toBe(false);
   });
 });

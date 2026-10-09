@@ -1,5 +1,5 @@
 import type { z } from 'zod';
-import type { AppErrorCodeSchema, AppErrorSchema } from '../schemas/errors';
+import { AppErrorSchema, type AppErrorCodeSchema } from '../schemas/errors';
 
 export type AppErrorCode = z.infer<typeof AppErrorCodeSchema>;
 export type AppError = z.infer<typeof AppErrorSchema>;
@@ -22,8 +22,25 @@ export function toAppError(value: unknown): AppError {
   if (value instanceof AppErrorException) {
     return value.error;
   }
-  if (value instanceof Error) {
-    return { code: 'INTERNAL', message: value.message };
+  const parsed = AppErrorSchema.safeParse(value);
+  if (parsed.success) {
+    return parsed.data;
   }
-  return { code: 'INTERNAL', message: String(value) };
+  if (value instanceof Error) {
+    const error: AppError = { code: 'INTERNAL', message: value.message };
+    if (value.cause === undefined) {
+      return error;
+    }
+    const cause = value.cause instanceof Error ? value.cause.message : safeString(value.cause);
+    return { ...error, cause };
+  }
+  return { code: 'INTERNAL', message: safeString(value) };
+}
+
+function safeString(value: unknown): string {
+  try {
+    return String(value);
+  } catch {
+    return 'unrepresentable error';
+  }
 }

@@ -45,7 +45,7 @@ export const DatabaseStatsSchema = z.object({
 
 export const IndexInfoSchema = z.object({
   name: z.string().min(1),
-  key: z.record(z.string(), z.union([z.literal(1), z.literal(-1), z.string()])),
+  key: z.record(z.string(), z.union([z.number(), z.string()])),
   unique: z.boolean().optional(),
   sparse: z.boolean().optional(),
   hidden: z.boolean().optional(),

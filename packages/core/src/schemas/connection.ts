@@ -20,7 +20,7 @@ export const ConnectionProfileSchema = z.object({
   id: z.uuid(),
   name: z.string().min(1),
   color: z.string().optional(),
-  uri: z.string().regex(/^mongodb(\+srv)?:\/\//i),
+  uri: z.string().regex(/^mongodb(\+srv)?:\/\/.+/i),
   tls: TlsOptionsSchema.optional(),
   readPreference: z
     .enum(['primary', 'primaryPreferred', 'secondary', 'secondaryPreferred', 'nearest'])

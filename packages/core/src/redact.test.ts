@@ -56,4 +56,35 @@ describe('redactUri', () => {
   it('masks the password when the scheme is in upper case', () => {
     expect(redactUri('MONGODB://app:secret@localhost/')).toBe('MONGODB://app:***@localhost/');
   });
+
+  it('masks a password containing an unencoded slash', () => {
+    expect(redactUri('mongodb://u:pa/ss@h/db')).toBe('mongodb://u:***@h/db');
+  });
+
+  it('masks a password containing an unencoded question mark', () => {
+    expect(redactUri('mongodb://u:pa?ss@h/db')).toBe('mongodb://u:***@h/db');
+  });
+
+  it('masks an unencoded slash password when the query contains an at sign after an equals sign', () => {
+    expect(redactUri('mongodb://u:pa/ss@h/db?x=a@b')).toBe('mongodb://u:***@h/db?x=a@b');
+  });
+
+  it('masks a password containing an equals sign', () => {
+    expect(redactUri('mongodb://u:p=w@h')).toBe('mongodb://u:***@h');
+  });
+
+  it('leaves a query option that contains an at sign unchanged when no credentials exist', () => {
+    const uri = 'mongodb://localhost/?authMechanismProperties=user:a@b';
+    expect(redactUri(uri)).toBe(uri);
+  });
+
+  it('masks the password when the input has leading whitespace', () => {
+    expect(redactUri('  mongodb://u:p@h')).toBe('  mongodb://u:***@h');
+  });
+
+  it('masks the tlsCertificateKeyFilePassword query value', () => {
+    expect(redactUri('mongodb://localhost/?tlsCertificateKeyFilePassword=s3cret&tls=true')).toBe(
+      'mongodb://localhost/?tlsCertificateKeyFilePassword=***&tls=true',
+    );
+  });
 });
