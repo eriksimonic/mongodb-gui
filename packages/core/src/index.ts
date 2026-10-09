@@ -30,6 +30,8 @@ export * from './profiler/normalise';
 export * from './profiler/shape';
 export * from './profiler/types';
 export * from './redact';
+export * from './replication/normalise';
+export * from './replication/types';
 export * from './rpc/bridge';
 export * from './rpc/channels';
 export * from './rpc/client';
