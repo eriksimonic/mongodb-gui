@@ -114,4 +114,118 @@ describe('router against a real MongoDB 8.0 server', () => {
     },
     CALL_TIMEOUT_MS,
   );
+
+  it(
+    'creates, changes and drops a collection through the management calls',
+    async () => {
+      if (mongo === undefined) {
+        throw new Error('container not started');
+      }
+      const created = valueOf(
+        await router.handle('connections.create', { name: 'management', uri: mongo.rootUri }),
+      ) as { id: string };
+      const connectionId = created.id;
+      valueOf(await router.handle('connections.connect', { id: connectionId }));
+      const database = 'router_probe';
+      const scoped = { connectionId, database, collection: 'items' };
+      const changesBefore = events.length;
+
+      const collection = valueOf(
+        await router.handle('management.createCollection', { ...scoped, name: 'items' }),
+      ) as { name: string };
+      expect(collection.name).toBe('items');
+
+      const index = valueOf(
+        await router.handle('management.createIndex', {
+          ...scoped,
+          keys: { sku: 1 },
+          options: { unique: true },
+        }),
+      ) as { name: string; unique?: boolean };
+      expect(index).toEqual(expect.objectContaining({ name: 'sku_1', unique: true }));
+
+      const validator = '{"$jsonSchema":{"required":["sku"]}}';
+      valueOf(
+        await router.handle('management.setValidation', {
+          ...scoped,
+          rules: {
+            validatorEjson: validator,
+            validationLevel: 'strict',
+            validationAction: 'error',
+          },
+        }),
+      );
+      const rules = valueOf(await router.handle('management.getValidation', scoped)) as {
+        validatorEjson: string;
+        validationAction: string;
+      };
+      expect(JSON.parse(rules.validatorEjson)).toEqual(JSON.parse(validator));
+      expect(rules.validationAction).toBe('error');
+
+      const inserted = valueOf(
+        await router.handle('management.insertDocument', {
+          ...scoped,
+          documentEjson: '{"sku":"A-1","qty":2}',
+        }),
+      ) as string;
+      expect(inserted).toContain('$oid');
+      const rejected = await router.handle('management.insertDocument', {
+        ...scoped,
+        documentEjson: '{"qty":3}',
+      });
+      expect(rejected.ok).toBe(false);
+
+      const matching = valueOf(
+        await router.handle('management.countDocuments', {
+          ...scoped,
+          filterEjson: '{"sku":"A-1"}',
+        }),
+      );
+      expect(matching).toBe(1);
+
+      const sampled = valueOf(
+        await router.handle('management.sampleDocuments', { ...scoped, limit: 20 }),
+      ) as string[];
+      expect(sampled).toHaveLength(1);
+      expect(sampled[0]).toContain('A-1');
+
+      valueOf(
+        await router.handle('management.updateDocumentFields', {
+          ...scoped,
+          idEjson: inserted,
+          setEjson: '{"qty":5}',
+        }),
+      );
+      const found = valueOf(
+        await router.handle('management.findDocumentById', { ...scoped, idEjson: inserted }),
+      ) as string;
+      expect(found).toMatch(/"qty":(\{"\$numberInt":"5"\}|5)/);
+
+      const deleted = valueOf(
+        await router.handle('management.deleteDocuments', { ...scoped, idsEjson: [inserted] }),
+      );
+      expect(deleted).toBe(1);
+
+      valueOf(await router.handle('management.dropIndex', { ...scoped, name: 'sku_1' }));
+      valueOf(
+        await router.handle('management.dropCollection', { connectionId, database, name: 'items' }),
+      );
+      const names = (
+        valueOf(await router.handle('collections.list', { connectionId, database })) as {
+          name: string;
+        }[]
+      ).map((item) => item.name);
+      expect(names).not.toContain('items');
+
+      valueOf(await router.handle('management.dropDatabase', { connectionId, database }));
+
+      const changed = events
+        .slice(changesBefore)
+        .filter((event) => event.type === 'catalog:changed');
+      expect(changed.length).toBeGreaterThanOrEqual(8);
+      expect(changed.every((event) => event.connectionId === connectionId)).toBe(true);
+      await router.handle('connections.disconnect', { id: connectionId });
+    },
+    CALL_TIMEOUT_MS,
+  );
 });

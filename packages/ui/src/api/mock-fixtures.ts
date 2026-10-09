@@ -1,11 +1,4 @@
-import type {
-  CollectionInfo,
-  ConnectionProfile,
-  DatabaseInfo,
-  Favourite,
-  HistoryEntry,
-  IndexInfo,
-} from '@mongo-gui/core';
+import type { ConnectionProfile, Favourite, HistoryEntry } from '@mongo-gui/core';
 
 /** The master password the `unlocked` preset starts with. */
 export const mockMasterPassword = 'correct horse battery';
@@ -15,82 +8,6 @@ export const stagingConnectionId = '7d1e9f04-2b3c-4d5e-8f60-a1b2c3d4e5f6';
 
 const CREATED_AT = '2026-10-01T10:00:00.000Z';
 const UPDATED_AT = '2026-10-02T11:30:00.000Z';
-
-export interface CollectionFixture {
-  readonly info: CollectionInfo;
-  readonly count: number;
-}
-
-export interface DatabaseFixture {
-  readonly name: string;
-  readonly sizeOnDisk: number;
-  readonly collections: readonly CollectionFixture[];
-}
-
-function plain(name: string, count: number): CollectionFixture {
-  return { info: { name, type: 'collection' }, count };
-}
-
-const localDatabases: readonly DatabaseFixture[] = [
-  {
-    name: 'shop',
-    sizeOnDisk: 2_097_152,
-    collections: [
-      plain('orders', 1200),
-      plain('customers', 340),
-      {
-        info: {
-          name: 'paid_orders',
-          type: 'view',
-          options: { viewOn: 'orders', pipeline: [{ $match: { status: 'paid' } }] },
-        },
-        count: 0,
-      },
-      {
-        info: {
-          name: 'sensor_readings',
-          type: 'timeseries',
-          options: { timeseries: { timeField: 'ts', metaField: 'sensor', granularity: 'seconds' } },
-          info: { readOnly: false },
-        },
-        count: 86_400,
-      },
-    ],
-  },
-  {
-    name: 'analytics',
-    sizeOnDisk: 524_288,
-    collections: [plain('events', 5400), plain('sessions', 910)],
-  },
-  {
-    name: 'logs',
-    sizeOnDisk: 65_536,
-    collections: [plain('app_logs', 150)],
-  },
-];
-
-const stagingDatabases: readonly DatabaseFixture[] = [
-  {
-    name: 'shop',
-    sizeOnDisk: 8_388_608,
-    collections: [plain('orders', 48_000), plain('customers', 9_100)],
-  },
-  {
-    name: 'billing',
-    sizeOnDisk: 1_048_576,
-    collections: [plain('invoices', 2_300), plain('payments', 2_050)],
-  },
-  {
-    name: 'users',
-    sizeOnDisk: 262_144,
-    collections: [plain('accounts', 700)],
-  },
-];
-
-const databasesByConnection: Readonly<Record<string, readonly DatabaseFixture[]>> = {
-  [localConnectionId]: localDatabases,
-  [stagingConnectionId]: stagingDatabases,
-};
 
 export function fixtureConnections(): ConnectionProfile[] {
   return [
@@ -114,33 +31,6 @@ export function fixtureConnections(): ConnectionProfile[] {
       updatedAt: UPDATED_AT,
     },
   ];
-}
-
-export function fixtureDatabases(connectionId: string): readonly DatabaseFixture[] {
-  return databasesByConnection[connectionId] ?? [];
-}
-
-export function databaseInfos(connectionId: string): DatabaseInfo[] {
-  return fixtureDatabases(connectionId).map((database) => ({
-    name: database.name,
-    sizeOnDisk: database.sizeOnDisk,
-    empty: database.collections.length === 0,
-  }));
-}
-
-export function fixtureIndexes(collection: string): IndexInfo[] {
-  if (collection === 'orders') {
-    return [
-      { name: '_id_', key: { _id: 1 }, size: 40_960 },
-      {
-        name: 'status_1_createdAt_-1',
-        key: { status: 1, createdAt: -1 },
-        size: 36_864,
-        usage: { ops: 412, since: '2026-10-01T00:00:00.000Z' },
-      },
-    ];
-  }
-  return [{ name: '_id_', key: { _id: 1 }, size: 20_480 }];
 }
 
 export function fixtureHistory(): HistoryEntry[] {

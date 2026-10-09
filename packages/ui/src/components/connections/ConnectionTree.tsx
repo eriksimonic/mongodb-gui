@@ -1,10 +1,11 @@
 import { Alert, Button, Loader, Stack, Text } from '@mantine/core';
 import { IconPlus } from '@tabler/icons-react';
 import { useEffect, useMemo, useRef, useState, type KeyboardEvent, type MouseEvent } from 'react';
-import type { ConnectionStatus } from '@mongo-gui/core';
+import type { ConnectionProfileSummary, ConnectionStatus } from '@mongo-gui/core';
 import type { Selection } from '../../state/app-store';
 import { useAppStore } from '../../state/app-store-context';
 import { catalogKey, connectionNodeId, databaseNodeId } from '../../state/node-ids';
+import { CollectionContextMenu, DatabaseContextMenu } from './CatalogContextMenu';
 import { ConnectionContextMenu } from './ConnectionContextMenu';
 import { TreeMessage, TreeRow } from './TreeRow';
 import {
@@ -20,7 +21,7 @@ import {
 const DISCONNECTED: ConnectionStatus = { state: 'disconnected' };
 
 interface MenuAnchor {
-  readonly connectionId: string;
+  readonly row: TreeRowModel;
   readonly x: number;
   readonly y: number;
 }
@@ -51,6 +52,11 @@ function isSelected(row: TreeRowModel, selection: Selection | undefined): boolea
 
 function canConnect(status: ConnectionStatus | undefined): boolean {
   return status === undefined || status.state === 'disconnected' || status.state === 'error';
+}
+
+/** Whether a row has a menu. Message lines do not. */
+function hasMenu(row: TreeRowModel): boolean {
+  return row.kind !== 'message';
 }
 
 /**
@@ -141,8 +147,6 @@ export function ConnectionTree() {
 
   const focusable = focusableRows(rows);
   const activeKey = focusable.some((row) => row.key === focusKey) ? focusKey : focusable[0]?.key;
-  const menuConnection =
-    menu === undefined ? undefined : connections.data.find((item) => item.id === menu.connectionId);
 
   function focusRow(key: string) {
     setFocusKey(key);
@@ -186,12 +190,12 @@ export function ConnectionTree() {
   }
 
   function openMenuFor(row: TreeRowModel) {
-    if (row.kind !== 'connection') {
+    if (!hasMenu(row)) {
       return;
     }
     const rect = items.current.get(row.key)?.getBoundingClientRect();
     setMenu({
-      connectionId: row.connectionId,
+      row,
       x: rect === undefined ? 0 : rect.left + 12,
       y: rect === undefined ? 0 : rect.bottom,
     });
@@ -243,9 +247,10 @@ export function ConnectionTree() {
 
   function handleContextMenu(row: TreeRowModel, event: MouseEvent<HTMLDivElement>) {
     event.preventDefault();
-    if (row.kind === 'connection') {
-      setMenu({ connectionId: row.connectionId, x: event.clientX, y: event.clientY });
+    if (!hasMenu(row)) {
+      return;
     }
+    setMenu({ row, x: event.clientX, y: event.clientY });
   }
 
   return (
@@ -278,14 +283,63 @@ export function ConnectionTree() {
           />
         ),
       )}
-      {menu === undefined || menuConnection === undefined ? null : (
-        <ConnectionContextMenu
-          connection={menuConnection}
-          status={statuses[menu.connectionId] ?? DISCONNECTED}
-          position={{ x: menu.x, y: menu.y }}
+      {menu === undefined ? null : (
+        <NodeMenu
+          anchor={menu}
+          connections={list ?? []}
+          statuses={statuses}
           onClose={() => setMenu(undefined)}
         />
       )}
     </div>
   );
+}
+
+interface NodeMenuProps {
+  readonly anchor: MenuAnchor;
+  readonly connections: readonly ConnectionProfileSummary[];
+  readonly statuses: Readonly<Record<string, ConnectionStatus>>;
+  readonly onClose: () => void;
+}
+
+/** Picks the menu for the row that was opened. Each node kind has its own actions. */
+function NodeMenu({ anchor, connections, statuses, onClose }: NodeMenuProps) {
+  const { row, x, y } = anchor;
+  const position = { x, y };
+  if (row.kind === 'connection') {
+    const connection = connections.find((item) => item.id === row.connectionId);
+    if (connection === undefined) {
+      return null;
+    }
+    return (
+      <ConnectionContextMenu
+        connection={connection}
+        status={statuses[row.connectionId] ?? DISCONNECTED}
+        position={position}
+        onClose={onClose}
+      />
+    );
+  }
+  if (row.kind === 'database' && row.database !== undefined) {
+    return (
+      <DatabaseContextMenu
+        connectionId={row.connectionId}
+        database={row.database}
+        position={position}
+        onClose={onClose}
+      />
+    );
+  }
+  if (row.kind === 'collection' && row.database !== undefined && row.collection !== undefined) {
+    return (
+      <CollectionContextMenu
+        connectionId={row.connectionId}
+        database={row.database}
+        collection={row.collection}
+        position={position}
+        onClose={onClose}
+      />
+    );
+  }
+  return null;
 }

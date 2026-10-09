@@ -1,3 +1,5 @@
+import './zod-config';
+
 export const corePackageName = '@mongo-gui/core';
 
 export * from './domain/catalog';

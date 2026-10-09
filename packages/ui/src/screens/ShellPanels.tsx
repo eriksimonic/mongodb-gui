@@ -1,6 +1,20 @@
 import { Box, Center, Stack, Text, Title } from '@mantine/core';
-import { DockviewDefaultTab, type IDockviewPanelHeaderProps } from 'dockview-react';
+import {
+  DockviewDefaultTab,
+  type IDockviewPanelProps,
+  type IDockviewPanelHeaderProps,
+} from 'dockview-react';
 import { ConnectionTree } from '../components/connections/ConnectionTree';
+import { DocumentsPanel } from '../components/management/DocumentsPanel';
+import { IndexesPanel } from '../components/management/IndexesPanel';
+import { ValidationPanel } from '../components/management/ValidationPanel';
+
+/** The params every collection panel gets from the dock. */
+export interface CollectionPanelParams {
+  readonly connectionId: string;
+  readonly database: string;
+  readonly collection: string;
+}
 
 /** Tab for the three fixed panels. Same as dockview's default tab without the close button. */
 export function FixedTab(props: IDockviewPanelHeaderProps) {
@@ -38,6 +52,33 @@ export function OutputPanel() {
       <Text size="sm" c="dimmed">
         No output yet.
       </Text>
+    </Box>
+  );
+}
+
+/** Dock panel: indexes of one collection. */
+export function IndexesDockPanel({ params }: IDockviewPanelProps<CollectionPanelParams>) {
+  return (
+    <Box h="100%" style={{ overflow: 'auto' }}>
+      <IndexesPanel {...params} />
+    </Box>
+  );
+}
+
+/** Dock panel: validator of one collection. */
+export function ValidationDockPanel({ params }: IDockviewPanelProps<CollectionPanelParams>) {
+  return (
+    <Box h="100%" style={{ overflow: 'auto' }}>
+      <ValidationPanel {...params} />
+    </Box>
+  );
+}
+
+/** Dock panel: sampled documents of one collection. */
+export function DocumentsDockPanel({ params }: IDockviewPanelProps<CollectionPanelParams>) {
+  return (
+    <Box h="100%" style={{ overflow: 'auto' }}>
+      <DocumentsPanel {...params} />
     </Box>
   );
 }

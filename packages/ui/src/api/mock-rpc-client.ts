@@ -1,40 +1,44 @@
 import {
-  AppErrorException,
   appError,
-  type AppError,
   defaultSettings,
   newId,
   redactUri,
   rpcContract,
-  type AppErrorCode,
+  type AppError,
+  type CollectionInfo,
   type CollectionStats,
   type ConnectionProfile,
   type ConnectionProfileInput,
   type ConnectionProfileSummary,
   type ConnectionStatus,
   type ConnectionTestResult,
+  type DatabaseInfo,
   type DatabaseStats,
   type Favourite,
   type HistoryEntry,
-  type RpcCall,
+  type IndexInfo,
   type RpcClient,
   type RpcEvent,
   type Settings,
   type SettingsPatch,
   type VaultStatus,
 } from '@mongo-gui/core';
-import type { z } from 'zod';
 import {
-  databaseInfos,
+  fixtureBuilds,
+  fixtureCatalog,
+  findDatabase,
+  type MockBuild,
+  type MockCollection,
+  type MockDatabase,
+} from './mock-catalog';
+import { createManagementCalls } from './mock-management';
+import {
   fixtureConnections,
-  fixtureDatabases,
   fixtureFavourites,
   fixtureHistory,
-  fixtureIndexes,
   mockMasterPassword,
-  type CollectionFixture,
-  type DatabaseFixture,
 } from './mock-fixtures';
+import { delay, fail, method } from './mock-support';
 import type { UiApi } from './ui-api';
 
 export type MockPreset = 'fresh' | 'unlocked';
@@ -56,6 +60,9 @@ interface MockState {
   settings: Settings;
   history: HistoryEntry[];
   favourites: Favourite[];
+  /** Databases and collections per connection id. Mutated by the management calls. */
+  catalogs: Map<string, MockDatabase[]>;
+  builds: Map<string, MockBuild[]>;
 }
 
 const SERVER_VERSION = '8.0.4';
@@ -71,52 +78,25 @@ function initialState(preset: MockPreset): MockState {
     settings: { ...defaultSettings },
     history: [],
     favourites: [],
+    catalogs: new Map(),
+    builds: new Map(),
   };
   if (preset === 'fresh') {
     return base;
+  }
+  const now = Date.now();
+  const connections = fixtureConnections();
+  for (const connection of connections) {
+    base.catalogs.set(connection.id, fixtureCatalog(connection.id));
+    base.builds.set(connection.id, fixtureBuilds(connection.id, now));
   }
   return {
     ...base,
     vault: 'unlocked',
     password: mockMasterPassword,
-    connections: fixtureConnections(),
+    connections,
     history: fixtureHistory(),
     favourites: fixtureFavourites(),
-  };
-}
-
-function fail(code: AppErrorCode, message: string, detail?: string): AppErrorException {
-  return new AppErrorException(appError(code, message, detail));
-}
-
-function delay(ms: number): Promise<void> {
-  return ms > 0 ? new Promise((resolve) => setTimeout(resolve, ms)) : Promise.resolve();
-}
-
-/** Validates a value against a contract schema and maps failures to AppError codes. */
-function parseWith<T>(schema: z.ZodType, value: unknown, code: AppErrorCode): T {
-  const result = schema.safeParse(value);
-  if (!result.success) {
-    const message = result.error.issues[0]?.message ?? 'Invalid input';
-    throw fail(code, message);
-  }
-  return result.data as T;
-}
-
-/**
- * Wraps one contract call. Input is validated before the call runs, the output is validated
- * before it is returned, and every call waits for the configured latency first.
- */
-function method<I extends z.ZodType, O extends z.ZodType>(
-  definition: RpcCall<I, O>,
-  latencyMs: number,
-  run: (input: z.output<I>) => z.output<O> | Promise<z.output<O>>,
-): (raw: z.input<I>) => Promise<z.output<O>> {
-  return async (raw) => {
-    const input = parseWith<z.output<I>>(definition.input, raw, 'VALIDATION');
-    await delay(latencyMs);
-    const output = await run(input);
-    return parseWith<z.output<O>>(definition.output, output, 'INTERNAL');
   };
 }
 
@@ -174,41 +154,47 @@ function isReachable(uri: string): boolean {
   return uri.includes('localhost');
 }
 
-function findCollection(
-  databases: readonly DatabaseFixture[],
-  database: string,
+function databaseInfo(database: MockDatabase): DatabaseInfo {
+  return {
+    name: database.name,
+    sizeOnDisk: database.sizeOnDisk,
+    empty: database.collections.length === 0,
+  };
+}
+
+function requireCollectionFor(
+  database: MockDatabase | undefined,
   collection: string,
-): CollectionFixture {
-  const found = databases
-    .find((candidate) => candidate.name === database)
-    ?.collections.find((candidate) => candidate.info.name === collection);
+): MockCollection {
+  const found = database?.collections.find((item) => item.info.name === collection);
   if (found === undefined) {
-    throw fail('COMMAND_FAILED', 'Collection not found', `${database}.${collection}`);
+    throw fail('COMMAND_FAILED', 'Collection not found', collection);
   }
   return found;
 }
 
-function collectionStats(database: string, fixture: CollectionFixture): CollectionStats {
-  const name = fixture.info.name;
-  const indexes = fixtureIndexes(name);
+function collectionStats(database: string, collection: MockCollection): CollectionStats {
+  const name = collection.info.name;
+  const count = collection.documents.length;
+  const indexes = collection.indexes;
   const indexSizes = Object.fromEntries(indexes.map((index) => [index.name, index.size ?? 0]));
-  const size = fixture.count * AVERAGE_OBJECT_SIZE;
+  const size = count * AVERAGE_OBJECT_SIZE;
   return {
     ns: `${database}.${name}`,
-    count: fixture.count,
+    count,
     size,
     storageSize: size + STORAGE_OVERHEAD,
-    avgObjSize: fixture.count > 0 ? AVERAGE_OBJECT_SIZE : 0,
+    avgObjSize: count > 0 ? AVERAGE_OBJECT_SIZE : 0,
     nindexes: indexes.length,
     totalIndexSize: Object.values(indexSizes).reduce((sum, value) => sum + value, 0),
-    capped: false,
+    capped: collection.info.options?.capped === true,
     indexSizes,
   };
 }
 
-function databaseStats(database: DatabaseFixture): DatabaseStats {
-  const objects = database.collections.reduce((sum, item) => sum + item.count, 0);
-  const indexes = database.collections.flatMap((item) => fixtureIndexes(item.info.name));
+function databaseStats(database: MockDatabase): DatabaseStats {
+  const objects = database.collections.reduce((sum, item) => sum + item.documents.length, 0);
+  const indexes: IndexInfo[] = database.collections.flatMap((item) => item.indexes);
   return {
     db: database.name,
     collections: database.collections.filter((item) => item.info.type !== 'view').length,
@@ -280,13 +266,47 @@ export function createMockUiApi(options: MockUiApiOptions = {}): UiApi {
     return found;
   }
 
-  function findDatabase(connectionId: string, database: string): DatabaseFixture {
-    const found = fixtureDatabases(connectionId).find((item) => item.name === database);
+  /** Each connection's catalog. A connection without fixtures starts with none. */
+  function catalogOf(connectionId: string): MockDatabase[] {
+    let catalog = state.catalogs.get(connectionId);
+    if (catalog === undefined) {
+      catalog = [];
+      state.catalogs.set(connectionId, catalog);
+    }
+    return catalog;
+  }
+
+  function buildsOf(connectionId: string): MockBuild[] {
+    let builds = state.builds.get(connectionId);
+    if (builds === undefined) {
+      builds = [];
+      state.builds.set(connectionId, builds);
+    }
+    return builds;
+  }
+
+  function findDatabaseOrFail(connectionId: string, database: string): MockDatabase {
+    const found = findDatabase(catalogOf(connectionId), database);
     if (found === undefined) {
       throw fail('COMMAND_FAILED', 'Database not found', database);
     }
     return found;
   }
+
+  /** Mutating and reading management calls need an unlocked vault and a connected server. */
+  function guard(connectionId: string): void {
+    requireUnlocked();
+    requireConnected(connectionId);
+  }
+
+  const management = createManagementCalls({
+    latencyMs,
+    guard,
+    catalogOf,
+    buildsOf,
+    emit,
+    now: () => Date.now(),
+  });
 
   const rpc: RpcClient = {
     vault: {
@@ -329,6 +349,8 @@ export function createMockUiApi(options: MockUiApiOptions = {}): UiApi {
         state.settings = { ...defaultSettings };
         state.history = [];
         state.favourites = [];
+        state.catalogs.clear();
+        state.builds.clear();
       }),
     },
     connections: {
@@ -364,6 +386,8 @@ export function createMockUiApi(options: MockUiApiOptions = {}): UiApi {
         findConnection(id);
         state.connections = state.connections.filter((item) => item.id !== id);
         state.statuses.delete(id);
+        state.catalogs.delete(id);
+        state.builds.delete(id);
       }),
       test: method(rpcContract.connections.test, latencyMs, (input): ConnectionTestResult => {
         requireUnlocked();
@@ -401,20 +425,20 @@ export function createMockUiApi(options: MockUiApiOptions = {}): UiApi {
       list: method(rpcContract.databases.list, latencyMs, ({ connectionId }) => {
         requireUnlocked();
         requireConnected(connectionId);
-        return databaseInfos(connectionId);
+        return catalogOf(connectionId).map(databaseInfo);
       }),
       stats: method(rpcContract.databases.stats, latencyMs, ({ connectionId, database }) => {
         requireUnlocked();
         requireConnected(connectionId);
-        return databaseStats(findDatabase(connectionId, database));
+        return databaseStats(findDatabaseOrFail(connectionId, database));
       }),
     },
     collections: {
       list: method(rpcContract.collections.list, latencyMs, ({ connectionId, database }) => {
         requireUnlocked();
         requireConnected(connectionId);
-        const found = fixtureDatabases(connectionId).find((item) => item.name === database);
-        return found?.collections.map((item) => item.info) ?? [];
+        const found = findDatabase(catalogOf(connectionId), database);
+        return found?.collections.map((item): CollectionInfo => item.info) ?? [];
       }),
       stats: method(
         rpcContract.collections.stats,
@@ -422,11 +446,14 @@ export function createMockUiApi(options: MockUiApiOptions = {}): UiApi {
         ({ connectionId, database, collection }) => {
           requireUnlocked();
           requireConnected(connectionId);
-          const fixture = findCollection(fixtureDatabases(connectionId), database, collection);
-          if (fixture.info.type === 'view') {
+          const found = requireCollectionFor(
+            findDatabaseOrFail(connectionId, database),
+            collection,
+          );
+          if (found.info.type === 'view') {
             throw fail('COMMAND_FAILED', 'Views have no storage statistics', collection);
           }
-          return collectionStats(database, fixture);
+          return collectionStats(database, found);
         },
       ),
       indexes: method(
@@ -435,11 +462,15 @@ export function createMockUiApi(options: MockUiApiOptions = {}): UiApi {
         ({ connectionId, database, collection }) => {
           requireUnlocked();
           requireConnected(connectionId);
-          findCollection(fixtureDatabases(connectionId), database, collection);
-          return fixtureIndexes(collection);
+          const found = requireCollectionFor(
+            findDatabaseOrFail(connectionId, database),
+            collection,
+          );
+          return found.indexes.map((index) => ({ ...index }));
         },
       ),
     },
+    management,
     settings: {
       get: method(rpcContract.settings.get, latencyMs, () => {
         requireUnlocked();

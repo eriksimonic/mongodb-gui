@@ -231,6 +231,14 @@ export const FindDocumentByIdInputSchema = DocumentTargetSchema.extend({
   idEjson: z.string(),
 });
 
+// Counts the documents a filter matches. The delete-by-filter flow shows this count before it
+// deletes anything.
+export const CountDocumentsInputSchema = DocumentTargetSchema.extend({
+  filterEjson: z.string(),
+});
+
+export type ValidationLevel = z.infer<typeof ValidationLevelSchema>;
+export type ValidationAction = z.infer<typeof ValidationActionSchema>;
 export type CreateCollectionInput = z.infer<typeof CreateCollectionInputSchema>;
 export type RenameCollectionInput = z.infer<typeof RenameCollectionInputSchema>;
 export type DropCollectionInput = z.infer<typeof DropCollectionInputSchema>;
@@ -251,4 +259,27 @@ export type UpdateDocumentFieldsInput = z.infer<typeof UpdateDocumentFieldsInput
 export type DeleteDocumentsInput = z.infer<typeof DeleteDocumentsInputSchema>;
 export type DeleteByFilterInput = z.infer<typeof DeleteByFilterInputSchema>;
 export type FindDocumentByIdInput = z.infer<typeof FindDocumentByIdInputSchema>;
+export type CountDocumentsInput = z.infer<typeof CountDocumentsInputSchema>;
 export type NamespaceTarget = z.infer<typeof NamespaceSchema>;
+
+// Read inputs. Sample sizes match the adapter: validation checks take at most 10,000 documents
+// and document sampling returns at most 200.
+export const MAX_VALIDATION_SAMPLE_SIZE = 10_000;
+export const MAX_SAMPLED_DOCUMENTS = 200;
+
+export const CheckValidationInputSchema = NamespaceSchema.safeExtend({
+  sampleSize: z.number().int().min(1).max(MAX_VALIDATION_SAMPLE_SIZE),
+  validatorEjson: z.string().optional(),
+});
+
+export const SampleDocumentsInputSchema = NamespaceSchema.safeExtend({
+  limit: z.number().int().min(1).max(MAX_SAMPLED_DOCUMENTS),
+});
+
+export const ListIndexBuildsInputSchema = z.object({
+  database: DatabaseNameSchema.optional(),
+});
+
+export type CheckValidationInput = z.infer<typeof CheckValidationInputSchema>;
+export type SampleDocumentsInput = z.infer<typeof SampleDocumentsInputSchema>;
+export type ListIndexBuildsInput = z.infer<typeof ListIndexBuildsInputSchema>;

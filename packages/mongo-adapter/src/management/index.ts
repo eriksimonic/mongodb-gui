@@ -7,11 +7,13 @@ export {
   renameCollection,
 } from './collections';
 export {
+  countDocuments,
   deleteByFilter,
   deleteDocuments,
   findDocumentById,
   insertDocument,
   replaceDocument,
+  sampleDocuments,
   updateDocumentFields,
 } from './documents';
 export { createIndex, dropIndex, listIndexBuilds, setIndexHidden } from './indexes';

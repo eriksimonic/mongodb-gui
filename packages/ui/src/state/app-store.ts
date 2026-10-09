@@ -36,6 +36,38 @@ export type DialogState =
   | { readonly kind: 'create' }
   | { readonly kind: 'edit'; readonly connectionId: string };
 
+/** A management dialog opened from the tree. Each names the target it acts on. */
+export type ManagementDialog =
+  | { readonly kind: 'createDatabase'; readonly connectionId: string }
+  | { readonly kind: 'createCollection'; readonly connectionId: string; readonly database: string }
+  | {
+      readonly kind: 'renameCollection';
+      readonly connectionId: string;
+      readonly database: string;
+      readonly collection: string;
+    }
+  | {
+      readonly kind: 'clearCollection';
+      readonly connectionId: string;
+      readonly database: string;
+      readonly collection: string;
+    }
+  | {
+      readonly kind: 'dropCollection';
+      readonly connectionId: string;
+      readonly database: string;
+      readonly collection: string;
+    }
+  | { readonly kind: 'dropDatabase'; readonly connectionId: string; readonly database: string };
+
+/** A request to show a collection panel. The shell opens or focuses it, then clears the request. */
+export interface PanelRequest {
+  readonly panel: 'indexes' | 'validation' | 'documents';
+  readonly connectionId: string;
+  readonly database: string;
+  readonly collection: string;
+}
+
 /** Everything the screens read. Kept apart from the actions so tests can seed it. */
 export interface AppData {
   readonly vault: VaultView;
@@ -48,6 +80,10 @@ export interface AppData {
   readonly selection: Selection | undefined;
   readonly dialog: DialogState;
   readonly managerOpen: boolean;
+  readonly managementDialog: ManagementDialog | undefined;
+  readonly panelRequest: PanelRequest | undefined;
+  /** Counts catalog:changed events. Panels reload when it moves. */
+  readonly catalogRevision: number;
 }
 
 export interface AppActions {
@@ -73,6 +109,12 @@ export interface AppActions {
   select(selection: Selection | undefined): void;
   setDialog(dialog: DialogState): void;
   setManagerOpen(open: boolean): void;
+  setManagementDialog(dialog: ManagementDialog | undefined): void;
+  /** Asks the shell to show a collection panel. */
+  requestPanel(request: PanelRequest): void;
+  clearPanelRequest(): void;
+  /** Drops the cached collections of one database. The open tree nodes reload them. */
+  refreshDatabase(connectionId: string, database: string): void;
   applyEvent(event: RpcEvent): void;
 }
 
@@ -89,6 +131,8 @@ const SESSION_RESET: Pick<
   | 'selection'
   | 'dialog'
   | 'managerOpen'
+  | 'managementDialog'
+  | 'panelRequest'
 > = {
   connections: { state: 'loading' },
   statuses: {},
@@ -98,9 +142,11 @@ const SESSION_RESET: Pick<
   selection: undefined,
   dialog: { kind: 'closed' },
   managerOpen: false,
+  managementDialog: undefined,
+  panelRequest: undefined,
 };
 
-const INITIAL_DATA: AppData = { vault: 'loading', ...SESSION_RESET };
+const INITIAL_DATA: AppData = { vault: 'loading', catalogRevision: 0, ...SESSION_RESET };
 
 function withoutConnectionCatalog(
   data: Pick<AppData, 'databases' | 'collections'>,
@@ -113,6 +159,37 @@ function withoutConnectionCatalog(
     ),
     collections: Object.fromEntries(
       Object.entries(data.collections).filter(([key]) => !key.startsWith(prefix)),
+    ),
+  };
+}
+
+/**
+ * Drops the cached catalog that a change touched. Without a database the whole connection goes.
+ * A database without a collection drops the database list and its collections. A collection drops
+ * only that database's collections.
+ */
+function withoutCatalogScope(
+  data: Pick<AppData, 'databases' | 'collections'>,
+  scope: {
+    readonly connectionId: string;
+    readonly database?: string | undefined;
+    readonly collection?: string | undefined;
+  },
+): Pick<AppData, 'databases' | 'collections'> {
+  if (scope.database === undefined) {
+    return withoutConnectionCatalog(data, scope.connectionId);
+  }
+  const key = catalogKey(scope.connectionId, scope.database);
+  const databases =
+    scope.collection === undefined
+      ? Object.fromEntries(
+          Object.entries(data.databases).filter(([id]) => id !== scope.connectionId),
+        )
+      : data.databases;
+  return {
+    databases,
+    collections: Object.fromEntries(
+      Object.entries(data.collections).filter(([catalog]) => catalog !== key),
     ),
   };
 }
@@ -313,10 +390,38 @@ export function createAppStore(api: UiApi, initial: Partial<AppData> = {}): AppS
         set({ managerOpen: open });
       },
 
+      setManagementDialog(dialog) {
+        set({ managementDialog: dialog });
+      },
+
+      requestPanel(request) {
+        set({ panelRequest: request });
+      },
+
+      clearPanelRequest() {
+        set({ panelRequest: undefined });
+      },
+
+      refreshDatabase(connectionId, database) {
+        const key = catalogKey(connectionId, database);
+        set((state) => ({
+          collections: Object.fromEntries(
+            Object.entries(state.collections).filter(([catalog]) => catalog !== key),
+          ),
+        }));
+      },
+
       applyEvent(event) {
         if (event.type === 'vault:locked') {
           clearSession();
           set({ vault: 'locked' });
+          return;
+        }
+        if (event.type === 'catalog:changed') {
+          set((state) => ({
+            ...withoutCatalogScope(state, event),
+            catalogRevision: state.catalogRevision + 1,
+          }));
           return;
         }
         setStatus(event.connectionId, event.status);

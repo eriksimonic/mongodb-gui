@@ -1,5 +1,10 @@
 /** jsdom lacks these browser APIs. Dockview and Mantine ask for them on mount. */
 
+// Mantine scrolls the highlighted option into view when a select opens. jsdom has no layout.
+if (typeof Element.prototype.scrollIntoView !== 'function') {
+  Element.prototype.scrollIntoView = () => undefined;
+}
+
 class ResizeObserverShim {
   observe(): void {}
   unobserve(): void {}

@@ -6,19 +6,34 @@ import { IconDatabase, IconLock, IconPlus, IconServer } from '@tabler/icons-reac
 import {
   DockviewReact,
   themeDark,
+  type DockviewApi,
   type DockviewReadyEvent,
   type DockviewTheme,
 } from 'dockview-react';
+import { useEffect, useState } from 'react';
 import { ConnectionDialog } from '../components/connections/ConnectionDialog';
 import { ConnectionManager } from '../components/connections/ConnectionManager';
+import { ManagementDialogs } from '../components/management/ManagementDialogs';
 import { runReported } from '../components/notify-error';
+import type { PanelRequest } from '../state/app-store';
 import { useAppStore } from '../state/app-store-context';
-import { ConnectionsPanel, FixedTab, OutputPanel, WelcomePanel } from './ShellPanels';
+import {
+  ConnectionsPanel,
+  DocumentsDockPanel,
+  FixedTab,
+  IndexesDockPanel,
+  OutputPanel,
+  ValidationDockPanel,
+  WelcomePanel,
+} from './ShellPanels';
 
 const PANEL_COMPONENTS = {
   connections: ConnectionsPanel,
   welcome: WelcomePanel,
   output: OutputPanel,
+  indexes: IndexesDockPanel,
+  validation: ValidationDockPanel,
+  documents: DocumentsDockPanel,
 };
 
 const TAB_COMPONENTS = { fixed: FixedTab };
@@ -31,6 +46,11 @@ const MONGO_THEME: DockviewTheme = { ...themeDark, name: 'mongo-gui', className:
 
 const SIDEBAR_WIDTH_PX = 280;
 const OUTPUT_SHARE = 0.3;
+const PANEL_TITLE_SUFFIX: Readonly<Record<PanelRequest['panel'], string>> = {
+  indexes: 'indexes',
+  validation: 'validation',
+  documents: 'documents',
+};
 
 /**
  * Lays out the three default panels: connections on the left, welcome in the centre, and output
@@ -64,12 +84,51 @@ function handleDockReady({ api }: DockviewReadyEvent) {
   api.getPanel('output')?.group.api.setSize({ height: Math.round(height * OUTPUT_SHARE) });
 }
 
+function panelId(request: PanelRequest): string {
+  return `${request.panel}:${request.connectionId}:${request.database}.${request.collection}`;
+}
+
+/** Focuses the panel for the request, or adds it. One panel exists per collection and kind. */
+function openCollectionPanel(api: DockviewApi, request: PanelRequest): void {
+  const id = panelId(request);
+  const existing = api.getPanel(id);
+  if (existing !== undefined) {
+    existing.api.setActive();
+    return;
+  }
+  // Collection panels open as tabs of the centre group. The active group could be the tree's, and a
+  // dockview group hides the tree's content while another of its tabs is active.
+  api.addPanel({
+    id,
+    component: request.panel,
+    title: `${request.database}.${request.collection} ${PANEL_TITLE_SUFFIX[request.panel]}`,
+    params: {
+      connectionId: request.connectionId,
+      database: request.database,
+      collection: request.collection,
+    },
+    position: { referencePanel: 'welcome' },
+  });
+}
+
 /** The unlocked main window: toolbar, dockable panels, connection dialog and manager. */
 export function ShellScreen() {
   const lock = useAppStore((state) => state.lock);
   const dialog = useAppStore((state) => state.dialog);
   const setDialog = useAppStore((state) => state.setDialog);
   const setManagerOpen = useAppStore((state) => state.setManagerOpen);
+  const panelRequest = useAppStore((state) => state.panelRequest);
+  const clearPanelRequest = useAppStore((state) => state.clearPanelRequest);
+  const [dock, setDock] = useState<DockviewApi | undefined>(undefined);
+
+  // A request can arrive before the dock is ready, so the effect also runs when the dock appears.
+  useEffect(() => {
+    if (dock === undefined || panelRequest === undefined) {
+      return;
+    }
+    openCollectionPanel(dock, panelRequest);
+    clearPanelRequest();
+  }, [dock, panelRequest, clearPanelRequest]);
 
   return (
     <Flex direction="column" h="100vh" style={{ overflow: 'hidden' }}>
@@ -115,7 +174,10 @@ export function ShellScreen() {
             theme={MONGO_THEME}
             components={PANEL_COMPONENTS}
             tabComponents={TAB_COMPONENTS}
-            onReady={handleDockReady}
+            onReady={(event) => {
+              handleDockReady(event);
+              setDock(event.api);
+            }}
           />
         </div>
       </Box>
@@ -126,6 +188,7 @@ export function ShellScreen() {
           onClose={() => setDialog({ kind: 'closed' })}
         />
       )}
+      <ManagementDialogs />
       <ConnectionManager />
     </Flex>
   );
