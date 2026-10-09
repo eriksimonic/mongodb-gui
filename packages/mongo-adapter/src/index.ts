@@ -16,6 +16,7 @@ export { exportCollection } from './transfer/export';
 export { importFile, previewImport } from './transfer/import';
 export { readServerInfo, type ServerInfo } from './server-info';
 export * from './management/index';
+export * from './security/index';
 export { killOperation, listOperations, type ListOperationsOptions } from './monitor/operations';
 export {
   Sampler,
