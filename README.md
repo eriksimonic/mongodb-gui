@@ -58,11 +58,15 @@ Releases come from CI. To release a version:
    git push origin v0.1.0
    ```
 
-The tag must match the version in `packages/app/package.json`. The release workflow
-(`.github/workflows/release.yml`) stops before building if they differ.
+The tag must match the version in `packages/app/package.json`. The `prepare` job stops the
+release before any build starts if they differ.
 
-The workflow builds on Ubuntu, Windows and macOS in parallel. Each build uploads its
-installers to a draft GitHub Release. When all three builds succeed, a final job marks
+The updater cache directory that electron-builder writes into `app-update.yml` comes from
+the scoped package name (`@mongo-gui/app`), not from `productName`. The in-app updater
+task sets the cache directory explicitly.
+
+The `prepare` job creates a draft GitHub Release for the tag. The builds on Ubuntu, Windows
+and macOS then run in parallel and upload their installers to that draft. When all three builds succeed, a final job marks
 the release public. If one build fails, the release stays a draft, so users never see a
 partial set of files. Fix the failure and re-run the failed job from the Actions page. The re-run adds its
 files to the same draft.
