@@ -1,0 +1,161 @@
+{
+  "explainVersion": "1",
+  "queryPlanner": {
+    "namespace": "fixtures.orders",
+    "parsedQuery": {
+      "$or": [
+        {
+          "customerId": {
+            "$eq": {
+              "$numberInt": "7"
+            }
+          }
+        },
+        {
+          "status": {
+            "$eq": "cancelled"
+          }
+        }
+      ]
+    },
+    "indexFilterSet": false,
+    "queryHash": "FF52C2C3",
+    "planCacheShapeHash": "FF52C2C3",
+    "planCacheKey": "3024EDA7",
+    "optimizationTimeMillis": {
+      "$numberInt": "0"
+    },
+    "maxIndexedOrSolutionsReached": false,
+    "maxIndexedAndSolutionsReached": false,
+    "maxScansToExplodeReached": false,
+    "prunedSimilarIndexes": false,
+    "winningPlan": {
+      "isCached": false,
+      "stage": "SUBPLAN",
+      "inputStage": {
+        "stage": "FETCH",
+        "inputStage": {
+          "stage": "OR",
+          "inputStages": [
+            {
+              "stage": "IXSCAN",
+              "keyPattern": {
+                "customerId": {
+                  "$numberInt": "1"
+                },
+                "createdAt": {
+                  "$numberInt": "-1"
+                }
+              },
+              "indexName": "customerId_1_createdAt_-1",
+              "isMultiKey": false,
+              "multiKeyPaths": {
+                "customerId": [],
+                "createdAt": []
+              },
+              "isUnique": false,
+              "isSparse": false,
+              "isPartial": false,
+              "indexVersion": {
+                "$numberInt": "2"
+              },
+              "direction": "forward",
+              "indexBounds": {
+                "customerId": [
+                  "[7, 7]"
+                ],
+                "createdAt": [
+                  "[MaxKey, MinKey]"
+                ]
+              }
+            },
+            {
+              "stage": "IXSCAN",
+              "keyPattern": {
+                "status": {
+                  "$numberInt": "1"
+                }
+              },
+              "indexName": "status_1",
+              "isMultiKey": false,
+              "multiKeyPaths": {
+                "status": []
+              },
+              "isUnique": false,
+              "isSparse": false,
+              "isPartial": false,
+              "indexVersion": {
+                "$numberInt": "2"
+              },
+              "direction": "forward",
+              "indexBounds": {
+                "status": [
+                  "[\"cancelled\", \"cancelled\"]"
+                ]
+              }
+            }
+          ]
+        }
+      }
+    },
+    "rejectedPlans": []
+  },
+  "queryShapeHash": "416CAD78B510A9FA223BF216CDC45725954DC2AFFDF5B33BC92C99B4A294D669",
+  "command": {
+    "find": "orders",
+    "filter": {
+      "$or": [
+        {
+          "customerId": {
+            "$numberInt": "7"
+          }
+        },
+        {
+          "status": "cancelled"
+        }
+      ]
+    },
+    "$db": "fixtures"
+  },
+  "serverInfo": {
+    "host": "f0f9585d62fd",
+    "port": {
+      "$numberInt": "27017"
+    },
+    "version": "8.0.17",
+    "gitVersion": "b20e43625b72f4bb43cc15107f80ac966ae13b6d"
+  },
+  "serverParameters": {
+    "internalQueryFacetBufferSizeBytes": {
+      "$numberInt": "104857600"
+    },
+    "internalQueryFacetMaxOutputDocSizeBytes": {
+      "$numberInt": "104857600"
+    },
+    "internalLookupStageIntermediateDocumentMaxSizeBytes": {
+      "$numberInt": "104857600"
+    },
+    "internalDocumentSourceGroupMaxMemoryBytes": {
+      "$numberInt": "104857600"
+    },
+    "internalQueryMaxBlockingSortMemoryUsageBytes": {
+      "$numberInt": "104857600"
+    },
+    "internalQueryProhibitBlockingMergeOnMongoS": {
+      "$numberInt": "0"
+    },
+    "internalQueryMaxAddToSetBytes": {
+      "$numberInt": "104857600"
+    },
+    "internalDocumentSourceSetWindowFieldsMaxMemoryBytes": {
+      "$numberInt": "104857600"
+    },
+    "internalQueryFrameworkControl": "trySbeRestricted",
+    "internalQueryPlannerIgnoreIndexWithCollationForRegex": {
+      "$numberInt": "1"
+    }
+  },
+  "ok": {
+    "$numberDouble": "1.0"
+  }
+}

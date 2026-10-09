@@ -1,0 +1,150 @@
+{
+  "explainVersion": "2",
+  "queryPlanner": {
+    "namespace": "fixtures.orders",
+    "indexFilterSet": false,
+    "parsedQuery": {
+      "status": {
+        "$eq": "cancelled"
+      }
+    },
+    "queryHash": "07AE3385",
+    "planCacheKey": "ADFF0A7D",
+    "optimizedPipeline": true,
+    "maxIndexedOrSolutionsReached": false,
+    "maxIndexedAndSolutionsReached": false,
+    "maxScansToExplodeReached": false,
+    "winningPlan": {
+      "queryPlan": {
+        "stage": "EQ_LOOKUP",
+        "planNodeId": {
+          "$numberInt": "4"
+        },
+        "foreignCollection": "fixtures.orders",
+        "localField": "customerId",
+        "foreignField": "customerId",
+        "asField": "siblings",
+        "strategy": "IndexedLoopJoin",
+        "indexName": "customerId_1_createdAt_-1",
+        "indexKeyPattern": {
+          "customerId": {
+            "$numberInt": "1"
+          },
+          "createdAt": {
+            "$numberInt": "-1"
+          }
+        },
+        "inputStage": {
+          "stage": "LIMIT",
+          "planNodeId": {
+            "$numberInt": "3"
+          },
+          "limitAmount": {
+            "$numberInt": "5"
+          },
+          "inputStage": {
+            "stage": "FETCH",
+            "planNodeId": {
+              "$numberInt": "2"
+            },
+            "inputStage": {
+              "stage": "IXSCAN",
+              "planNodeId": {
+                "$numberInt": "1"
+              },
+              "keyPattern": {
+                "status": {
+                  "$numberInt": "1"
+                }
+              },
+              "indexName": "status_1",
+              "isMultiKey": false,
+              "multiKeyPaths": {
+                "status": []
+              },
+              "isUnique": false,
+              "isSparse": false,
+              "isPartial": false,
+              "indexVersion": {
+                "$numberInt": "2"
+              },
+              "direction": "forward",
+              "indexBounds": {
+                "status": [
+                  "[\"cancelled\", \"cancelled\"]"
+                ]
+              }
+            }
+          }
+        }
+      },
+      "slotBasedPlan": {
+        "slots": "$$RESULT=s44 env: { s1 = TimeZoneDatabase(Atlantic/Cape_Verde...Asia/Ashkhabad) (timeZoneDB), s3 = 1791573146999 (NOW), s2 = Nothing (SEARCH_META) }",
+        "stages": "[4] mkbson s44 s11 [] drop [siblings = s43] true false \n[4] nlj [s11] [s18] \n    left \n        [4] nlj [s11] [s11] \n            left \n                [3] limit 5 \n                [2] nlj [] [s8, s4, s5, s6, s7] \n                    left \n                        [1] nlj [s7] [s9, s10] \n                            left \n                                [1] project [s7 = {\"status\" : 1}, s9 = KS(3C63616E63656C6C6564000104), s10 = KS(3C63616E63656C6C656400FE04)] \n                                [1] limit 1 \n                                [1] coscan \n                            right \n                                [1] ixseek s9 s10 s6 s8 s4 s5 [] @\"816038ae-feda-4fd1-9aa7-ac038e21dbb0\" @\"status_1\" true \n                            \n                        \n                    right \n                        [2] limit 1 \n                        [2] seek s8 s11 s12 s4 s5 s6 s7 [] @\"816038ae-feda-4fd1-9aa7-ac038e21dbb0\" true false \n                    \n                \n            right \n                [4] project [s18 = if (getArraySize (s16) > 0, s16, [null])] \n                [4] group [] [s16 = addToSet (s14)] spillSlots[s17] mergingExprs[aggSetUnion (s17)] \n                [4] unwind s14 s15 s13 true \n                [4] project [s13 = getField (s11, \"customerId\")] \n                [4] limit 1 \n                [4] coscan \n            \n        \n    right \n        [4] limit 1 \n        [4] union [s43] [\n            [s41] [4] project [s41 = getElement (s39, 0)] \n            [4] group [] [s39 = addToArrayCapped (s32, 104857600)] spillSlots[s40] mergingExprs[aggConcatArraysCapped (s40, 104857600)] \n            [4] nlj [s32] [s32] \n                left \n                    [4] nlj [] [s28, s30, s31, s29, s27] \n                        left \n                            [4] nlj [s27] [s25, s26] \n                                left \n                                    [4] nlj [] [s19] \n                                        left \n                                            [4] unwind s19 s20 s18 true \n                                            [4] limit 1 \n                                            [4] coscan \n                                        right \n                                            [4] project [s25 = ks (1, 2, s24, 1), s26 = ks (1, 2, s24, 2), s27 = {\"customerId\" : 1, \"createdAt\" : -1}] \n                                            [4] union [s24] [\n                                                [s21] [4] cfilter {isNull (s19)} \n                                                [4] project [s21 = undefined] \n                                                [4] limit 1 \n                                                [4] coscan , \n                                                [s22] [4] filter {isArray (s19) && ! isMember (s22, s18)} \n                                                [4] project [s22 = fillEmpty (getElement (s19, 0), undefined)] \n                                                [4] limit 1 \n                                                [4] coscan , \n                                                [s23] [4] project [s23 = s19] \n                                                [4] limit 1 \n                                                [4] coscan \n                                           ] \n                                        \n                                    \n                                right \n                                    [4] ixseek s25 s26 s29 s28 s30 s31 [] @\"816038ae-feda-4fd1-9aa7-ac038e21dbb0\" @\"customerId_1_createdAt_-1\" true \n                                \n                            \n                        right \n                            [4] limit 1 \n                            [4] seek s28 s32 s33 s30 s31 s29 s27 [] @\"816038ae-feda-4fd1-9aa7-ac038e21dbb0\" true false \n                        \n                    \n                right \n                    [4] limit 1 \n                    [4] filter {isMember (s38, s18)} \n                    [4] nlj [] [s34] \n                        left \n                            [4] project [s34 = fillEmpty (getField (s32, \"customerId\"), null)] \n                            [4] limit 1 \n                            [4] coscan \n                        right \n                            [4] branch {isArray (s34)} [s38] \n                            [s37] [4] union [s37] [\n                                [s35] [4] unwind s35 s36 s34 true \n                                [4] limit 1 \n                                [4] coscan , \n                                [s34] [4] limit 1 \n                                [4] coscan \n                           ] \n                            [s34] [4] limit 1 \n                            [4] coscan \n                        \n                    \n                \n            , \n            [s42] [4] project [s42 = []] \n            [4] limit 1 \n            [4] coscan \n       ] \n    \n"
+      }
+    },
+    "rejectedPlans": []
+  },
+  "command": {
+    "aggregate": "orders",
+    "pipeline": [
+      {
+        "$match": {
+          "status": "cancelled"
+        }
+      },
+      {
+        "$limit": {
+          "$numberInt": "5"
+        }
+      },
+      {
+        "$lookup": {
+          "from": "orders",
+          "localField": "customerId",
+          "foreignField": "customerId",
+          "as": "siblings"
+        }
+      }
+    ],
+    "cursor": {},
+    "$db": "fixtures"
+  },
+  "serverInfo": {
+    "host": "6a26fe1ab200",
+    "port": {
+      "$numberInt": "27017"
+    },
+    "version": "6.0.28",
+    "gitVersion": "ef888a6df901622004aeb4b7362e007b8c4299da"
+  },
+  "serverParameters": {
+    "internalQueryFacetBufferSizeBytes": {
+      "$numberInt": "104857600"
+    },
+    "internalQueryFacetMaxOutputDocSizeBytes": {
+      "$numberInt": "104857600"
+    },
+    "internalLookupStageIntermediateDocumentMaxSizeBytes": {
+      "$numberInt": "104857600"
+    },
+    "internalDocumentSourceGroupMaxMemoryBytes": {
+      "$numberInt": "104857600"
+    },
+    "internalQueryMaxBlockingSortMemoryUsageBytes": {
+      "$numberInt": "104857600"
+    },
+    "internalQueryProhibitBlockingMergeOnMongoS": {
+      "$numberInt": "0"
+    },
+    "internalQueryMaxAddToSetBytes": {
+      "$numberInt": "104857600"
+    },
+    "internalDocumentSourceSetWindowFieldsMaxMemoryBytes": {
+      "$numberInt": "104857600"
+    }
+  },
+  "ok": {
+    "$numberDouble": "1.0"
+  }
+}

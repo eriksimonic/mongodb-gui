@@ -4,3 +4,4 @@ coverage
 pnpm-lock.yaml
 docs/PLAN.md
 .claude
+packages/core/src/explain/fixtures

@@ -1,0 +1,122 @@
+{
+  "explainVersion": "2",
+  "queryPlanner": {
+    "namespace": "fixtures.orders",
+    "indexFilterSet": false,
+    "parsedQuery": {
+      "status": {
+        "$eq": "paid"
+      }
+    },
+    "queryHash": "A30340E8",
+    "planCacheKey": "75C0FBBD",
+    "maxIndexedOrSolutionsReached": false,
+    "maxIndexedAndSolutionsReached": false,
+    "maxScansToExplodeReached": false,
+    "winningPlan": {
+      "queryPlan": {
+        "stage": "SORT",
+        "planNodeId": {
+          "$numberInt": "3"
+        },
+        "sortPattern": {
+          "total": {
+            "$numberInt": "1"
+          }
+        },
+        "memLimit": {
+          "$numberInt": "104857600"
+        },
+        "type": "simple",
+        "inputStage": {
+          "stage": "FETCH",
+          "planNodeId": {
+            "$numberInt": "2"
+          },
+          "inputStage": {
+            "stage": "IXSCAN",
+            "planNodeId": {
+              "$numberInt": "1"
+            },
+            "keyPattern": {
+              "status": {
+                "$numberInt": "1"
+              }
+            },
+            "indexName": "status_1",
+            "isMultiKey": false,
+            "multiKeyPaths": {
+              "status": []
+            },
+            "isUnique": false,
+            "isSparse": false,
+            "isPartial": false,
+            "indexVersion": {
+              "$numberInt": "2"
+            },
+            "direction": "forward",
+            "indexBounds": {
+              "status": [
+                "[\"paid\", \"paid\"]"
+              ]
+            }
+          }
+        }
+      },
+      "slotBasedPlan": {
+        "slots": "$$RESULT=s11 $$RID=s12 env: { s1 = TimeZoneDatabase(Atlantic/Cape_Verde...Asia/Ashkhabad) (timeZoneDB), s3 = 1791573146984 (NOW), s2 = Nothing (SEARCH_META) }",
+        "stages": "[3] sort [s16] [asc] [s12, s11] \n[3] project [s16 = fillEmpty (s15, undefined)] \n[3] traverse s15 s14 s13 {if (s14 <=> s15 < 0, s14, s15)} {} \nfrom \n    [3] project [s13 = fillEmpty (getField (s11, \"total\"), null)] \n    [2] nlj [] [s8, s4, s5, s6, s7] \n        left \n            [1] nlj [s7] [s9, s10] \n                left \n                    [1] project [s7 = {\"status\" : 1}, s9 = KS(3C70616964000104), s10 = KS(3C7061696400FE04)] \n                    [1] limit 1 \n                    [1] coscan \n                right \n                    [1] ixseek s9 s10 s6 s8 s4 s5 [] @\"816038ae-feda-4fd1-9aa7-ac038e21dbb0\" @\"status_1\" true \n                \n            \n        right \n            [2] limit 1 \n            [2] seek s8 s11 s12 s4 s5 s6 s7 [] @\"816038ae-feda-4fd1-9aa7-ac038e21dbb0\" true false \n        \n    \nin \n    [3] project [s14 = s13] \n    [3] limit 1 \n    [3] coscan \n"
+      }
+    },
+    "rejectedPlans": []
+  },
+  "command": {
+    "find": "orders",
+    "filter": {
+      "status": "paid"
+    },
+    "sort": {
+      "total": {
+        "$numberInt": "1"
+      }
+    },
+    "$db": "fixtures"
+  },
+  "serverInfo": {
+    "host": "6a26fe1ab200",
+    "port": {
+      "$numberInt": "27017"
+    },
+    "version": "6.0.28",
+    "gitVersion": "ef888a6df901622004aeb4b7362e007b8c4299da"
+  },
+  "serverParameters": {
+    "internalQueryFacetBufferSizeBytes": {
+      "$numberInt": "104857600"
+    },
+    "internalQueryFacetMaxOutputDocSizeBytes": {
+      "$numberInt": "104857600"
+    },
+    "internalLookupStageIntermediateDocumentMaxSizeBytes": {
+      "$numberInt": "104857600"
+    },
+    "internalDocumentSourceGroupMaxMemoryBytes": {
+      "$numberInt": "104857600"
+    },
+    "internalQueryMaxBlockingSortMemoryUsageBytes": {
+      "$numberInt": "104857600"
+    },
+    "internalQueryProhibitBlockingMergeOnMongoS": {
+      "$numberInt": "0"
+    },
+    "internalQueryMaxAddToSetBytes": {
+      "$numberInt": "104857600"
+    },
+    "internalDocumentSourceSetWindowFieldsMaxMemoryBytes": {
+      "$numberInt": "104857600"
+    }
+  },
+  "ok": {
+    "$numberDouble": "1.0"
+  }
+}

@@ -1,0 +1,526 @@
+{
+  "explainVersion": "2",
+  "queryPlanner": {
+    "namespace": "fixtures.orders",
+    "indexFilterSet": false,
+    "parsedQuery": {
+      "items.sku": {
+        "$eq": "A1"
+      }
+    },
+    "queryHash": "CFA2435F",
+    "planCacheKey": "1F224764",
+    "maxIndexedOrSolutionsReached": false,
+    "maxIndexedAndSolutionsReached": false,
+    "maxScansToExplodeReached": false,
+    "winningPlan": {
+      "queryPlan": {
+        "stage": "FETCH",
+        "planNodeId": {
+          "$numberInt": "2"
+        },
+        "inputStage": {
+          "stage": "IXSCAN",
+          "planNodeId": {
+            "$numberInt": "1"
+          },
+          "keyPattern": {
+            "items.sku": {
+              "$numberInt": "1"
+            }
+          },
+          "indexName": "items.sku_1",
+          "isMultiKey": true,
+          "multiKeyPaths": {
+            "items.sku": [
+              "items"
+            ]
+          },
+          "isUnique": false,
+          "isSparse": false,
+          "isPartial": false,
+          "indexVersion": {
+            "$numberInt": "2"
+          },
+          "direction": "forward",
+          "indexBounds": {
+            "items.sku": [
+              "[\"A1\", \"A1\"]"
+            ]
+          }
+        }
+      },
+      "slotBasedPlan": {
+        "slots": "$$RESULT=s11 $$RID=s12 env: { s1 = TimeZoneDatabase(Atlantic/Cape_Verde...Asia/Ashkhabad) (timeZoneDB), s3 = 1791573146990 (NOW), s2 = Nothing (SEARCH_META) }",
+        "stages": "[2] nlj [] [s8, s4, s5, s6, s7] \n    left \n        [1] unique [s8] \n        [1] nlj [s7] [s9, s10] \n            left \n                [1] project [s7 = {\"items.sku\" : 1}, s9 = KS(3C4131000104), s10 = KS(3C413100FE04)] \n                [1] limit 1 \n                [1] coscan \n            right \n                [1] ixseek s9 s10 s6 s8 s4 s5 [] @\"816038ae-feda-4fd1-9aa7-ac038e21dbb0\" @\"items.sku_1\" true \n            \n        \n    right \n        [2] limit 1 \n        [2] seek s8 s11 s12 s4 s5 s6 s7 [] @\"816038ae-feda-4fd1-9aa7-ac038e21dbb0\" true false \n    \n"
+      }
+    },
+    "rejectedPlans": []
+  },
+  "executionStats": {
+    "executionSuccess": true,
+    "nReturned": {
+      "$numberInt": "800"
+    },
+    "executionTimeMillis": {
+      "$numberInt": "0"
+    },
+    "totalKeysExamined": {
+      "$numberInt": "800"
+    },
+    "totalDocsExamined": {
+      "$numberInt": "800"
+    },
+    "executionStages": {
+      "stage": "nlj",
+      "planNodeId": {
+        "$numberInt": "2"
+      },
+      "nReturned": {
+        "$numberInt": "800"
+      },
+      "executionTimeMillisEstimate": {
+        "$numberInt": "0"
+      },
+      "opens": {
+        "$numberInt": "1"
+      },
+      "closes": {
+        "$numberInt": "1"
+      },
+      "saveState": {
+        "$numberInt": "0"
+      },
+      "restoreState": {
+        "$numberInt": "0"
+      },
+      "isEOF": {
+        "$numberInt": "1"
+      },
+      "totalDocsExamined": {
+        "$numberInt": "800"
+      },
+      "totalKeysExamined": {
+        "$numberInt": "800"
+      },
+      "collectionScans": {
+        "$numberInt": "0"
+      },
+      "collectionSeeks": {
+        "$numberInt": "800"
+      },
+      "indexScans": {
+        "$numberInt": "0"
+      },
+      "indexSeeks": {
+        "$numberInt": "1"
+      },
+      "indexesUsed": [
+        "items.sku_1"
+      ],
+      "innerOpens": {
+        "$numberInt": "800"
+      },
+      "innerCloses": {
+        "$numberInt": "1"
+      },
+      "outerProjects": [],
+      "outerCorrelated": [
+        {
+          "$numberLong": "8"
+        },
+        {
+          "$numberLong": "4"
+        },
+        {
+          "$numberLong": "5"
+        },
+        {
+          "$numberLong": "6"
+        },
+        {
+          "$numberLong": "7"
+        }
+      ],
+      "outerStage": {
+        "stage": "unique",
+        "planNodeId": {
+          "$numberInt": "1"
+        },
+        "nReturned": {
+          "$numberInt": "800"
+        },
+        "executionTimeMillisEstimate": {
+          "$numberInt": "0"
+        },
+        "opens": {
+          "$numberInt": "1"
+        },
+        "closes": {
+          "$numberInt": "1"
+        },
+        "saveState": {
+          "$numberInt": "0"
+        },
+        "restoreState": {
+          "$numberInt": "0"
+        },
+        "isEOF": {
+          "$numberInt": "1"
+        },
+        "dupsTested": {
+          "$numberInt": "800"
+        },
+        "dupsDropped": {
+          "$numberInt": "0"
+        },
+        "keySlots": [
+          {
+            "$numberLong": "8"
+          }
+        ],
+        "inputStage": {
+          "stage": "nlj",
+          "planNodeId": {
+            "$numberInt": "1"
+          },
+          "nReturned": {
+            "$numberInt": "800"
+          },
+          "executionTimeMillisEstimate": {
+            "$numberInt": "0"
+          },
+          "opens": {
+            "$numberInt": "1"
+          },
+          "closes": {
+            "$numberInt": "1"
+          },
+          "saveState": {
+            "$numberInt": "0"
+          },
+          "restoreState": {
+            "$numberInt": "0"
+          },
+          "isEOF": {
+            "$numberInt": "1"
+          },
+          "totalDocsExamined": {
+            "$numberInt": "0"
+          },
+          "totalKeysExamined": {
+            "$numberInt": "800"
+          },
+          "collectionScans": {
+            "$numberInt": "0"
+          },
+          "collectionSeeks": {
+            "$numberInt": "0"
+          },
+          "indexScans": {
+            "$numberInt": "0"
+          },
+          "indexSeeks": {
+            "$numberInt": "1"
+          },
+          "indexesUsed": [
+            "items.sku_1"
+          ],
+          "innerOpens": {
+            "$numberInt": "1"
+          },
+          "innerCloses": {
+            "$numberInt": "1"
+          },
+          "outerProjects": [
+            {
+              "$numberLong": "7"
+            }
+          ],
+          "outerCorrelated": [
+            {
+              "$numberLong": "9"
+            },
+            {
+              "$numberLong": "10"
+            }
+          ],
+          "outerStage": {
+            "stage": "project",
+            "planNodeId": {
+              "$numberInt": "1"
+            },
+            "nReturned": {
+              "$numberInt": "1"
+            },
+            "executionTimeMillisEstimate": {
+              "$numberInt": "0"
+            },
+            "opens": {
+              "$numberInt": "1"
+            },
+            "closes": {
+              "$numberInt": "1"
+            },
+            "saveState": {
+              "$numberInt": "0"
+            },
+            "restoreState": {
+              "$numberInt": "0"
+            },
+            "isEOF": {
+              "$numberInt": "1"
+            },
+            "projections": {
+              "7": "{\"items.sku\" : 1} ",
+              "9": "KS(3C4131000104) ",
+              "10": "KS(3C413100FE04) "
+            },
+            "inputStage": {
+              "stage": "limit",
+              "planNodeId": {
+                "$numberInt": "1"
+              },
+              "nReturned": {
+                "$numberInt": "1"
+              },
+              "executionTimeMillisEstimate": {
+                "$numberInt": "0"
+              },
+              "opens": {
+                "$numberInt": "1"
+              },
+              "closes": {
+                "$numberInt": "1"
+              },
+              "saveState": {
+                "$numberInt": "0"
+              },
+              "restoreState": {
+                "$numberInt": "0"
+              },
+              "isEOF": {
+                "$numberInt": "1"
+              },
+              "limit": {
+                "$numberInt": "1"
+              },
+              "inputStage": {
+                "stage": "coscan",
+                "planNodeId": {
+                  "$numberInt": "1"
+                },
+                "nReturned": {
+                  "$numberInt": "1"
+                },
+                "executionTimeMillisEstimate": {
+                  "$numberInt": "0"
+                },
+                "opens": {
+                  "$numberInt": "1"
+                },
+                "closes": {
+                  "$numberInt": "1"
+                },
+                "saveState": {
+                  "$numberInt": "0"
+                },
+                "restoreState": {
+                  "$numberInt": "0"
+                },
+                "isEOF": {
+                  "$numberInt": "0"
+                }
+              }
+            }
+          },
+          "innerStage": {
+            "stage": "ixseek",
+            "planNodeId": {
+              "$numberInt": "1"
+            },
+            "nReturned": {
+              "$numberInt": "800"
+            },
+            "executionTimeMillisEstimate": {
+              "$numberInt": "0"
+            },
+            "opens": {
+              "$numberInt": "1"
+            },
+            "closes": {
+              "$numberInt": "1"
+            },
+            "saveState": {
+              "$numberInt": "0"
+            },
+            "restoreState": {
+              "$numberInt": "0"
+            },
+            "isEOF": {
+              "$numberInt": "1"
+            },
+            "indexName": "items.sku_1",
+            "keysExamined": {
+              "$numberInt": "800"
+            },
+            "seeks": {
+              "$numberInt": "1"
+            },
+            "numReads": {
+              "$numberInt": "801"
+            },
+            "recordSlot": {
+              "$numberInt": "6"
+            },
+            "recordIdSlot": {
+              "$numberInt": "8"
+            },
+            "snapshotIdSlot": {
+              "$numberInt": "4"
+            },
+            "indexIdSlot": {
+              "$numberInt": "5"
+            },
+            "seekKeySlotLow": {
+              "$numberInt": "9"
+            },
+            "seekKeySlotHigh": {
+              "$numberInt": "10"
+            },
+            "outputSlots": [],
+            "indexKeysToInclude": "00000000000000000000000000000000"
+          }
+        }
+      },
+      "innerStage": {
+        "stage": "limit",
+        "planNodeId": {
+          "$numberInt": "2"
+        },
+        "nReturned": {
+          "$numberInt": "800"
+        },
+        "executionTimeMillisEstimate": {
+          "$numberInt": "0"
+        },
+        "opens": {
+          "$numberInt": "800"
+        },
+        "closes": {
+          "$numberInt": "1"
+        },
+        "saveState": {
+          "$numberInt": "0"
+        },
+        "restoreState": {
+          "$numberInt": "0"
+        },
+        "isEOF": {
+          "$numberInt": "1"
+        },
+        "limit": {
+          "$numberInt": "1"
+        },
+        "inputStage": {
+          "stage": "seek",
+          "planNodeId": {
+            "$numberInt": "2"
+          },
+          "nReturned": {
+            "$numberInt": "800"
+          },
+          "executionTimeMillisEstimate": {
+            "$numberInt": "0"
+          },
+          "opens": {
+            "$numberInt": "800"
+          },
+          "closes": {
+            "$numberInt": "1"
+          },
+          "saveState": {
+            "$numberInt": "0"
+          },
+          "restoreState": {
+            "$numberInt": "0"
+          },
+          "isEOF": {
+            "$numberInt": "0"
+          },
+          "numReads": {
+            "$numberInt": "800"
+          },
+          "recordSlot": {
+            "$numberInt": "11"
+          },
+          "recordIdSlot": {
+            "$numberInt": "12"
+          },
+          "seekKeySlot": {
+            "$numberInt": "8"
+          },
+          "snapshotIdSlot": {
+            "$numberInt": "4"
+          },
+          "indexIdSlot": {
+            "$numberInt": "5"
+          },
+          "indexKeySlot": {
+            "$numberInt": "6"
+          },
+          "indexKeyPatternSlot": {
+            "$numberInt": "7"
+          },
+          "fields": [],
+          "outputSlots": []
+        }
+      }
+    },
+    "allPlansExecution": []
+  },
+  "command": {
+    "find": "orders",
+    "filter": {
+      "items.sku": "A1"
+    },
+    "$db": "fixtures"
+  },
+  "serverInfo": {
+    "host": "6a26fe1ab200",
+    "port": {
+      "$numberInt": "27017"
+    },
+    "version": "6.0.28",
+    "gitVersion": "ef888a6df901622004aeb4b7362e007b8c4299da"
+  },
+  "serverParameters": {
+    "internalQueryFacetBufferSizeBytes": {
+      "$numberInt": "104857600"
+    },
+    "internalQueryFacetMaxOutputDocSizeBytes": {
+      "$numberInt": "104857600"
+    },
+    "internalLookupStageIntermediateDocumentMaxSizeBytes": {
+      "$numberInt": "104857600"
+    },
+    "internalDocumentSourceGroupMaxMemoryBytes": {
+      "$numberInt": "104857600"
+    },
+    "internalQueryMaxBlockingSortMemoryUsageBytes": {
+      "$numberInt": "104857600"
+    },
+    "internalQueryProhibitBlockingMergeOnMongoS": {
+      "$numberInt": "0"
+    },
+    "internalQueryMaxAddToSetBytes": {
+      "$numberInt": "104857600"
+    },
+    "internalDocumentSourceSetWindowFieldsMaxMemoryBytes": {
+      "$numberInt": "104857600"
+    }
+  },
+  "ok": {
+    "$numberDouble": "1.0"
+  }
+}

@@ -1,0 +1,125 @@
+{
+  "explainVersion": "2",
+  "queryPlanner": {
+    "namespace": "fixtures.orders",
+    "indexFilterSet": false,
+    "parsedQuery": {
+      "customerId": {
+        "$eq": {
+          "$numberInt": "7"
+        }
+      }
+    },
+    "queryHash": "CBA80C84",
+    "planCacheKey": "174B505C",
+    "maxIndexedOrSolutionsReached": false,
+    "maxIndexedAndSolutionsReached": false,
+    "maxScansToExplodeReached": false,
+    "winningPlan": {
+      "queryPlan": {
+        "stage": "PROJECTION_COVERED",
+        "planNodeId": {
+          "$numberInt": "2"
+        },
+        "transformBy": {
+          "customerId": true,
+          "_id": false
+        },
+        "inputStage": {
+          "stage": "IXSCAN",
+          "planNodeId": {
+            "$numberInt": "1"
+          },
+          "keyPattern": {
+            "customerId": {
+              "$numberInt": "1"
+            },
+            "createdAt": {
+              "$numberInt": "-1"
+            }
+          },
+          "indexName": "customerId_1_createdAt_-1",
+          "isMultiKey": false,
+          "multiKeyPaths": {
+            "customerId": [],
+            "createdAt": []
+          },
+          "isUnique": false,
+          "isSparse": false,
+          "isPartial": false,
+          "indexVersion": {
+            "$numberInt": "2"
+          },
+          "direction": "forward",
+          "indexBounds": {
+            "customerId": [
+              "[7, 7]"
+            ],
+            "createdAt": [
+              "[MaxKey, MinKey]"
+            ]
+          }
+        }
+      },
+      "slotBasedPlan": {
+        "slots": "$$RESULT=s8 $$RID=s5 env: { s1 = TimeZoneDatabase(Atlantic/Cape_Verde...Asia/Ashkhabad) (timeZoneDB), s3 = 1791573146987 (NOW), s2 = Nothing (SEARCH_META) }",
+        "stages": "[2] mkbson s8 [customerId = s4] true false \n[1] nlj [] [s6, s7] \n    left \n        [1] project [s6 = KS(2B0E0F0104), s7 = KS(2B0EF5FE04)] \n        [1] limit 1 \n        [1] coscan \n    right \n        [1] ixseek s6 s7 none s5 none none [s4 = 0] @\"816038ae-feda-4fd1-9aa7-ac038e21dbb0\" @\"customerId_1_createdAt_-1\" true \n    \n"
+      }
+    },
+    "rejectedPlans": []
+  },
+  "command": {
+    "find": "orders",
+    "filter": {
+      "customerId": {
+        "$numberInt": "7"
+      }
+    },
+    "projection": {
+      "customerId": {
+        "$numberInt": "1"
+      },
+      "_id": {
+        "$numberInt": "0"
+      }
+    },
+    "$db": "fixtures"
+  },
+  "serverInfo": {
+    "host": "6a26fe1ab200",
+    "port": {
+      "$numberInt": "27017"
+    },
+    "version": "6.0.28",
+    "gitVersion": "ef888a6df901622004aeb4b7362e007b8c4299da"
+  },
+  "serverParameters": {
+    "internalQueryFacetBufferSizeBytes": {
+      "$numberInt": "104857600"
+    },
+    "internalQueryFacetMaxOutputDocSizeBytes": {
+      "$numberInt": "104857600"
+    },
+    "internalLookupStageIntermediateDocumentMaxSizeBytes": {
+      "$numberInt": "104857600"
+    },
+    "internalDocumentSourceGroupMaxMemoryBytes": {
+      "$numberInt": "104857600"
+    },
+    "internalQueryMaxBlockingSortMemoryUsageBytes": {
+      "$numberInt": "104857600"
+    },
+    "internalQueryProhibitBlockingMergeOnMongoS": {
+      "$numberInt": "0"
+    },
+    "internalQueryMaxAddToSetBytes": {
+      "$numberInt": "104857600"
+    },
+    "internalDocumentSourceSetWindowFieldsMaxMemoryBytes": {
+      "$numberInt": "104857600"
+    }
+  },
+  "ok": {
+    "$numberDouble": "1.0"
+  }
+}
