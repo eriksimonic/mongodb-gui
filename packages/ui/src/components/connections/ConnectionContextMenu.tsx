@@ -2,6 +2,7 @@ import { Box, Menu, Text } from '@mantine/core';
 import { modals } from '@mantine/modals';
 import type { ConnectionProfileSummary, ConnectionStatus } from '@mongo-gui/core';
 import { useAppStore } from '../../state/app-store-context';
+import { usePanelOpener } from '../../state/panel-opener';
 import { runReported } from '../notify-error';
 
 export interface ConnectionContextMenuProps {
@@ -23,6 +24,7 @@ export function ConnectionContextMenu({
   const removeConnection = useAppStore((state) => state.removeConnection);
   const refreshConnection = useAppStore((state) => state.refreshConnection);
   const setDialog = useAppStore((state) => state.setDialog);
+  const openPanel = usePanelOpener();
   const canConnect = status.state === 'disconnected' || status.state === 'error';
   const canDisconnect = status.state === 'connected' || status.state === 'connecting';
 
@@ -65,6 +67,19 @@ export function ConnectionContextMenu({
           onClick={() => runAndClose(() => disconnect(connection.id))}
         >
           Disconnect
+        </Menu.Item>
+        <Menu.Item
+          disabled={status.state !== 'connected'}
+          onClick={() => {
+            onClose();
+            openPanel({
+              kind: 'monitor',
+              connectionId: connection.id,
+              connectionName: connection.name,
+            });
+          }}
+        >
+          Monitor
         </Menu.Item>
         <Menu.Item
           onClick={() => {

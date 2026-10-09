@@ -3,6 +3,7 @@ import { z } from 'zod';
 export const DEFAULT_MONITOR_RETENTION_MS = 3_600_000;
 export const MIN_MONITOR_INTERVAL_MS = 1_000;
 export const MAX_MONITOR_INTERVAL_MS = 10_000;
+export const DEFAULT_MONITOR_INTERVAL_MS = 2_000;
 
 const nonNegative = z.number().nonnegative();
 

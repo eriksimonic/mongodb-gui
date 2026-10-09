@@ -1,4 +1,5 @@
 import { z } from 'zod';
+import type { ParsedUrl, ParsedUrlConstructor } from '../types/url';
 import {
   ConnectionProfileInputSchema,
   ConnectionProfileSchema,
@@ -14,6 +15,17 @@ import {
   IndexInfoSchema,
 } from '../schemas/catalog';
 import { SettingsPatchSchema, SettingsSchema } from '../schemas/settings';
+import {
+  MonitorConfigOutputSchema,
+  MonitorKillInputSchema,
+  MonitorOperationsInputSchema,
+  MonitorOperationsOutputSchema,
+  MonitorSamplesInputSchema,
+  MonitorSamplesOutputSchema,
+  MonitorSetIntervalInputSchema,
+  MonitorStartInputSchema,
+  MonitorStopInputSchema,
+} from '../schemas/monitor';
 import { FavouriteInputSchema, FavouriteSchema, HistoryEntrySchema } from '../schemas/history';
 import { VaultStatusSchema } from '../schemas/vault';
 import {
@@ -28,6 +40,23 @@ import {
   ShellSchemaSampleSchema,
   ShellStateSchema,
 } from '../shell/rpc-schemas';
+import {
+  DEFAULT_TAIL_POLL_MS,
+  MAX_TAIL_POLL_MS,
+  MIN_TAIL_POLL_MS,
+  ProfileCollectionInfoSchema,
+  ProfileEntrySchema,
+  ProfileFilterSchema,
+  ProfilingLevelSchema,
+  QueryShapeSchema,
+  SetProfilingLevelInputSchema,
+} from '../profiler/types';
+import {
+  DockerContainerIdSchema,
+  DockerMongoContainerSummarySchema,
+  DockerStatusSchema,
+} from '../docker/types';
+import { UpdateStateSchema } from '../updates/types';
 import { defineCall, type RpcContract } from './define';
 
 const idParam = z.object({ id: z.uuid() });
@@ -36,6 +65,53 @@ const databaseParam = connectionParam.extend({ database: z.string().min(1) });
 const collectionParam = databaseParam.extend({ collection: z.string().min(1) });
 const password = z.string().min(1);
 const newPassword = z.string().min(10);
+
+/** The runtime URL class. Declared at module scope so no other package sees a changed global. */
+declare const URL: ParsedUrlConstructor;
+
+const PROJECT_PATH_PREFIX = '/eriksimonic/mongodb-mager/';
+const MAX_LINK_LENGTH = 2048;
+const ENCODED_DOT_OR_SLASH = /%2e|%2f/i;
+
+/** Spaces, tabs, line breaks and other control characters. */
+function hasWhitespaceOrControl(value: string): boolean {
+  for (const char of value) {
+    const code = char.codePointAt(0) ?? 0;
+    if (code <= 0x20 || code === 0x7f || /\s/.test(char)) {
+      return true;
+    }
+  }
+  return false;
+}
+
+/**
+ * True only for an https link to a page of the project on github.com. The check runs on the
+ * parsed URL, so a traversal segment, a user name or a look-alike host cannot pass.
+ */
+export function isProjectLink(value: string): boolean {
+  if (hasWhitespaceOrControl(value) || ENCODED_DOT_OR_SLASH.test(value)) {
+    return false;
+  }
+  let url: ParsedUrl;
+  try {
+    url = new URL(value);
+  } catch {
+    return false;
+  }
+  return (
+    url.protocol === 'https:' &&
+    url.hostname === 'github.com' &&
+    url.port === '' &&
+    url.username === '' &&
+    url.password === '' &&
+    url.pathname.startsWith(PROJECT_PATH_PREFIX)
+  );
+}
+
+const externalUrl = z
+  .string()
+  .max(MAX_LINK_LENGTH)
+  .refine(isProjectLink, 'The link must point to a page of the project on GitHub.');
 
 export const rpcContract = {
   vault: {
@@ -82,6 +158,14 @@ export const rpcContract = {
     get: defineCall(z.void(), SettingsSchema),
     update: defineCall(SettingsPatchSchema, SettingsSchema),
   },
+  monitor: {
+    start: defineCall(MonitorStartInputSchema, MonitorConfigOutputSchema),
+    stop: defineCall(MonitorStopInputSchema, z.void()),
+    samples: defineCall(MonitorSamplesInputSchema, MonitorSamplesOutputSchema),
+    operations: defineCall(MonitorOperationsInputSchema, MonitorOperationsOutputSchema),
+    killOperation: defineCall(MonitorKillInputSchema, z.void()),
+    setInterval: defineCall(MonitorSetIntervalInputSchema, MonitorConfigOutputSchema),
+  },
   history: {
     list: defineCall(
       z.object({
@@ -97,5 +181,56 @@ export const rpcContract = {
     list: defineCall(z.void(), z.array(FavouriteSchema)),
     save: defineCall(FavouriteInputSchema, FavouriteSchema),
     remove: defineCall(idParam, z.void()),
+  },
+  profiler: {
+    level: defineCall(databaseParam, ProfilingLevelSchema),
+    setLevel: defineCall(
+      databaseParam.extend(SetProfilingLevelInputSchema.omit({ filter: true }).shape),
+      ProfilingLevelSchema,
+    ),
+    list: defineCall(
+      databaseParam.extend({ filter: ProfileFilterSchema }),
+      z.array(ProfileEntrySchema),
+    ),
+    shapes: defineCall(
+      databaseParam.extend({ filter: ProfileFilterSchema }),
+      z.array(QueryShapeSchema),
+    ),
+    info: defineCall(databaseParam, ProfileCollectionInfoSchema),
+    tail: defineCall(
+      databaseParam.extend({
+        enabled: z.boolean(),
+        pollMs: z
+          .number()
+          .int()
+          .min(MIN_TAIL_POLL_MS)
+          .max(MAX_TAIL_POLL_MS)
+          .default(DEFAULT_TAIL_POLL_MS),
+        filter: ProfileFilterSchema.optional(),
+      }),
+      z.void(),
+    ),
+  },
+  docker: {
+    status: defineCall(z.void(), DockerStatusSchema),
+    list: defineCall(z.void(), z.array(DockerMongoContainerSummarySchema)),
+    connect: defineCall(
+      z.object({ containerId: DockerContainerIdSchema }),
+      z.object({ connectionId: z.uuid(), status: ConnectionStatusSchema }),
+    ),
+    disconnect: defineCall(z.object({ containerId: DockerContainerIdSchema }), z.void()),
+    setAutoConnect: defineCall(z.object({ enabled: z.boolean() }), SettingsSchema),
+    /** Starts or stops the 10 second poll that pushes `docker:containers` events. */
+    watch: defineCall(z.object({ enabled: z.boolean() }), z.void()),
+  },
+  updates: {
+    state: defineCall(z.void(), UpdateStateSchema),
+    check: defineCall(z.void(), UpdateStateSchema),
+    download: defineCall(z.void(), UpdateStateSchema),
+    install: defineCall(z.void(), z.void()),
+    dismiss: defineCall(z.object({ version: z.string().min(1).max(64) }), UpdateStateSchema),
+  },
+  app: {
+    openExternal: defineCall(z.object({ url: externalUrl }), z.void()),
   },
 } satisfies RpcContract;

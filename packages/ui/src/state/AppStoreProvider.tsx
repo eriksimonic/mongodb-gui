@@ -18,6 +18,11 @@ export function AppStoreProvider({ initialState, children }: AppStoreProviderPro
 
   useEffect(() => {
     void store.getState().refreshVault();
+    // A failed read leaves the updater state at its default, which shows nothing.
+    store
+      .getState()
+      .refreshUpdates()
+      .catch(() => undefined);
   }, [store]);
 
   return <AppStoreContext.Provider value={store}>{children}</AppStoreContext.Provider>;

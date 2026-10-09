@@ -1,4 +1,5 @@
-import { app, BrowserWindow, session } from 'electron';
+import { app, BrowserWindow, session, shell } from 'electron';
+import { autoUpdater } from 'electron-updater';
 import { join } from 'node:path';
 import { devServerUrl, isAppUrl, rendererDirectory } from './app-origin';
 import { log } from './log';
@@ -69,6 +70,7 @@ function createMainWindow(): void {
   const window = new BrowserWindow({
     width: 1200,
     height: 800,
+    minWidth: 1024,
     show: false,
     webPreferences: {
       preload: preloadPath,
@@ -87,10 +89,28 @@ function createMainWindow(): void {
     window.show();
   });
 
+  // The first update check runs ten seconds after the page loads and never blocks startup.
+  // The check is armed here rather than on ready-to-show, which did not fire in testing.
+  window.webContents.once('did-finish-load', () => {
+    services?.updates.start();
+  });
+
   window.on('closed', () => {
     if (mainWindow === window) {
       mainWindow = undefined;
     }
+    router?.resetRenderer();
+  });
+
+  // A reload or a new page drops what the old page subscribed to. Same-document navigations keep
+  // the page, so they do not reset.
+  window.webContents.on('did-start-navigation', (_event, _url, isInPlace, isMainFrame) => {
+    if (isMainFrame && !isInPlace) {
+      router?.resetRenderer();
+    }
+  });
+  window.webContents.on('render-process-gone', () => {
+    router?.resetRenderer();
   });
 
   window.webContents.setWindowOpenHandler(() => ({ action: 'deny' }));
@@ -130,6 +150,12 @@ app
     const appServices = createAppServices({
       userDataDir: app.getPath('userData'),
       shell: { entryPath: shellRuntimePath, fork: utilityFork },
+      updates: {
+        autoUpdater,
+        platform: process.platform,
+        isPackaged: app.isPackaged,
+        appVersion: app.getVersion(),
+      },
     });
     services = appServices;
     router = createRouter({
@@ -139,7 +165,10 @@ app
           sendEvent(mainWindow, event);
         }
       },
+      openExternal: (url) => shell.openExternal(url),
     });
+    // Forwarders left behind by a crash or a force quit are removed before the user can connect.
+    void appServices.docker.cleanupAll();
     createMainWindow();
 
     app.on('activate', () => {

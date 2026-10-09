@@ -2,6 +2,9 @@ import { z } from 'zod';
 
 export const DEFAULT_PROFILE_LIMIT = 200;
 export const MAX_PROFILE_LIMIT = 5000;
+export const DEFAULT_TAIL_POLL_MS = 2000;
+export const MIN_TAIL_POLL_MS = 50;
+export const MAX_TAIL_POLL_MS = 60_000;
 
 export const ProfileOpSchema = z.enum([
   'query',
@@ -70,8 +73,15 @@ export const ProfileFilterSchema = z.object({
 
 export const TailProfileOptionsSchema = z.object({
   since: z.iso.datetime(),
-  pollMs: z.number().int().min(50).max(60_000),
+  pollMs: z.number().int().min(MIN_TAIL_POLL_MS).max(MAX_TAIL_POLL_MS),
   filter: ProfileFilterSchema.optional(),
+});
+
+// What the profiler reports about system.profile: whether it exists, and its size and document count.
+export const ProfileCollectionInfoSchema = z.object({
+  exists: z.boolean(),
+  sizeBytes: z.number().nonnegative().optional(),
+  count: z.number().nonnegative().optional(),
 });
 
 export const QueryShapeSchema = z.object({
@@ -94,3 +104,4 @@ export type ProfileEntry = z.infer<typeof ProfileEntrySchema>;
 export type ProfileFilter = z.infer<typeof ProfileFilterSchema>;
 export type TailProfileOptions = z.infer<typeof TailProfileOptionsSchema>;
 export type QueryShape = z.infer<typeof QueryShapeSchema>;
+export type ProfileCollectionInfo = z.infer<typeof ProfileCollectionInfoSchema>;

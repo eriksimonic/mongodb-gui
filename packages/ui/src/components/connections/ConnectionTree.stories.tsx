@@ -91,3 +91,25 @@ export const ConnectionError: Story = {
     ),
   ],
 };
+
+/** The Docker node lists a container with a published port and one that connects through a forwarder. */
+export const DockerContainers: Story = {
+  decorators: [
+    (Story) => (
+      <AppRoot api={createMockUiApi({ preset: 'unlocked' })}>
+        <Story />
+      </AppRoot>
+    ),
+  ],
+};
+
+/** The engine cannot be reached. The Docker node shows the reason and no containers. */
+export const DockerUnavailable: Story = {
+  decorators: [
+    (Story) => (
+      <AppRoot api={createMockUiApi({ preset: 'unlocked', docker: 'unavailable' })}>
+        <Story />
+      </AppRoot>
+    ),
+  ],
+};
