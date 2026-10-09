@@ -1,8 +1,10 @@
 import {
   IconBrandDocker,
+  IconChartLine,
   IconChevronDown,
   IconChevronRight,
   IconDatabase,
+  IconListDetails,
 } from '@tabler/icons-react';
 import type { MouseEvent } from 'react';
 import { CollectionIcon } from './CollectionIcon';
@@ -94,6 +96,12 @@ function RowIcon({ row }: { readonly row: TreeRowModel }) {
   }
   if (row.kind === 'docker' || row.kind === 'container') {
     return <IconBrandDocker size={14} />;
+  }
+  if (row.kind === 'monitor') {
+    return <IconChartLine size={14} />;
+  }
+  if (row.kind === 'operations') {
+    return <IconListDetails size={14} />;
   }
   return <IconDatabase size={14} />;
 }

@@ -22,9 +22,12 @@ release.
 | ------------------------------------------------------------------------------------------------ | ----------------------------------------------------------------------------- |
 | ![Connection tree with databases and collections expanded](docs/screenshots/connection-tree.png) | ![New connection dialog in form mode](docs/screenshots/connection-dialog.png) |
 
-| Docker node in the connection tree                                                |
-| --------------------------------------------------------------------------------- |
-| ![Docker node listing local MongoDB containers](docs/screenshots/docker-tree.png) |
+| Docker node in the connection tree                                                    |
+| ------------------------------------------------------------------------------------- |
+| ![Docker node listing local MongoDB containers](docs/screenshots/docker-tree.png)     |
+| Monitor dashboard                                                                     | Running operations                                                                         |
+| ------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------ |
+| ![Live monitoring dashboard with stat tiles and charts](docs/screenshots/monitor.png) | ![Running operations with filters and a long aggregation](docs/screenshots/operations.png) |
 
 ## Prerequisites
 
@@ -83,8 +86,23 @@ and choose "Open Anyway". On Linux, no signature check applies. Run `chmod +x` o
 AppImage, or install the `.deb` with `apt install ./<file>.deb`.
 
 Downloads appear on the [Releases page](https://github.com/eriksimonic/mongodb-mager/releases).
-The app does not check for updates yet. Install each new version by hand until the
-updater lands.
+
+### Updates
+
+The app checks GitHub for a new release about ten seconds after you unlock it, and then every
+six hours. The check runs in the background and never delays startup. The setting lives in the
+encrypted store, so the first check waits for the master password. A check that fails, for
+example while the machine is offline, stays out of sight, and the app tries again on the next
+schedule. An available update shows a notice in the toolbar with its version.
+
+On the AppImage and the Windows installer, the app downloads the update when you choose
+Download. When the download finishes, choose Restart to update. Choose Later to keep working,
+and the update installs the next time you quit. On the `.deb` package and on macOS, the app
+cannot replace itself. It shows the version and a Download from GitHub link, and you install
+the new version by hand.
+
+Turn off "Check for updates" in Settings to stop all checks. The app then makes no requests to
+GitHub until you turn the setting back on.
 
 ## Documentation
 

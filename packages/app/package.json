@@ -44,5 +44,8 @@
     "react": "^19.3.0",
     "react-dom": "^19.3.0",
     "vite": "^7.3.7"
+  },
+  "dependencies": {
+    "electron-updater": "^6.8.9"
   }
 }

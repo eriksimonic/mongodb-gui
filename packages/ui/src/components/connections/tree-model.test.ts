@@ -1,6 +1,12 @@
 import type { ConnectionProfileSummary, ConnectionStatus } from '@mongo-gui/core';
 import { describe, expect, it } from 'vitest';
-import { DOCKER_NODE_ID, connectionNodeId, databaseNodeId } from '../../state/node-ids';
+import {
+  DOCKER_NODE_ID,
+  connectionNodeId,
+  databaseNodeId,
+  monitorNodeId,
+  operationsNodeId,
+} from '../../state/node-ids';
 import {
   buildTreeRows,
   edgeFocusKey,
@@ -100,6 +106,8 @@ describe('buildTreeRows', () => {
     );
     expect(rows.map((row) => `${row.depth}:${row.label}`)).toEqual([
       '0:Local dev',
+      '1:Monitoring',
+      '1:Operations',
       '1:shop',
       '2:orders',
       '1:logs',
@@ -120,7 +128,28 @@ describe('buildTreeRows', () => {
         databases: { [local.id]: { state: 'loading' } },
       }),
     );
-    expect(rows[1]).toMatchObject({ kind: 'message', label: 'Loading databases' });
+    expect(rows[3]).toMatchObject({ kind: 'message', label: 'Loading databases' });
+  });
+
+  it('adds Monitoring and Operations under a connected connection only', () => {
+    const connectedRows = buildTreeRows(
+      input({
+        statuses: { [local.id]: connected },
+        expanded: { [connectionNodeId(local.id)]: true },
+      }),
+    );
+    expect(connectedRows[1]).toMatchObject({
+      kind: 'monitor',
+      label: 'Monitoring',
+      key: monitorNodeId(local.id),
+      parentKey: connectionNodeId(local.id),
+    });
+    expect(connectedRows[2]).toMatchObject({ kind: 'operations', label: 'Operations' });
+
+    const disconnectedRows = buildTreeRows(
+      input({ expanded: { [connectionNodeId(local.id)]: true } }),
+    );
+    expect(disconnectedRows.some((row) => row.kind === 'monitor')).toBe(false);
   });
 });
 
@@ -137,10 +166,13 @@ describe('keyboard movement helpers', () => {
   );
   const localKey = connectionNodeId(local.id);
   const shopKey = databaseNodeId(local.id, 'shop');
+  const monitorKey = monitorNodeId(local.id);
+  const operationsKey = operationsNodeId(local.id);
 
   it('moves down and up over focusable rows only', () => {
-    expect(nextFocusKey(rows, localKey, 1)).toBe(shopKey);
-    expect(nextFocusKey(rows, shopKey, -1)).toBe(localKey);
+    expect(nextFocusKey(rows, localKey, 1)).toBe(monitorKey);
+    expect(nextFocusKey(rows, operationsKey, 1)).toBe(shopKey);
+    expect(nextFocusKey(rows, shopKey, -1)).toBe(operationsKey);
   });
 
   it('stops at the ends of the list', () => {
@@ -149,7 +181,7 @@ describe('keyboard movement helpers', () => {
   });
 
   it('finds the first child of a parent', () => {
-    expect(firstChildKey(rows, localKey)).toBe(shopKey);
+    expect(firstChildKey(rows, localKey)).toBe(monitorKey);
     expect(firstChildKey(rows, connectionNodeId(staging.id))).toBeUndefined();
   });
 });

@@ -11,6 +11,7 @@ export const SettingsSchema = z.object({
   editorFontSize: z.number().positive(),
   sampleSize: z.number().int().positive(),
   dockerAutoConnect: z.boolean(),
+  checkForUpdates: z.boolean(),
 });
 
 export const SettingsPatchSchema = SettingsSchema.partial();

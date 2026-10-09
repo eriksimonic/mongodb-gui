@@ -11,6 +11,7 @@ describe('defaultSettings', () => {
       editorFontSize: 13,
       sampleSize: 100,
       dockerAutoConnect: false,
+      checkForUpdates: true,
     });
   });
 
