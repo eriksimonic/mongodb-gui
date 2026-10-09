@@ -1,6 +1,7 @@
 import react from '@vitejs/plugin-react';
 import { defineConfig, externalizeDepsPlugin } from 'electron-vite';
 import { join } from 'node:path';
+import { optionalModuleAliases, optionalModuleCommonjsOptions } from './scripts/main-build';
 
 const appRoot = import.meta.dirname;
 
@@ -13,15 +14,22 @@ const bundledWorkspacePackages = [
   '@mongo-gui/storage',
 ];
 
-export default defineConfig({
+export default defineConfig(({ command }) => ({
   main: {
     // electron-updater is bundled into the main bundle. It reads app-update.yml from the
     // resources directory at run time, which works inside the asar.
     plugins: [
       externalizeDepsPlugin({ exclude: [...bundledWorkspacePackages, 'electron-updater'] }),
     ],
+    resolve: {
+      alias: optionalModuleAliases(appRoot),
+    },
     build: {
       outDir: join(appRoot, 'out/main'),
+      // The dev server empties this folder when it starts. The shell runtime bundle is built into
+      // the same folder before dev starts, so dev keeps the folder as it is.
+      emptyOutDir: command === 'build',
+      commonjsOptions: optionalModuleCommonjsOptions(),
     },
   },
   preload: {
@@ -50,4 +58,4 @@ export default defineConfig({
       minify: 'esbuild',
     },
   },
-});
+}));

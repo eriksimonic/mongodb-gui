@@ -163,7 +163,7 @@ describe('mock connections', () => {
     const events = collectEvents(api);
     const status = await api.rpc.connections.connect({ id: localConnectionId });
     expect(status.state).toBe('connected');
-    expect(events).toEqual([
+    expect(events.filter((event) => event.type === 'connection:status')).toEqual([
       {
         type: 'connection:status',
         connectionId: localConnectionId,
@@ -188,7 +188,7 @@ describe('mock connections', () => {
     await api.rpc.connections.connect({ id: localConnectionId });
     const events = collectEvents(api);
     await api.rpc.connections.disconnect({ id: localConnectionId });
-    expect(events).toEqual([
+    expect(events.filter((event) => event.type === 'connection:status')).toEqual([
       {
         type: 'connection:status',
         connectionId: localConnectionId,

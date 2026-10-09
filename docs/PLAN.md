@@ -107,6 +107,11 @@ customer data) and favourites from anyone who copies the user's profile director
 reads a backup. Not in scope: an attacker with code running as the logged-in user while
 the app is unlocked.
 
+User code in the runtime process shares that process with the runtime's own state, so a
+script can change what later results show until the process restarts. That is the same
+trust as the user's own script, and the runtime process holds no secrets beyond the URI
+it was given.
+
 ### 3.2 Key hierarchy
 
 ```

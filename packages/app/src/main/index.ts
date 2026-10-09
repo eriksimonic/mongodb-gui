@@ -5,8 +5,11 @@ import { devServerUrl, isAppUrl, rendererDirectory } from './app-origin';
 import { log } from './log';
 import { createAppServices, createRouter, type AppServices, type Router } from './rpc/router';
 import { registerIpc, sendEvent } from './rpc/ipc';
+import { utilityFork } from './shell/utility-fork';
 
 const preloadPath = join(import.meta.dirname, '../preload/index.cjs');
+// Built next to this file by the build:shell-runtime script.
+const shellRuntimePath = join(import.meta.dirname, 'shell-runtime.cjs');
 
 // Tests point the profile at a temporary directory. A packaged app never honours this.
 const userDataOverride = app.isPackaged ? undefined : process.env['MONGO_GUI_USER_DATA'];
@@ -149,6 +152,7 @@ app
     installContentSecurityPolicy();
     const appServices = createAppServices({
       userDataDir: app.getPath('userData'),
+      shell: { entryPath: shellRuntimePath, fork: utilityFork },
       updates: {
         autoUpdater,
         platform: process.platform,
