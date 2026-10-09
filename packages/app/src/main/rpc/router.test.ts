@@ -652,7 +652,8 @@ describe('idle lock setting', () => {
     }
   });
 
-  it('unlocks even when the stored idle lock is out of range, and logs the fallback', async () => {
+  it('unlocks when the stored idle lock is out of range and keeps the 30 minute default', async () => {
+    vi.useFakeTimers();
     const dir = mkdtempSync(join(tmpdir(), 'idle-bad-'));
     try {
       const first = createAppServices({ userDataDir: dir, kdf: FAST_KDF, failureDelayMs: 0 });
@@ -666,21 +667,15 @@ describe('idle lock setting', () => {
         await first.dispose();
       }
 
-      const captured = captureLogger();
       const second = createAppServices({ userDataDir: dir, kdf: FAST_KDF, failureDelayMs: 0 });
       try {
-        const secondRouter = createRouter({
-          ...second,
-          onEvent: () => undefined,
-          log: captured.logger,
-        });
+        const secondRouter = createRouter({ ...second, onEvent: () => undefined });
         expectValue(await secondRouter.handle('vault.unlock', { password: PASSWORD }));
-        expect(second.vault.status()).toEqual({
-          state: 'unlocked',
-        });
-        expect(captured.records).toContainEqual(
-          expect.objectContaining({ level: 'warn', message: expect.stringContaining('default') }),
-        );
+        // The invalid field is dropped, so the vault keeps its 30 minute default.
+        vi.advanceTimersByTime(29 * 60_000);
+        expect(second.vault.status()).toEqual({ state: 'unlocked' });
+        vi.advanceTimersByTime(60_000);
+        expect(second.vault.status()).toEqual({ state: 'locked' });
       } finally {
         await second.dispose();
       }

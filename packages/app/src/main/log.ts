@@ -30,11 +30,13 @@ export const log: Logger = createLogger((line) => {
 });
 
 function formatLine(level: Level, message: string, fields: LogFields | undefined): string {
+  // Caller fields sit under their own key, so a field named message or level cannot replace
+  // the entry's own values.
   const record = {
-    ...fields,
     time: new Date().toISOString(),
     level,
     message,
+    fields: fields ?? {},
   };
   try {
     return JSON.stringify(record, (_key, value: unknown) =>

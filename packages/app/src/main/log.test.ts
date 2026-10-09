@@ -14,8 +14,29 @@ describe('createLogger', () => {
 
     expect(lines).toHaveLength(1);
     const record: unknown = JSON.parse(lines[0] ?? '');
-    expect(record).toMatchObject({ level: 'warn', message: 'slow start', attempt: 2 });
+    expect(record).toMatchObject({ level: 'warn', message: 'slow start', fields: { attempt: 2 } });
     expect(record).toHaveProperty('time');
+  });
+
+  it('keeps a caller field named message apart from the log message', () => {
+    const { lines, logger } = capture();
+
+    logger.error('rpc call failed unexpectedly', { error: 'driver text', message: 'caller copy' });
+
+    expect(JSON.parse(lines[0] ?? '')).toMatchObject({
+      message: 'rpc call failed unexpectedly',
+      level: 'error',
+      fields: { error: 'driver text', message: 'caller copy' },
+    });
+  });
+
+  it('masks a URI found in a caller field named message', () => {
+    const { lines, logger } = capture();
+
+    logger.warn('stored idle lock not applied', { message: 'reached mongodb://u:p@h' });
+
+    expect(lines[0]).toContain('mongodb://u:***@h');
+    expect(lines[0]).not.toContain('u:p@h');
   });
 
   it('masks the password in a URI that appears in the message', () => {

@@ -34,7 +34,7 @@ export function registerIpc(router: Router, window: BrowserWindow): void {
       } catch (error) {
         // The router never throws, so this path means a bug in the checks above. The renderer
         // still gets an answer, and the cause goes to the log.
-        log.error('ipc handler failed', { message: toAppError(error).message });
+        log.error('ipc handler failed', { error: toAppError(error).message });
         return { ok: false, error: appError('INTERNAL', 'Unexpected error') };
       }
     },

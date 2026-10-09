@@ -270,7 +270,7 @@ export function createRouter(deps: RouterDeps): Router {
       const mapped = toAppError(error);
       deps.log?.warn('stored idle lock not applied, keeping the default', {
         code: mapped.code,
-        message: mapped.message,
+        error: mapped.message,
       });
     }
   }
@@ -288,14 +288,14 @@ export function createRouter(deps: RouterDeps): Router {
         known.code === 'VAULT_LOCKED' && deps.vault.status().state === 'uninitialised'
           ? appError('VAULT_NOT_INITIALISED', 'The vault has not been set up yet.')
           : known;
-      deps.log?.warn('rpc call failed', { method, code: response.code, message: response.message });
+      deps.log?.warn('rpc call failed', { method, code: response.code, error: response.message });
       return response;
     }
     const raw = toAppError(error);
     deps.log?.error('rpc call failed unexpectedly', {
       method,
       code: 'INTERNAL',
-      message: raw.message,
+      error: raw.message,
     });
     return appError('INTERNAL', 'Unexpected error');
   }
