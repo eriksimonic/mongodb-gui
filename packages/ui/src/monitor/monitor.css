@@ -1,0 +1,92 @@
+/* Chart readouts. Colours are Mantine tokens so the panel follows the app theme. */
+
+.mg-chart {
+  position: relative;
+  width: 100%;
+  min-width: 0;
+}
+
+.mg-chart-tooltip {
+  position: absolute;
+  top: 0;
+  left: 0;
+  z-index: 2;
+  min-width: 180px;
+  padding: 6px 8px;
+  border: 1px solid var(--mantine-color-dark-4);
+  border-radius: var(--mantine-radius-sm);
+  background: var(--mantine-color-dark-6);
+  box-shadow: 0 4px 12px rgb(0 0 0 / 35%);
+  font-size: 12px;
+  line-height: 1.5;
+  pointer-events: none;
+}
+
+.mg-chart-tooltip[hidden] {
+  display: none;
+}
+
+.mg-chart-tooltip-time {
+  margin-bottom: 2px;
+  color: var(--mantine-color-dark-1);
+}
+
+.mg-chart-tooltip-row {
+  display: grid;
+  grid-template-columns: 10px 1fr auto;
+  align-items: center;
+  gap: 6px;
+}
+
+.mg-chart-tooltip-key {
+  display: block;
+  width: 10px;
+  height: 2px;
+  border-radius: 1px;
+}
+
+.mg-chart-tooltip-label {
+  color: var(--mantine-color-dark-1);
+}
+
+.mg-chart-tooltip-value {
+  color: var(--mantine-color-gray-0);
+  font-weight: 600;
+  font-variant-numeric: tabular-nums;
+}
+
+.mg-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 12px;
+  color: var(--mantine-color-dark-1);
+  white-space: nowrap;
+}
+
+.mg-chip-key {
+  display: inline-block;
+  width: 12px;
+  height: 2px;
+  border-radius: 1px;
+}
+
+.mg-chip-value {
+  color: var(--mantine-color-gray-0);
+  font-weight: 600;
+  font-variant-numeric: tabular-nums;
+}
+
+.mg-chart-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(340px, 1fr));
+  gap: var(--mantine-spacing-sm);
+}
+
+.mg-dashboard-frame {
+  transition: opacity 150ms ease;
+}
+
+.mg-dashboard-frame[data-stale='true'] {
+  opacity: 0.5;
+}

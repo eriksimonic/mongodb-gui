@@ -14,6 +14,17 @@ import {
   IndexInfoSchema,
 } from '../schemas/catalog';
 import { SettingsPatchSchema, SettingsSchema } from '../schemas/settings';
+import {
+  MonitorConfigOutputSchema,
+  MonitorKillInputSchema,
+  MonitorOperationsInputSchema,
+  MonitorOperationsOutputSchema,
+  MonitorSamplesInputSchema,
+  MonitorSamplesOutputSchema,
+  MonitorSetIntervalInputSchema,
+  MonitorStartInputSchema,
+  MonitorStopInputSchema,
+} from '../schemas/monitor';
 import { FavouriteInputSchema, FavouriteSchema, HistoryEntrySchema } from '../schemas/history';
 import { VaultStatusSchema } from '../schemas/vault';
 import { defineCall, type RpcContract } from './define';
@@ -60,6 +71,14 @@ export const rpcContract = {
   settings: {
     get: defineCall(z.void(), SettingsSchema),
     update: defineCall(SettingsPatchSchema, SettingsSchema),
+  },
+  monitor: {
+    start: defineCall(MonitorStartInputSchema, MonitorConfigOutputSchema),
+    stop: defineCall(MonitorStopInputSchema, z.void()),
+    samples: defineCall(MonitorSamplesInputSchema, MonitorSamplesOutputSchema),
+    operations: defineCall(MonitorOperationsInputSchema, MonitorOperationsOutputSchema),
+    killOperation: defineCall(MonitorKillInputSchema, z.void()),
+    setInterval: defineCall(MonitorSetIntervalInputSchema, MonitorConfigOutputSchema),
   },
   history: {
     list: defineCall(
