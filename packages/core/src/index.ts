@@ -1,1 +1,21 @@
 export const corePackageName = '@mongo-gui/core';
+
+export * from './domain/catalog';
+export * from './domain/connection';
+export * from './domain/errors';
+export * from './domain/history';
+export * from './domain/settings';
+export * from './domain/vault';
+export * from './ids';
+export * from './redact';
+export * from './rpc/client';
+export * from './rpc/contract';
+export * from './rpc/define';
+export * from './rpc/events';
+export * from './schemas/catalog';
+export * from './schemas/connection';
+export * from './schemas/errors';
+export * from './schemas/events';
+export * from './schemas/history';
+export * from './schemas/settings';
+export * from './schemas/vault';
