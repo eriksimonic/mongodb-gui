@@ -145,8 +145,6 @@ export function createAppStore(api: UiApi, initial: Partial<AppData> = {}): AppS
   const { rpc } = api;
   // Outside the state on purpose: these only matter to in-flight calls, not to rendering.
   const monitorGenerations = new Map<string, number>();
-  // The interval the user chose, kept so a reconnect restarts the sampler at the same rate.
-  const preferredIntervals = new Map<string, number>();
 
   return createStore<AppState>()((set, get) => {
     function clearSession(): void {
@@ -297,7 +295,7 @@ export function createAppStore(api: UiApi, initial: Partial<AppData> = {}): AppS
 
       async startMonitor(connectionId, intervalMs) {
         const generation = bumpMonitorGeneration(connectionId);
-        const requested = intervalMs ?? preferredIntervals.get(connectionId);
+        const requested = intervalMs ?? get().monitors[connectionId]?.preferredIntervalMs;
         const config = await rpc.monitor.start({ connectionId, intervalMs: requested });
         const history = await rpc.monitor.samples({ connectionId });
         // A stop, a disconnect or a newer start that happened meanwhile wins over this result.
@@ -307,13 +305,11 @@ export function createAppStore(api: UiApi, initial: Partial<AppData> = {}): AppS
         if (get().statuses[connectionId]?.state !== 'connected') {
           return;
         }
-        preferredIntervals.set(connectionId, config.intervalMs);
         updateMonitor(connectionId, (view) => applyStarted(view, config, history));
       },
 
       async setMonitorInterval(connectionId, intervalMs) {
         const config = await rpc.monitor.setInterval({ connectionId, intervalMs });
-        preferredIntervals.set(connectionId, config.intervalMs);
         updateMonitor(connectionId, (view) => applyIntervalChange(view, config));
       },
 

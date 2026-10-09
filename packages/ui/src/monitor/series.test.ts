@@ -133,6 +133,29 @@ describe('series breaks and folding', () => {
     expect(series.operations[1]?.values).toEqual([10, 10]);
   });
 
+  it('does not break history recorded at 10 s after the interval drops to 1 s', () => {
+    const slow = [0, 10, 20, 30].map((second) => sampleAt(second));
+    const fast = [31, 32, 33].map((second) => sampleAt(second));
+    const series = seriesFromSamples([...slow, ...fast], 1000);
+    expect(series.times).toHaveLength(7);
+    expect(series.operations[1]?.values.includes(null)).toBe(false);
+  });
+
+  it('keeps 10 s history in the disconnected view, which uses the 2 s default', () => {
+    const slow = [0, 10, 20, 30, 40, 50].map((second) => sampleAt(second));
+    const series = seriesFromSamples(slow, 2000);
+    expect(series.times).toHaveLength(6);
+    expect(series.operations[1]?.values.includes(null)).toBe(false);
+  });
+
+  it('still breaks the line at a real outage between fast samples', () => {
+    const before = [0, 1, 2].map((second) => sampleAt(second));
+    const after = [62, 63, 64].map((second) => sampleAt(second));
+    const series = seriesFromSamples([...before, ...after], 1000);
+    expect(series.times).toHaveLength(7);
+    expect(series.operations[1]?.values[3]).toBeNull();
+  });
+
   it('plots current connections and keeps available as a readout', () => {
     const sample = sampleAt(0, { connections: { current: 40, available: 800_000, active: 12 } });
     const series = seriesFromSamples([sample]);

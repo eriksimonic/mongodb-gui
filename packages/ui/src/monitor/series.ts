@@ -143,17 +143,30 @@ interface Point {
   readonly sample: MonitorSample | undefined;
 }
 
+/**
+ * A pair of samples is a gap when its spacing exceeds 2.5 times the spacing around it. The spacing
+ * around a pair is the larger of its neighbouring pairs, and never less than the current interval.
+ * The local spacing keeps history recorded at an older interval intact after the interval changes.
+ */
 function pointsOf(samples: readonly MonitorSample[], intervalMs: number): Point[] {
+  const times = samples.map((sample) => Date.parse(sample.at));
+  const deltas = times.slice(1).map((time, index) => time - (times[index] ?? time));
   const points: Point[] = [];
-  let previous: number | undefined;
-  for (const sample of samples) {
-    const time = Date.parse(sample.at) / MS_PER_SECOND;
-    if (previous !== undefined && (time - previous) * MS_PER_SECOND > GAP_FACTOR * intervalMs) {
-      points.push({ time: previous + intervalMs / MS_PER_SECOND, sample: undefined });
+  samples.forEach((sample, index) => {
+    const time = times[index] ?? 0;
+    if (index > 0) {
+      const delta = deltas[index - 1] ?? 0;
+      const neighbours = [deltas[index - 2], deltas[index]].filter(
+        (value): value is number => value !== undefined,
+      );
+      const local = Math.max(intervalMs, ...neighbours);
+      if (delta > GAP_FACTOR * local) {
+        const breakTime = (times[index - 1] ?? time) + intervalMs;
+        points.push({ time: breakTime / MS_PER_SECOND, sample: undefined });
+      }
     }
-    points.push({ time, sample });
-    previous = time;
-  }
+    points.push({ time: time / MS_PER_SECOND, sample });
+  });
   return points;
 }
 

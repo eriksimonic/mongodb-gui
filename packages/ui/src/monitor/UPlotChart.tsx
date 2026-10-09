@@ -120,6 +120,9 @@ function renderTooltip(plot: uPlot, element: HTMLDivElement, series: readonly Ch
   const top = plot.cursor.top ?? 0;
   const overWidth = plot.over.clientWidth;
   const overHeight = plot.over.clientHeight;
+  // A tall tooltip in a short plot is cut to the plot area, never drawn past its edges.
+  element.style.maxHeight = `${Math.max(0, overHeight - 2 * TOOLTIP_OFFSET_PX)}px`;
+  element.style.overflow = 'hidden';
   const preferredX =
     left > overWidth / 2
       ? left - element.offsetWidth - TOOLTIP_OFFSET_PX

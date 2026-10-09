@@ -119,7 +119,9 @@ export function MonitorDashboard({ connectionId }: MonitorDashboardProps) {
     }
   }, [connected, running, connectionId, startMonitor]);
 
-  const intervalMs = view.config?.intervalMs ?? DEFAULT_MONITOR_INTERVAL_MS;
+  // While stopped, the selector still shows the interval the user chose, so it matches what a reconnect uses.
+  const intervalMs =
+    view.config?.intervalMs ?? view.preferredIntervalMs ?? DEFAULT_MONITOR_INTERVAL_MS;
   const source = frozen ?? view.samples;
   const windowed = useMemo(() => rangeSamples(source, range), [source, range]);
   const series = useMemo(() => seriesFromSamples(windowed, intervalMs), [windowed, intervalMs]);

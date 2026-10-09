@@ -76,6 +76,7 @@ const FIXTURE_OPERATIONS: readonly FixtureOperation[] = [
       op: 'query',
       ns: 'shop.orders',
       client: '10.0.0.12:52110',
+      desc: 'conn41',
       appName: 'orders-api',
       planSummary: 'IXSCAN { status: 1, createdAt: -1 }',
       command: { find: 'orders', filter: { status: 'paid' }, limit: 50 },
@@ -92,6 +93,7 @@ const FIXTURE_OPERATIONS: readonly FixtureOperation[] = [
       op: 'update',
       ns: 'shop.orders',
       client: '10.0.0.12:52118',
+      desc: 'conn52',
       appName: 'orders-api',
       planSummary: 'IXSCAN { orderNumber: 1 }',
       command: {
@@ -111,6 +113,7 @@ const FIXTURE_OPERATIONS: readonly FixtureOperation[] = [
       op: 'command',
       ns: 'shop.events',
       client: '10.0.0.20:40876',
+      desc: 'conn77',
       appName: 'nightly-report',
       planSummary: 'COLLSCAN',
       command: {

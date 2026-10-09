@@ -13,12 +13,15 @@ export interface MonitorView {
   readonly samples: readonly MonitorSample[];
   /** The last sampler error. A new sample clears it. */
   readonly error: AppError | undefined;
+  /** The interval the user chose. Kept while stopped, so a reconnect restarts at the same rate. */
+  readonly preferredIntervalMs: number | undefined;
 }
 
 export const EMPTY_MONITOR_VIEW: MonitorView = {
   config: undefined,
   samples: [],
   error: undefined,
+  preferredIntervalMs: undefined,
 };
 
 function retentionOf(view: MonitorView): number {
@@ -47,11 +50,12 @@ export function applyStarted(
     config,
     samples: mergeSamples(view.samples, history, config.retentionMs),
     error: undefined,
+    preferredIntervalMs: config.intervalMs,
   };
 }
 
 export function applyIntervalChange(view: MonitorView, config: MonitorConfig): MonitorView {
-  return { ...view, config };
+  return { ...view, config, preferredIntervalMs: config.intervalMs };
 }
 
 /** The sampler is gone. Samples stay so the dashboard can show what it had. */

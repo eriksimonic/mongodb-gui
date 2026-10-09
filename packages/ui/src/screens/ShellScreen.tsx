@@ -100,10 +100,8 @@ function openConnectionPanel(api: DockviewApi, request: Parameters<OpenPanel>[0]
   });
 }
 
-const CONNECTION_PANEL_ID = /^(monitor|operations):(.+)$/;
-
 /**
- * Stops a connection's sampler when its last monitor or operations panel closes. A reload of the
+ * Stops a connection's sampler when its last monitor panel closes. A reload of the
  * renderer also removes the panels, but no stop is sent then. The main process stops every sampler
  * on disconnect and on lock, so nothing keeps sampling after the window is gone.
  */
@@ -112,13 +110,14 @@ function stopSamplerWhenUnused(
   removedId: string,
   stop: (connectionId: string) => Promise<void>,
 ): void {
-  const match = CONNECTION_PANEL_ID.exec(removedId);
+  // Only monitor panels read samples. An operations panel does not keep the sampler alive.
+  const match = /^monitor:(.+)$/.exec(removedId);
   if (match === null) {
     return;
   }
-  const connectionId = match[2] ?? '';
+  const connectionId = match[1] ?? '';
   const stillOpen = api.panels.some(
-    (panel) => panel.id !== removedId && CONNECTION_PANEL_ID.exec(panel.id)?.[2] === connectionId,
+    (panel) => panel.id !== removedId && panel.id === `monitor:${connectionId}`,
   );
   if (!stillOpen) {
     void runReported(() => stop(connectionId));
