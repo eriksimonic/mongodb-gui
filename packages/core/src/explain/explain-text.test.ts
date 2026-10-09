@@ -262,7 +262,7 @@ describe('explainInWords index advice', () => {
       }),
     );
     expect(words).toContain(
-      'The $sort follows a $group, $unwind or $project stage, so an index cannot return the documents in sorted order.',
+      'The $sort follows a $group stage, so an index cannot return the documents in sorted order.',
     );
     expect(words.some((sentence) => sentence.startsWith('Add an index'))).toBe(false);
   });
@@ -298,6 +298,34 @@ describe('explainInWords index advice', () => {
         }),
         warnings: [sortWarning],
       }),
+    );
+    expect(words.some((sentence) => sentence.startsWith('Add an index'))).toBe(false);
+  });
+
+  it('gives no index advice for a group that runs inside $cursor on the slot-based engine', () => {
+    const words = explainInWords(
+      tree({
+        command: 'aggregate',
+        winning: stage('$sort', {
+          sortPattern: { spent: -1 },
+          children: [
+            stage('$cursor', {
+              children: [
+                stage('GROUP', {
+                  children: [
+                    stage('FETCH', { children: [stage('IXSCAN', { indexKeys: ['status'] })] }),
+                  ],
+                }),
+              ],
+            }),
+          ],
+        }),
+        filter: { status: { $eq: 'paid' } },
+        warnings: [sortWarning],
+      }),
+    );
+    expect(words).toContain(
+      'The $sort follows a GROUP stage, so an index cannot return the documents in sorted order.',
     );
     expect(words.some((sentence) => sentence.startsWith('Add an index'))).toBe(false);
   });
@@ -376,7 +404,7 @@ describe('explainInWords write and count sentences', () => {
       }),
     );
     expect(words[0]).toBe(
-      'The planner chose the index status_1 and examined 668 keys and 0 documents and counted 0 documents.',
+      'The planner chose the index status_1 and examined 668 keys and counted 0 documents.',
     );
   });
 });
@@ -397,6 +425,19 @@ describe('indexKeyFor', () => {
 
   it('uses a range field as a sort key when it is also sorted on', () => {
     expect(indexKeyFor({ total: { $gt: 5 } }, [['total', -1]])).toEqual([['total', -1]]);
+  });
+
+  it('merges the clauses of a top-level $and', () => {
+    expect(
+      indexKeyFor(
+        { $and: [{ customerId: { $eq: 7 } }, { status: { $eq: 'paid' } }, { total: { $gt: 1 } }] },
+        [['total', 1]],
+      ),
+    ).toEqual([
+      ['customerId', 1],
+      ['status', 1],
+      ['total', 1],
+    ]);
   });
 
   it('treats $in as equality and skips $ne and $exists', () => {

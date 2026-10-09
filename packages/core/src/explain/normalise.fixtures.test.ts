@@ -5,6 +5,7 @@ import {
   type PlanEngine,
   type PlanWarningCode,
 } from './plan-tree';
+import { explainInWords } from './explain-text';
 import { normaliseExplain } from './normalise';
 
 // Every committed fixture under ./fixtures, loaded as unknown JSON.
@@ -1047,6 +1048,12 @@ describe('committed explain fixtures', () => {
     expect(tree.summary.inMemorySort).toBe(expected.inMemorySort);
     expect(tree.warnings.map((warning) => warning.code)).toEqual([...expected.warnings]);
     expect(tree.sharded).toBe(key.startsWith('sharded/'));
+    // The group sorts after $group on every engine, so no index is advised for the sort.
+    if (key.includes('aggregate-group')) {
+      expect(explainInWords(tree).some((sentence) => sentence.startsWith('Add an index'))).toBe(
+        false,
+      );
+    }
     if (tree.verbosity === 'allPlansExecution') {
       // Each rejected plan pairs with its allPlansExecution entry, so it carries counters.
       for (const rejected of tree.rejected) {

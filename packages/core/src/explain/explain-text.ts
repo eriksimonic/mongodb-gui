@@ -1,11 +1,18 @@
 import type { PlanStage, PlanTree, PlanWarning } from './plan-tree';
-import { asRecord, readNumber } from './raw-values';
+import { asArray, asRecord, readNumber } from './raw-values';
 import { flattenStages, isCollectionScanStage, isSortStage } from './stage-walk';
 
 const EQUALITY_OPERATORS: ReadonlySet<string> = new Set(['$eq', '$in']);
 const RANGE_OPERATORS: ReadonlySet<string> = new Set(['$gt', '$gte', '$lt', '$lte']);
-// Pipeline stages that change the documents so an index on the input cannot give the sort order.
-const SORT_BLOCKING_STAGES: ReadonlySet<string> = new Set(['$group', '$unwind', '$project']);
+// Stages that change the documents so an index on the input cannot give the sort order. The
+// classic names cover the slot-based engine, which runs a group inside $cursor.
+const SORT_BLOCKING_STAGES: ReadonlySet<string> = new Set([
+  '$group',
+  '$unwind',
+  '$project',
+  'GROUP',
+  'UNWIND',
+]);
 // Write and count stages, with the counter that holds the number of documents they touch.
 const COUNTERS: Readonly<Record<string, { verb: string; key: string }>> = {
   DELETE: { verb: 'to delete', key: 'nWouldDelete' },
@@ -57,11 +64,15 @@ function planSentence(tree: PlanTree): string {
   if (tree.verbosity === 'queryPlanner') {
     return `${lead}.`;
   }
+  // A count examines keys only, so its zero document count is left out.
+  const countsDocuments = tree.command !== 'count' || summary.docsExamined !== 0;
   const examined = [
     summary.keysExamined === undefined || summary.keysExamined === 0
       ? undefined
       : `${summary.keysExamined} keys`,
-    summary.docsExamined === undefined ? undefined : `${summary.docsExamined} documents`,
+    summary.docsExamined === undefined || !countsDocuments
+      ? undefined
+      : `${summary.docsExamined} documents`,
   ].filter((part): part is string => part !== undefined);
   const time = summary.executionTimeMs === undefined ? undefined : `${summary.executionTimeMs} ms`;
   const examinedPart = examined.length === 0 ? '' : ` and examined ${examined.join(' and ')}`;
@@ -135,7 +146,7 @@ function suggestionFor(warning: PlanWarning, tree: PlanTree): string | undefined
     case 'MANY_REJECTED_PLANS':
       return 'Several plans competed for this query. A compound index that matches the filter and the sort can remove the competition.';
     case 'MULTIKEY_INDEX':
-      return 'Filter on the array field with $elemMatch, or put a non-array field first in the index, so the index holds fewer keys per document.';
+      return 'Use $elemMatch on the array field to match one element and cut the index keys read.';
     case 'NO_EXECUTION_STATS':
       return 'Run the explain at executionStats verbosity to see the keys, documents and time for each stage.';
   }
@@ -147,8 +158,12 @@ function sortAdvice(stages: PlanStage[], tree: PlanTree): string | undefined {
   const sort = stages.find((candidate) => isSortStage(candidate.name));
   const generic =
     'Add an index on the sort fields so the server can return sorted documents without an in-memory sort.';
-  if (sort !== undefined && precedingNames(sort).some((name) => SORT_BLOCKING_STAGES.has(name))) {
-    return 'The $sort follows a $group, $unwind or $project stage, so an index cannot return the documents in sorted order.';
+  const blocker =
+    sort === undefined
+      ? undefined
+      : precedingNames(sort).find((name) => SORT_BLOCKING_STAGES.has(name));
+  if (blocker !== undefined) {
+    return `The $sort follows a ${blocker} stage, so an index cannot return the documents in sorted order.`;
   }
   const keys = indexKeyFor(tree.filter, sortEntries(sort));
   if (keys.length === 0) {
@@ -208,6 +223,7 @@ export function indexKeyFor(filter: unknown, sort: readonly KeyEntry[]): KeyEntr
 
 // Top-level equality and range fields of a filter. Operators other than equality and range are
 // skipped, and so are $-prefixed top-level operators such as $or.
+// A top-level $and merges the fields of its clauses.
 function filterFields(filter: unknown): { equality: string[]; range: string[] } {
   const record = asRecord(filter);
   const equality: string[] = [];
@@ -216,6 +232,14 @@ function filterFields(filter: unknown): { equality: string[]; range: string[] } 
     return { equality, range };
   }
   for (const [field, value] of Object.entries(record)) {
+    if (field === '$and') {
+      for (const clause of asArray(value) ?? []) {
+        const inner = filterFields(clause);
+        equality.push(...inner.equality);
+        range.push(...inner.range);
+      }
+      continue;
+    }
     if (field.startsWith('$')) {
       continue;
     }
