@@ -1,5 +1,7 @@
 {
   "name": "@mongo-gui/app",
+  "productName": "Mongo GUI",
+  "desktopName": "mongo-gui.desktop",
   "version": "0.1.0",
   "description": "A desktop MongoDB client with a mongosh-compatible editor.",
   "author": {

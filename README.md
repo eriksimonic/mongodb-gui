@@ -48,25 +48,35 @@ release.
 `packages/app/release/`. It publishes nothing. Linux builds an AppImage and a `.deb`,
 Windows builds an NSIS installer, and macOS builds a DMG and a ZIP for both x64 and arm64.
 
-Releases come from CI. Pushing a tag that starts with `v` runs
-`.github/workflows/release.yml`. The workflow builds on Ubuntu, Windows and macOS, one
-after another, and uploads the installers to a GitHub Release:
+Releases come from CI. To release a version:
 
-```sh
-git tag v0.1.0
-git push origin v0.1.0
-```
+1. Bump `version` in `packages/app/package.json`, commit, and push.
+2. Tag the commit and push the tag:
 
-The Ubuntu build creates the release and publishes it at once. The Windows and macOS
-builds add their files to it. If a later build fails, the release holds only the files
-that finished, so delete it or upload the missing files by hand. A manual run of the
-workflow builds the installers and keeps them as workflow artifacts. It does not publish.
+   ```sh
+   git tag v0.1.0
+   git push origin v0.1.0
+   ```
+
+The tag must match the version in `packages/app/package.json`. The release workflow
+(`.github/workflows/release.yml`) stops before building if they differ.
+
+The workflow builds on Ubuntu, Windows and macOS in parallel. Each build uploads its
+installers to a draft GitHub Release. When all three builds succeed, a final job marks
+the release public. If one build fails, the release stays a draft, so users never see a
+partial set of files. Fix the failure and re-run the failed job from the Actions page. The re-run adds its
+files to the same draft.
+
+A manual run of the workflow from a branch builds the installers and keeps them as
+workflow artifacts for seven days. A manual run from a tag ref behaves like a tag push:
+it validates the version, publishes to the draft release, and marks it public.
 
 The builds are unsigned for now. On Windows, SmartScreen shows "Windows protected your
-PC" on the first run. Choose "More info", then "Run anyway". On macOS, Gatekeeper blocks
-the first launch. Open System Settings, go to Privacy and Security, and choose "Open
-Anyway". The app is not notarized. On Linux, no signature check applies. Run
-`chmod +x` on the AppImage, or install the `.deb` with `apt install ./<file>.deb`.
+PC" on the first run. Choose "More info", then "Run anyway". On macOS, the builds use
+ad-hoc signing, which needs no certificate. Gatekeeper still refuses the first launch
+with a "cannot verify the developer" dialog. Open System Settings, go to Privacy and
+Security, and choose "Open Anyway". On Linux, no signature check applies. Run `chmod +x`
+on the AppImage, or install the `.deb` with `apt install ./<file>.deb`.
 
 Downloads appear on the [Releases page](https://github.com/eriksimonic/mongodb-mager/releases).
 The app does not check for updates yet. Install each new version by hand until the

@@ -15,8 +15,11 @@ publish:
   provider: github
   owner: eriksimonic
   repo: mongodb-mager
-  # electron-builder creates the GitHub release published (not draft) on first upload.
-  releaseType: release
+  # The package name is @mongo-gui/app. Name the updater cache after the product instead.
+  updaterCacheDirName: mongo-gui-updater
+  # The release starts as a draft. The publish job in release.yml marks it public once all
+  # platforms have uploaded, so users never see a partial release.
+  releaseType: draft
 linux:
   target:
     - target: AppImage
@@ -26,6 +29,7 @@ linux:
       arch:
         - x64
   category: Development
+  syncDesktopName: true
 win:
   target:
     - target: nsis
@@ -44,5 +48,7 @@ mac:
       arch:
         - x64
         - arm64
+  # Ad-hoc signing ('-') keeps the Electron signature valid on Apple Silicon without a
+  # certificate. Without it, macOS reports the app as damaged.
   hardenedRuntime: false
-  identity: null
+  identity: '-'
