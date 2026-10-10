@@ -44,6 +44,8 @@ export interface ProfilerFilters {
   readonly until: string;
   readonly textSearch: string;
   readonly limit: number;
+  /** Hides rows that `isProblematic` rejects. Applied in the renderer, never sent to the server. */
+  readonly onlyProblematic: boolean;
 }
 
 export const DEFAULT_FILTERS: ProfilerFilters = {
@@ -55,6 +57,7 @@ export const DEFAULT_FILTERS: ProfilerFilters = {
   until: '',
   textSearch: '',
   limit: DEFAULT_PROFILE_LIMIT,
+  onlyProblematic: false,
 };
 
 export type SortKey = 'time' | 'duration';
@@ -68,6 +71,10 @@ export const DEFAULT_SORT: EntrySort = { key: 'time', direction: 'desc' };
 
 const MS_PER_MINUTE = 60_000;
 const PROFILE_PLAN_COLLSCAN = /COLLSCAN/;
+/** Documents examined per document returned above which a query counts as problematic. */
+export const PROBLEMATIC_EXAMINED_RATIO = 100;
+/** Documents examined above which a query that returned nothing counts as problematic. */
+export const PROBLEMATIC_EXAMINED_EMPTY = 1000;
 const COMMAND_PREVIEW_CHARS = 120;
 
 /** Maps the filter row to the contract filter. Relative ranges are measured from `now`. */
@@ -175,6 +182,29 @@ export function entriesOfShape(entries: readonly ProfileEntry[], key: string): P
 
 export function isCollscan(planSummary: string | undefined): boolean {
   return planSummary !== undefined && PROFILE_PLAN_COLLSCAN.test(planSummary);
+}
+
+/**
+ * True when an entry shows one of the signs the "Only problematic" filter looks for:
+ *
+ * - the plan summary contains COLLSCAN;
+ * - `hasSortStage` is true, so the server sorted in memory;
+ * - more than 100 documents were examined per document returned (`nreturned` above 0);
+ * - more than 1000 documents were examined and nothing was returned (`nreturned` 0 or absent).
+ *
+ * A missing plan summary or missing counters is not a sign on its own.
+ */
+export function isProblematic(entry: ProfileEntry): boolean {
+  if (isCollscan(entry.planSummary) || entry.hasSortStage === true) {
+    return true;
+  }
+  if (entry.docsExamined === undefined) {
+    return false;
+  }
+  if (entry.nreturned === undefined || entry.nreturned === 0) {
+    return entry.docsExamined > PROBLEMATIC_EXAMINED_EMPTY;
+  }
+  return entry.docsExamined / entry.nreturned > PROBLEMATIC_EXAMINED_RATIO;
 }
 
 /** Documents examined per document returned. With nothing returned, the examined count itself. */

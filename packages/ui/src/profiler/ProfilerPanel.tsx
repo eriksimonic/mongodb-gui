@@ -9,7 +9,7 @@ import { ShapesTable } from './ShapesTable';
 import { SlowQueryTable } from './SlowQueryTable';
 import { useProfilerStore } from './profiler-store-context';
 import type { ProfilerPanelState, ProfilerSeed } from './profiler-store';
-import { entriesOfShape, sortEntries } from './profiler-model';
+import { entriesOfShape, isProblematic, sortEntries } from './profiler-model';
 import './profiler.css';
 
 const MIN_DETAIL_WIDTH = 240;
@@ -87,13 +87,16 @@ function ProfilerBody({ panelId, connectionId, database, namespaces, panel }: Pr
   const setDetailWidth = useProfilerStore((state) => state.setDetailWidth);
   const setColumn = useProfilerStore((state) => state.setColumn);
 
+  // The "Only problematic" filter runs here, on the rows the server returned. The server query
+  // and the shapes tab do not change with it.
   const visible = useMemo(() => {
-    const rows =
+    const ofShape =
       panel.shapeFilter === undefined
         ? panel.entries
         : entriesOfShape(panel.entries, panel.shapeFilter);
+    const rows = panel.filters.onlyProblematic ? ofShape.filter(isProblematic) : ofShape;
     return sortEntries(rows, panel.sort);
-  }, [panel.entries, panel.shapeFilter, panel.sort]);
+  }, [panel.entries, panel.shapeFilter, panel.filters.onlyProblematic, panel.sort]);
   const highlighted = useMemo(() => new Set(panel.highlighted), [panel.highlighted]);
   const selected = panel.entries.find((entry) => entry.id === panel.selectedId);
 

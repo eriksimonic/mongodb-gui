@@ -16,6 +16,7 @@ import {
   formatLocalTime,
   isCollscan,
   isDraftDirty,
+  isProblematic,
   levelFromText,
   mergeTailEntries,
   parseLocalTime,
@@ -210,6 +211,33 @@ describe('display helpers', () => {
     expect(examinedRatio(entry('a', { docsExamined: 1200, nreturned: 50 }))).toBe(24);
     expect(examinedRatio(entry('b', { docsExamined: 7, nreturned: 0 }))).toBe(7);
     expect(examinedRatio(entry('c'))).toBeUndefined();
+  });
+});
+
+describe('isProblematic', () => {
+  it('flags a collection scan and an in-memory sort', () => {
+    expect(isProblematic(entry('a', { planSummary: 'COLLSCAN' }))).toBe(true);
+    expect(isProblematic(entry('b', { planSummary: 'IXSCAN { a: 1 }', hasSortStage: true }))).toBe(
+      true,
+    );
+  });
+
+  it('flags more than 100 documents examined per document returned', () => {
+    expect(isProblematic(entry('a', { docsExamined: 1200, nreturned: 10 }))).toBe(true);
+    expect(isProblematic(entry('b', { docsExamined: 1000, nreturned: 10 }))).toBe(false);
+  });
+
+  it('flags more than 1000 documents examined when nothing was returned', () => {
+    expect(isProblematic(entry('a', { docsExamined: 1001, nreturned: 0 }))).toBe(true);
+    expect(isProblematic(entry('b', { docsExamined: 1001 }))).toBe(true);
+    expect(isProblematic(entry('c', { docsExamined: 1000, nreturned: 0 }))).toBe(false);
+  });
+
+  it('does not flag an entry without a plan or counters', () => {
+    expect(isProblematic(entry('a'))).toBe(false);
+    expect(isProblematic(entry('b', { planSummary: 'IXSCAN { a: 1 }', hasSortStage: false }))).toBe(
+      false,
+    );
   });
 
   it('sizes a duration bar against the slowest row in view', () => {
