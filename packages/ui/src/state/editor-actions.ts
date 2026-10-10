@@ -479,12 +479,27 @@ export function createEditorActions(access: EditorStoreAccess) {
      * Opens a query tab for a collection and runs `find({})` on it. The tab rules are those of
      * `rerunStatement`.
      */
+    /**
+     * Opens the documents of a collection. A tab that already holds this exact query on the same
+     * connection and database comes to the front instead of a second one opening.
+     */
     openCollectionQuery(target: CollectionTarget): Promise<void> {
-      return rerunStatement({
-        connectionId: target.connectionId,
-        database: target.database,
-        code: collectionQueryStatement(target.collection),
+      const code = collectionQueryStatement(target.collection);
+      const state = access.get().editors;
+      const existing = state.order.find((id) => {
+        const tab = state.tabs[id];
+        return (
+          tab !== undefined &&
+          tab.connectionId === target.connectionId &&
+          tab.database === target.database &&
+          tab.text.trim() === code
+        );
       });
+      if (existing !== undefined) {
+        update((current) => setActiveTab(current, existing));
+        return Promise.resolve();
+      }
+      return rerunStatement({ connectionId: target.connectionId, database: target.database, code });
     },
 
     /**
