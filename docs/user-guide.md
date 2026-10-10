@@ -252,7 +252,12 @@ The results pane shows the documents of the last run. Switch between three views
 - Table view shows one column for each field. The "Columns" menu chooses which columns show.
   Nested fields appear as dotted paths. Double-click a row to open its whole document. The
   document opens in the editor when the result is a plain find on one collection. Otherwise it
-  opens read-only, with a "Copy" button.
+  opens read-only, with a "Copy" button. Right-click a cell for "Copy value", "Copy key" and
+  "Copy document". The value copies in mongosh form, the key is the dotted field path, and the
+  document copies as canonical JSON.
+
+![Cell menu of the table view with the copy actions](screenshots/cell-menu.png)
+
 - Tree view shows each document as an expandable tree. Each value has a type badge. "Collapse
   all" folds the tree. Each row has "Copy path" and "Copy value" buttons. Double-click the
   top-level row of a document, the one marked with its position such as "#1", to open the whole

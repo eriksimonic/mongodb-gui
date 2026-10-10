@@ -58,9 +58,9 @@ inline edits in the tree, and a history and favourites list in the Output panel.
 | ------------------------------------------------------------------------------------------------ | ----------------------------------------------------------------------------- |
 | ![Connection tree with databases and collections expanded](docs/screenshots/connection-tree.png) | ![New connection dialog in form mode](docs/screenshots/connection-dialog.png) |
 
-| Tab menu                                                                           |
-| ---------------------------------------------------------------------------------- |
-| ![Tab menu of an editor tab with the close actions](docs/screenshots/tab-menu.png) |
+| Tab menu                                                                           | Cell menu                                                                                        |
+| ---------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------ |
+| ![Tab menu of an editor tab with the close actions](docs/screenshots/tab-menu.png) | ![Cell menu of the table view with copy value, key and document](docs/screenshots/cell-menu.png) |
 
 | Indexes with the edit index dialog                                                                  | Validation with a Monaco validator                                                | Documents                                                                                                         |
 | --------------------------------------------------------------------------------------------------- | --------------------------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------- |

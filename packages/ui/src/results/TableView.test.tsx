@@ -63,6 +63,41 @@ describe('TableView', () => {
     expect(document.querySelector('[data-bson-type="Boolean"]')?.textContent).toBe('true');
   });
 
+  it('offers copy value, key and document on a right-clicked cell', async () => {
+    const writeText = vi.fn().mockResolvedValue(undefined);
+    Object.defineProperty(navigator, 'clipboard', { value: { writeText }, configurable: true });
+    renderTable();
+    const cell = (await screen.findAllByText('Customer 2'))[0] as HTMLElement;
+
+    fireEvent.contextMenu(cell, { clientX: 40, clientY: 50 });
+
+    expect(await screen.findByText('Copy value')).toBeInTheDocument();
+    expect(screen.getByText('Copy key')).toBeInTheDocument();
+    expect(screen.getByText('Copy document')).toBeInTheDocument();
+
+    fireEvent.click(screen.getByText('Copy key'));
+
+    await waitFor(() => expect(writeText).toHaveBeenCalledWith('customer.name'));
+  });
+
+  it('copies the value in mongosh form and the whole document as JSON', async () => {
+    const writeText = vi.fn().mockResolvedValue(undefined);
+    Object.defineProperty(navigator, 'clipboard', { value: { writeText }, configurable: true });
+    renderTable();
+    const cell = (await screen.findAllByText('Customer 2'))[0] as HTMLElement;
+    const doc = DOCUMENTS.find(
+      (document) => (document.customer as { name: string }).name === 'Customer 2',
+    );
+
+    fireEvent.contextMenu(cell, { clientX: 40, clientY: 50 });
+    fireEvent.click(await screen.findByText('Copy value'));
+    await waitFor(() => expect(writeText).toHaveBeenCalledWith('Customer 2'));
+
+    fireEvent.contextMenu(cell, { clientX: 40, clientY: 50 });
+    fireEvent.click(await screen.findByText('Copy document'));
+    await waitFor(() => expect(writeText).toHaveBeenLastCalledWith(JSON.stringify([doc], null, 2)));
+  });
+
   it('opens the double-clicked document when the result is read only', async () => {
     const onOpen = vi.fn();
     renderTable(onOpen, false);

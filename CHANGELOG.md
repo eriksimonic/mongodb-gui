@@ -6,6 +6,7 @@ All notable changes to Mongo GUI are listed here, newest first.
 
 ### Added
 
+- Right-click on a table cell offers "Copy value", "Copy key" and "Copy document".
 - Exports selected connections to a file encrypted with AES-256-GCM under a scrypt key from a
   passphrase of at least 10 characters. Each export uses a new salt and IV.
 - Imports a connections file after its passphrase is typed. Name collisions can skip, rename or
