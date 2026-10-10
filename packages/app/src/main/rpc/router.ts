@@ -80,6 +80,7 @@ import {
   toCanonicalEjson,
   type ProfileTail,
   changePassword,
+  connectionStatus,
   createRole,
   createUser,
   dropRole,
@@ -591,6 +592,7 @@ export function createRouter(deps: RouterDeps): Router {
       secured('security.createRole', s.createRole, (client, input) => createRole(client, input)),
       secured('security.updateRole', s.updateRole, (client, input) => updateRole(client, input)),
       secured('security.dropRole', s.dropRole, (client, input) => dropRole(client, input)),
+      secured('security.session', s.session, (client) => connectionStatus(client)),
       secured('security.capabilities', s.capabilities, (client, input) =>
         userManagementCapabilities(client, input.database),
       ),

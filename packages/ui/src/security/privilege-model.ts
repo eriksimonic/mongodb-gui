@@ -5,17 +5,24 @@ import type {
   RoleInfo,
   UserRoleRef,
 } from '@mongo-gui/core';
-import { collectionNameError, databaseNameError } from '../management/input-rules';
+import { ExistingCollectionNameSchema } from '@mongo-gui/core';
+import { databaseNameError } from '../management/input-rules';
 
 /** The resource a privilege row names. `systemBuckets` is kept for rows the editor cannot build. */
 export type ResourceKind =
-  'cluster' | 'anyDatabase' | 'database' | 'collection' | 'anyResource' | 'systemBuckets';
+  | 'cluster'
+  | 'anyDatabase'
+  | 'database'
+  | 'collection'
+  | 'collectionInAnyDatabase'
+  | 'anyResource'
+  | 'systemBuckets';
 
 /** One privilege row in the editor. `key` is stable across edits, so React keeps the row's state. */
 export interface PrivilegeDraft {
   readonly key: string;
   readonly kind: ResourceKind;
-  /** The database a database or collection row names. Empty for cluster and any-database rows. */
+  /** The database a database or collection row names. Empty for cluster, any-database and any-database collection rows. */
   readonly db: string;
   /** The collection a collection row names. Empty for database rows. */
   readonly collection: string;
@@ -35,6 +42,7 @@ export const RESOURCE_OPTIONS: readonly ResourceOption[] = [
   { value: 'anyDatabase', label: 'Any database' },
   { value: 'database', label: 'This database' },
   { value: 'collection', label: 'A collection' },
+  { value: 'collectionInAnyDatabase', label: 'A collection in any database' },
   { value: 'anyResource', label: 'Any resource' },
 ];
 
@@ -93,6 +101,9 @@ export function draftFromPrivilege(privilege: Privilege, key: string): Privilege
   if (resource.collection === '') {
     return { ...base, kind: 'database', db: resource.db, collection: '' };
   }
+  if (resource.db === '') {
+    return { ...base, kind: 'collectionInAnyDatabase', db: '', collection: resource.collection };
+  }
   return { ...base, kind: 'collection', db: resource.db, collection: resource.collection };
 }
 
@@ -128,22 +139,40 @@ function resourceFromDraft(
     case 'database':
       return { resource: { db: database, collection: '' } };
     case 'collection': {
-      const db = draft.db === '' ? database : draft.db;
-      const dbProblem = databaseNameError(db);
+      const dbProblem = databaseNameError(draft.db);
       if (dbProblem !== undefined) {
         return { error: dbProblem };
       }
-      const collectionProblem = collectionNameError(draft.collection);
+      const collectionProblem = collectionError(draft.collection);
       if (collectionProblem !== undefined) {
         return { error: collectionProblem };
       }
-      return { resource: { db, collection: draft.collection } };
+      return { resource: { db: draft.db, collection: draft.collection } };
+    }
+    case 'collectionInAnyDatabase': {
+      const collectionProblem = collectionError(draft.collection);
+      if (collectionProblem !== undefined) {
+        return { error: collectionProblem };
+      }
+      return { resource: { db: '', collection: draft.collection } };
     }
     case 'systemBuckets':
       return draft.preserved === undefined
         ? { error: 'The time series buckets row cannot be rebuilt.' }
         : { resource: draft.preserved };
   }
+}
+
+/**
+ * The problem with a collection name in a privilege. Privileges may name system collections, so
+ * the system. prefix is allowed here, unlike when a collection is created.
+ */
+export function collectionError(name: string): string | undefined {
+  if (name === '') {
+    return 'Enter a collection name';
+  }
+  const result = ExistingCollectionNameSchema.safeParse(name);
+  return result.success ? undefined : result.error.issues[0]?.message;
 }
 
 /** Builds every row, or returns the first row's problem. An empty list is a problem too. */

@@ -7,8 +7,14 @@ import {
   DropRoleInputSchema,
   DropUserInputSchema,
   GrantRolesInputSchema,
+  CreateRoleInputSchema as CreateRole,
   PasswordSchema,
   PrivilegeResourceSchema,
+  PrivilegeInputSchema,
+  PrivilegeResourceInputSchema,
+  PrivilegeSchema,
+  RoleRefInputSchema,
+  GrantRolesInputSchema as GrantRoles,
   RoleInfoSchema,
   UpdateRoleInputSchema,
   UpdateUserRestrictionsInputSchema,
@@ -217,5 +223,87 @@ describe('output schemas', () => {
       authenticatedUserRoles: [],
       authenticatedUserPrivileges: [],
     });
+  });
+});
+
+describe('input names and actions', () => {
+  const role = (fields: Record<string, unknown>) => ({
+    db: 'shop',
+    role: 'courier',
+    privileges: [],
+    roles: [],
+    ...fields,
+  });
+
+  it('refuses an action the catalogue does not name, in a role input', () => {
+    const result = CreateRole.safeParse(
+      role({ privileges: [{ resource: { cluster: true }, actions: ['launchMissiles'] }] }),
+    );
+    expect(result.success).toBe(false);
+    expect(
+      PrivilegeInputSchema.safeParse({ resource: { cluster: true }, actions: ['launchMissiles'] })
+        .success,
+    ).toBe(false);
+  });
+
+  it('accepts catalogue actions, and keeps output privileges lenient for newer servers', () => {
+    expect(
+      PrivilegeInputSchema.safeParse({ resource: { cluster: true }, actions: ['serverStatus'] })
+        .success,
+    ).toBe(true);
+    expect(
+      PrivilegeSchema.safeParse({ resource: { cluster: true }, actions: ['launchMissiles'] })
+        .success,
+    ).toBe(true);
+  });
+
+  it.each([
+    ['a $ database', { db: '$admin', collection: 'orders' }],
+    ['a database with a dot', { db: 'shop.x', collection: 'orders' }],
+    ['a database with a slash', { db: 'sh/op', collection: '' }],
+    ['a database with a backslash', { db: 'sh\\op', collection: '' }],
+    ['a database with a quote', { db: 'sh"op', collection: '' }],
+    ['a database with a space', { db: 'sh op', collection: '' }],
+    ['a database with a NUL', { db: 'sh\u0000op', collection: '' }],
+    ['a collection starting with $', { db: 'shop', collection: '$cmd' }],
+    ['a collection with a NUL', { db: 'shop', collection: 'a\u0000b' }],
+  ])('refuses a privilege on %s', (_label, resource) => {
+    expect(PrivilegeResourceInputSchema.safeParse(resource).success).toBe(false);
+    expect(PrivilegeInputSchema.safeParse({ resource, actions: ['find'] }).success).toBe(false);
+  });
+
+  it('keeps dots in collection names and empty names for any collection or database', () => {
+    expect(
+      PrivilegeInputSchema.safeParse({
+        resource: { db: 'shop', collection: 'orders.2026' },
+        actions: ['find'],
+      }).success,
+    ).toBe(true);
+    expect(
+      PrivilegeInputSchema.safeParse({
+        resource: { db: '', collection: 'orders' },
+        actions: ['find'],
+      }).success,
+    ).toBe(true);
+    expect(
+      PrivilegeInputSchema.safeParse({ resource: { db: '', collection: '' }, actions: ['find'] })
+        .success,
+    ).toBe(true);
+  });
+
+  it.each([
+    ['a role name starting with $', { role: '$custom', db: 'shop' }],
+    ['a role database with a dot', { role: 'reader', db: 'shop.x' }],
+  ])('refuses a role reference with %s', (_label, ref) => {
+    expect(RoleRefInputSchema.safeParse(ref).success).toBe(false);
+    expect(GrantRoles.safeParse({ db: 'shop', user: 'clerk', roles: [ref] }).success).toBe(false);
+  });
+
+  it('refuses a $ role name in a create role input and keeps user names permissive', () => {
+    expect(CreateRole.safeParse(role({ role: '$system' })).success).toBe(false);
+    expect(RoleRefInputSchema.safeParse({ role: 'reader', db: 'shop' }).success).toBe(true);
+    expect(UserRefSchema.safeParse({ db: 'shop', user: 'ana.lopez@example.si' }).success).toBe(
+      true,
+    );
   });
 });

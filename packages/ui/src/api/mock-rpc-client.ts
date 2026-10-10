@@ -86,6 +86,8 @@ export interface MockUiApiOptions {
   readonly updates?: MockUpdatesOptions;
   /** Adds replica set members and lag to the monitor samples. Defaults to standalone. */
   readonly replication?: boolean;
+  /** `viewer` signs in with no user or role rights, so the users and roles controls read disabled. */
+  readonly security?: 'admin' | 'viewer';
 }
 
 const DEFAULT_UPDATE_STATE: UpdateState = { phase: 'idle', current: '0.1.0', canInstall: true };
@@ -449,7 +451,12 @@ export function createMockUiApi(options: MockUiApiOptions = {}): UiApi {
     return security;
   }
 
-  const security = createSecurityCalls({ latencyMs, guard, securityOf });
+  const security = createSecurityCalls({
+    latencyMs,
+    guard,
+    securityOf,
+    viewer: options.security === 'viewer',
+  });
 
   const management = createManagementCalls({
     latencyMs,

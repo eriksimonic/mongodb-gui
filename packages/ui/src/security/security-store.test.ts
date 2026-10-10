@@ -2,6 +2,7 @@
 import { AppErrorException, appError } from '@mongo-gui/core';
 import { describe, expect, it, vi } from 'vitest';
 import { connectedMockApi } from '../api/connected-mock';
+import { createMockUiApi } from '../api/mock-rpc-client';
 import { localConnectionId } from '../api/mock-fixtures';
 import type { UiApi } from '../api/ui-api';
 import { createSecurityStore } from './security-store';
@@ -120,6 +121,46 @@ describe('security store', () => {
 
     await store.getState().dropRole({ db: 'shop', role: 'courier' });
     expect(store.getState().roles?.some((role) => role.role === 'courier')).toBe(false);
+  });
+
+  it('reads the signed-in user, for the self-revoke warning', async () => {
+    const store = await loadedStore(await connectedMockApi());
+
+    expect(store.getState().signedIn).toEqual([{ user: 'siteAdmin', db: 'admin' }]);
+  });
+
+  it('reads every capability as false for a viewer with no user or role rights', async () => {
+    const api = await connectedMockApi();
+    const viewer = createMockUiApi({ preset: 'unlocked', security: 'viewer' });
+    await viewer.rpc.connections.connect({ id: localConnectionId });
+    const store = await loadedStore(viewer);
+
+    expect(store.getState().capabilities).toEqual({
+      canCreateUsers: false,
+      canGrantRoles: false,
+      canManageRoles: false,
+    });
+    expect(api).toBeDefined();
+  });
+
+  it('refuses a role that inherits itself, on create and on update', async () => {
+    const store = await loadedStore(await connectedMockApi());
+
+    await expect(
+      store.getState().createRole({
+        db: 'shop',
+        role: 'courier',
+        privileges: [],
+        roles: [{ role: 'courier', db: 'shop' }],
+      }),
+    ).rejects.toMatchObject({ error: { message: 'A role cannot inherit itself' } });
+    await expect(
+      store.getState().updateRole({
+        db: 'shop',
+        role: 'analyst',
+        roles: [{ role: 'analyst', db: 'shop' }],
+      }),
+    ).rejects.toMatchObject({ error: { message: 'A role cannot inherit itself' } });
   });
 
   it('keeps the last lists and reports the error when a load fails', async () => {

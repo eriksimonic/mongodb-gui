@@ -115,6 +115,7 @@ import {
   RoleInfoSchema,
   UpdateRoleInputSchema,
   UserInfoSchema,
+  AuthStatusSchema,
   UserManagementCapabilitiesSchema,
 } from '../security/types';
 import {
@@ -283,6 +284,8 @@ export const rpcContract = {
     createRole: defineCall(onConnection(CreateRoleInputSchema), RoleInfoSchema),
     updateRole: defineCall(onConnection(UpdateRoleInputSchema), z.void()),
     dropRole: defineCall(onConnection(DropRoleInputSchema), z.void()),
+    /** The users the connection authenticated as, with their roles. Used to warn before self-revokes. */
+    session: defineCall(connectionParam, AuthStatusSchema),
     capabilities: defineCall(
       onConnection(SecurityCapabilitiesInputSchema),
       UserManagementCapabilitiesSchema,

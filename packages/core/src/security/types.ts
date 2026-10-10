@@ -1,5 +1,6 @@
 import { z } from 'zod';
 import { DatabaseNameSchema } from '../management/types';
+import { PRIVILEGE_ACTIONS } from './data';
 
 const NonEmptySchema = z.string().min(1);
 
@@ -77,10 +78,56 @@ const DbSchema = DatabaseNameSchema;
 export const UserDatabaseSchema = z.union([DatabaseNameSchema, z.literal('$external')]);
 export const EXTERNAL_DATABASE = '$external';
 const UserNameSchema = NonEmptySchema;
-const RoleNameSchema = NonEmptySchema;
-const RoleListSchema = z.array(UserRoleRefSchema);
+// Role names of a user-defined role. The $ prefix is reserved for the server's own names.
+const RoleNameSchema = z
+  .string()
+  .min(1)
+  .refine((name) => !name.startsWith('$'), { message: 'Role names may not start with $' });
+
+// Input role references. The server's own output may name roles these rules would refuse, so the
+// output schemas above stay lenient and only the inputs below are strict.
+export const RoleRefInputSchema = z.object({
+  role: RoleNameSchema,
+  db: NonEmptySchema.refine((db) => !db.includes('.'), {
+    message: 'Role databases may not contain .',
+  }),
+});
+const RoleListSchema = z.array(RoleRefInputSchema);
+
+// Every privilege action the core catalogue names. A newer server may know more actions, but the
+// inputs accept only these, so a typo never reaches the server.
+const CATALOGUE_ACTIONS: ReadonlySet<string> = new Set(
+  Object.values(PRIVILEGE_ACTIONS).flatMap((names) => names),
+);
+export const CatalogueActionSchema = NonEmptySchema.refine(
+  (action) => CATALOGUE_ACTIONS.has(action),
+  {
+    message: 'Unknown privilege action',
+  },
+);
+
+// Collection names in a privilege may be empty (all collections) and may hold dots. Names
+// starting with $ and names with a null byte are refused.
+const PrivilegeCollectionSchema = z
+  .string()
+  .refine((name) => !name.startsWith('$'), { message: 'Collection names may not start with $' })
+  .refine((name) => !name.includes('\u0000'), { message: 'Names may not contain a null byte' });
+// The database of a privilege is empty for "any database", otherwise a valid database name.
+const PrivilegeDatabaseSchema = z.union([z.literal(''), DatabaseNameSchema]);
+
+export const PrivilegeResourceInputSchema = z.union([
+  z.object({ cluster: z.literal(true) }),
+  z.object({ db: PrivilegeDatabaseSchema, collection: PrivilegeCollectionSchema }),
+  z.object({ db: PrivilegeDatabaseSchema, system_buckets: PrivilegeCollectionSchema }),
+  z.object({ anyResource: z.literal(true) }),
+]);
+
+export const PrivilegeInputSchema = z.object({
+  resource: PrivilegeResourceInputSchema,
+  actions: z.array(CatalogueActionSchema),
+});
+const PrivilegeListSchema = z.array(PrivilegeInputSchema);
 const RestrictionListSchema = z.array(AuthRestrictionSchema);
-const PrivilegeListSchema = z.array(PrivilegeSchema);
 
 export const UserRefSchema = z.object({
   db: UserDatabaseSchema,

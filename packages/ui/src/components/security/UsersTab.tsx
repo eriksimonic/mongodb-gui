@@ -4,7 +4,13 @@ import { EXTERNAL_DATABASE, type UserInfo } from '@mongo-gui/core';
 import { useState } from 'react';
 import { useStore } from 'zustand';
 import type { SecurityStore } from '../../security/security-store';
+import {
+  capabilityReason,
+  CREATE_USERS_REASON,
+  GRANT_ROLES_REASON,
+} from '../../security/capability-reasons';
 import { ChangePasswordDialog } from './ChangePasswordDialog';
+import { GatedButton } from './GatedButton';
 import { CreateUserDialog } from './CreateUserDialog';
 import { DestructiveDialog } from '../management/DestructiveDialog';
 import { RoleBadges } from './RoleBadges';
@@ -37,13 +43,14 @@ export function UsersTab({ store, database }: UsersTabProps) {
         <Text size="sm" c="dimmed">
           {users.length} {users.length === 1 ? 'user' : 'users'} in {database}
         </Text>
-        <Button
+        <GatedButton
+          allowed={canCreate}
+          reason={capabilityReason(capabilities, CREATE_USERS_REASON)}
           leftSection={<IconPlus size={14} />}
-          disabled={!canCreate}
           onClick={() => setCreating(true)}
         >
           Create user
-        </Button>
+        </GatedButton>
       </Group>
       {capabilities !== undefined && !canCreate ? (
         <Text size="xs" c="dimmed">
@@ -100,23 +107,25 @@ export function UsersTab({ store, database }: UsersTabProps) {
                     >
                       Password
                     </Button>
-                    <Button
+                    <GatedButton
                       size="xs"
                       variant="default"
-                      disabled={!canGrant}
+                      allowed={canGrant}
+                      reason={capabilityReason(capabilities, GRANT_ROLES_REASON)}
                       onClick={() => setRolesOf(user)}
                     >
                       Roles
-                    </Button>
-                    <Button
+                    </GatedButton>
+                    <GatedButton
                       size="xs"
                       color="red"
                       variant="light"
-                      disabled={!canCreate}
+                      allowed={canCreate}
+                      reason={capabilityReason(capabilities, CREATE_USERS_REASON)}
                       onClick={() => setDropping(user)}
                     >
                       Drop
-                    </Button>
+                    </GatedButton>
                   </Group>
                 </Table.Td>
               </Table.Tr>

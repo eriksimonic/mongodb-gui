@@ -11,9 +11,10 @@ import {
 import { IconPlus, IconTrash } from '@tabler/icons-react';
 import type { PrivilegeActionCatalog } from '@mongo-gui/core';
 import { useMemo } from 'react';
-import { collectionNameError, databaseNameError } from '../../management/input-rules';
+import { databaseNameError } from '../../management/input-rules';
 import {
   actionGroups,
+  collectionError,
   newPrivilegeDraft,
   RESOURCE_OPTIONS,
   type PrivilegeDraft,
@@ -76,27 +77,25 @@ export function PrivilegeEditor({
               w={200}
             />
             {draft.kind === 'collection' ? (
-              <>
-                <TextInput
-                  aria-label="Database of the collection"
-                  placeholder={database}
-                  value={draft.db}
-                  disabled={readOnly}
-                  error={draft.db === '' ? undefined : databaseNameError(draft.db)}
-                  onChange={(event) => update(draft.key, { db: event.currentTarget.value })}
-                  w={160}
-                />
-                <TextInput
-                  aria-label="Collection"
-                  value={draft.collection}
-                  disabled={readOnly}
-                  error={
-                    draft.collection === '' ? undefined : collectionNameError(draft.collection)
-                  }
-                  onChange={(event) => update(draft.key, { collection: event.currentTarget.value })}
-                  w={200}
-                />
-              </>
+              <TextInput
+                aria-label="Database of the collection"
+                placeholder={database}
+                value={draft.db}
+                disabled={readOnly}
+                error={draft.db === '' ? undefined : databaseNameError(draft.db)}
+                onChange={(event) => update(draft.key, { db: event.currentTarget.value })}
+                w={160}
+              />
+            ) : null}
+            {draft.kind === 'collection' || draft.kind === 'collectionInAnyDatabase' ? (
+              <TextInput
+                aria-label="Collection"
+                value={draft.collection}
+                disabled={readOnly}
+                error={draft.collection === '' ? undefined : collectionError(draft.collection)}
+                onChange={(event) => update(draft.key, { collection: event.currentTarget.value })}
+                w={200}
+              />
             ) : null}
             {draft.kind === 'database' ? (
               <Text size="sm" pt={6}>

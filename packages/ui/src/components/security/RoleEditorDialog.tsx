@@ -108,7 +108,7 @@ export function RoleEditorDialog({ store, database, role, onClose }: RoleEditorD
           <MultiSelect
             label="Inherited roles"
             description="A user with this role also gets the privileges of these roles."
-            data={roleGroups(roleCatalog.filter((item) => item.role !== role?.role))}
+            data={roleGroups(roleCatalog.filter((item) => !isSameRole(item, role)))}
             value={inherited}
             onChange={setInherited}
             searchable
@@ -149,6 +149,11 @@ export function RoleEditorDialog({ store, database, role, onClose }: RoleEditorD
       </form>
     </Modal>
   );
+}
+
+/** True when a catalog entry is the role being edited. Role names repeat across databases, so both match. */
+function isSameRole(item: RoleInfo, role: RoleInfo | undefined): boolean {
+  return role !== undefined && item.role === role.role && item.db === role.db;
 }
 
 function validateRoleName(name: string, existing: boolean): string | undefined {

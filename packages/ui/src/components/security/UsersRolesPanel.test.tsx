@@ -3,7 +3,9 @@ import { fireEvent, screen, waitFor, within } from '@testing-library/react';
 import { describe, expect, it } from 'vitest';
 import { connectedMockApi } from '../../api/connected-mock';
 import { localConnectionId } from '../../api/mock-fixtures';
+import { createMockUiApi } from '../../api/mock-rpc-client';
 import { renderWithApp } from '../../test-support/render';
+import { GRANT_ROLES_REASON } from '../../security/capability-reasons';
 import { UsersRolesPanel } from './UsersRolesPanel';
 
 const panel = { connectionId: localConnectionId, database: 'shop' };
@@ -125,5 +127,60 @@ describe('UsersRolesPanel', () => {
     fireEvent.click(within(dialog).getByRole('button', { name: 'Drop role' }));
 
     await waitFor(() => expect(screen.queryByText('analyst')).not.toBeInTheDocument());
+  });
+});
+
+describe('UsersRolesPanel rights and self-revoke', () => {
+  it('disables the controls a viewer lacks, and gives the reason on hover', async () => {
+    const api = createMockUiApi({ preset: 'unlocked', security: 'viewer' });
+    await api.rpc.connections.connect({ id: localConnectionId });
+    renderWithApp(<UsersRolesPanel {...panel} />, { api });
+    const row = await rowOf('reporter');
+
+    const roles = within(row).getByRole('button', { name: 'Roles' });
+    expect(roles).toBeDisabled();
+    expect(screen.getByRole('button', { name: 'Create user' })).toBeDisabled();
+    fireEvent.mouseEnter(roles.parentElement as HTMLElement);
+    expect(await screen.findByText(GRANT_ROLES_REASON)).toBeInTheDocument();
+  });
+
+  it('warns before a user revokes a user-admin role from the account it is signed in with', async () => {
+    const api = await connectedMockApi();
+    renderWithApp(<UsersRolesPanel connectionId={localConnectionId} database="admin" />, { api });
+    const row = await rowOf('siteAdmin');
+
+    fireEvent.click(within(row).getByRole('button', { name: 'Roles' }));
+    const dialog = await screen.findByRole('dialog');
+    fireEvent.click(within(dialog).getByRole('textbox', { name: 'Revoke roles' }));
+    fireEvent.click(await screen.findByRole('option', { name: 'userAdminAnyDatabase@admin' }));
+
+    expect(within(dialog).getByText('This account is signed in')).toBeInTheDocument();
+    const apply = within(dialog).getByRole('button', { name: 'Apply' });
+    expect(apply).toBeDisabled();
+    fireEvent.click(
+      within(dialog).getByRole('checkbox', {
+        name: 'I understand that I may lose the right to manage users',
+      }),
+    );
+    expect(apply).toBeEnabled();
+    fireEvent.click(apply);
+
+    await waitFor(() =>
+      expect(within(row).queryByText('userAdminAnyDatabase@admin')).not.toBeInTheDocument(),
+    );
+    expect(within(row).getByText('readWriteAnyDatabase@admin')).toBeInTheDocument();
+  });
+
+  it('does not warn when another user loses a user-admin role', async () => {
+    const api = await connectedMockApi();
+    renderWithApp(<UsersRolesPanel connectionId={localConnectionId} database="admin" />, { api });
+    const row = await rowOf('siteAdmin');
+    fireEvent.click(within(row).getByRole('button', { name: 'Roles' }));
+    const dialog = await screen.findByRole('dialog');
+    fireEvent.click(within(dialog).getByRole('textbox', { name: 'Revoke roles' }));
+    fireEvent.click(await screen.findByRole('option', { name: 'readWriteAnyDatabase@admin' }));
+
+    expect(within(dialog).queryByText('This account is signed in')).not.toBeInTheDocument();
+    expect(within(dialog).getByRole('button', { name: 'Apply' })).toBeEnabled();
   });
 });

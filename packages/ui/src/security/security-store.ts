@@ -33,6 +33,8 @@ export interface SecurityState {
   readonly users: readonly UserInfo[] | undefined;
   /** Roles of the target database, built-in roles included. */
   readonly roles: readonly RoleInfo[] | undefined;
+  /** The users this connection signed in as. Read before a warning about a self-revoke. */
+  readonly signedIn: readonly { readonly user: string; readonly db: string }[];
   /** Built-in roles and the target database's roles, for the role pickers. */
   readonly roleCatalog: readonly RoleInfo[];
   readonly capabilities: UserManagementCapabilities | undefined;
@@ -72,6 +74,7 @@ export function createSecurityStore(target: SecurityTarget, client: SecurityClie
       users: undefined,
       roles: undefined,
       roleCatalog: [],
+      signedIn: [],
       capabilities: undefined,
       actions: undefined,
       loadError: undefined,
@@ -79,7 +82,7 @@ export function createSecurityStore(target: SecurityTarget, client: SecurityClie
       async load() {
         const { connectionId, database } = target;
         try {
-          const [users, roles, builtins, capabilities, actions] = await Promise.all([
+          const [users, roles, builtins, capabilities, actions, session] = await Promise.all([
             client.listUsers({ connectionId, database }),
             client.listRoles({ connectionId, database }),
             database === BUILTIN_DATABASE
@@ -87,12 +90,14 @@ export function createSecurityStore(target: SecurityTarget, client: SecurityClie
               : client.listRoles({ connectionId, database: BUILTIN_DATABASE }),
             client.capabilities({ connectionId, database }),
             loadActions(),
+            client.session({ connectionId }),
           ]);
           const roleCatalog = [...builtins, ...roles];
           set({
             users,
             roles,
             roleCatalog,
+            signedIn: session.authenticatedUsers,
             capabilities,
             actions,
             loadError: undefined,

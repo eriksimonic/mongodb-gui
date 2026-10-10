@@ -19,6 +19,8 @@ export interface MockSecurity {
 
 export interface MockSecurityContext {
   readonly latencyMs: number;
+  /** True for a signed-in user with no user or role rights. Every capability then reads false. */
+  readonly viewer?: boolean | undefined;
   /** Throws unless the vault is unlocked and the connection is connected. */
   guard(connectionId: string): void;
   securityOf(connectionId: string): MockSecurity;
@@ -85,6 +87,20 @@ function builtinRoles(db: string): RoleInfo[] {
     }));
 }
 
+/** The user the mock connection signs in as. It holds both user admin roles on admin. */
+const SIGNED_IN_USER = { user: 'siteAdmin', db: 'admin' } as const;
+const SIGNED_IN_ROLES: UserRoleRef[] = [
+  roleRef('userAdminAnyDatabase', 'admin'),
+  roleRef('readWriteAnyDatabase', 'admin'),
+];
+
+/** A role may not inherit itself. The server refuses it, so the mock does too. */
+function refuseSelfInheritance(role: string, db: string, roles: readonly UserRoleRef[]): void {
+  if (roles.some((ref) => ref.role === role && ref.db === db)) {
+    throw fail('COMMAND_FAILED', 'A role cannot inherit itself', `${role}@${db}`);
+  }
+}
+
 function sameRef(left: UserRoleRef, right: UserRoleRef): boolean {
   return left.role === right.role && left.db === right.db;
 }
@@ -125,7 +141,18 @@ function refuseBuiltin(role: string, action: string): void {
 export function createSecurityCalls(context: MockSecurityContext): RpcClient['security'] {
   const { latencyMs } = context;
   const calls = rpcContract.security;
+  const viewer = context.viewer === true;
+
   return {
+    session: method(calls.session, latencyMs, ({ connectionId }) => {
+      context.guard(connectionId);
+      return {
+        authenticatedUsers: [{ ...SIGNED_IN_USER }],
+        authenticatedUserRoles: SIGNED_IN_ROLES.map((ref) => ({ ...ref })),
+        authenticatedUserPrivileges: [],
+      };
+    }),
+
     listUsers: method(calls.listUsers, latencyMs, ({ connectionId, database }) => {
       context.guard(connectionId);
       return context
@@ -194,6 +221,7 @@ export function createSecurityCalls(context: MockSecurityContext): RpcClient['se
       if (findCustomRole(security, input.db, input.role) !== undefined) {
         throw fail('COMMAND_FAILED', 'Role already exists', `${input.role}@${input.db}`);
       }
+      refuseSelfInheritance(input.role, input.db, input.roles);
       requireKnownRoles(security, input.roles);
       const created: RoleInfo = {
         id: userId(input.db, input.role),
@@ -217,6 +245,7 @@ export function createSecurityCalls(context: MockSecurityContext): RpcClient['se
         throw fail('COMMAND_FAILED', 'Role not found', `${input.role}@${input.db}`);
       }
       if (input.roles !== undefined) {
+        refuseSelfInheritance(input.role, input.db, input.roles);
         requireKnownRoles(security, input.roles);
         role.roles = input.roles.map((ref) => roleRef(ref.role, ref.db));
       }
@@ -241,7 +270,11 @@ export function createSecurityCalls(context: MockSecurityContext): RpcClient['se
 
     capabilities: method(calls.capabilities, latencyMs, ({ connectionId }) => {
       context.guard(connectionId);
-      return { canCreateUsers: true, canGrantRoles: true, canManageRoles: true };
+      return {
+        canCreateUsers: !viewer,
+        canGrantRoles: !viewer,
+        canManageRoles: !viewer,
+      };
     }),
 
     privilegeActions: method(calls.privilegeActions, latencyMs, () => privilegeActionCatalog()),

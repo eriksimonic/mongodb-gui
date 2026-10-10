@@ -1,9 +1,10 @@
-import { Alert, Button, Group, Modal, MultiSelect, Stack, Text } from '@mantine/core';
+import { Alert, Button, Checkbox, Group, Modal, MultiSelect, Stack, Text } from '@mantine/core';
 import type { UserInfo } from '@mongo-gui/core';
 import { useState } from 'react';
 import { useStore } from 'zustand';
 import { errorText } from '../notify-error';
 import { roleGroups, roleRefFromValue, roleValue } from '../../security/privilege-model';
+import { isSelfRevokeOfUserAdmin } from '../../security/self-revoke';
 import type { SecurityStore } from '../../security/security-store';
 
 export interface RolesOfUserDialogProps {
@@ -22,9 +23,17 @@ export function RolesOfUserDialog({ store, user, onClose }: RolesOfUserDialogPro
   const grantable = roleCatalog.filter((role) => !held.has(roleValue(role)));
   const [grant, setGrant] = useState<string[]>([]);
   const [revoke, setRevoke] = useState<string[]>([]);
+  const signedIn = useStore(store, (state) => state.signedIn);
+  const [acknowledged, setAcknowledged] = useState(false);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | undefined>(undefined);
+  const selfRevoke = isSelfRevokeOfUserAdmin(
+    signedIn,
+    { user: user.user, db: user.db },
+    revoke.map(roleRefFromValue),
+  );
   const changes = grant.length > 0 || revoke.length > 0;
+  const ready = changes && (!selfRevoke || acknowledged);
 
   async function submit() {
     setBusy(true);
@@ -57,7 +66,7 @@ export function RolesOfUserDialog({ store, user, onClose }: RolesOfUserDialogPro
       <form
         onSubmit={(event) => {
           event.preventDefault();
-          if (changes) {
+          if (ready) {
             void submit();
           }
         }}
@@ -91,6 +100,20 @@ export function RolesOfUserDialog({ store, user, onClose }: RolesOfUserDialogPro
             clearable
             hidePickedOptions
           />
+          {selfRevoke ? (
+            <>
+              <Alert color="yellow" variant="light" title="This account is signed in">
+                You are taking a user admin role from the account this connection signed in with.
+                Once it is gone, this connection may no longer manage users, and only another
+                administrator can give the role back.
+              </Alert>
+              <Checkbox
+                label="I understand that I may lose the right to manage users"
+                checked={acknowledged}
+                onChange={(event) => setAcknowledged(event.currentTarget.checked)}
+              />
+            </>
+          ) : null}
           {error === undefined ? null : (
             <Alert color="red" variant="light">
               {error}
@@ -100,7 +123,7 @@ export function RolesOfUserDialog({ store, user, onClose }: RolesOfUserDialogPro
             <Button variant="default" onClick={onClose}>
               Cancel
             </Button>
-            <Button disabled={!changes} loading={busy} type="submit">
+            <Button disabled={!ready} loading={busy} type="submit">
               Apply
             </Button>
           </Group>

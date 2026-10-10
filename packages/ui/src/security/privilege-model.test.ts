@@ -2,6 +2,7 @@ import type { PrivilegeActionCatalog, RoleInfo } from '@mongo-gui/core';
 import { describe, expect, it } from 'vitest';
 import {
   actionGroups,
+  collectionError,
   draftFromPrivilege,
   newPrivilegeDraft,
   privilegeFromDraft,
@@ -109,11 +110,48 @@ describe('privilegeFromDraft', () => {
     expect(
       privilegeFromDraft(draft({ kind: 'collection', db: 'shop', collection: 'orders' }), 'admin'),
     ).toEqual({ privilege: { resource: { db: 'shop', collection: 'orders' }, actions: ['find'] } });
+  });
+
+  it('does not fill an empty database of a collection row with the panel database', () => {
     expect(
       privilegeFromDraft(draft({ kind: 'collection', db: '', collection: 'orders' }), 'admin'),
-    ).toEqual({
-      privilege: { resource: { db: 'admin', collection: 'orders' }, actions: ['find'] },
+    ).toHaveProperty('error');
+  });
+
+  it('builds a collection in any database as an empty database with the collection name', () => {
+    expect(
+      privilegeFromDraft(
+        draft({ kind: 'collectionInAnyDatabase', db: '', collection: 'orders' }),
+        'shop',
+      ),
+    ).toEqual({ privilege: { resource: { db: '', collection: 'orders' }, actions: ['find'] } });
+    expect(
+      privilegeFromDraft(draft({ kind: 'collectionInAnyDatabase', collection: '' }), 'shop'),
+    ).toEqual({ error: 'Enter a collection name' });
+  });
+
+  it('reads an empty database with a collection as a collection in any database', () => {
+    const row = draftFromPrivilege(
+      { resource: { db: '', collection: 'orders' }, actions: ['find'] },
+      'a',
+    );
+    expect(row).toMatchObject({ kind: 'collectionInAnyDatabase', collection: 'orders' });
+    expect(privilegeFromDraft(row, 'shop')).toEqual({
+      privilege: { resource: { db: '', collection: 'orders' }, actions: ['find'] },
     });
+  });
+
+  it('accepts a system collection, since privileges may name them', () => {
+    expect(
+      privilegeFromDraft(
+        draft({ kind: 'collection', db: 'shop', collection: 'system.profile' }),
+        'shop',
+      ),
+    ).toEqual({
+      privilege: { resource: { db: 'shop', collection: 'system.profile' }, actions: ['find'] },
+    });
+    expect(collectionError('system.profile')).toBeUndefined();
+    expect(collectionError('')).toBe('Enter a collection name');
   });
 
   it('refuses a row without actions, and a collection row without a valid name', () => {

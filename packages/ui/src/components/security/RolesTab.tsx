@@ -5,6 +5,8 @@ import { useState } from 'react';
 import { useStore } from 'zustand';
 import type { SecurityStore } from '../../security/security-store';
 import { DestructiveDialog } from '../management/DestructiveDialog';
+import { capabilityReason, MANAGE_ROLES_REASON } from '../../security/capability-reasons';
+import { GatedButton } from './GatedButton';
 import { RoleBadges } from './RoleBadges';
 import { RoleEditorDialog } from './RoleEditorDialog';
 
@@ -42,13 +44,14 @@ export function RolesTab({ store, database }: RolesTabProps) {
         <Text size="sm" c="dimmed">
           {roles.filter((role) => !role.isBuiltin).length} custom roles in {database}
         </Text>
-        <Button
+        <GatedButton
+          allowed={canManage}
+          reason={capabilityReason(capabilities, MANAGE_ROLES_REASON)}
           leftSection={<IconPlus size={14} />}
-          disabled={!canManage}
           onClick={() => setEditor({ kind: 'create' })}
         >
           Create role
-        </Button>
+        </GatedButton>
       </Group>
       {capabilities !== undefined && !canManage ? (
         <Text size="xs" c="dimmed">
@@ -90,23 +93,25 @@ export function RolesTab({ store, database }: RolesTabProps) {
                     </Button>
                   ) : (
                     <>
-                      <Button
+                      <GatedButton
                         size="xs"
                         variant="default"
-                        disabled={!canManage}
+                        allowed={canManage}
+                        reason={capabilityReason(capabilities, MANAGE_ROLES_REASON)}
                         onClick={() => setEditor({ kind: 'edit', role })}
                       >
                         Edit
-                      </Button>
-                      <Button
+                      </GatedButton>
+                      <GatedButton
                         size="xs"
                         color="red"
                         variant="light"
-                        disabled={!canManage}
+                        allowed={canManage}
+                        reason={capabilityReason(capabilities, MANAGE_ROLES_REASON)}
                         onClick={() => setDropping(role)}
                       >
                         Drop
-                      </Button>
+                      </GatedButton>
                     </>
                   )}
                 </Group>
