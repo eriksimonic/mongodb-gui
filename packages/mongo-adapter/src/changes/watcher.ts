@@ -28,11 +28,11 @@ import { mapDriverError } from '../errors';
 import { readField, readRecord } from '../documents';
 import { parseOperationTime, parsePipeline, parseResumeToken, toChangeEvent } from './helpers';
 
-// Error code 286: the resume token points before the oplog window.
+// Error code 286: the resume token is older than the oplog window. A resume from it can fail the
+// same way, in which case the error is reported.
 const CHANGE_STREAM_HISTORY_LOST = 286;
 const RESUMABLE_LABEL = 'ResumableChangeStreamError';
 const INVALIDATE = 'invalidate';
-const AGGREGATE_REPLY = 'init';
 // Database-level and deployment-level cursors have no collection; the driver names them this way.
 const AGGREGATE_COMMAND_COLLECTION = '$cmd.aggregate';
 
@@ -89,7 +89,6 @@ export function openChangeWatch(
   const pending: ChangeEvent[] = [];
   let pendingBytes = 0;
   let pumping: Promise<void> = Promise.resolve();
-  let activeCursor: CursorHandle | undefined;
 
   function snapshot(): ChangeWatchState {
     return {
@@ -122,10 +121,11 @@ export function openChangeWatch(
       streamOptions.startAtOperationTime = point.startAtOperationTime;
     }
     const opened = watchTarget(client, session.target, session.pipeline, streamOptions);
-    activeCursor = cursorOf(opened);
-    // The watch is live once the server has answered the aggregate, not on the first batch.
-    // On an idle collection the first batch can take a whole maxAwaitTimeMS to arrive.
-    onAggregateReply(opened, () => {
+    // The watch is live once the server has answered the aggregate, not on the first batch. The
+    // driver sets the first resume token from the reply and emits resumeTokenChanged for it. On
+    // an idle collection the first batch can take a whole maxAwaitTimeMS to arrive, so the first
+    // read stays as a fallback.
+    opened.once('resumeTokenChanged', () => {
       if (phase === 'opening') {
         setPhase('live');
       }
@@ -303,7 +303,8 @@ export function openChangeWatch(
     finish('closed');
     await closeStream();
     await pumping;
-    await killCursor(client, activeCursor);
+    // Read at call time: the driver replaces its cursor when it resumes on its own.
+    await killCursor(client, stream === undefined ? undefined : cursorOf(stream));
   }
 
   try {
@@ -345,6 +346,7 @@ interface CursorHandle {
 }
 
 function cursorOf(stream: ChangeStream<Document>): CursorHandle | undefined {
+  // The driver's cursor is internal to the stream; its id and namespace are public getters.
   const cursor: unknown = readField(stream, 'cursor');
   return isCursorHandle(cursor) ? cursor : undefined;
 }
@@ -365,28 +367,6 @@ async function killCursor(client: MongoClient, cursor: CursorHandle | undefined)
     .db(cursor.namespace.db)
     .command({ killCursors: collection, cursors: [id] })
     .catch(() => undefined);
-}
-
-interface Emitter {
-  once(event: string, listener: () => void): unknown;
-}
-
-function isEmitter(value: unknown): value is Emitter {
-  return (
-    typeof value === 'object' &&
-    value !== null &&
-    'once' in value &&
-    typeof value.once === 'function'
-  );
-}
-
-// The driver emits 'init' when the aggregate has been answered. It emits it on its internal
-// cursor, which the stream does not re-emit, so the cursor is reached through the stream.
-function onAggregateReply(stream: ChangeStream<Document>, listener: () => void): void {
-  const cursor: unknown = readField(stream, 'cursor');
-  if (isEmitter(cursor)) {
-    cursor.once(AGGREGATE_REPLY, listener);
-  }
 }
 
 function parseSession(target: ChangeTarget, options: ChangeWatchOptions): Session {

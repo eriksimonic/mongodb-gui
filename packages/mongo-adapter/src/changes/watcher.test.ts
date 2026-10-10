@@ -1,5 +1,11 @@
 import { EventEmitter } from 'node:events';
-import { MongoError, type ChangeStreamOptions, type Document, type MongoClient } from 'mongodb';
+import {
+  Long,
+  MongoError,
+  type ChangeStreamOptions,
+  type Document,
+  type MongoClient,
+} from 'mongodb';
 import { describe, expect, it } from 'vitest';
 import type { ChangeEvent, ChangeWatchState } from '@mongo-gui/core';
 import { openChangeWatch, type ChangeWatch } from './watcher';
@@ -8,8 +14,14 @@ import { openChangeWatch, type ChangeWatch } from './watcher';
 // step is a document, or an error thrown by tryNext. An exhausted script idles until close.
 type Step = { readonly doc: Document } | { readonly error: unknown };
 
-class FakeStream {
-  readonly cursor = new EventEmitter();
+interface FakeCursor {
+  id: Long;
+  namespace: { db: string; collection: string };
+}
+
+class FakeStream extends EventEmitter {
+  // The driver replaces this when it resumes on its own. Tests swap it to simulate that.
+  cursor: FakeCursor = { id: Long.fromNumber(1), namespace: { db: 'shop', collection: 'orders' } };
   closed = false;
   // Test hook, run when close() is called on this stream.
   onClose: (() => void) | undefined;
@@ -18,13 +30,15 @@ class FakeStream {
   private readonly idle: Array<(value: Document | null) => void> = [];
 
   constructor(steps: Step[]) {
+    super();
     this.steps = steps;
   }
 
   async tryNext(): Promise<Document | null> {
     if (!this.started) {
+      // The driver sets the first resume token from the aggregate reply and emits this.
       this.started = true;
-      this.cursor.emit('init', {});
+      this.emit('resumeTokenChanged', { _data: 'aggregate-reply' });
     }
     if (this.closed) {
       return null;
@@ -57,23 +71,40 @@ interface FakeDriver {
   readonly client: MongoClient;
   readonly streams: FakeStream[];
   readonly options: ChangeStreamOptions[];
+  // Commands sent through db().command, in order.
+  readonly commands: Document[];
 }
 
 function fakeDriver(openings: Step[][]): FakeDriver {
   const queue = [...openings];
   const streams: FakeStream[] = [];
   const options: ChangeStreamOptions[] = [];
+  const commands: Document[] = [];
   const watch = (_pipeline: unknown, streamOptions: ChangeStreamOptions): FakeStream => {
     options.push(streamOptions);
     const stream = new FakeStream(queue.shift() ?? []);
     streams.push(stream);
     return stream;
   };
+  const command = (document: Document): Promise<Document> => {
+    commands.push(document);
+    return Promise.resolve({ ok: 1 });
+  };
   const client = {
     watch,
-    db: () => ({ watch, collection: () => ({ watch }) }),
+    db: () => ({ watch, collection: () => ({ watch }), command }),
   } as unknown as MongoClient;
-  return { client, streams, options };
+  return { client, streams, options, commands };
+}
+
+// The cursor ids named by killCursors commands, in the order they were sent.
+function killedIds(commands: readonly Document[]): number[] {
+  return commands.flatMap((command) => {
+    const cursors: unknown = command.cursors;
+    return Array.isArray(cursors) && 'killCursors' in command
+      ? cursors.map((id: unknown) => Number(String(id)))
+      : [];
+  });
 }
 
 function insert(n: number): Document {
@@ -237,6 +268,21 @@ describe('openChangeWatch phases and pause (fake driver)', () => {
 
     expect(watch.state().phase).toBe('live');
     await watch.close();
+  });
+
+  it('kills the cursor the driver holds at close, after the driver swapped it', async () => {
+    const { driver, watch } = run([[]]);
+    await until(() => watch.state().phase === 'live', 'the live phase');
+    const stream = driver.streams[0];
+    if (stream === undefined) {
+      throw new Error('the stream was not opened');
+    }
+    // The driver resumes on its own and replaces its cursor. The old id must not be the one killed.
+    stream.cursor = { id: Long.fromNumber(2), namespace: { db: 'shop', collection: 'orders' } };
+
+    await watch.close();
+
+    expect(killedIds(driver.commands)).toEqual([2]);
   });
 
   it('keeps the rest of the buffer in order when a flush pauses the watch', async () => {
