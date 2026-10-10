@@ -16,7 +16,13 @@ import {
   type ShellResponse,
 } from '@mongo-gui/core';
 import { buildClientOptions, readServerInfo } from '@mongo-gui/mongo-adapter';
-import { classifyCompletion, databaseMemberName, lineBeforeCursor } from './completion-kind';
+import {
+  classifyCompletion,
+  collectionMemberItems,
+  databaseMemberName,
+  isDatabaseMemberLine,
+  lineBeforeCursor,
+} from './completion-kind';
 import { toConnectError, toEvaluationError } from './errors';
 import { readString } from './fields';
 import { findHostListProblem } from './host-list';
@@ -156,13 +162,18 @@ export class ShellSession {
       const line = lineBeforeCursor(request.code, request.position);
       const completions = await connection.runtime.getCompletions(line);
       const texts = completions.map((completion) => completion.completion);
-      const collections = texts.some((text) => databaseMemberName(text) !== undefined)
-        ? await this.collectionNames(connection)
-        : new Set<string>();
+      const memberLine = isDatabaseMemberLine(line);
+      const names =
+        memberLine || texts.some((text) => databaseMemberName(text) !== undefined)
+          ? await this.collectionNames(connection)
+          : [];
+      const collections = new Set(names);
+      const items = texts.map((text) => ({ text, kind: classifyCompletion(text, collections) }));
+      const members = collectionMemberItems(line, names, new Set(texts));
       emit({
         id: request.id,
         kind: 'completions',
-        items: texts.map((text) => ({ text, kind: classifyCompletion(text, collections) })),
+        items: [...items, ...members],
       });
     } catch (error) {
       throw toFailure(error);
@@ -408,14 +419,15 @@ export class ShellSession {
     }
   }
 
-  private async collectionNames(connection: OpenConnection): Promise<Set<string>> {
+  // The collection names of the current database, in the order the server lists them.
+  private async collectionNames(connection: OpenConnection): Promise<string[]> {
     const database = await this.currentDatabase(connection);
     if (database === undefined) {
-      return new Set();
+      return [];
     }
     const rows: unknown = await connection.provider.listCollections(database);
     const names = Array.isArray(rows) ? rows.map((row: unknown) => readString(row, 'name')) : [];
-    return new Set(names.filter((name): name is string => name !== undefined));
+    return names.filter((name): name is string => name !== undefined);
   }
 }
 

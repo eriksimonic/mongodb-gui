@@ -1,4 +1,4 @@
-import type { CompletionKind } from '@mongo-gui/core';
+import type { CompletionItem, CompletionKind } from '@mongo-gui/core';
 
 // The mongosh completer returns plain strings, so the kind comes from the shape of each string:
 // a $-operator, a collection under db, or a shell or JavaScript keyword. Methods and properties
@@ -79,4 +79,42 @@ export function lineBeforeCursor(code: string, position: number): string {
   const end = Math.min(Math.max(position, 0), code.length);
   const before = code.slice(0, end);
   return before.slice(before.lastIndexOf('\n') + 1);
+}
+
+const DB_PREFIX = /(^|[^\w$.])db\.([A-Za-z_$][\w$]*)?$/;
+const IDENTIFIER_NAME = /^[A-Za-z_$][\w$]*$/;
+
+// True for a line that ends in db. and an optional identifier prefix, the form that completes
+// collection names.
+export function isDatabaseMemberLine(line: string): boolean {
+  return DB_PREFIX.test(line);
+}
+
+// Completions for a line that ends in db. and an optional identifier prefix. The mongosh completer
+// may list collections late or not at all, so the session adds one whole-line item per collection.
+// Names that are not identifiers go through db.getCollection. Texts the runtime already returned
+// are skipped. Returns no items for any other line.
+export function collectionMemberItems(
+  line: string,
+  collectionNames: readonly string[],
+  runtimeTexts: ReadonlySet<string>,
+): CompletionItem[] {
+  const match = DB_PREFIX.exec(line);
+  if (match === null) {
+    return [];
+  }
+  const head = line.slice(0, match.index + (match[1] ?? '').length);
+  const items: CompletionItem[] = [];
+  const seen = new Set<string>();
+  for (const name of collectionNames) {
+    const text = IDENTIFIER_NAME.test(name)
+      ? `${head}db.${name}`
+      : `${head}db.getCollection(${JSON.stringify(name)})`;
+    if (runtimeTexts.has(text) || seen.has(text)) {
+      continue;
+    }
+    seen.add(text);
+    items.push({ text, kind: 'collection' });
+  }
+  return items;
 }
