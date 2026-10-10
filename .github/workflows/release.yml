@@ -62,6 +62,12 @@ jobs:
       - name: Run checks
         run: pnpm check
 
+      - name: Cache the MongoDB tools archive
+        uses: actions/cache@v5
+        with:
+          path: packages/app/.cache/mongo-tools
+          key: mongo-tools-${{ runner.os }}-${{ hashFiles('packages/app/mongo-tools.json') }}
+
       - name: Build and publish installers to a draft release
         if: startsWith(github.ref, 'refs/tags/v')
         run: pnpm --filter @mongo-gui/app dist:publish
@@ -71,6 +77,17 @@ jobs:
       - name: Build installers without publishing
         if: ${{ !startsWith(github.ref, 'refs/tags/v') }}
         run: pnpm --filter @mongo-gui/app dist
+
+      # Checks that execute bits and placement survived packaging. macOS bundles no tools.
+      - name: Run the packaged mongodump
+        if: ${{ runner.os != 'macOS' }}
+        shell: bash
+        run: |
+          if [ "$RUNNER_OS" = "Windows" ]; then
+            packages/app/release/win-unpacked/resources/mongo-tools/bin/mongodump.exe --version
+          else
+            packages/app/release/linux-unpacked/resources/mongo-tools/bin/mongodump --version
+          fi
 
       - name: Upload installers for inspection
         if: ${{ !startsWith(github.ref, 'refs/tags/v') }}
