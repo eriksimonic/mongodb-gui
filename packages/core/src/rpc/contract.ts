@@ -159,6 +159,25 @@ import {
   ReplicationStepDownInputSchema,
   ReplicationStepDownOutputSchema,
 } from '../replication/rpc-schemas';
+import {
+  CollectionTargetSchema,
+  CommandLineReplySchema,
+  DatabaseTargetSchema,
+  KillAllSessionsInputSchema,
+  KillSessionsInputSchema,
+  ServerLogRequestSchema,
+  ServerStatusReplySchema,
+  SessionListInputSchema,
+} from '../diagnostics/calls';
+import {
+  BuildInfoSchema,
+  ConnPoolStatsSchema,
+  HostInfoSchema,
+  ServerLogSchema,
+  ServerParameterSchema,
+  SessionListSchema,
+  TopEntrySchema,
+} from '../diagnostics/types';
 import { defineCall, type RpcContract } from './define';
 
 const idParam = z.object({ id: z.uuid() });
@@ -340,6 +359,24 @@ export const rpcContract = {
     stepDown: defineCall(ReplicationStepDownInputSchema, ReplicationStepDownOutputSchema),
     freeze: defineCall(ReplicationFreezeInputSchema, z.void()),
     initiate: defineCall(ReplicationInitiateInputSchema, z.void()),
+  },
+
+  // Server logs, server parameters and sessions. Reads report no catalog change. Kill calls need a
+  // connected server, and the adapter checks the session ids and user names before it sends them.
+  diagnostics: {
+    getLog: defineCall(onConnection(ServerLogRequestSchema), ServerLogSchema),
+    cmdLineOpts: defineCall(connectionParam, CommandLineReplySchema),
+    parameters: defineCall(connectionParam, z.array(ServerParameterSchema)),
+    hostInfo: defineCall(connectionParam, HostInfoSchema),
+    buildInfo: defineCall(connectionParam, BuildInfoSchema),
+    serverStatus: defineCall(connectionParam, ServerStatusReplySchema),
+    top: defineCall(connectionParam, z.array(TopEntrySchema)),
+    dbStats: defineCall(connectionParam.and(DatabaseTargetSchema), DatabaseStatsSchema),
+    collStats: defineCall(connectionParam.and(CollectionTargetSchema), CollectionStatsSchema),
+    connPoolStats: defineCall(connectionParam, ConnPoolStatsSchema),
+    listSessions: defineCall(onConnection(SessionListInputSchema), SessionListSchema),
+    killSessions: defineCall(onConnection(KillSessionsInputSchema), z.void()),
+    killAllSessionsByUser: defineCall(onConnection(KillAllSessionsInputSchema), z.void()),
   },
   // The sample is read by the shell runtime and the total from the server's metadata.
   schema: {

@@ -9,6 +9,7 @@ export {
   getParameters,
   getServerStatusTree,
   getTop,
+  serverStatusDocument,
 } from './server';
 export {
   killAllSessionsByUser,

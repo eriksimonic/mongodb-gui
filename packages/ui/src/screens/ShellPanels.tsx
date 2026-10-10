@@ -22,6 +22,8 @@ import { ExplainPanel } from '../explain/ExplainPanel';
 import { ProfilerPanel } from '../profiler/ProfilerPanel';
 import { ReplicationPanel } from '../replication/ReplicationPanel';
 import { EditorView } from '../components/editor/EditorView';
+import { DiagnosticsPanel } from '../diagnostics/DiagnosticsPanel';
+import { CollectionStatsPanel, DatabaseStatsPanel } from '../diagnostics/StatsPanels';
 
 export { OutputPanel } from '../components/editor/OutputPanel';
 import { SchemaPanel } from '../schema/SchemaPanel';
@@ -308,6 +310,44 @@ export function UsersDockPanel({ params }: IDockviewPanelProps<UsersPanelParams>
   return (
     <Box h="100%" style={{ overflow: 'auto' }}>
       <UsersRolesPanel connectionId={params.connectionId} database={params.database} />
+    </Box>
+  );
+}
+
+/** Params of the server diagnostics panel of a connection. */
+export interface DiagnosticsPanelParams {
+  readonly connectionId: string;
+}
+
+/** Dock panel: server logs, parameters, status, host, top, pools and sessions. */
+export function DiagnosticsDockPanel({ params }: IDockviewPanelProps<DiagnosticsPanelParams>) {
+  return <DiagnosticsPanel connectionId={params.connectionId} />;
+}
+
+/** Params of a database statistics panel. */
+export interface DatabaseStatsPanelParams {
+  readonly connectionId: string;
+  readonly database: string;
+}
+
+/** Dock panel: storage statistics of one database. */
+export function DatabaseStatsDockPanel({ params }: IDockviewPanelProps<DatabaseStatsPanelParams>) {
+  return (
+    <Box h="100%" style={{ overflow: 'auto' }}>
+      <DatabaseStatsPanel connectionId={params.connectionId} database={params.database} />
+    </Box>
+  );
+}
+
+/** Dock panel: storage statistics of one collection. */
+export function CollectionStatsDockPanel({ params }: IDockviewPanelProps<CollectionPanelParams>) {
+  return (
+    <Box h="100%" style={{ overflow: 'auto' }}>
+      <CollectionStatsPanel
+        connectionId={params.connectionId}
+        database={params.database}
+        collection={params.collection}
+      />
     </Box>
   );
 }

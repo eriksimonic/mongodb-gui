@@ -61,6 +61,11 @@ export function DatabaseContextMenu({
     },
     {
       kind: 'item',
+      label: 'Database stats',
+      onSelect: () => openPanel({ kind: 'databaseStats', connectionId, database }),
+    },
+    {
+      kind: 'item',
       label: 'Drop database',
       color: 'red',
       onSelect: () => setManagementDialog({ kind: 'dropDatabase', connectionId, database }),
@@ -92,6 +97,7 @@ export function CollectionContextMenu({
   const setManagementDialog = useAppStore((state) => state.setManagementDialog);
   const setTransferDialog = useAppStore((state) => state.setTransferDialog);
   const refreshDatabase = useAppStore((state) => state.refreshDatabase);
+  const openPanel = usePanelOpener();
   const target = { connectionId, database, collection };
   const entries: TreeMenuEntry[] = [
     {
@@ -113,6 +119,11 @@ export function CollectionContextMenu({
       kind: 'item',
       label: 'Analyse schema',
       onSelect: () => requestPanel({ panel: 'schema', ...target }),
+    },
+    {
+      kind: 'item',
+      label: 'Collection stats',
+      onSelect: () => openPanel({ kind: 'collectionStats', connectionId, database, collection }),
     },
     {
       kind: 'item',

@@ -37,11 +37,21 @@ import { useAppStore, useAppStoreApi } from '../state/app-store-context';
 import {
   PanelOpenerContext,
   type ConnectionPanelKind,
+  type CollectionStatsRequest,
   type ConnectionPanelRequest,
+  type DatabaseStatsRequest,
+  type DiagnosticsPanelRequest,
   type OpenPanel,
   type UsersPanelRequest,
 } from '../state/panel-opener';
-import { gridfsPanelId, profilerPanelId, usersPanelId } from '../state/node-ids';
+import {
+  collectionStatsPanelId,
+  databaseStatsPanelId,
+  diagnosticsPanelId,
+  gridfsPanelId,
+  profilerPanelId,
+  usersPanelId,
+} from '../state/node-ids';
 import { GridFsBucketDialogs } from '../components/gridfs/GridFsBucketDialogs';
 import { GridFsOpenerContext, type GridFsOpener } from '../components/gridfs/gridfs-opener';
 import { databasePanelIds, restoredCollectionRequest, stalePanelIds } from './collection-panels';
@@ -61,6 +71,9 @@ import {
   ReplicationDockPanel,
   SchemaDockPanel,
   UsersDockPanel,
+  DiagnosticsDockPanel,
+  DatabaseStatsDockPanel,
+  CollectionStatsDockPanel,
   ValidationDockPanel,
   WelcomePanel,
 } from './ShellPanels';
@@ -81,6 +94,9 @@ const PANEL_COMPONENTS = {
   schema: SchemaDockPanel,
   users: UsersDockPanel,
   gridfs: GridFsDockPanel,
+  diagnostics: DiagnosticsDockPanel,
+  dbStats: DatabaseStatsDockPanel,
+  collStats: CollectionStatsDockPanel,
 };
 
 const TAB_COMPONENTS = { fixed: FixedTab };
@@ -258,6 +274,65 @@ function openUsersPanel(api: DockviewApi, request: UsersPanelRequest): void {
 }
 
 /**
+ * Opens a connection's server diagnostics panel, or focuses it when it is open. One panel per
+ * connection, titled "<connection> diagnostics".
+ */
+function openDiagnosticsPanel(api: DockviewApi, request: DiagnosticsPanelRequest): void {
+  const id = diagnosticsPanelId(request.connectionId);
+  const existing = api.getPanel(id);
+  if (existing !== undefined) {
+    existing.api.setActive();
+    return;
+  }
+  const centre = api.getPanel('welcome') === undefined ? undefined : 'welcome';
+  api.addPanel({
+    id,
+    component: 'diagnostics',
+    title: `${request.connectionName} diagnostics`,
+    params: { connectionId: request.connectionId },
+    ...(centre === undefined
+      ? {}
+      : { position: { referencePanel: centre, direction: 'within' as const } }),
+  });
+}
+
+/**
+ * Opens the storage statistics panel of a database or a collection, or focuses it when it is
+ * open. One panel per database or collection.
+ */
+function openStatsPanel(
+  api: DockviewApi,
+  request: DatabaseStatsRequest | CollectionStatsRequest,
+): void {
+  const isCollection = request.kind === 'collectionStats';
+  const id = isCollection
+    ? collectionStatsPanelId(request.connectionId, request.database, request.collection)
+    : databaseStatsPanelId(request.connectionId, request.database);
+  const existing = api.getPanel(id);
+  if (existing !== undefined) {
+    existing.api.setActive();
+    return;
+  }
+  const centre = api.getPanel('welcome') === undefined ? undefined : 'welcome';
+  const title = isCollection ? `${request.collection} stats` : `${request.database} stats`;
+  api.addPanel({
+    id,
+    component: isCollection ? 'collStats' : 'dbStats',
+    title,
+    params: isCollection
+      ? {
+          connectionId: request.connectionId,
+          database: request.database,
+          collection: request.collection,
+        }
+      : { connectionId: request.connectionId, database: request.database },
+    ...(centre === undefined
+      ? {}
+      : { position: { referencePanel: centre, direction: 'within' as const } }),
+  });
+}
+
+/**
  * Adds the explain panel of the store to the centre group, or focuses it when it is open. The
  * panel reads its request and result from the store.
  */
@@ -416,10 +491,21 @@ export function ShellScreen() {
     if (dockApi.current === undefined) {
       return;
     }
-    if (request.kind === 'users') {
-      openUsersPanel(dockApi.current, request);
-    } else {
-      openConnectionPanel(dockApi.current, request);
+    switch (request.kind) {
+      case 'users':
+        openUsersPanel(dockApi.current, request);
+        return;
+      case 'diagnostics':
+        openDiagnosticsPanel(dockApi.current, request);
+        return;
+      case 'databaseStats':
+        openStatsPanel(dockApi.current, request);
+        return;
+      case 'collectionStats':
+        openStatsPanel(dockApi.current, request);
+        return;
+      default:
+        openConnectionPanel(dockApi.current, request);
     }
   }, []);
   const gridfsOpener = useMemo<GridFsOpener>(

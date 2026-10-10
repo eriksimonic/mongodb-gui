@@ -207,11 +207,25 @@ function toSessionInfo(
     {
       id,
       ...definedEntry('user', user),
+      ...definedEntry('name', userName(user)),
+      ...definedEntry('db', userDatabase(user)),
       ...definedEntry('userId', userId),
       ...definedEntry('lastUse', lastUse?.toISOString()),
       ...definedEntry('expired', readBoolean(row, 'expired')),
     },
   ];
+}
+
+// The server writes the user as "name@db". The database follows the last "@", because a name such
+// as "someone@example.com" from $external contains one too.
+function userName(user: string | undefined): string | undefined {
+  const at = user?.lastIndexOf('@') ?? -1;
+  return user === undefined || at <= 0 ? undefined : user.slice(0, at);
+}
+
+function userDatabase(user: string | undefined): string | undefined {
+  const at = user?.lastIndexOf('@') ?? -1;
+  return user === undefined || at < 0 || at === user.length - 1 ? undefined : user.slice(at + 1);
 }
 
 function binaryHex(value: unknown): string | undefined {

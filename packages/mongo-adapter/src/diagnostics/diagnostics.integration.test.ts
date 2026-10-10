@@ -273,6 +273,8 @@ describe.each(MONGO_IMAGES)('server diagnostics on %s', (image) => {
         expect(mine).toBeDefined();
         expect(mine?.userId).toBeDefined();
         expect(mine?.user).toBe('root@admin');
+        expect(mine?.name).toBe('root');
+        expect(mine?.db).toBe('admin');
       } finally {
         await endSession(session);
       }
@@ -309,6 +311,8 @@ describe.each(MONGO_IMAGES)('server diagnostics on %s', (image) => {
         expect(ids).toContain(sessionHex(readerSession));
         expect(ids).not.toContain(sessionHex(rootSession));
         expect(listing.sessions.every((info) => info.user === `${READER_USER}@admin`)).toBe(true);
+        expect(listing.sessions.every((info) => info.name === READER_USER)).toBe(true);
+        expect(listing.sessions.every((info) => info.db === 'admin')).toBe(true);
       } finally {
         await endSession(readerSession);
         await endSession(rootSession);
