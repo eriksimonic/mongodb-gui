@@ -26,8 +26,9 @@ export interface CompletionSourceOptions {
   /** Read on each call, because a tab can change its database. */
   readonly database: () => string;
   /**
-   * True while the runtime is busy. The runtime handles one request at a time, so a completion
-   * sent during a run would wait for the run. Busy skips the runtime and the sample.
+   * True while the runtime evaluates code or steps a cursor. Completion and field sampling do not
+   * set busy. The runtime handles one request at a time, so a completion sent during a run would
+   * wait for the run. Busy skips the runtime and the sample until the run ends.
    */
   readonly isBusy: () => boolean;
 }

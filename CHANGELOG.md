@@ -11,6 +11,15 @@ All notable changes to Mongo GUI are listed here, newest first.
 - Imports a connections file after its passphrase is typed. Name collisions can skip, rename or
   replace the existing connection, and the connection tree reloads.
 
+### Fixed
+
+- Typing `db.` lists every collection of the database, including on slow or remote servers. The
+  editor no longer depends on the shell's short collection lookup.
+- Completion requests no longer hide the completions of the next keystroke, and a slow field sample
+  no longer blanks completions while it runs.
+- Field completion works inside queries on collections named with `db.getCollection("...")` or
+  `db["..."]`.
+
 ## 0.1.0 - 2026-10-10
 
 First tagged release.

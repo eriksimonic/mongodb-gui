@@ -1,5 +1,10 @@
 import { describe, expect, it } from 'vitest';
-import { classifyCompletion, databaseMemberName } from './completion-kind';
+import {
+  classifyCompletion,
+  collectionMemberItems,
+  databaseMemberName,
+  isDatabaseMemberLine,
+} from './completion-kind';
 
 const COLLECTIONS: ReadonlySet<string> = new Set(['items', 'orders']);
 
@@ -30,5 +35,43 @@ describe('databaseMemberName', () => {
     expect(databaseMemberName('db.items')).toBe('items');
     expect(databaseMemberName('db.items.find')).toBeUndefined();
     expect(databaseMemberName('show')).toBeUndefined();
+  });
+});
+
+describe('isDatabaseMemberLine', () => {
+  it('is true for a line that ends in db. with an optional identifier prefix', () => {
+    expect(isDatabaseMemberLine('db.')).toBe(true);
+    expect(isDatabaseMemberLine('x = db.us')).toBe(true);
+    expect(isDatabaseMemberLine('(db.')).toBe(true);
+  });
+
+  it('is false for deeper paths and for names that merely end in db', () => {
+    expect(isDatabaseMemberLine('db.users.')).toBe(false);
+    expect(isDatabaseMemberLine('db.users.fi')).toBe(false);
+    expect(isDatabaseMemberLine('mydb.')).toBe(false);
+  });
+});
+
+describe('collectionMemberItems', () => {
+  it('returns whole-line collection texts after the line head', () => {
+    expect(collectionMemberItems('x = db.', ['users'], new Set())).toEqual([
+      { text: 'x = db.users', kind: 'collection' },
+    ]);
+  });
+
+  it('uses db.getCollection for names that are not identifiers', () => {
+    expect(collectionMemberItems('db.', ['my-logs'], new Set())).toEqual([
+      { text: 'db.getCollection("my-logs")', kind: 'collection' },
+    ]);
+  });
+
+  it('skips texts the runtime already returned', () => {
+    expect(collectionMemberItems('db.', ['users', 'orders'], new Set(['db.users']))).toEqual([
+      { text: 'db.orders', kind: 'collection' },
+    ]);
+  });
+
+  it('returns nothing for a line that is not a db member', () => {
+    expect(collectionMemberItems('db.users.', ['users'], new Set())).toEqual([]);
   });
 });

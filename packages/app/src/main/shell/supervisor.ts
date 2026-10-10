@@ -317,11 +317,12 @@ export class RuntimeSupervisor {
     }
   }
 
+  // Completion and schema sampling never mark the slot busy. The editor reads busy as an evaluation
+  // in progress and hides completions, so a completion request must leave the state ready.
   async complete(input: CompleteRequest): Promise<{ items: CompletionItem[] }> {
     const slot = this.slotFor(input.connectionId);
     return this.enqueue(slot, undefined, async () => {
       await this.ensureReady(slot);
-      this.markBusy(slot);
       const switched = await this.useDatabase(slot, input.database);
       if (switched !== undefined) {
         throw new AppErrorException(switched);
@@ -350,7 +351,6 @@ export class RuntimeSupervisor {
     const slot = this.slotFor(input.connectionId);
     return this.enqueue(slot, undefined, async () => {
       await this.ensureReady(slot);
-      this.markBusy(slot);
       const outcome = await this.exchange(
         slot,
         {

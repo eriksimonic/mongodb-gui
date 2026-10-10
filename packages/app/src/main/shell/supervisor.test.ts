@@ -681,6 +681,27 @@ describe('RuntimeSupervisor', () => {
     expect(schema).toEqual({ fields: [], sampled: 0 });
   });
 
+  it('leaves the state ready across completion and schema sampling', async () => {
+    const h = track(harness({}));
+    await h.supervisor.complete({
+      connectionId: CONNECTION_ID,
+      database: 'shop',
+      code: 'db.',
+      position: 3,
+    });
+    await h.supervisor.sampleSchema({
+      connectionId: CONNECTION_ID,
+      database: 'shop',
+      collection: 'orders',
+      size: 100,
+      strategy: 'random',
+    });
+    const states = h.events
+      .filter((event) => event.type === 'shell:state')
+      .map((event) => (event.type === 'shell:state' ? event.state : undefined));
+    expect(states).toEqual(['starting', 'ready']);
+  });
+
   it('reports state transitions as events without the result payload', async () => {
     const h = track(harness({}));
     await h.supervisor.evaluate(evaluateInput());

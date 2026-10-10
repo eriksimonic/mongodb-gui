@@ -28,7 +28,11 @@ export interface CompletionContext {
 }
 
 const WORD_BEFORE = /[A-Za-z0-9_$]*$/;
-const COLLECTION_REF = /\bdb\.([A-Za-z_][A-Za-z0-9_]*)\b/g;
+// Matches db.getCollection("<name>"), db["<name>"] and db.<name>, in that order, because the
+// identifier form also matches db.getCollection. Groups 2 and 4 hold the quoted names and group 5
+// holds the identifier.
+const COLLECTION_REF =
+  /\bdb\.getCollection\(\s*(['"])([^'"]+)\1\s*\)|\bdb\[\s*(['"])([^'"]+)\3\s*\]|\bdb\.([A-Za-z_][A-Za-z0-9_]*)\b/g;
 
 /** The word before the cursor, the line text before that word, and the collection the statement names. */
 export function completionContext(code: string, offset: number): CompletionContext {
@@ -48,11 +52,19 @@ export function completionContext(code: string, offset: number): CompletionConte
   };
 }
 
-/** The collection named by the last `db.<name>` in the text, skipping the database's own methods. */
+/**
+ * The collection named by the last `db.<name>`, `db.getCollection("<name>")` or `db["<name>"]` in
+ * the text. Dotted database methods such as `db.getName` are skipped.
+ */
 export function lastCollection(text: string): string | undefined {
   let found: string | undefined;
   for (const match of text.matchAll(COLLECTION_REF)) {
-    const name = match[1] ?? '';
+    const quoted = match[2] ?? match[4];
+    if (quoted !== undefined) {
+      found = quoted;
+      continue;
+    }
+    const name = match[5] ?? '';
     if (!DATABASE_MEMBERS.has(name)) {
       found = name;
     }

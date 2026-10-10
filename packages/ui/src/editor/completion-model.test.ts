@@ -28,6 +28,29 @@ describe('completionContext', () => {
     });
   });
 
+  it('names the collection inside a find call, where field completion applies', () => {
+    const code = 'db.users.find({ na';
+    expect(completionContext(code, code.length)).toMatchObject({
+      prefix: 'na',
+      collection: 'users',
+      objectKey: true,
+    });
+  });
+
+  it('names the collection of a db.getCollection or db[...] statement', () => {
+    const quoted = 'db.getCollection("users").find({ na';
+    expect(completionContext(quoted, quoted.length)).toMatchObject({
+      prefix: 'na',
+      collection: 'users',
+      objectKey: true,
+    });
+    const bracket = "db['users'].find({ na";
+    expect(completionContext(bracket, bracket.length)).toMatchObject({
+      collection: 'users',
+      objectKey: true,
+    });
+  });
+
   it('reports the line text before the word, not the text of earlier lines', () => {
     const code = 'use shop\ndb.ord';
     expect(completionContext(code, code.length)).toMatchObject({ prefix: 'ord', head: 'db.' });
@@ -66,6 +89,20 @@ describe('lastCollection', () => {
 
   it('returns undefined when no collection is named', () => {
     expect(lastCollection('print(1)')).toBeUndefined();
+  });
+
+  it('reads a collection named with db.getCollection', () => {
+    expect(lastCollection('db.getCollection("orders").find(')).toBe('orders');
+    expect(lastCollection("db.getCollection('orders').find(")).toBe('orders');
+  });
+
+  it('reads a collection named with db[...]', () => {
+    expect(lastCollection("db['orders'].find(")).toBe('orders');
+    expect(lastCollection('db["orders"].find(')).toBe('orders');
+  });
+
+  it('takes the last collection whichever form names it', () => {
+    expect(lastCollection('db.a.find(); db["b"].find(); db.getCollection("c").find(')).toBe('c');
   });
 });
 
