@@ -24,6 +24,16 @@ export function monitorNodeId(connectionId: string): string {
   return `mon:${connectionId}`;
 }
 
+/** Node id of the replica set node under a connection. Open by default. */
+export function replicaSetNodeId(connectionId: string): string {
+  return `rs:${connectionId}`;
+}
+
+/** Node id of one replica set member under the replica set node. */
+export function memberNodeId(connectionId: string, host: string): string {
+  return `rsm:${connectionId}/${host}`;
+}
+
 /** Node id of the Operations child under a connection. */
 export function operationsNodeId(connectionId: string): string {
   return `ops:${connectionId}`;

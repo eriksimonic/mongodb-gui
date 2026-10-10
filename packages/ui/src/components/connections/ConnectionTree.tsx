@@ -19,6 +19,7 @@ import { ConnectionContextMenu } from './ConnectionContextMenu';
 import { DockerContainerContextMenu } from './DockerContainerContextMenu';
 import { DockerLinkedContextMenu } from './DockerLinkedContextMenu';
 import { DockerNodeContextMenu } from './DockerNodeContextMenu';
+import { MemberContextMenu } from './MemberContextMenu';
 import { CollectionContextMenu, DatabaseContextMenu } from './CatalogContextMenu';
 import { TreeMessage, TreeRow } from './TreeRow';
 import {
@@ -38,6 +39,7 @@ type MenuTarget =
   | { readonly kind: 'linked'; readonly connectionId: string }
   | { readonly kind: 'container'; readonly containerId: string }
   | { readonly kind: 'docker' }
+  | { readonly kind: 'member'; readonly connectionId: string; readonly host: string }
   | { readonly kind: 'database'; readonly connectionId: string; readonly database: string }
   | {
       readonly kind: 'gridfsBucket';
@@ -104,6 +106,10 @@ function menuTargetFor(
         : { kind: 'container', containerId: row.container.id };
     case 'docker':
       return { kind: 'docker' };
+    case 'member':
+      return row.member === undefined
+        ? undefined
+        : { kind: 'member', connectionId: row.connectionId, host: row.member.name };
     case 'database':
       return row.database === undefined
         ? undefined
@@ -153,6 +159,9 @@ export function ConnectionTree() {
   const loadCollections = useAppStore((state) => state.loadCollections);
   const gridfsBuckets = useAppStore((state) => state.gridfsBuckets);
   const loadGridFsBuckets = useAppStore((state) => state.loadGridFsBuckets);
+  const replicaSets = useAppStore((state) => state.replicaSets);
+  const loadReplicaSet = useAppStore((state) => state.loadReplicaSet);
+  const connectDirectly = useAppStore((state) => state.connectDirectly);
   const gridfsOpener = useGridFsOpener();
   const select = useAppStore((state) => state.select);
   const loadDocker = useAppStore((state) => state.loadDocker);
@@ -189,9 +198,28 @@ export function ConnectionTree() {
             collections,
             docker: { status: docker.status, containers: docker.containers },
             gridfs: gridfsBuckets,
+            replicaSets,
           }),
-    [list, statuses, expanded, databases, collections, docker, gridfsBuckets],
+    [list, statuses, expanded, databases, collections, docker, gridfsBuckets, replicaSets],
   );
+
+  // An open connection that reports a set name loads its members once, so the primary shows.
+  useEffect(() => {
+    if (list === undefined) {
+      return;
+    }
+    for (const connection of list) {
+      const status = statuses[connection.id];
+      if (
+        expanded[connectionNodeId(connection.id)] === true &&
+        status?.state === 'connected' &&
+        status.setName !== undefined &&
+        replicaSets[connection.id] === undefined
+      ) {
+        void loadReplicaSet(connection.id);
+      }
+    }
+  }, [list, statuses, expanded, replicaSets, loadReplicaSet]);
 
   useEffect(() => {
     if (list === undefined) {
@@ -290,18 +318,36 @@ export function ConnectionTree() {
     });
   }
 
-  /** Monitoring and Operations children open their panel in the centre group. */
+  /** Monitoring, Operations and the replica set node open their panel in the centre group. */
   function openToolRow(row: TreeRowModel) {
-    if (row.kind !== 'monitor' && row.kind !== 'operations') {
+    if (row.kind === 'member') {
+      openMemberRow(row);
+      return;
+    }
+    if (row.kind !== 'monitor' && row.kind !== 'operations' && row.kind !== 'replica-set') {
       return;
     }
     const connectionName =
       readyConnections.find((item) => item.id === row.connectionId)?.name ?? '';
-    openPanel({
-      kind: row.kind === 'monitor' ? 'monitor' : 'operations',
-      connectionId: row.connectionId,
-      connectionName,
-    });
+    const kind =
+      row.kind === 'monitor' ? 'monitor' : row.kind === 'operations' ? 'operations' : 'replication';
+    openPanel({ kind, connectionId: row.connectionId, connectionName });
+  }
+
+  /** A member opens a direct connection to that host, unless the connection is already that. */
+  function openMemberRow(row: TreeRowModel) {
+    if (row.member === undefined || isSelfDirect(row)) {
+      return;
+    }
+    void runReported(() => connectDirectly(row.connectionId, row.member?.name ?? ''));
+  }
+
+  /** True when the row's connection already talks to this member only. */
+  function isSelfDirect(row: TreeRowModel): boolean {
+    const status = statuses[row.connectionId];
+    return (
+      row.member?.self === true && status?.state === 'connected' && status.directConnection === true
+    );
   }
 
   /** A database opens a query editor on it, or focuses the one already open there. */
@@ -464,6 +510,20 @@ export function ConnectionTree() {
           connection={connection}
           container={container}
           status={statuses[connection.id] ?? DISCONNECTED}
+          position={position}
+          onClose={closeMenu}
+        />
+      );
+    }
+    if (target.kind === 'member') {
+      const connection = readyConnections.find((item) => item.id === target.connectionId);
+      const row = rows.find((item) => item.kind === 'member' && item.member?.name === target.host);
+      return (
+        <MemberContextMenu
+          connectionId={target.connectionId}
+          connectionName={connection?.name ?? ''}
+          host={target.host}
+          isSelfDirect={row === undefined ? false : isSelfDirect(row)}
           position={position}
           onClose={closeMenu}
         />

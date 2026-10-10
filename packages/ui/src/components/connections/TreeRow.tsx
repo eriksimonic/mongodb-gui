@@ -8,14 +8,16 @@ import {
   IconFolder,
   IconGauge,
   IconListDetails,
+  IconServer,
+  IconTopologyRing3,
 } from '@tabler/icons-react';
 import type { MouseEvent } from 'react';
 import { CollectionIcon } from './CollectionIcon';
 import { ConnectionStatusIcon } from './ConnectionStatusIcon';
 import { DockerContainerMeta } from './DockerContainerMeta';
 import { connectionTreeMeta } from './connection-status-label';
-import type { ConnectionStatus } from '@mongo-gui/core';
-import type { TreeRow as TreeRowModel } from './tree-model';
+import type { ConnectionStatus, ReplicaSetMember } from '@mongo-gui/core';
+import { memberStateTone, type TreeRow as TreeRowModel } from './tree-model';
 import './tree.css';
 
 const INDENT_PX = 16;
@@ -91,7 +93,18 @@ export function TreeRow({
       {row.kind === 'connection' && row.status !== undefined ? (
         <ConnectionMeta status={row.status} />
       ) : null}
+      {row.member === undefined ? null : <MemberMeta member={row.member} />}
     </div>
+  );
+}
+
+/** The right side of a member row: its state, with a dot coloured by the state. */
+function MemberMeta({ member }: { readonly member: ReplicaSetMember }) {
+  return (
+    <span className="mg-tree-meta" aria-hidden="true">
+      <span className="mg-tree-image">{member.self ? `${member.state} · this` : member.state}</span>
+      <span className="mg-tree-state" data-member-state={memberStateTone(member)} />
+    </span>
   );
 }
 
@@ -131,6 +144,12 @@ function RowIcon({ row }: { readonly row: TreeRowModel }) {
   }
   if (row.kind === 'monitor') {
     return <IconChartLine size={14} />;
+  }
+  if (row.kind === 'replica-set') {
+    return <IconTopologyRing3 size={14} />;
+  }
+  if (row.kind === 'member') {
+    return <IconServer size={14} />;
   }
   if (row.kind === 'operations') {
     return <IconListDetails size={14} />;
