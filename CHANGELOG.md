@@ -20,6 +20,23 @@ All notable changes to Mongo GUI are listed here, newest first.
   it. Errors underline the clause, UPDATE and DELETE without WHERE and TRUNCATE ask for
   confirmation, and Format formats SQL. SQL completes table names after FROM and JOIN, and fields
   after an alias and a dot. The history and favourites lists mark SQL entries.
+- "Back up…" on a connection, "Back up database…" and "Back up collection…" run `mongodump` from
+  MongoDB Database Tools. A backup is one archive file, optionally gzipped, or a folder of BSON
+  files. The backup covers the whole server, one database, several databases or one collection,
+  and shows progress, with cancel.
+- "Restore…" on a connection and "Restore into database…" run `mongorestore` on an archive or a
+  folder. A contents tree selects the collections to restore, and "Restore as" renames each
+  database on the way in. A dry run shows the plan without writing.
+- Each backup writes a JSON description file next to it. The file records the source server,
+  the tools version, the options used, the collections with their document counts and a checksum
+  of the output, but never a password. The restore dialog reads it and shows its contents.
+- Restore and backup check the tools version against the server. Mismatches show a warning or a
+  block, with a button to use an installed version or to download one from MongoDB's feed. The
+  download is checked against MongoDB's sha256 before it is installed.
+- The "MongoDB tools" section in Settings lists the installed tools versions, picks the default
+  version, removes downloaded versions and shows the tools licence.
+- Linux x64 and Windows x64 builds bundle `mongodump` and `mongorestore` at the pinned version,
+  so backup and restore work without a download. Other platforms download a version first.
 - "Generate data" on a collection inserts made-up documents from a seeded set of generators
   (identifiers, numbers, dates, names, emails, file paths and lorem text), with unique fields,
   a preview, progress and cancel. A unique field that its generator cannot fill is refused before

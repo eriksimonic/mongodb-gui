@@ -9,6 +9,7 @@ describe('rpcContract', () => {
     expect(Object.keys(rpcContract).sort()).toEqual(
       [
         'app',
+        'backup',
         'changes',
         'collections',
         'connections',
@@ -31,6 +32,7 @@ describe('rpcContract', () => {
         'sharding',
         'transfer',
         'shell',
+        'tools',
         'updates',
         'vault',
       ].sort(),

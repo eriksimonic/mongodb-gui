@@ -13,3 +13,5 @@ e2e/output/
 *.tsbuildinfo
 .claude/settings.local.json
 packages/app/release/
+packages/app/resources/mongo-tools/
+packages/app/.cache/

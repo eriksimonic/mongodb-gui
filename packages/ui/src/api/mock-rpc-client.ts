@@ -77,6 +77,8 @@ import { createMockGridFs, MOCK_FOLDER_PATH } from './mock-gridfs';
 import { createShardingCalls, fixtureCluster, type MockCluster } from './mock-sharding';
 import { createMockReplication } from './mock-replication';
 import { createMockExplain } from './mock-explain';
+import { createMockBackup } from './mock-backup';
+import { createMockTools, type MockToolsMode } from './mock-tools';
 import type { UiApi } from './ui-api';
 
 export type MockPreset = 'fresh' | 'unlocked';
@@ -115,6 +117,8 @@ export interface MockUiApiOptions {
   readonly sharding?: 'cluster' | 'standalone';
   /** The local connection is a standalone started with --replSet and not yet initiated. */
   readonly replSetUninitiated?: boolean;
+  /** Which MongoDB Database Tools the mock has installed. Defaults to `ok`. */
+  readonly tools?: MockToolsMode;
 }
 
 const DEFAULT_UPDATE_STATE: UpdateState = { phase: 'idle', current: '0.1.0', canInstall: true };
@@ -246,6 +250,7 @@ function mergeSettings(current: Settings, patch: SettingsPatch): Settings {
     checkForUpdates: patch.checkForUpdates ?? current.checkForUpdates,
     treeDensity: patch.treeDensity ?? current.treeDensity,
     editorLanguage: patch.editorLanguage ?? current.editorLanguage,
+    mongoToolsVersion: patch.mongoToolsVersion ?? current.mongoToolsVersion,
   };
 }
 
@@ -673,7 +678,51 @@ export function createMockUiApi(options: MockUiApiOptions = {}): UiApi {
     replication.setMode(localConnectionId, 'uninitiated');
   }
 
+  const tools = createMockTools(emit, options.tools ?? 'ok');
+  const backup = createMockBackup({ emit, picks, catalogOf, statusOf });
+
   const rpc: RpcClient = {
+    backup: {
+      describeServer: method(rpcContract.backup.describeServer, latencyMs, (input) => {
+        requireUnlocked();
+        requireConnected(input.connectionId);
+        return backup.describeServer(input.connectionId, input.scope);
+      }),
+      start: method(rpcContract.backup.start, latencyMs, (input) => {
+        requireUnlocked();
+        requireConnected(input.connectionId);
+        return { jobId: backup.start(input) };
+      }),
+      inspect: method(rpcContract.backup.inspect, latencyMs, ({ path }) => {
+        requireUnlocked();
+        return backup.inspect(path);
+      }),
+      startRestore: method(rpcContract.backup.startRestore, latencyMs, (input) => {
+        requireUnlocked();
+        requireConnected(input.connectionId);
+        return { jobId: backup.startRestore(input) };
+      }),
+      cancel: method(rpcContract.backup.cancel, latencyMs, ({ jobId }) => {
+        requireUnlocked();
+        backup.cancel(jobId);
+      }),
+    },
+    tools: {
+      list: method(rpcContract.tools.list, latencyMs, () =>
+        tools.list(state.vault === 'unlocked' ? state.settings.mongoToolsVersion : 'auto'),
+      ),
+      available: method(rpcContract.tools.available, latencyMs, () => tools.available()),
+      download: method(rpcContract.tools.download, latencyMs, ({ version }) => ({
+        downloadId: tools.download(version),
+      })),
+      cancelDownload: method(rpcContract.tools.cancelDownload, latencyMs, ({ downloadId }) => {
+        tools.cancelDownload(downloadId);
+      }),
+      remove: method(rpcContract.tools.remove, latencyMs, ({ id }) => {
+        tools.remove(id);
+      }),
+      licence: method(rpcContract.tools.licence, latencyMs, ({ id }) => tools.licence(id)),
+    },
     updates: {
       state: method(rpcContract.updates.state, latencyMs, () => currentUpdate()),
       check: method(rpcContract.updates.check, latencyMs, () => advanceUpdate()),
@@ -733,7 +782,7 @@ export function createMockUiApi(options: MockUiApiOptions = {}): UiApi {
         return { path };
       }),
       showItemInFolder: method(rpcContract.app.showItemInFolder, latencyMs, ({ path }) => {
-        if (!transfers.wroteFile(path)) {
+        if (!transfers.wroteFile(path) && !backup.wroteFile(path)) {
           throw fail('VALIDATION', 'Only a file exported in this session can be shown.');
         }
       }),

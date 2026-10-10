@@ -1,8 +1,9 @@
 // @vitest-environment jsdom
 import { fireEvent, screen, waitFor, within } from '@testing-library/react';
-import { describe, expect, it } from 'vitest';
+import { afterEach, describe, expect, it } from 'vitest';
 import { localConnectionId } from '../../api/mock-fixtures';
 import { ManagementDialogs } from '../management/ManagementDialogs';
+import { useBackupDialogs } from '../backup/backup-dialog-store';
 import { TransferModals } from '../transfers/TransferModals';
 import { renderWithApp } from '../../test-support/render';
 import { connectedMockApi } from '../../api/connected-mock';
@@ -155,5 +156,65 @@ describe('tree context menus for transfers', () => {
     fireEvent.click(screen.getByText('Import data into new collection'));
 
     await waitFor(() => expect(screen.getByLabelText('New collection name')).toBeInTheDocument());
+  });
+});
+
+describe('tree context menus for backup and restore', () => {
+  afterEach(() => {
+    useBackupDialogs.setState({ request: undefined });
+  });
+
+  it('opens a backup request for the database that was clicked', async () => {
+    const { shop } = await renderTreeWithShopOpen();
+    fireEvent.contextMenu(shop);
+    fireEvent.click(await screen.findByText('Back up database…'));
+
+    expect(useBackupDialogs.getState().request).toEqual({
+      kind: 'backup',
+      connectionId: localConnectionId,
+      database: 'shop',
+    });
+  });
+
+  it('opens a restore request for a database', async () => {
+    const { shop } = await renderTreeWithShopOpen();
+    fireEvent.contextMenu(shop);
+    fireEvent.click(await screen.findByText('Restore into database…'));
+
+    expect(useBackupDialogs.getState().request).toEqual({
+      kind: 'restore',
+      connectionId: localConnectionId,
+      database: 'shop',
+    });
+  });
+
+  it('opens a backup request for a collection', async () => {
+    await renderTreeWithShopOpen();
+    fireEvent.contextMenu(screen.getByRole('treeitem', { name: 'customers' }));
+    fireEvent.click(await screen.findByText('Back up collection…'));
+
+    expect(useBackupDialogs.getState().request).toEqual({
+      kind: 'backup',
+      connectionId: localConnectionId,
+      database: 'shop',
+      collection: 'customers',
+    });
+  });
+
+  it('opens a server backup and a restore from the connection menu', async () => {
+    const { local } = await renderTreeWithShopOpen();
+    fireEvent.contextMenu(local);
+    fireEvent.click(await screen.findByText('Back up…'));
+    expect(useBackupDialogs.getState().request).toEqual({
+      kind: 'backup',
+      connectionId: localConnectionId,
+    });
+
+    fireEvent.contextMenu(local);
+    fireEvent.click(await screen.findByText('Restore…'));
+    expect(useBackupDialogs.getState().request).toEqual({
+      kind: 'restore',
+      connectionId: localConnectionId,
+    });
   });
 });

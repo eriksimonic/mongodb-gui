@@ -32,6 +32,7 @@ import { SettingsModal } from '../components/settings/SettingsModal';
 import { ShortcutsModal } from '../shortcuts/ShortcutsModal';
 import { shellHotkeys } from '../shortcuts/shortcuts';
 import { TransferModals } from '../components/transfers/TransferModals';
+import { BackupDialogs } from '../components/backup/BackupDialogs';
 import { GenerateDataDialog } from '../components/generate/GenerateDataDialog';
 import { UpdateBanner } from '../components/updates/UpdateBanner';
 import { ProfilerOpenerContext, type ProfilerOpener } from '../profiler/profiler-opener';
@@ -841,6 +842,7 @@ export function ShellScreen() {
               <ShortcutsModal />
               <TransferModals />
               <GenerateDataDialog />
+              <BackupDialogs />
             </Flex>
           </ChangesOpenerContext.Provider>
         </GridFsOpenerContext.Provider>

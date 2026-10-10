@@ -3,6 +3,7 @@ import { fireEvent, screen, waitFor, within } from '@testing-library/react';
 import { describe, expect, it, vi } from 'vitest';
 import { createMockUiApi } from '../../api/mock-rpc-client';
 import { renderWithApp } from '../../test-support/render';
+import { useBackupDialogs } from '../backup/backup-dialog-store';
 import { ConnectionTree } from './ConnectionTree';
 
 describe('ConnectionTree Docker node', () => {
@@ -113,6 +114,24 @@ describe('ConnectionTree Docker node', () => {
       await screen.findByRole('menuitem', { name: 'Copy URI (redacted)', hidden: true }),
     ).toBeDisabled();
     expect(screen.getByRole('menuitem', { name: 'Connect', hidden: true })).toBeEnabled();
+  });
+
+  it('opens backup and restore from a connected container', async () => {
+    renderWithApp(<ConnectionTree />, { mock: { preset: 'unlocked' } });
+    fireEvent.contextMenu(await screen.findByRole('treeitem', { name: 'shop-mongo' }));
+    fireEvent.click(await screen.findByRole('menuitem', { name: 'Back up…', hidden: true }));
+    expect(useBackupDialogs.getState().request).toMatchObject({ kind: 'backup' });
+
+    fireEvent.contextMenu(await screen.findByRole('treeitem', { name: 'shop-mongo' }));
+    fireEvent.click(await screen.findByRole('menuitem', { name: 'Restore…', hidden: true }));
+    expect(useBackupDialogs.getState().request).toMatchObject({ kind: 'restore' });
+  });
+
+  it('disables backup and restore on a container without a connection', async () => {
+    renderWithApp(<ConnectionTree />, { mock: { preset: 'unlocked' } });
+    fireEvent.contextMenu(await screen.findByRole('treeitem', { name: 'orders-mongo' }));
+    expect(await screen.findByRole('menuitem', { name: /^Back up…/, hidden: true })).toBeDisabled();
+    expect(screen.getByRole('menuitem', { name: /^Restore…/, hidden: true })).toBeDisabled();
   });
 
   it('turns connect automatically on from the Docker node menu', async () => {

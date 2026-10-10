@@ -14,6 +14,7 @@ describe('defaultSettings', () => {
       checkForUpdates: true,
       treeDensity: 'compact',
       editorLanguage: 'mongosh',
+      mongoToolsVersion: 'auto',
     });
   });
 

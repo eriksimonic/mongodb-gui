@@ -5,6 +5,7 @@ import { useChangesOpener } from '../../changes/changes-opener';
 import { useAppStore } from '../../state/app-store-context';
 import { usePanelOpener } from '../../state/panel-opener';
 import { shardingAvailability } from '../../sharding/sharding-availability';
+import { BackupMenuItems } from '../backup/BackupMenuItems';
 import { runReported } from '../notify-error';
 
 /** The database that holds the server's users and roles. */
@@ -170,6 +171,11 @@ export function ConnectionContextMenu({
         >
           Users and roles
         </Menu.Item>
+        <BackupMenuItems
+          connectionId={connection.id}
+          connected={status.state === 'connected'}
+          onClose={onClose}
+        />
         <Menu.Item
           onClick={() => {
             onClose();

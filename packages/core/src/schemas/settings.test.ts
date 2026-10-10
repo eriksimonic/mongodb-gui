@@ -48,6 +48,22 @@ describe('SettingsSchema', () => {
   });
 });
 
+describe('SettingsSchema mongoToolsVersion', () => {
+  const tools = (mongoToolsVersion: string) =>
+    SettingsSchema.safeParse({ ...defaultSettings, mongoToolsVersion }).success;
+
+  it('accepts auto and a version number', () => {
+    expect(tools('auto')).toBe(true);
+    expect(tools('100.19.1')).toBe(true);
+  });
+
+  it('rejects anything else', () => {
+    expect(tools('latest')).toBe(false);
+    expect(tools('100.19')).toBe(false);
+    expect(tools('100.19.1-rc1')).toBe(false);
+  });
+});
+
 describe('SettingsPatchSchema', () => {
   it('accepts a partial patch', () => {
     expect(SettingsPatchSchema.safeParse({ theme: 'light' }).success).toBe(true);

@@ -50,6 +50,8 @@ pnpm format:check
 Run `pnpm test:integration` when you change the adapter, the shell runtime, the Docker package or
 the router. Run `pnpm test:e2e` when you change the app shell, the preload bridge or the unlock flow.
 
+Run `pnpm --filter @mongo-gui/app fetch:mongo-tools` once to get the bundled MongoDB tools in dev. `pnpm dist` runs it for you.
+
 Integration tests need Docker. They never bind port 27017 on your machine. Testcontainers maps the
 container port to a random host port, so a local MongoDB server does not conflict with the tests.
 

@@ -20,6 +20,9 @@ import { useAppStore } from '../../state/app-store-context';
 import { runReported } from '../notify-error';
 import { ChangePasswordModal } from './ChangePasswordModal';
 import { ConnectionsExportModal } from './ConnectionsExportModal';
+import { ToolsLicenceModal } from '../tools/ToolsLicenceModal';
+import { useMongoTools } from '../tools/use-mongo-tools';
+import { ToolsSection } from './ToolsSection';
 import { ConnectionsImportModal } from './ConnectionsImportModal';
 import { CONNECTIONS_FILE_FILTER } from './connections-file-model';
 import {
@@ -73,6 +76,8 @@ function SettingsForm() {
       <UpdatesSection settings={settings} />
       <Divider />
       <DataSection settings={settings} />
+      <Divider />
+      <ToolsSettings settings={settings} />
       <Divider />
       <AboutSection />
     </Stack>
@@ -352,6 +357,15 @@ function DataSection({ settings }: SectionProps) {
   );
 }
 
+function ToolsSettings({ settings }: SectionProps) {
+  const save = useSaveSettings();
+  return (
+    <Section id="settings-tools" title="MongoDB tools">
+      <ToolsSection settings={settings} save={save} />
+    </Section>
+  );
+}
+
 function AboutSection() {
   const { rpc } = useUiApi();
   const version = useAppStore((state) => state.updates.current);
@@ -369,6 +383,10 @@ function AboutSection() {
       active = false;
     };
   }, [rpc]);
+
+  const { list } = useMongoTools();
+  const bundled = list?.installs.find((install) => install.source === 'bundled');
+  const [licenceOpen, setLicenceOpen] = useState(false);
 
   const open = (url: string) => void runReported(() => rpc.app.openExternal({ url }));
   return (
@@ -390,6 +408,20 @@ function AboutSection() {
           Licence (MIT)
         </Button>
       </Group>
+      {bundled === undefined ? null : (
+        <Group gap="xs">
+          <Text size="sm">
+            Includes MongoDB Database Tools {bundled.version}, Apache License 2.0
+          </Text>
+          <Button size="compact-sm" variant="default" onClick={() => setLicenceOpen(true)}>
+            Tools licence
+          </Button>
+          <ToolsLicenceModal
+            installId={licenceOpen ? bundled.id : undefined}
+            onClose={() => setLicenceOpen(false)}
+          />
+        </Group>
+      )}
     </Section>
   );
 }

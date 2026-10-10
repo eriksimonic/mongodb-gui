@@ -106,6 +106,24 @@ import {
   TransferIdInputSchema,
   TransferListOutputSchema,
 } from '../transfer/calls';
+import {
+  BackupCancelInputSchema,
+  BackupStartOutputSchema,
+  RestoreStartInputSchema,
+  BackupStartInputSchema,
+} from '../backup/options';
+import { BackupInspectionSchema, InspectBackupInputSchema } from '../backup/inspection';
+import { BackupServerInfoSchema, DescribeServerInputSchema } from '../backup/server-info';
+import {
+  ToolsAvailableInputSchema,
+  ToolsAvailableOutputSchema,
+  ToolsDownloadCancelInputSchema,
+  ToolsDownloadInputSchema,
+  ToolsDownloadOutputSchema,
+  ToolsIdInputSchema,
+  ToolsLicenceOutputSchema,
+  ToolsListOutputSchema,
+} from '../tools/types';
 import { ImportPreviewSchema, TransferProgressSchema } from '../transfer/types';
 import {
   ConnectionsImportPreviewSchema,
@@ -592,5 +610,20 @@ export const rpcContract = {
     showItemInFolder: defineCall(ShowItemInFolderInputSchema, z.void()),
     /** Replaces the file the user picked with showSaveDialog with text. The pick is good for one write. */
     writeExport: defineCall(WriteExportInputSchema, z.void()),
+  },
+  backup: {
+    describeServer: defineCall(DescribeServerInputSchema, BackupServerInfoSchema),
+    start: defineCall(BackupStartInputSchema, BackupStartOutputSchema),
+    inspect: defineCall(InspectBackupInputSchema, BackupInspectionSchema),
+    startRestore: defineCall(RestoreStartInputSchema, BackupStartOutputSchema),
+    cancel: defineCall(BackupCancelInputSchema, z.void()),
+  },
+  tools: {
+    list: defineCall(z.void(), ToolsListOutputSchema),
+    available: defineCall(ToolsAvailableInputSchema, ToolsAvailableOutputSchema),
+    download: defineCall(ToolsDownloadInputSchema, ToolsDownloadOutputSchema),
+    cancelDownload: defineCall(ToolsDownloadCancelInputSchema, z.void()),
+    remove: defineCall(ToolsIdInputSchema, z.void()),
+    licence: defineCall(ToolsIdInputSchema, ToolsLicenceOutputSchema),
   },
 } satisfies RpcContract;

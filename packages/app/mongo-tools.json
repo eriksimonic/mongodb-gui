@@ -1,0 +1,15 @@
+{
+  "version": "100.19.1",
+  "targets": {
+    "linux-x64": {
+      "target": "ubuntu2004",
+      "url": "https://fastdl.mongodb.org/tools/db/mongodb-database-tools-ubuntu2004-x86_64-100.19.1.tgz",
+      "sha256": "c0a9adad7afbfaa38c1e0aa093c468e9796017bfb84377cd7d07c878ce0bc2ee"
+    },
+    "win32-x64": {
+      "target": "windows",
+      "url": "https://fastdl.mongodb.org/tools/db/mongodb-database-tools-windows-x86_64-100.19.1.zip",
+      "sha256": "527738a0f9ab2d80ea40cb8fc7a68f8e28664a2fd4e3b63626c2d4629aeb7f37"
+    }
+  }
+}

@@ -32,11 +32,17 @@ linux:
         - x64
   category: Development
   syncDesktopName: true
+  extraResources:
+    - from: resources/mongo-tools/linux-x64
+      to: mongo-tools
 win:
   target:
     - target: nsis
       arch:
         - x64
+  extraResources:
+    - from: resources/mongo-tools/win32-x64
+      to: mongo-tools
 nsis:
   oneClick: false
   allowToChangeInstallationDirectory: true

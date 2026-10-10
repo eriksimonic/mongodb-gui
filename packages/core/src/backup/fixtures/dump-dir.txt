@@ -1,0 +1,6 @@
+2026-10-10T18:42:22.807+0200	writing `shop.orders` to `dir/shop/orders.bson`
+2026-10-10T18:42:22.807+0200	writing `shop.capped` to `dir/shop/capped.bson`
+2026-10-10T18:42:22.807+0200	writing `shop.system.buckets.ts` to `dir/shop/system.buckets.ts.bson`
+2026-10-10T18:42:22.808+0200	done dumping `shop.capped` (1 document)
+2026-10-10T18:42:22.808+0200	done dumping `shop.system.buckets.ts` (2 documents)
+2026-10-10T18:42:22.998+0200	done dumping `shop.orders` (400000 documents)

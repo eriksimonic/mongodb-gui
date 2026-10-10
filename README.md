@@ -35,6 +35,7 @@ panel layout and the window size are saved, so the next launch opens where you l
 - GridFS browses buckets and files, uploads and downloads them, and edits their metadata.
 - Change streams watch a collection, a database or a deployment, with resume tokens.
 - Settings set the theme, idle lock, editor size and update checks.
+- Backup and restore with bundled MongoDB Database Tools, with archive or folder dumps in gzip, a JSON description file per backup, database rename on restore, version checks, and downloads of other tool versions.
 - Packaging builds installers for Linux, Windows and macOS, and the app checks GitHub for updates.
 
 ## Screenshots
@@ -128,6 +129,10 @@ inline edits in the tree, and a history and favourites list in the Output panel.
 | --------------------------------------------------------------------------------------------------------------------------------------------------- |
 | ![Sharding panel with the balancer state, a collections table with chunk bars per shard and the Distribution action](docs/screenshots/sharding.png) |
 
+| Backup dialog for a database                                                                                | Restore dialog with a rename and a tools version warning                                                             |
+| ----------------------------------------------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------- |
+| ![Backup dialog for the shop database with the folder, name and format fields](docs/screenshots/backup.png) | ![Restore dialog with the source summary, a rename row and the tools mismatch warning](docs/screenshots/restore.png) |
+
 ## Prerequisites
 
 - Node.js 24 (see `.nvmrc`)
@@ -151,7 +156,10 @@ inline edits in the tree, and a history and favourites list in the Output panel.
 ## Packaging and releases
 
 `pnpm dist` builds the app and writes installers for the current platform to
-`packages/app/release/`. It publishes nothing. Linux builds an AppImage and a `.deb`,
+`packages/app/release/`. It publishes nothing. Before it packages the app, `pnpm dist` fetches
+the MongoDB Database Tools pinned in `packages/app/mongo-tools.json` and bundles them on Linux
+x64 and Windows x64. Other platforms bundle no tools. The fetch script caches the archive in
+`packages/app/.cache/` and checks it against the pinned sha256. Linux builds an AppImage and a `.deb`,
 Windows builds an NSIS installer, and macOS builds a DMG and a ZIP for both x64 and arm64.
 
 Releases come from CI. To release a version:
@@ -203,6 +211,15 @@ the new version by hand.
 
 Turn off "Check for updates" in Settings to stop all checks. The app then makes no requests to
 GitHub until you turn the setting back on.
+
+## Third-party software
+
+Linux and Windows builds include unmodified MongoDB Database Tools (mongodump, mongorestore)
+under the Apache License 2.0. MongoDB is a trademark of MongoDB, Inc.; this project is not
+affiliated with or endorsed by MongoDB.
+
+The tools' licence and third-party notices ship next to the binaries in every install folder,
+both for the bundled tools and for downloaded versions.
 
 ## Documentation
 

@@ -8,6 +8,7 @@ import type {
 } from '@mongo-gui/core';
 import { useAppStore } from '../../state/app-store-context';
 import { usePanelOpener } from '../../state/panel-opener';
+import { BackupMenuItems } from '../backup/BackupMenuItems';
 import { runReported } from '../notify-error';
 import { DockerContainerDetails } from './DockerContainerDetails';
 
@@ -125,6 +126,11 @@ export function DockerLinkedContextMenu({
         >
           New database
         </Menu.Item>
+        <BackupMenuItems
+          connectionId={connection.id}
+          connected={status.state === 'connected'}
+          onClose={onClose}
+        />
         <Menu.Item
           onClick={() => {
             onClose();

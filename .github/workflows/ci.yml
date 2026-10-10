@@ -157,6 +157,18 @@ jobs:
       - name: Install dependencies
         run: pnpm install --frozen-lockfile
 
+      # The app integration tests run the bundled mongodump and mongorestore.
+      - name: Cache the MongoDB tools archive
+        if: ${{ matrix.package == 'app' }}
+        uses: actions/cache@v5
+        with:
+          path: packages/app/.cache/mongo-tools
+          key: mongo-tools-${{ runner.os }}-${{ hashFiles('packages/app/mongo-tools.json') }}
+
+      - name: Fetch the MongoDB tools
+        if: ${{ matrix.package == 'app' }}
+        run: pnpm --filter @mongo-gui/app fetch:mongo-tools
+
       # Optional, as in the e2e job: the Docker Hub login lifts the anonymous pull limit.
       - name: Log in to Docker Hub
         if: ${{ env.DOCKERHUB_USERNAME != '' }}
