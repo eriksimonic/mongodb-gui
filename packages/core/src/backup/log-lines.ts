@@ -38,6 +38,8 @@ const BAR_OPEN = /^\[[#.]{24}\]\s+(\S+)\s+(\S+)$/;
 const WRITING = /^writing `([^`]+)` to/;
 const DUMPED = /^done dumping `([^`]+)` \((\d+) documents?\)/;
 const RESTORING = /^restoring `([^`]+)` from/;
+// A dry run restores nothing. With -v it lists what it would restore in these lines instead.
+const WOULD_RESTORE = /^found collection `([^`]+)` bson to restore to/;
 const RESTORED = /^finished restoring `([^`]+)` \((\d+) documents?, (\d+) failures?\)/;
 const SUMMARY =
   /^(\d+) document\(s\) restored successfully\. (\d+) document\(s\) failed to restore\./;
@@ -97,7 +99,8 @@ export function parseToolLine(line: string): ToolLogLine {
   if ((m = DUMPED.exec(text))) {
     return { kind: 'dumped', ...namespaceOf(m[1] ?? ''), documents: Number(m[2]) };
   }
-  if ((m = RESTORING.exec(text))) return { kind: 'restoring', ...namespaceOf(m[1] ?? '') };
+  if ((m = RESTORING.exec(text)) ?? (m = WOULD_RESTORE.exec(text)))
+    return { kind: 'restoring', ...namespaceOf(m[1] ?? '') };
   if ((m = RESTORED.exec(text))) {
     return {
       kind: 'restored',

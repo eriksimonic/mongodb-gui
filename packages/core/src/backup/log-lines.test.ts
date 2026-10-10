@@ -118,6 +118,19 @@ describe('parseToolLine', () => {
     expect(lines[12]).toEqual({ kind: 'summary', restored: 400001, failed: 3 });
   });
 
+  it('reads the dry run lines that name a collection to restore', () => {
+    expect(
+      parseToolLine(
+        '2026-10-10T19:35:53.084+0200\tfound collection `shop.o` bson to restore to `x.o`',
+      ),
+    ).toMatchObject({ kind: 'restoring', namespace: 'shop.o' });
+    expect(
+      parseToolLine(
+        '2026-10-10T19:35:53.084+0200\tfound collection metadata from `shop.o` to restore to `x.o`',
+      ).kind,
+    ).toBe('other');
+  });
+
   it('works without a timestamp', () => {
     expect(parseToolLine('writing `a.b` to `x`')).toMatchObject({
       kind: 'writing',
