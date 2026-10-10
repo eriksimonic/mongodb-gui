@@ -4,6 +4,7 @@ import {
   AppErrorException,
   appError,
   compareVersions,
+  MIN_TOOLS_VERSION,
   ToolsInstallManifestSchema,
   type AppError,
   type ToolsInstall,
@@ -103,6 +104,13 @@ export function createToolsRegistry(deps: ToolsRegistryDeps): ToolsRegistry {
         appError(
           'VALIDATION',
           `mongodump reports ${probe.version}, but ${MANIFEST} says ${manifest.version}.`,
+        ),
+      );
+    } else if (compareVersions(version, MIN_TOOLS_VERSION) < 0) {
+      health = broken(
+        appError(
+          'VALIDATION',
+          `MongoDB Database Tools older than ${MIN_TOOLS_VERSION} do not support --config.`,
         ),
       );
     }

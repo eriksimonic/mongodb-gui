@@ -1,4 +1,5 @@
 import { z } from 'zod';
+import { compareVersions, MIN_TOOLS_VERSION } from '../backup/versions';
 import type { ToolsPlatform } from './types';
 
 // Loose on purpose. Only the fields below are read from MongoDB's feed.
@@ -70,20 +71,17 @@ export function selectFeedDownload(
   return undefined;
 }
 
-function compare(a: string, b: string): number {
-  const pa = a.split('.').map(Number);
-  const pb = b.split('.').map(Number);
-  for (let i = 0; i < 3; i++) if (pa[i] !== pb[i]) return (pa[i] ?? 0) - (pb[i] ?? 0);
-  return 0;
-}
-
-// Tools 100.x only, one download per version, newest first.
+// Tools 100.x from MIN_TOOLS_VERSION on, one download per version, newest first.
 export function feedVersionsFor(feed: ToolsFeed, platform: ToolsPlatform): FeedDownload[] {
   const byVersion = new Map<string, ToolsFeedVersion>();
   // The last entry wins, which matches the duplicated 100.12.1.
-  for (const v of feed.versions) if (/^100\.\d+\.\d+$/.test(v.version)) byVersion.set(v.version, v);
+  for (const v of feed.versions) {
+    if (/^100\.\d+\.\d+$/.test(v.version) && compareVersions(v.version, MIN_TOOLS_VERSION) >= 0) {
+      byVersion.set(v.version, v);
+    }
+  }
   return [...byVersion.values()]
     .map((v) => selectFeedDownload(v, platform))
     .filter((d): d is FeedDownload => d !== undefined)
-    .sort((a, b) => compare(b.version, a.version));
+    .sort((a, b) => compareVersions(b.version, a.version));
 }

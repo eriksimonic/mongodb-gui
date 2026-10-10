@@ -147,6 +147,25 @@ describe('list', () => {
     expect(output.resolved).toBeUndefined();
   });
 
+  it('marks tools older than 100.3.0 as broken because they lack --config', async () => {
+    const dir = join(roots.downloaded, '100.2.1-ubuntu2004');
+    await makeInstall(dir, '100.2.1', 'downloaded');
+    reports(dir, '100.2.1');
+    const tools = registry().registry;
+    const output = await tools.list('100.2.1');
+    expect(output.installs[0]?.health).toEqual({
+      state: 'broken',
+      error: {
+        code: 'VALIDATION',
+        message: 'MongoDB Database Tools older than 100.3.0 do not support --config.',
+      },
+    });
+    expect(output.resolved).toBeUndefined();
+    await expect(tools.resolve('100.2.1')).rejects.toMatchObject({
+      error: { code: 'NOT_FOUND' },
+    });
+  });
+
   it('carries the missing library message of a failed probe', async () => {
     await makeInstall(roots.bundled, '100.19.1', 'bundled');
     runs.set(roots.bundled, {

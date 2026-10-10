@@ -3,6 +3,7 @@ import {
   compareVersions,
   firstToolsFor,
   majorMinor,
+  MIN_TOOLS_VERSION,
   parseVersion,
   TOOLS_SERVER_SUPPORT,
 } from './versions';
@@ -52,6 +53,12 @@ describe('majorMinor', () => {
 });
 
 describe('firstToolsFor', () => {
+  it('never names tools older than MIN_TOOLS_VERSION', () => {
+    for (const row of TOOLS_SERVER_SUPPORT) {
+      expect(compareVersions(row.tools, MIN_TOOLS_VERSION)).toBeGreaterThanOrEqual(0);
+    }
+  });
+
   it.each(TOOLS_SERVER_SUPPORT.map((row) => [row.server, row.tools]))(
     'gives %s the tools %s',
     (server, tools) => {

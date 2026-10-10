@@ -25,9 +25,13 @@ export function majorMinor(version: string): string | undefined {
   return parsed ? `${parsed.major}.${parsed.minor}` : undefined;
 }
 
-// The first tools release that supports each server major.minor, oldest first.
+// The oldest tools the app can run. Jobs pass the URI through --config, which 100.3.0 added.
+export const MIN_TOOLS_VERSION = '100.3.0';
+
+// The first tools release the app can use for each server major.minor, oldest first.
+// 4.4 gets MIN_TOOLS_VERSION because older releases lack --config.
 export const TOOLS_SERVER_SUPPORT: readonly { server: string; tools: string }[] = [
-  { server: '4.4', tools: '100.1.0' },
+  { server: '4.4', tools: MIN_TOOLS_VERSION },
   { server: '5.0', tools: '100.4.0' },
   { server: '6.0', tools: '100.5.0' },
   { server: '7.0', tools: '100.8.0' },

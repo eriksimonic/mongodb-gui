@@ -13,15 +13,15 @@ function entry(name: string, arch: string, url: string, hash = sha) {
 }
 
 describe('feedVersionsFor', () => {
-  it('keeps 100.x, dedupes and sorts newest first', () => {
+  it('keeps 100.3.0 and later, dedupes and sorts newest first', () => {
     const list = feedVersionsFor(feed, { os: 'linux', arch: 'x64' });
-    expect(list.map((d) => d.version)).toEqual(['100.19.1', '100.18.0', '100.12.1', '100.0.2']);
+    expect(list.map((d) => d.version)).toEqual(['100.19.1', '100.18.0', '100.12.1', '100.3.0']);
     expect(list[0]?.target).toBe('ubuntu2004');
   });
 
   it('falls back to rhel70 on Linux x64', () => {
     const list = feedVersionsFor(feed, { os: 'linux', arch: 'x64' });
-    expect(list.find((d) => d.version === '100.0.2')?.target).toBe('rhel70');
+    expect(list.find((d) => d.version === '100.3.0')?.target).toBe('rhel70');
   });
 
   it('picks per platform', () => {
@@ -33,7 +33,7 @@ describe('feedVersionsFor', () => {
     ]);
     const arm = feedVersionsFor(feed, { os: 'darwin', arch: 'arm64' });
     expect(arm[0]?.url).toContain('arm64');
-    expect(arm.find((d) => d.version === '100.0.2')?.url).toContain('x86_64');
+    expect(arm.find((d) => d.version === '100.3.0')?.url).toContain('x86_64');
   });
 });
 

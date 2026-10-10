@@ -72,6 +72,35 @@
       ]
     },
     {
+      "version": "100.3.0",
+      "downloads": [
+        {
+          "name": "macos",
+          "arch": "x86_64",
+          "archive": {
+            "url": "https://fastdl.mongodb.org/tools/db/mongodb-database-tools-macos-x86_64-100.3.0.tgz",
+            "sha256": "be2294ea0dd4ccce40910b88bbc3feb38facb4ec0dac32b14894c19aabe59e2c"
+          }
+        },
+        {
+          "name": "rhel70",
+          "arch": "x86_64",
+          "archive": {
+            "url": "https://fastdl.mongodb.org/tools/db/mongodb-database-tools-rhel70-x86_64-100.3.0.tgz",
+            "sha256": "2e863038509a80f3bd606db437d45d1a9842e31d3e899d1f09a69115ed3e9d55"
+          }
+        },
+        {
+          "name": "windows",
+          "arch": "x86_64",
+          "archive": {
+            "url": "https://fastdl.mongodb.org/tools/db/mongodb-database-tools-windows-x86_64-100.3.0.zip",
+            "sha256": "b722b9b495fdea80b8ac2e55d5a4c109411630e5a98b3aaeb610da160d49ade5"
+          }
+        }
+      ]
+    },
+    {
       "version": "100.12.1",
       "downloads": [
         {
