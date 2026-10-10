@@ -55,15 +55,21 @@ export function readZip(buffer: Buffer): ArchiveEntry[] {
     if (localOffset + 30 > buffer.length || buffer.readUInt32LE(localOffset) !== LOCAL_SIGNATURE) {
       throw new Error(`The zip local header for ${name} is damaged.`);
     }
-    const start = localOffset + 30 + buffer.readUInt16LE(localOffset + 26) + buffer.readUInt16LE(localOffset + 28);
-    if (start + compressedSize > buffer.length) throw new Error(`The zip entry ${name} is truncated.`);
+    const start =
+      localOffset +
+      30 +
+      buffer.readUInt16LE(localOffset + 26) +
+      buffer.readUInt16LE(localOffset + 28);
+    if (start + compressedSize > buffer.length)
+      throw new Error(`The zip entry ${name} is truncated.`);
     const raw = buffer.subarray(start, start + compressedSize);
 
     let data: Buffer;
     if (method === 0) data = Buffer.from(raw);
     else if (method === 8) data = inflateRawSync(raw);
     else throw new Error(`The zip entry ${name} uses unsupported compression method ${method}.`);
-    if (data.length !== size) throw new Error(`The zip entry ${name} does not match its recorded size.`);
+    if (data.length !== size)
+      throw new Error(`The zip entry ${name} does not match its recorded size.`);
     entries.push({ name, data });
   }
   return entries;

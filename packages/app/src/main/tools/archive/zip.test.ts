@@ -51,7 +51,7 @@ describe('readZip', () => {
   it('reads deflated and stored entries whose sizes sit only in the central directory', () => {
     const entries = readZip(
       buildZip([
-        { name: 'top/', data: '' , method: 0 },
+        { name: 'top/', data: '', method: 0 },
         { name: 'top/bin/mongodump.exe', data: 'x'.repeat(5000) },
         { name: 'top/README.md', data: 'hello', method: 0 },
       ]),

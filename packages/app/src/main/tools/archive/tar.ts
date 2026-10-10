@@ -56,7 +56,11 @@ export function readTarGz(buffer: Buffer): ArchiveEntry[] {
     const padded = Math.ceil(size / BLOCK) * BLOCK;
     if (offset + size > tar.length) throw new Error('The tar archive is truncated.');
     if (typeflag === '0' || typeflag === '\0') {
-      entries.push({ name: fullName, data: Buffer.from(tar.subarray(offset, offset + size)), mode });
+      entries.push({
+        name: fullName,
+        data: Buffer.from(tar.subarray(offset, offset + size)),
+        mode,
+      });
     }
     offset += padded;
   }

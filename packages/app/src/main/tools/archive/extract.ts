@@ -4,12 +4,18 @@ import { readTarGz, type ArchiveEntry } from './tar';
 import { readZip } from './zip';
 
 const DOCS = new Set(['LICENSE.md', 'README.md', 'THIRD-PARTY-NOTICES']);
-const BINARIES = new Set(['bin/mongodump', 'bin/mongorestore', 'bin/mongodump.exe', 'bin/mongorestore.exe']);
+const BINARIES = new Set([
+  'bin/mongodump',
+  'bin/mongorestore',
+  'bin/mongodump.exe',
+  'bin/mongorestore.exe',
+]);
 
 function checkName(name: string, kind: 'tgz' | 'zip'): string[] {
   if (kind === 'tgz' && name.includes('\\')) throw new Error(`Unsafe path in archive: ${name}`);
   const unified = name.replace(/\\/g, '/');
-  if (unified.startsWith('/') || /^[A-Za-z]:/.test(unified)) throw new Error(`Unsafe path in archive: ${name}`);
+  if (unified.startsWith('/') || /^[A-Za-z]:/.test(unified))
+    throw new Error(`Unsafe path in archive: ${name}`);
   const segments = unified.split('/').filter((segment) => segment !== '' && segment !== '.');
   if (segments.includes('..')) throw new Error(`Unsafe path in archive: ${name}`);
   return segments;
