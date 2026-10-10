@@ -388,71 +388,106 @@ anything; UI halves follow their adapter merge.
   detail pane; resume token shown; stops on panel close and renderer reset.
   Delivered in P8-7a (adapter) and P8-7b (contract, router, dev mock, panel).
 
-### Phase 9: MongoDB in Docker and Podman
+### Phase 9: containers on Docker and Podman, with WSL
 
-Added on 2026-10-10 at Erik's request. The "Docker" node becomes "MongoDB in Docker", a
-management section for the containers that run MongoDB, not only a connect shortcut. The
-section works against the Docker Engine API and against Podman through its Docker-compatible
-socket. Every task has a `packages/docker` half (engine calls with Testcontainers tests) and a
-UI half (contract namespace `docker`, router wiring, mock, panel, tests, screenshot). Writes
-to a container ask for a typed confirmation when they lose data.
+Added on 2026-10-10 at Erik's request, widened the same day from a MongoDB-only Docker node
+to a container management section for every container, with the aim of replacing Docker
+Desktop on Windows with this app plus a WSL distro that runs Podman. Linux Podman and Docker
+are covered by the same code. macOS is out of scope for this release, and the design keeps
+the engine behind one interface so a Podman machine socket can follow later.
 
-- **P9-1 engine detection and Podman.** `defaultDockerSocket` also tries the Podman
-  sockets (`/run/podman/podman.sock` and `$XDG_RUNTIME_DIR/podman/podman.sock`). A
-  `DOCKER_HOST` of `tcp://` or `ssh://` is reported in the status, not used. The status
-  carries the engine kind (`docker` or `podman`), the version and the socket path, and
-  Settings gets a socket override. The tree node reads "MongoDB in Docker" or "MongoDB in
-  Podman", and its tooltip names the socket.
-- **P9-2 namespaces.** Containers group by namespace: the Compose project
-  (`com.docker.compose.project` label, service from `com.docker.compose.service`), the
-  Podman pod (`io.podman.pod.name` or the `Pod` field of inspect), and "Standalone" for
-  the rest. The tree shows one child per namespace with the running count over the total,
-  then the containers. A "Group by" entry on the node menu switches back to the flat list.
-  A namespace menu offers "Start all", "Stop all" and "Restart all" for its MongoDB
-  containers, with a summary of the affected containers before the action.
-- **P9-3 resource usage.** One `GET /containers/{id}/stats?stream=false` sample per
-  running container: CPU percent (delta of `cpu_stats` against `precpu_stats` over the
-  online CPUs), memory usage against the limit, network bytes in and out, block I/O. The
-  tree row shows CPU and memory as a compact meta ("12 % · 283 MiB / 512 MiB"). The
-  details panel gets a usage section with sparklines fed by a poll while the panel is
-  open (interval from the monitor setting, default 2 s, stopped on close and on renderer
-  reset). Memory at or above 85 percent of the limit shows an orange badge, because a
-  container near its limit is the usual cause of an OOM kill. The sampler in
-  `packages/docker` reuses the forwarder's streaming client.
-- **P9-4 lifecycle actions.** Container menu and details panel actions: Start, Stop (grace
-  seconds from a setting, default 10), Restart, Pause and Unpause, Kill (signal picker,
-  SIGTERM default), Remove (typed confirmation; "also remove volumes" off by default and
-  red; refused while the app holds a connection to the container unless "Disconnect
-  first" is ticked). Each verb gets a `packages/docker` function with a Testcontainers
-  test and reports the engine's error message. A container the app reaches through a
-  forwarder releases the forwarder before Stop or Remove.
-- **P9-5 inspect and logs.** The details panel grows tabs: "Overview" (what it shows
-  today), "Inspect" (the raw `docker inspect` JSON in the read-only JSON editor with the
-  search bar from Explain Raw; environment values redacted by the rule the details list
-  uses), "Mounts" (source, destination, mode, driver), "Ports" (private, public, host IP)
-  and "Logs" (`GET /containers/{id}/logs` with stdout and stderr demultiplexed from the
-  8-byte frame header, tail 500 by default, a "Follow" toggle that streams, a level filter
-  for MongoDB's JSON log lines reusing the diagnostics log filter, copy, and save to a
-  file). Logs stop on panel close and on renderer reset.
-- **P9-6 open in shell.** Two shells. "Open mongosh" runs `exec` with `mongosh` inside the
-  container, with the container's own credentials when they exist. "Open container shell"
-  runs `sh`, or `bash` when present. Both open a dock panel with an xterm.js terminal. The
-  main process creates the exec with `AttachStdin`, `AttachStdout`, `AttachStderr` and
-  `Tty`, starts it over the hijacked HTTP stream on the engine socket, and pipes bytes
-  both ways through `docker:terminal` events keyed by a session id, pausing the socket
-  when the renderer falls behind. Resize sends `POST /exec/{id}/resize`. Closing the panel
-  ends the exec; a renderer reset ends every session. xterm.js is a renderer dependency
-  loaded with the panel. Keystrokes never reach the log.
-- **P9-7 create a MongoDB container.** "New MongoDB container" on the node menu: image tag
-  picker (tags the engine already has plus a typed tag, pulled with a progress line),
-  name, published port with a free-port suggestion, root user and password (saved on the
-  connection, never logged), a named volume for `/data/db`, memory and CPU limits, and a
-  `--replSet` option that initiates a single-member set after start. Creation reuses
-  `createContainer`, `startContainer` and `pullImage`, then connects as the node does
-  today.
+The engine client in `packages/docker` already speaks the Engine HTTP API, which Podman
+serves too. MongoDB-specific behaviour (the image filter, the connect action, the database
+badge) becomes a layer on top of the general list instead of a filter in front of it. Each
+task has a `packages/docker` half (engine calls or WSL commands, with tests) and a UI half
+(contract namespace `docker`, router wiring, mock, panel, tests, screenshot). Actions that
+lose data ask for a typed confirmation.
 
-Order: P9-1 first. P9-2, P9-3 and P9-5 then run in parallel. P9-4 follows P9-2. P9-6
-follows P9-5, because it shares the stream channel. P9-7 is last.
+- **P9-0 WSL spike.** Prove the transport before anything else: spawn
+  `wsl.exe -d <distro> socat STDIO UNIX-CONNECT:<socket>` and run the Engine ping, a
+  container list and a hijacked exec over the process's stdin and stdout, through Node's
+  HTTP client with a custom connection factory. Measure start latency and confirm that a
+  live bridge process keeps the WSL VM up. The result decides whether the bridge or a
+  loopback TCP socket on the distro is the default transport.
+- **P9-1 engine providers.** One `EngineProvider` interface with three implementations:
+  local Docker socket, local Podman socket (`/run/podman/podman.sock` and
+  `$XDG_RUNTIME_DIR/podman/podman.sock`), and WSL (`wsl.exe -l -v` to list distros, a probe
+  of each for a Docker or Podman socket, the bridge from P9-0). The status carries the
+  engine kind, version, socket and distro. Settings choose the provider and distro, with
+  auto-detection by default. The tree node reads "Containers" with the engine in its
+  tooltip, for example "Podman 5.2 in WSL: Ubuntu".
+- **P9-2 setup wizard for WSL.** Walks the user from nothing to a working engine: install
+  the Ubuntu distro with `wsl --install`, enable systemd, install `podman`, the compose
+  provider and `podman-docker`, enable `podman.socket` for the user, set the unprivileged
+  port sysctl so ports under 1024 publish, and write a `docker.cmd` shim on the Windows
+  PATH that forwards to `wsl podman`, so scripts and IDE plugins that call `docker` keep
+  working. Each step shows the command it runs and its output, and the wizard resumes
+  where it stopped. Built on the project's wizard skill.
+- **P9-3 WSL configuration window.** A form for the two files people otherwise edit by
+  hand, with the current values read from disk and unknown keys and comments kept on
+  write. `%USERPROFILE%\.wslconfig` (global, section `[wsl2]`): memory, processors, swap
+  and swap file, networking mode (NAT or mirrored, mirrored only offered on Windows 11
+  22H2 and later), localhost forwarding, DNS tunnelling, firewall, auto proxy, nested
+  virtualisation, VM idle timeout, and `[experimental]` auto memory reclaim and sparse
+  VHD. `/etc/wsl.conf` per distro (read and written through `wsl.exe -u root`): systemd
+  on boot, boot command, automount root and options, generate hosts and resolv.conf,
+  hostname, interop and Windows PATH append, default user. The form validates sizes such
+  as `4GB` and caps processors at the host count, shows the host's memory and CPU next to
+  the fields, backs up the previous file beside it, and ends with "Apply and restart WSL",
+  which runs `wsl --shutdown` or `wsl --terminate <distro>` after a warning that every
+  running container stops. A read-only "Effective" column shows what WSL reports after the
+  restart.
+- **P9-4 container list and namespaces.** Every container, grouped by namespace: the
+  Compose project (`com.docker.compose.project`, service from
+  `com.docker.compose.service`), the Podman pod, and "Standalone". Each namespace shows
+  the running count over the total, then its containers with image, state, published
+  ports and the compact resource meta from P9-5. MongoDB containers keep the connect
+  action and the database badge. "Group by" on the node menu switches to a flat list.
+- **P9-5 resource usage.** One `GET /containers/{id}/stats?stream=false` sample per
+  running container: CPU percent from the `cpu_stats` and `precpu_stats` delta, memory
+  against the limit, network and block I/O. The row shows CPU and memory; the details
+  panel shows sparklines fed by a poll while open (monitor interval, default 2 s, stopped
+  on close and renderer reset). Memory at or above 85 percent of the limit shows an orange
+  badge. A WSL provider also shows the VM's memory and CPU from inside the distro, so the
+  user sees the `.wslconfig` limits at work.
+- **P9-6 lifecycle actions.** Per container and per namespace: Start, Stop with grace
+  seconds, Restart, Pause and Unpause, Kill with a signal picker, Remove with typed
+  confirmation and an opt-in, red "also remove volumes". Remove is refused while the app
+  holds a connection to the container unless "Disconnect first" is ticked, and a container
+  reached through a forwarder releases it before Stop or Remove.
+- **P9-7 inspect and logs.** Details panel tabs: Overview, Inspect (raw JSON in the
+  read-only editor with search, environment values redacted), Mounts (with a warning on a
+  Windows path mounted through `/mnt`, because named volumes are fast and those are not),
+  Ports, and Logs (stdout and stderr demultiplexed from the 8-byte frames, tail 500,
+  Follow, a level filter for JSON log lines reusing the diagnostics filter, copy and save).
+- **P9-8 shells.** "Open shell" runs `sh`, or `bash` when present, and MongoDB containers
+  also get "Open mongosh" with the container's credentials. Both open an xterm.js dock
+  panel fed by an exec with TTY over the hijacked stream, piped through `docker:terminal`
+  events keyed by session id with backpressure, resize through `POST /exec/{id}/resize`,
+  and teardown on panel close and renderer reset. Keystrokes never reach the log.
+- **P9-9 compose projects.** Compose has no API, so the app runs the compose CLI inside the
+  engine's host (`podman compose` or `docker compose`) with streamed output in a panel:
+  up, down, restart, pull, and per-service logs, plus `ps` parsed into the service table.
+  Projects are found from the labels and, for the file path, from
+  `com.docker.compose.project.config_files`. "Open compose file" opens the file in a
+  read-only editor; the app does not edit compose files in this release. Tests pin one
+  provider and record the differences of the other.
+- **P9-10 images and volumes.** Images: list with size, tags and dangling state, pull with
+  progress, remove, prune. Volumes: list with driver, mount point and the containers that
+  use them, remove with typed confirmation, prune. Both as tabs of the Containers panel.
+- **P9-11 create a container.** The MongoDB form from before (image tag, name, port with a
+  free-port suggestion, root credentials, named data volume, memory and CPU limits,
+  optional single-member replica set) plus a general form for any image: image, name,
+  ports, environment, volumes, limits, restart policy. Creation reuses `createContainer`,
+  `startContainer` and `pullImage`.
+
+Out of scope for this release, stated in the UI where it matters: writing compose files,
+registry logins other than `podman login` inside the distro, translation of Windows paths in
+bind mounts, Windows containers, Kubernetes, and macOS.
+
+Order: P9-0, then P9-1. P9-2 and P9-3 follow P9-1 and run in parallel with P9-4. P9-5,
+P9-6 and P9-7 follow P9-4 and run in parallel. P9-8 follows P9-7. P9-9 and P9-10 follow
+P9-4. P9-11 is last.
 
 Order: P0 then P1 strictly sequential at the package level (P1-1 first, then P1-2,
 P1-3 and P1-5 in parallel, then P1-4, then P1-6). P2 follows P1. After P2, phases 3 and 4
