@@ -6,6 +6,8 @@ export interface ReadOnlyCodeProps {
   readonly value: string;
   /** `json` for canonical and relaxed text, `javascript` for mongosh syntax. */
   readonly language: 'json' | 'javascript';
+  /** Wraps long lines instead of scrolling sideways. */
+  readonly wrap?: boolean | undefined;
 }
 
 // Monaco loads on first use, as in the other editors.

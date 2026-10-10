@@ -1,6 +1,6 @@
 import { useComputedColorScheme } from '@mantine/core';
 import Editor, { type BeforeMount, type OnMount } from '@monaco-editor/react';
-import { useEffect, useRef } from 'react';
+import { useEffect, useLayoutEffect, useRef } from 'react';
 import type * as Monaco from 'monaco-editor/editor/editor.api';
 import { editorUiEvents, insertionText, markerRanges } from './editor-events';
 import { defineEditorThemes, themeFor } from './editor-theme';
@@ -71,7 +71,9 @@ export function MongoshMonaco({
   // Handlers read the latest props, because Monaco keeps the callbacks it got on mount.
   const latest = useRef({ onRun, onRunAll, onExplain, source, value });
   const modelUri = useRef<string | undefined>(undefined);
-  useEffect(() => {
+  // A layout effect, so the ref is current before the editor swaps models in its own effect. The
+  // swap reads the ref to give the new model the tab's text.
+  useLayoutEffect(() => {
     latest.current = { onRun, onRunAll, onExplain, source, value };
   }, [onRun, onRunAll, onExplain, source, value]);
 

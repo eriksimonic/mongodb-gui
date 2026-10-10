@@ -170,7 +170,7 @@ export function FixedTab(props: IDockviewPanelHeaderProps) {
 /**
  * Tab for every other panel. The right-click menu closes this tab, the others in its group, the
  * tabs to one side, or all tabs. Each close goes through `removePanel`, as the close button does.
- * A SQL editor tab also offers to convert its text to mongosh.
+ * A SQL editor tab also offers to open its mongosh in the same tab.
  */
 export function ClosableTab(props: IDockviewPanelHeaderProps) {
   const [position, setPosition] = useState<{ readonly x: number; readonly y: number } | undefined>(
@@ -183,14 +183,14 @@ export function ClosableTab(props: IDockviewPanelHeaderProps) {
   // An editor panel carries its tab's id, so the tab is found by the panel id.
   const editorTab = useAppStore((state) => state.editors.tabs[panelId]);
 
-  function convertToMongosh(tab: EditorTab): void {
+  function openInMongo(tab: EditorTab): void {
     const source = createCompletionSource({
       rpc,
       connectionId: tab.connectionId,
       database: () => store.getState().editors.tabs[tab.id]?.database ?? tab.database,
       isBusy: () => store.getState().editors.runtime[tab.connectionId] === 'busy',
     });
-    void store.getState().setEditorLanguage(tab.id, 'mongosh', source);
+    void store.getState().openSqlAsMongo(tab.id, source);
   }
 
   const entries =
@@ -199,7 +199,7 @@ export function ClosableTab(props: IDockviewPanelHeaderProps) {
       : [
           ...tabMenuEntries(dock, panelId),
           ...(editorTab?.language === 'sql'
-            ? convertEntries(editorTab, () => convertToMongosh(editorTab))
+            ? convertEntries(editorTab, () => openInMongo(editorTab))
             : []),
         ];
   return (

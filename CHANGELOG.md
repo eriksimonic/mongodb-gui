@@ -12,16 +12,14 @@ All notable changes to Mongo GUI are listed here, newest first.
 - `packages/core` translates a T-SQL subset to mongosh: SELECT with joins, grouping and paging,
   UPDATE, DELETE, INSERT and TRUNCATE. Each statement becomes one mongosh statement, and a
   construct outside the subset is refused with a message that points at it.
-- Each editor tab has a query language, Mongo or SQL, set by a toggle after the database select.
-  In SQL mode, Run and Run all translate the statements to mongosh, print the mongosh in the Output
-  panel and run it. Errors underline the clause, UPDATE and DELETE without WHERE and TRUNCATE ask
-  for confirmation, and Format formats SQL. SQL completes table names after FROM and JOIN, and
-  fields after an alias and a dot. The history and favourites lists mark SQL entries, and "Convert
-  to mongosh" on a SQL tab replaces its text with the translation.
-- Switching an editor tab from SQL to Mongo with the language toggle translates its SQL to
-  mongosh, as "Convert to mongosh" in the tab menu does. A text that does not translate stays SQL,
-  with the failing clause underlined. Switching back restores the original SQL while the text is
-  still the converted mongosh.
+- Each editor tab has a query language, Mongo or SQL, set by a toggle after the database select. A
+  tab keeps one text per language, so switching never translates and the SQL stays available. A SQL
+  tab shows the mongosh of its text on the right, read only, and updates it as you type. "Open in
+  Mongo", on the preview and in the tab menu, switches the tab to that mongosh. In SQL mode, Run
+  and Run all translate the statements to mongosh, print the mongosh in the Output panel and run
+  it. Errors underline the clause, UPDATE and DELETE without WHERE and TRUNCATE ask for
+  confirmation, and Format formats SQL. SQL completes table names after FROM and JOIN, and fields
+  after an alias and a dot. The history and favourites lists mark SQL entries.
 - "Generate data" on a collection inserts made-up documents from a seeded set of generators
   (identifiers, numbers, dates, names, emails, file paths and lorem text), with unique fields,
   a preview, progress and cancel. A unique field that its generator cannot fill is refused before

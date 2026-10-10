@@ -437,20 +437,50 @@ describe('editor actions: language', () => {
     expect(store.getState().editors.tabs[id]?.language).toBe('sql');
   });
 
-  it('switches the tab language and saves it as the default in the settings', async () => {
+  it('switches the tab language, keeps the text of each language and saves the default', async () => {
     const api = await connectedMockApi();
     const store = await storeOn(api);
     const id = store.getState().openEditor({ connectionId: localConnectionId, database: 'shop' });
-    store.getState().setEditorText(id, 'SELECT * FROM orders;');
+    store.getState().setEditorText(id, 'db.orders.find()');
 
     await store.getState().setEditorLanguage(id, 'sql');
-
     expect(store.getState().editors.tabs[id]).toMatchObject({
       language: 'sql',
-      text: 'SELECT * FROM orders;',
+      text: '',
+      otherText: 'db.orders.find()',
     });
-    expect(store.getState().settings?.editorLanguage).toBe('sql');
-    expect((await api.rpc.settings.get()).editorLanguage).toBe('sql');
+    store.getState().setEditorText(id, 'SELECT * FROM orders;');
+    await store.getState().setEditorLanguage(id, 'mongosh');
+
+    expect(store.getState().editors.tabs[id]).toMatchObject({
+      language: 'mongosh',
+      text: 'db.orders.find()',
+      otherText: 'SELECT * FROM orders;',
+    });
+    expect(store.getState().settings?.editorLanguage).toBe('mongosh');
+    expect((await api.rpc.settings.get()).editorLanguage).toBe('mongosh');
+  });
+
+  it('does not translate when the language switches to mongosh', async () => {
+    const api = await connectedMockApi();
+    const evaluate = vi.spyOn(api.rpc.shell, 'evaluate');
+    const store = await storeOn(api);
+    const id = store.getState().openEditor({
+      connectionId: localConnectionId,
+      database: 'shop',
+      language: 'sql',
+    });
+    store.getState().setEditorText(id, 'SELECT * FROM orders');
+
+    await store.getState().setEditorLanguage(id, 'mongosh');
+
+    expect(store.getState().editors.tabs[id]).toMatchObject({
+      language: 'mongosh',
+      text: '',
+      otherText: 'SELECT * FROM orders',
+    });
+    expect(evaluate).not.toHaveBeenCalled();
+    expect(store.getState().editors.output).toEqual([]);
   });
 
   it('keeps the tab switched and shows an error line when the default cannot be saved', async () => {
@@ -475,7 +505,7 @@ describe('editor actions: language', () => {
     const id = store.getState().openEditor({ connectionId: localConnectionId, database: 'shop' });
     const update = vi.spyOn(api.rpc.settings, 'update');
 
-    await store.getState().setEditorLanguage(id, 'mongosh');
+    await store.getState().openSqlAsMongo(id);
 
     expect(update).not.toHaveBeenCalled();
     expect(store.getState().editors.tabs[id]?.language).toBe('mongosh');
@@ -923,7 +953,7 @@ describe('editor actions: SQL tabs', () => {
     await store.getState().updateSettings({ editorLanguage: 'sql' });
     expect((await api.rpc.settings.get()).editorLanguage).toBe('sql');
 
-    await store.getState().setEditorLanguage(id, 'mongosh', sampler);
+    await store.getState().openSqlAsMongo(id, sampler);
 
     expect(store.getState().editors.tabs[id]).toMatchObject({
       language: 'mongosh',
@@ -939,7 +969,7 @@ describe('editor actions: SQL tabs', () => {
     const id = await sqlTab(store, 'SELECT * FROM orders');
     store.getState().setEditorError(id, { code: 'VALIDATION', message: 'old' });
 
-    await store.getState().setEditorLanguage(id, 'mongosh', sampler);
+    await store.getState().openSqlAsMongo(id, sampler);
 
     expect(store.getState().editors.output).toEqual([]);
     expect(store.getState().editors.tabs[id]?.error).toBeUndefined();
@@ -951,7 +981,7 @@ describe('editor actions: SQL tabs', () => {
     const store = await storeOn(api);
     const id = await sqlTab(store, 'SELECT * FROM orders');
 
-    await store.getState().setEditorLanguage(id, 'mongosh', sampler);
+    await store.getState().openSqlAsMongo(id, sampler);
 
     expect(evaluate).not.toHaveBeenCalled();
   });
@@ -961,7 +991,7 @@ describe('editor actions: SQL tabs', () => {
     const store = await storeOn(api);
     const id = await sqlTab(store, 'SELECT TOP 5 * FROM orders');
 
-    await store.getState().setEditorLanguage(id, 'mongosh');
+    await store.getState().openSqlAsMongo(id);
 
     expect(store.getState().editors.tabs[id]).toMatchObject({
       language: 'mongosh',
@@ -977,7 +1007,7 @@ describe('editor actions: SQL tabs', () => {
       fieldsOf: () => Promise.resolve([{ path: 'createdAt', types: ['Date'], presence: 1 }]),
     };
 
-    await store.getState().setEditorLanguage(id, 'mongosh', dated);
+    await store.getState().openSqlAsMongo(id, dated);
 
     expect(store.getState().editors.tabs[id]?.text).toBe(
       "db.orders.find({ createdAt: { $gt: ISODate('2026-01-02T00:00:00.000Z') } })",
@@ -990,7 +1020,7 @@ describe('editor actions: SQL tabs', () => {
     const id = await sqlTab(store, 'SELECT * FROM orders');
     const broken = { fieldsOf: () => Promise.reject(new Error('sample failed')) };
 
-    await store.getState().setEditorLanguage(id, 'mongosh', broken);
+    await store.getState().openSqlAsMongo(id, broken);
 
     expect(store.getState().editors.tabs[id]).toMatchObject({
       language: 'mongosh',
@@ -1010,12 +1040,11 @@ describe('editor actions: SQL tabs', () => {
     const id = await sqlTab(store, text);
     const markers = markerEvents();
 
-    await store.getState().setEditorLanguage(id, 'mongosh', sampler);
+    await store.getState().openSqlAsMongo(id, sampler);
 
     const tab = store.getState().editors.tabs[id];
-    expect(tab).toMatchObject({ language: 'mongosh', text });
+    expect(tab).toMatchObject({ language: 'mongosh', text: '', otherText: text });
     expect(tab?.error).toBeUndefined();
-    expect(tab?.sqlOrigin).toBeUndefined();
     expect(markers).toEqual([]);
     expect(store.getState().settings?.editorLanguage).toBe('mongosh');
   });
@@ -1027,14 +1056,13 @@ describe('editor actions: SQL tabs', () => {
     const markers = markerEvents();
     const update = vi.spyOn(api.rpc.settings, 'update');
 
-    await store.getState().setEditorLanguage(id, 'mongosh', sampler);
+    await store.getState().openSqlAsMongo(id, sampler);
 
     expect(store.getState().editors.tabs[id]).toMatchObject({
       language: 'sql',
       text: 'SELECT * FROM orders WHERE',
       error: { code: 'VALIDATION', message: 'expected an expression but the statement ended' },
     });
-    expect(store.getState().editors.tabs[id]?.sqlOrigin).toBeUndefined();
     expect(markers).toEqual([
       {
         type: 'editor:markers',
@@ -1055,7 +1083,7 @@ describe('editor actions: SQL tabs', () => {
     const id = await sqlTab(store, `${first}SELEC * FROM orders`);
     const markers = markerEvents();
 
-    await store.getState().setEditorLanguage(id, 'mongosh', sampler);
+    await store.getState().openSqlAsMongo(id, sampler);
 
     expect(store.getState().editors.tabs[id]).toMatchObject({
       language: 'sql',
@@ -1071,11 +1099,11 @@ describe('editor actions: SQL tabs', () => {
     const api = await connectedMockApi();
     const store = await storeOn(api);
     const id = await sqlTab(store, 'SELECT * FROM orders WHERE');
-    await store.getState().setEditorLanguage(id, 'mongosh', sampler);
+    await store.getState().openSqlAsMongo(id, sampler);
     expect(store.getState().editors.tabs[id]?.language).toBe('sql');
 
     store.getState().setEditorText(id, 'SELECT * FROM orders');
-    await store.getState().setEditorLanguage(id, 'mongosh', sampler);
+    await store.getState().openSqlAsMongo(id, sampler);
 
     expect(store.getState().editors.tabs[id]).toMatchObject({
       language: 'mongosh',
@@ -1089,7 +1117,7 @@ describe('editor actions: SQL tabs', () => {
     const store = await storeOn(api);
     const sql = 'select  *\nfrom orders -- keep this comment\n;\nDELETE FROM orders WHERE id = 1';
     const id = await sqlTab(store, sql);
-    await store.getState().setEditorLanguage(id, 'mongosh', sampler);
+    await store.getState().openSqlAsMongo(id, sampler);
     expect(store.getState().editors.tabs[id]?.text).not.toBe(sql);
 
     await store.getState().setEditorLanguage(id, 'sql');
@@ -1105,41 +1133,47 @@ describe('editor actions: SQL tabs', () => {
     const id = await sqlTab(store, sql);
 
     for (let round = 0; round < 2; round += 1) {
-      await store.getState().setEditorLanguage(id, 'mongosh', sampler);
+      await store.getState().openSqlAsMongo(id, sampler);
       expect(store.getState().editors.tabs[id]?.text).toBe('db.orders.find({})');
       await store.getState().setEditorLanguage(id, 'sql');
       expect(store.getState().editors.tabs[id]?.text).toBe(sql);
     }
   });
 
-  it('keeps an edited mongosh text when it switches to SQL', async () => {
+  it('keeps an edited mongosh text and brings the SQL back when it switches to SQL', async () => {
     const api = await connectedMockApi();
     const store = await storeOn(api);
     const id = await sqlTab(store, 'SELECT * FROM orders');
-    await store.getState().setEditorLanguage(id, 'mongosh', sampler);
+    await store.getState().openSqlAsMongo(id, sampler);
     store.getState().setEditorText(id, 'db.orders.find({}).limit(1)');
 
     await store.getState().setEditorLanguage(id, 'sql');
 
     expect(store.getState().editors.tabs[id]).toMatchObject({
       language: 'sql',
-      text: 'db.orders.find({}).limit(1)',
+      text: 'SELECT * FROM orders',
+      otherText: 'db.orders.find({}).limit(1)',
     });
   });
 
-  it('does not restore the SQL after the mongosh was edited and edited back by one character', async () => {
+  it('replaces the mongosh the tab held when the SQL opens as mongosh', async () => {
     const api = await connectedMockApi();
     const store = await storeOn(api);
-    const id = await sqlTab(store, 'SELECT * FROM orders');
-    await store.getState().setEditorLanguage(id, 'mongosh', sampler);
-    store.getState().setEditorText(id, 'db.orders.find({}) ');
-
+    const id = store.getState().openEditor({ connectionId: localConnectionId, database: 'shop' });
+    store.getState().setEditorText(id, 'db.customers.find()');
     await store.getState().setEditorLanguage(id, 'sql');
+    store.getState().setEditorText(id, 'SELECT * FROM orders');
 
-    expect(store.getState().editors.tabs[id]?.text).toBe('db.orders.find({}) ');
+    await store.getState().openSqlAsMongo(id, sampler);
+
+    expect(store.getState().editors.tabs[id]).toMatchObject({
+      language: 'mongosh',
+      text: 'db.orders.find({})',
+      otherText: 'SELECT * FROM orders',
+    });
   });
 
-  it('does not restore SQL into a tab that never converted', async () => {
+  it('opens an empty SQL side for a tab that never held SQL', async () => {
     const api = await connectedMockApi();
     const store = await storeOn(api);
     const id = store.getState().openEditor({ connectionId: localConnectionId, database: 'shop' });
@@ -1147,22 +1181,22 @@ describe('editor actions: SQL tabs', () => {
 
     await store.getState().setEditorLanguage(id, 'sql');
 
-    expect(store.getState().editors.tabs[id]).toMatchObject({
-      language: 'sql',
-      text: 'db.orders.find()',
-    });
+    expect(store.getState().editors.tabs[id]).toMatchObject({ language: 'sql', text: '' });
   });
 
-  it('does not save the origin with the tabs', async () => {
+  it('saves the SQL and the mongosh of a tab with the tabs', async () => {
     const api = await connectedMockApi();
     const store = await storeOn(api);
     const id = await sqlTab(store, 'SELECT * FROM orders');
-    await store.getState().setEditorLanguage(id, 'mongosh', sampler);
+    await store.getState().openSqlAsMongo(id, sampler);
 
     const saved = savedTabsOf(store.getState().editors, localConnectionId);
 
-    expect(JSON.stringify(saved)).not.toContain('sqlOrigin');
-    expect(saved.tabs[0]).toMatchObject({ language: 'mongosh', text: 'db.orders.find({})' });
+    expect(saved.tabs[0]).toMatchObject({
+      language: 'mongosh',
+      text: 'db.orders.find({})',
+      otherText: 'SELECT * FROM orders',
+    });
   });
 
   it('leaves the language alone while a run is in progress', async () => {
@@ -1173,7 +1207,7 @@ describe('editor actions: SQL tabs', () => {
     const run = store.getState().runEditor(id, 'sleep(5000)');
     await vi.waitFor(() => expect(store.getState().editors.tabs[id]?.running).toBeDefined());
 
-    await store.getState().setEditorLanguage(id, 'mongosh', sampler);
+    await store.getState().openSqlAsMongo(id, sampler);
     expect(store.getState().editors.tabs[id]).toMatchObject({
       language: 'sql',
       text: 'SELECT * FROM orders',
@@ -1209,7 +1243,7 @@ describe('editor actions: SQL tabs', () => {
       },
     };
 
-    await store.getState().setEditorLanguage(id, 'mongosh', slow);
+    await store.getState().openSqlAsMongo(id, slow);
 
     expect(store.getState().editors.tabs[id]).toMatchObject({
       language: 'sql',
@@ -1224,7 +1258,7 @@ describe('editor actions: SQL tabs', () => {
     store.getState().setEditorText(id, 'db.orders.find()');
     const update = vi.spyOn(api.rpc.settings, 'update');
 
-    await store.getState().setEditorLanguage(id, 'mongosh', sampler);
+    await store.getState().openSqlAsMongo(id, sampler);
 
     expect(store.getState().editors.tabs[id]?.text).toBe('db.orders.find()');
     expect(update).not.toHaveBeenCalled();
@@ -1234,7 +1268,7 @@ describe('editor actions: SQL tabs', () => {
     const api = await connectedMockApi();
     const store = await storeOn(api);
 
-    await expect(store.getState().setEditorLanguage('missing', 'mongosh')).resolves.toBeUndefined();
+    await expect(store.getState().openSqlAsMongo('missing')).resolves.toBe(false);
 
     expect(store.getState().editors.tabs).toEqual({});
   });
@@ -1252,7 +1286,7 @@ describe('editor actions: SQL tabs', () => {
     await store.getState().setEditorLanguage(other, 'sql');
     vi.spyOn(api.rpc.settings, 'update').mockRejectedValueOnce(new Error('disk is full'));
 
-    await store.getState().setEditorLanguage(id, 'mongosh', sampler);
+    await store.getState().openSqlAsMongo(id, sampler);
 
     expect(store.getState().editors.tabs[id]).toMatchObject({
       language: 'mongosh',

@@ -54,12 +54,6 @@ export interface RunState {
   readonly startedAt: number;
 }
 
-/** The SQL a tab held before it converted to mongosh, and the mongosh the conversion produced. */
-export interface SqlOrigin {
-  readonly sql: string;
-  readonly mongosh: string;
-}
-
 export interface EditorTab {
   readonly id: string;
   readonly connectionId: string;
@@ -72,10 +66,10 @@ export interface EditorTab {
   /** Whether the text is mongosh or SQL. SQL is translated before it runs. */
   readonly language: EditorLanguage;
   /**
-   * Set when the tab converted from SQL to mongosh. Switching back to SQL restores the SQL while the
-   * text still equals the mongosh of the conversion. It is not saved between launches.
+   * The text of the language the tab does not show, kept so a switch back finds it. A switch swaps
+   * `text` and `otherText`, so the mongosh and the SQL of a tab never overwrite each other.
    */
-  readonly sqlOrigin?: SqlOrigin | undefined;
+  readonly otherText?: string | undefined;
   readonly running: RunState | undefined;
   readonly result: ResultSet | undefined;
   readonly error: AppError | undefined;
@@ -127,6 +121,7 @@ export const SavedTabSchema = z.object({
   batchSize: z.union([z.literal(20), z.literal(50), z.literal(100), z.literal(500)]),
   view: z.enum(['table', 'tree', 'json']),
   language: EditorLanguageSchema.default('mongosh'),
+  otherText: z.string().max(200_000).optional(),
 });
 
 export const SavedTabsSchema = z.object({
@@ -165,6 +160,8 @@ export interface OpenTabInput {
   readonly view?: ResultView;
   /** Defaults to mongosh. */
   readonly language?: EditorLanguage;
+  /** The text of the other language. See `EditorTab.otherText`. */
+  readonly otherText?: string | undefined;
 }
 
 /** Adds a tab and makes it active. An existing tab with the same id is left as it is. */
@@ -182,6 +179,7 @@ export function openTab(state: EditorsState, input: OpenTabInput): EditorsState 
     batchSize: input.batchSize ?? DEFAULT_BATCH_SIZE,
     view: input.view ?? 'table',
     language: input.language ?? 'mongosh',
+    otherText: input.otherText,
     running: undefined,
     result: undefined,
     error: undefined,
@@ -248,43 +246,41 @@ export function setTabView(state: EditorsState, id: string, view: ResultView): E
   return updateTab(state, id, (tab) => ({ ...tab, view }));
 }
 
-/** Switches the tab between mongosh and SQL. The text and the result stay as they are. */
+/**
+ * Switches the tab between mongosh and SQL. The text of the language it leaves is kept as
+ * `otherText`, and the text of the language it enters comes back, empty when it has none. The
+ * result stays as it is. The new text counts as saved, so the switch does not mark the tab unsaved.
+ */
 export function setTabLanguage(
   state: EditorsState,
   id: string,
   language: EditorLanguage,
 ): EditorsState {
-  return updateTab(state, id, (tab) => (tab.language === language ? tab : { ...tab, language }));
+  return updateTab(state, id, (tab) => {
+    if (tab.language === language) {
+      return tab;
+    }
+    const text = tab.otherText ?? '';
+    return { ...tab, language, text, savedText: text, otherText: tab.text, error: undefined };
+  });
 }
 
 /**
- * Switches the tab from SQL to mongosh in one step. The text becomes the mongosh, the SQL is kept
- * as the origin of the conversion, and the tab error clears.
+ * Switches the tab from SQL to mongosh with the translation. The text becomes the mongosh, and the
+ * SQL moves to `otherText`, so switching back to SQL finds it. The tab error clears.
  */
 export function convertTabToMongosh(
   state: EditorsState,
   id: string,
-  origin: SqlOrigin,
+  mongosh: string,
 ): EditorsState {
   return updateTab(state, id, (tab) => ({
     ...tab,
-    text: origin.mongosh,
+    text: mongosh,
     language: 'mongosh',
-    sqlOrigin: origin,
+    otherText: tab.text,
     error: undefined,
   }));
-}
-
-/**
- * Switches the tab from mongosh to SQL. While the text still equals the mongosh of the conversion,
- * the SQL of the conversion comes back. Otherwise the text stays. The origin is spent either way.
- */
-export function revertTabToSql(state: EditorsState, id: string): EditorsState {
-  return updateTab(state, id, (tab) => {
-    const origin = tab.sqlOrigin;
-    const text = origin !== undefined && tab.text === origin.mongosh ? origin.sql : tab.text;
-    return { ...tab, text, language: 'sql', sqlOrigin: undefined };
-  });
 }
 
 /** Marks the text as saved, which clears the unsaved indicator. */
@@ -475,6 +471,7 @@ export function savedTabsOf(state: EditorsState, connectionId: string): SavedTab
     batchSize: tab.batchSize,
     view: tab.view,
     language: tab.language,
+    ...(tab.otherText === undefined ? {} : { otherText: tab.otherText }),
   }));
   const active = state.activeId !== undefined && tabs.some((tab) => tab.id === state.activeId);
   return active ? { tabs, activeId: state.activeId } : { tabs };
@@ -502,6 +499,7 @@ export function restoreTabs(
       batchSize: tab.batchSize,
       view: tab.view,
       language: tab.language,
+      otherText: tab.otherText,
     });
   }
   const activeId = saved.activeId;

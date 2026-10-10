@@ -4,7 +4,7 @@ import './monaco-setup';
 import type { ReadOnlyCodeProps } from './ReadOnlyCode';
 
 /** Read-only Monaco with folding and find. Loaded lazily by ReadOnlyCode. */
-export function ReadOnlyMonaco({ label, value, language }: ReadOnlyCodeProps) {
+export function ReadOnlyMonaco({ label, value, language, wrap }: ReadOnlyCodeProps) {
   const scheme = useComputedColorScheme('dark');
   return (
     <Editor
@@ -20,7 +20,7 @@ export function ReadOnlyMonaco({ label, value, language }: ReadOnlyCodeProps) {
         scrollBeyondLastLine: false,
         fontSize: 13,
         tabSize: 2,
-        wordWrap: 'off',
+        wordWrap: wrap === true ? 'on' : 'off',
         automaticLayout: true,
         folding: true,
         lineNumbersMinChars: 3,

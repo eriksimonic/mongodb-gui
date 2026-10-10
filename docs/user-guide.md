@@ -355,12 +355,22 @@ path as a mongosh statement. The Output panel prints the mongosh before the run,
 what the database receives.
 
 To change the language of a tab, use the "Query language" control after the "Database" select.
-Choose "Mongo" or "SQL". The choice is kept for the tab, and it becomes the default for new
-editor tabs. Switching from SQL to Mongo replaces the text with its mongosh translation. The
-translator is one-way, so switching from Mongo to SQL never translates. It keeps the text as it
-is, with one exception described below.
+Choose "Mongo" or "SQL". The choice becomes the default for new editor tabs. Each tab keeps one
+text per language, so switching never translates and never loses text. Switch to SQL and the
+tab shows its SQL, empty at first. Switch back to Mongo and the mongosh you left comes back.
 
-![Editor in SQL mode with a join translated to mongosh in the Output panel](screenshots/sql-mode.png)
+A SQL tab shows the Mongo query on the right of the editor, read only. It updates as you type and
+uses the field types the app samples from the collections, as Run does. A statement that does not
+translate shows its message there instead. Several statements show as the mongosh of each one,
+separated by `;` and a new line.
+
+Click "Open in Mongo" above the Mongo query to switch the tab to Mongo with that query as its
+text. This replaces the mongosh the tab held. The SQL stays in the tab, so choosing "SQL" in the
+language control brings it back. Right-click the tab and choose "Open in Mongo" to do the same from
+the tab menu. Both are disabled when the text has no statement or a statement does not
+translate. The tab menu item shows the message as its tooltip.
+
+![SQL tab with the read-only Mongo query beside the editor and the result below](screenshots/sql-mode.png)
 
 To run SQL:
 
@@ -384,23 +394,7 @@ The History and Favourites lists mark each SQL entry with a "SQL" badge. Re-runn
 or inserting it into the editor, keeps its language. "Save as favourite" stores the language of
 the tab with the statement.
 
-Switching a tab from SQL to Mongo translates all its statements, using the field types the app
-samples from the collections, as Run does. The text becomes the mongosh of every statement,
-separated by `;` and a new line, and the Output panel gets no line. A text that is empty or holds
-only comments switches without a change to the text.
-
-If a statement does not translate, the tab stays in SQL and keeps its text. The editor
-underlines the clause that caused the error, and the tab shows the message. Fix the SQL and
-switch again.
-
-The app keeps the SQL it translated. If you switch back to SQL while the text is still exactly the
-mongosh of that translation, the original SQL returns, with its comments and layout. If you edited
-the mongosh, the text stays as it is. A closed and reopened app forgets the original SQL.
-
 While a statement runs in the tab, the language control is off.
-
-Right-click the tab and choose "Convert to mongosh" to do the same switch from the tab menu. The
-item is disabled when a statement does not translate. Its tooltip shows the message.
 
 Completion works in SQL mode too:
 

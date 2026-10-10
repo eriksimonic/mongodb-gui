@@ -23,15 +23,23 @@ function headerProps(): IDockviewPanelHeaderProps {
   return props as unknown as IDockviewPanelHeaderProps;
 }
 
-/** Shows the tab the menu converts, so a test reads its language, text and origin. */
+/** Lists every tab, so a test reads the language and text of the tab the menu acts on. */
 function TabProbe() {
-  const tab = useAppStore((state) => state.editors.tabs[EDITOR_TAB_ID]);
+  const tabs = useAppStore((state) => state.editors.tabs);
+  const order = useAppStore((state) => state.editors.order);
   return (
-    <>
-      <span data-testid="language">{tab?.language}</span>
-      <span data-testid="text">{tab?.text}</span>
-      <span data-testid="origin">{tab?.sqlOrigin?.sql}</span>
-    </>
+    <ol>
+      {order.map((id) => (
+        <li
+          key={id}
+          data-testid="tab"
+          data-language={tabs[id]?.language}
+          data-other={tabs[id]?.otherText}
+        >
+          {tabs[id]?.text}
+        </li>
+      ))}
+    </ol>
   );
 }
 
@@ -51,39 +59,42 @@ async function openTabMenu(text: string, language: 'sql' | 'mongosh') {
   return { ...rendered, api };
 }
 
-describe('ClosableTab convert entry', () => {
-  it('converts the SQL through the same action as the language toggle', async () => {
+describe('ClosableTab Open in Mongo entry', () => {
+  it('switches the tab to the mongosh and keeps the SQL for the language toggle', async () => {
     const { api } = await openTabMenu('SELECT * FROM orders; DELETE FROM orders', 'sql');
     const evaluate = vi.spyOn(api.rpc.shell, 'evaluate');
 
-    fireEvent.click(await screen.findByRole('menuitem', { name: 'Convert to mongosh' }));
+    fireEvent.click(await screen.findByRole('menuitem', { name: 'Open in Mongo' }));
 
-    await waitFor(() => expect(screen.getByTestId('language')).toHaveTextContent('mongosh'));
-    expect(screen.getByTestId('text').textContent).toBe(
+    await waitFor(() =>
+      expect(screen.getByTestId('tab')).toHaveAttribute('data-language', 'mongosh'),
+    );
+    expect(screen.getAllByTestId('tab')).toHaveLength(1);
+    expect(screen.getByTestId('tab').textContent).toBe(
       'db.orders.find({});\ndb.orders.deleteMany({})',
     );
-    expect(screen.getByTestId('origin').textContent).toBe(
+    expect(screen.getByTestId('tab')).toHaveAttribute(
+      'data-other',
       'SELECT * FROM orders; DELETE FROM orders',
     );
     expect(evaluate).not.toHaveBeenCalled();
   });
 
-  it('keeps the SQL and the SQL language when the SQL does not translate', async () => {
+  it('is off, with the reason, when the SQL does not translate', async () => {
     await openTabMenu('SELECT * FROM orders WHERE', 'sql');
 
-    const entry = await screen.findByRole('menuitem', { name: /^Convert to mongosh/ });
+    const entry = await screen.findByRole('menuitem', { name: /^Open in Mongo/ });
 
     expect(entry).toBeDisabled();
     expect(entry).toHaveTextContent('expected an expression but the statement ended');
-    expect(screen.getByTestId('language')).toHaveTextContent('sql');
-    expect(screen.getByTestId('text').textContent).toBe('SELECT * FROM orders WHERE');
+    expect(screen.getAllByTestId('tab')).toHaveLength(1);
   });
 
-  it('offers no conversion on a mongosh tab', async () => {
+  it('offers no Open in Mongo entry on a mongosh tab', async () => {
     await openTabMenu('db.orders.find()', 'mongosh');
 
     await screen.findByRole('menuitem', { name: 'Close' });
 
-    expect(screen.queryByRole('menuitem', { name: 'Convert to mongosh' })).not.toBeInTheDocument();
+    expect(screen.queryByRole('menuitem', { name: 'Open in Mongo' })).not.toBeInTheDocument();
   });
 });

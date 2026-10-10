@@ -20,7 +20,7 @@ panel layout and the window size are saved, so the next launch opens where you l
 - Connections and vault keep saved connections, history and settings in one encrypted store, and connect by URI or form.
 - Docker discovery finds MongoDB containers on the local machine and connects to them.
 - The shell runs mongosh statements with completion, multi-statement scripts and print output.
-- SQL mode runs a T-SQL subset against collections. Each statement is translated to mongosh, which the Output panel shows before the run.
+- SQL mode runs a T-SQL subset against collections. A SQL tab shows the translated mongosh beside the editor, read only, and the Output panel prints it before the run. "Open in Mongo" switches the tab to it.
 - Results open as a grid, an expandable tree with inline edits, or read-only JSON.
 - Explain shows the plan of find, aggregate, count, distinct, update and delete as a stage tree with warnings.
 - Collection management covers databases, collections, indexes, JSON schema validators and documents.
@@ -77,9 +77,9 @@ inline edits in the tree, and a history and favourites list in the Output panel.
 | ------------------------------------------------------------------------------------------------------------ |
 | ![Explain panel with the summary, the plan tree and the $lookup sub-tree open](docs/screenshots/explain.png) |
 
-| SQL mode with a join translated to mongosh in the Output panel                                             |
-| ---------------------------------------------------------------------------------------------------------- |
-| ![Editor in SQL mode with a join translated to mongosh in the Output panel](docs/screenshots/sql-mode.png) |
+| SQL tab with the Mongo query beside the editor and the result below                                             |
+| --------------------------------------------------------------------------------------------------------------- |
+| ![SQL tab with the read-only Mongo query beside the editor and the result below](docs/screenshots/sql-mode.png) |
 
 | Docker node in the connection tree                                                | Credentials for a protected container                                                             |
 | --------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------- |

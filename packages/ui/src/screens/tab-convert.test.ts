@@ -21,16 +21,16 @@ function sqlTab(text: string) {
 }
 
 describe('convertEntries', () => {
-  it('offers the conversion after a divider when the SQL translates', () => {
+  it('offers Open in Mongo after a divider when the SQL translates', () => {
     const onSelect = vi.fn();
     const entries = convertEntries(sqlTab('SELECT * FROM orders'), onSelect);
     expect(entries).toEqual([
       { kind: 'divider' },
-      { kind: 'item', label: 'Convert to mongosh', disabled: false, reason: undefined, onSelect },
+      { kind: 'item', label: 'Open in Mongo', disabled: false, reason: undefined, onSelect },
     ]);
   });
 
-  it('runs the conversion when the entry is picked', () => {
+  it('opens the tab when the entry is picked', () => {
     const onSelect = vi.fn();
     const [, entry] = convertEntries(sqlTab('SELECT * FROM orders'), onSelect);
     if (entry?.kind !== 'item') {
@@ -64,8 +64,8 @@ describe('convertEntries', () => {
     expect(entry).toMatchObject({ disabled: true, reason: 'The tab is empty' });
   });
 
-  it('stays on for text that holds only comments, which switches the language alone', () => {
+  it('is off for text that holds only comments', () => {
     const [, entry] = convertEntries(sqlTab('-- nothing yet'), vi.fn());
-    expect(entry).toMatchObject({ disabled: false, reason: undefined });
+    expect(entry).toMatchObject({ disabled: true, reason: 'The tab has no statement' });
   });
 });

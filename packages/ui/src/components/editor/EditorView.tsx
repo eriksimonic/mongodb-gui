@@ -39,6 +39,7 @@ import { editorUiEvents } from '../../editor/editor-events';
 import { BATCH_SIZES, type BatchSize, type EditorTab } from '../../state/editors';
 import { notifyError } from '../notify-error';
 import { SaveFavouriteDialog } from './SaveFavouriteDialog';
+import { SqlPreview } from './SqlPreview';
 
 const MIN_EDITOR_SHARE = 0.15;
 const MAX_EDITOR_SHARE = 0.8;
@@ -329,8 +330,8 @@ export function EditorView({ tabId }: EditorViewProps) {
           onChange={(value) => {
             const language = LANGUAGE_OPTIONS.find((option) => option.value === value)?.value;
             if (language !== undefined && language !== current.language) {
-              // Switching to Mongo translates the SQL text, with the sampled field types.
-              void api.setEditorLanguage(tabId, language, source ?? NO_SAMPLER);
+              // Each language keeps its own text. Nothing translates on the switch.
+              void api.setEditorLanguage(tabId, language);
             }
           }}
         />
@@ -432,17 +433,30 @@ export function EditorView({ tabId }: EditorViewProps) {
       </Group>
       <div ref={split} style={{ flex: 1, minHeight: 0, display: 'flex', flexDirection: 'column' }}>
         <div style={{ height: `${share * 100}%`, minHeight: 80, padding: '6px 8px 0' }}>
-          <MongoshEditor
-            tabId={tabId}
-            language={current.language}
-            label={`Query for ${current.database}`}
-            value={current.text}
-            source={source}
-            onChange={(text) => api.setEditorText(tabId, text)}
-            onRun={run}
-            onRunAll={runAll}
-            onExplain={explain}
-          />
+          <div style={{ display: 'flex', gap: 8, height: '100%' }}>
+            <div style={{ flex: 1, minWidth: 0 }}>
+              <MongoshEditor
+                tabId={tabId}
+                language={current.language}
+                label={`Query for ${current.database}`}
+                value={current.text}
+                source={source}
+                onChange={(text) => api.setEditorText(tabId, text)}
+                onRun={run}
+                onRunAll={runAll}
+                onExplain={explain}
+              />
+            </div>
+            {isSql ? (
+              <div style={{ flex: 1, minWidth: 0 }}>
+                <SqlPreview
+                  sql={current.text}
+                  sampler={source ?? NO_SAMPLER}
+                  onOpenInMongo={() => void api.openSqlAsMongo(tabId, source ?? NO_SAMPLER)}
+                />
+              </div>
+            ) : null}
+          </div>
         </div>
         <div
           role="separator"
