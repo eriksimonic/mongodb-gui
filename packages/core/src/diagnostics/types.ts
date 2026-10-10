@@ -32,6 +32,8 @@ export const ServerParameterSchema = z.object({
   name: z.string(),
   value: z.unknown(),
   valueEjson: z.string(),
+  // Set when an object or array value was longer than the cap and was cut short.
+  truncated: z.boolean().optional(),
 });
 
 export const CommandLineOptionsSchema = z.object({
@@ -76,8 +78,9 @@ export const BuildInfoSchema = z.object({
   rawJson: z.string(),
 });
 
+// Time in milliseconds. The server reports microseconds, and the adapter divides them.
 export const OpStatSchema = z.object({
-  time: z.number().nonnegative(),
+  timeMs: z.number().nonnegative(),
   count: nonNegativeInt,
 });
 

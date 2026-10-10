@@ -29,4 +29,13 @@ describe('filterParameters', () => {
     expect(filterParameters(PARAMETERS, 'size')).toEqual([PARAMETERS[3]]);
     expect(valueText(PARAMETERS[3] as ServerParameter)).toBe('{"size":4}');
   });
+
+  it('shows an object value by its canonical text', () => {
+    const parameter: ServerParameter = {
+      name: 'featureFlags',
+      value: { enabled: true },
+      valueEjson: '{"enabled":true}',
+    };
+    expect(valueText(parameter)).toBe('{"enabled":true}');
+  });
 });

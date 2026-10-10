@@ -4,7 +4,7 @@ import { connectedMockApi } from '../api/connected-mock';
 import { localConnectionId } from '../api/mock-fixtures';
 import { createMockUiApi } from '../api/mock-rpc-client';
 import type { UiApi } from '../api/ui-api';
-import { createDiagnosticsStore } from './diagnostics-store';
+import { createDiagnosticsStore, type DiagnosticsClient } from './diagnostics-store';
 
 const TARGET = { connectionId: localConnectionId };
 const REPORTER_SESSION = '1f9c2a4e8b7d4c1a9e3f0a6b2d5c8e71';
@@ -121,5 +121,36 @@ describe('diagnostics store sessions', () => {
 
     await expect(store.getState().killSelected()).rejects.toThrow('Connect to the server first');
     expect(store.getState().selected).toEqual([REPORTER_SESSION]);
+  });
+});
+
+describe('diagnostics store log refresh', () => {
+  it('appends the new lines on a refresh and keeps the lines already read', async () => {
+    let written = 3;
+    const client = {
+      getLog: async () => {
+        const lines = Array.from({ length: written }, (_, index) => ({
+          message: `line ${index}`,
+          raw: `line ${index}`,
+        }));
+        return { kind: 'global' as const, total: written, lines };
+      },
+    } as unknown as DiagnosticsClient;
+    const store = createDiagnosticsStore(TARGET, client);
+
+    await store.getState().loadLog('global');
+    const first = store.getState().logs.global.data?.lines[0];
+    written = 5;
+    await store.getState().loadLog('global');
+
+    const lines = store.getState().logs.global.data?.lines ?? [];
+    expect(lines.map((item) => item.message)).toEqual([
+      'line 0',
+      'line 1',
+      'line 2',
+      'line 3',
+      'line 4',
+    ]);
+    expect(lines[0]).toBe(first);
   });
 });

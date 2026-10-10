@@ -4,7 +4,6 @@ import type {
   ConnPoolStats,
   HostInfo,
   RpcClient,
-  ServerLog,
   ServerLogKind,
   ServerParameter,
   ServerStatusReply,
@@ -14,6 +13,7 @@ import type {
 } from '@mongo-gui/core';
 import { createStore, type StoreApi } from 'zustand/vanilla';
 import { errorText } from '../components/notify-error';
+import { mergeLogWindow, type LogWindow } from './log-window';
 
 /** The connection the panel reads from. */
 export interface DiagnosticsTarget {
@@ -40,7 +40,7 @@ export interface HostAndBuild {
 const EMPTY: Loadable<never> = { data: undefined, loading: false, error: undefined };
 
 export interface DiagnosticsState {
-  readonly logs: Readonly<Record<ServerLogKind, Loadable<ServerLog>>>;
+  readonly logs: Readonly<Record<ServerLogKind, Loadable<LogWindow>>>;
   readonly parameters: Loadable<ServerParameter[]>;
   readonly serverStatus: Loadable<ServerStatusReply>;
   readonly hostAndBuild: Loadable<HostAndBuild>;
@@ -111,11 +111,16 @@ export function createDiagnosticsStore(
           logs: { ...state.logs, [kind]: { ...state.logs[kind], loading: true } },
         }));
         try {
-          const data = await client.getLog({ connectionId, kind });
+          const reply = await client.getLog({ connectionId, kind });
           set((state) => ({
             logs: {
               ...state.logs,
-              [kind]: { data, loading: false, error: undefined },
+              // A refresh keeps the lines already read and appends the new ones.
+              [kind]: {
+                data: mergeLogWindow(state.logs[kind].data, reply),
+                loading: false,
+                error: undefined,
+              },
             },
           }));
         } catch (failure) {

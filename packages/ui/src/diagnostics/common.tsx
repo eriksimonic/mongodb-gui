@@ -5,7 +5,8 @@ import { copyText } from './copy';
 import type { Loadable } from './diagnostics-store';
 
 export interface CopyIconProps {
-  readonly text: string;
+  /** The text, or a function that builds it when the button is pressed. */
+  readonly text: string | (() => string);
   readonly label: string;
 }
 
@@ -19,7 +20,7 @@ export function CopyIcon({ text, label }: CopyIconProps) {
         size="sm"
         aria-label={label}
         onClick={() => {
-          void copyText(text, 'Copied').then(() => {
+          void copyText(typeof text === 'string' ? text : text(), 'Copied').then(() => {
             setCopied(true);
             setTimeout(() => setCopied(false), 1200);
           });

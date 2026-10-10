@@ -5,7 +5,14 @@ import { useStore } from 'zustand';
 import { CopyIcon, LoadState, RefreshButton } from './common';
 import type { DiagnosticsStore } from './diagnostics-store';
 import { formatTimestamp } from './format';
-import { childEntries, matchingPaths } from './tree-search';
+import { relaxEjson } from './relax-ejson';
+import {
+  childEntries,
+  matchingPaths,
+  pathKey,
+  valueAtPath,
+  type PathSegments,
+} from './tree-search';
 
 export interface ServerStatusTabProps {
   readonly store: DiagnosticsStore;
@@ -13,7 +20,10 @@ export interface ServerStatusTabProps {
 
 const INDENT_PX = 16;
 
-/** The serverStatus document as an explorable tree, with a path search and copy of any subtree. */
+/**
+ * The serverStatus document as an explorable tree, with a path search and copy of any subtree. The
+ * tree shows numbers and dates in plain form. A copy takes the canonical EJSON of the subtree.
+ */
 export function ServerStatusTab({ store }: ServerStatusTabProps) {
   const state = useStore(store, (current) => current.serverStatus);
   const load = useStore(store, (current) => current.loadServerStatus);
@@ -24,15 +34,20 @@ export function ServerStatusTab({ store }: ServerStatusTabProps) {
     void load();
   }, [load]);
 
-  const visible = useMemo(() => matchingPaths(state.data?.document, query), [state.data, query]);
+  const canonical = state.data?.document;
+  const relaxed = useMemo(
+    () => (canonical === undefined ? undefined : relaxEjson(canonical)),
+    [canonical],
+  );
+  const visible = useMemo(() => matchingPaths(relaxed, query), [relaxed, query]);
 
-  function toggle(path: string) {
+  function toggle(key: string) {
     setOpen((current) => {
       const next = new Set(current);
-      if (next.has(path)) {
-        next.delete(path);
+      if (next.has(key)) {
+        next.delete(key);
       } else {
-        next.add(path);
+        next.add(key);
       }
       return next;
     });
@@ -58,47 +73,64 @@ export function ServerStatusTab({ store }: ServerStatusTabProps) {
         )}
       </Group>
       <LoadState state={state}>
-        {(reply) => (
-          <div style={{ fontFamily: 'monospace', fontSize: 12 }}>
-            {childEntries(reply.document).map(([key, child]) => (
-              <TreeNode
-                key={key}
-                name={key}
-                path={key}
-                value={child}
-                depth={0}
-                open={open}
-                visible={visible}
-                query={query}
-                onToggle={toggle}
-              />
-            ))}
-          </div>
-        )}
+        {() =>
+          relaxed === undefined || canonical === undefined ? null : (
+            <div style={{ fontFamily: 'monospace', fontSize: 12 }}>
+              {childEntries(relaxed).map(([key, child]) => (
+                <TreeNode
+                  key={key}
+                  label={key}
+                  segments={[key]}
+                  value={child}
+                  canonical={canonical}
+                  depth={0}
+                  open={open}
+                  visible={visible}
+                  query={query}
+                  onToggle={toggle}
+                />
+              ))}
+            </div>
+          )
+        }
       </LoadState>
     </Stack>
   );
 }
 
 interface TreeNodeProps {
-  readonly name: string;
-  readonly path: string;
+  readonly label: string;
+  readonly segments: PathSegments;
+  /** The relaxed value shown in the tree. */
   readonly value: unknown;
+  /** The canonical document, read again for a copy. */
+  readonly canonical: Record<string, unknown>;
   readonly depth: number;
   readonly open: ReadonlySet<string>;
   readonly visible: ReadonlySet<string> | undefined;
   readonly query: string;
-  readonly onToggle: (path: string) => void;
+  readonly onToggle: (key: string) => void;
 }
 
-/** One node and, when open, its children. A search shows matching branches open. */
-function TreeNode({ name, path, value, depth, open, visible, query, onToggle }: TreeNodeProps) {
-  if (visible !== undefined && !visible.has(path)) {
+/** One node and, when open, its children. A search shows the matching branches open. */
+function TreeNode({
+  label,
+  segments,
+  value,
+  canonical,
+  depth,
+  open,
+  visible,
+  query,
+  onToggle,
+}: TreeNodeProps) {
+  const key = pathKey(segments);
+  if (visible !== undefined && !visible.has(key)) {
     return null;
   }
   const children = childEntries(value);
   const expandable = children.length > 0;
-  const expanded = query.trim() !== '' || open.has(path);
+  const expanded = query.trim() !== '' || open.has(key);
   return (
     <>
       <Group gap={4} wrap="nowrap" style={{ paddingLeft: depth * INDENT_PX, minHeight: 22 }}>
@@ -106,9 +138,9 @@ function TreeNode({ name, path, value, depth, open, visible, query, onToggle }: 
           <ActionIcon
             variant="subtle"
             size="xs"
-            aria-label={`${expanded ? 'Collapse' : 'Expand'} ${name}`}
+            aria-label={`${expanded ? 'Collapse' : 'Expand'} ${label}`}
             aria-expanded={expanded}
-            onClick={() => onToggle(path)}
+            onClick={() => onToggle(key)}
           >
             {expanded ? <IconChevronDown size={12} /> : <IconChevronRight size={12} />}
           </ActionIcon>
@@ -116,7 +148,7 @@ function TreeNode({ name, path, value, depth, open, visible, query, onToggle }: 
           <span style={{ width: 20, display: 'inline-block' }} />
         )}
         <Text size="xs" fw={600} style={{ whiteSpace: 'nowrap' }}>
-          {name}
+          {label}
         </Text>
         {expandable ? (
           <Badge size="xs" variant="light" color="gray">
@@ -128,16 +160,20 @@ function TreeNode({ name, path, value, depth, open, visible, query, onToggle }: 
           </Text>
         )}
         {expandable ? (
-          <CopyIcon text={JSON.stringify(value, null, 2) ?? ''} label={`Copy ${path}`} />
+          <CopyIcon
+            text={() => JSON.stringify(valueAtPath(canonical, segments), null, 2) ?? ''}
+            label={`Copy ${segments.join('.')}`}
+          />
         ) : null}
       </Group>
       {expandable && expanded
-        ? children.map(([key, child]) => (
+        ? children.map(([childKey, child]) => (
             <TreeNode
-              key={key}
-              name={key}
-              path={`${path}.${key}`}
+              key={childKey}
+              label={Array.isArray(value) ? `[${childKey}]` : childKey}
+              segments={[...segments, childKey]}
               value={child}
+              canonical={canonical}
               depth={depth + 1}
               open={open}
               visible={visible}

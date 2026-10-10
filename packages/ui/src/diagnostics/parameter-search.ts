@@ -16,9 +16,15 @@ export function filterParameters(
   );
 }
 
-/** The value as the table shows it. Objects and missing values show their canonical text. */
+/**
+ * The value as the table shows it. Objects, arrays and missing values show their canonical text. A
+ * value cut short already carries its truncation marker in that text.
+ */
 export function valueText(parameter: ServerParameter): string {
-  if (parameter.value === undefined) {
+  if (
+    parameter.value === undefined ||
+    (typeof parameter.value === 'object' && parameter.value !== null)
+  ) {
     return parameter.valueEjson;
   }
   return typeof parameter.value === 'string' ? parameter.value : String(parameter.value);

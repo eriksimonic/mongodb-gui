@@ -92,9 +92,9 @@ export function TopTab({ store }: TopTabProps) {
               {rows.map((entry) => (
                 <Table.Tr key={entry.ns}>
                   <Table.Td style={{ fontFamily: 'monospace' }}>{entry.ns}</Table.Td>
-                  <Table.Td ta="right">{formatMs(entry.total.time)}</Table.Td>
-                  <Table.Td ta="right">{formatMs(entry.readLock.time)}</Table.Td>
-                  <Table.Td ta="right">{formatMs(entry.writeLock.time)}</Table.Td>
+                  <Table.Td ta="right">{formatMs(entry.total.timeMs)}</Table.Td>
+                  <Table.Td ta="right">{formatMs(entry.readLock.timeMs)}</Table.Td>
+                  <Table.Td ta="right">{formatMs(entry.writeLock.timeMs)}</Table.Td>
                   <Table.Td ta="right">{formatCount(readCount(entry))}</Table.Td>
                   <Table.Td ta="right">{formatCount(writeCount(entry))}</Table.Td>
                   <Table.Td ta="right">{formatCount(entry.commands.count)}</Table.Td>

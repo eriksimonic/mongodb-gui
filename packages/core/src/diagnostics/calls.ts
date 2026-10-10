@@ -28,8 +28,8 @@ export const KillSessionsInputSchema = z.object({
 });
 
 export const SessionUserSchema = z.object({
-  user: z.string().min(1),
-  db: z.string().min(1),
+  user: z.string().trim().min(1),
+  db: z.string().trim().min(1),
 });
 
 export const KillAllSessionsInputSchema = z.object({

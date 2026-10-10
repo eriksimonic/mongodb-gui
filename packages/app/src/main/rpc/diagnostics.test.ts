@@ -142,7 +142,16 @@ describe('diagnostics calls through the router', () => {
 
   it('masks the password in the command line options', async () => {
     vi.mocked(adapter.getCommandLineOptions).mockResolvedValue({
-      argv: ['mongod', '--config', URI],
+      argv: [
+        'mongod',
+        '--config',
+        URI,
+        '--tlsCertificateKeyFilePassword',
+        'secret1',
+        '--tlsClusterPassword=secret2',
+        '--keyFile',
+        '/etc/mongo/key',
+      ],
       parsed: {
         net: { tls: { sslPEMKeyPassword: 'pem-secret', certificateKeyFile: '/etc/tls.pem' } },
       },
@@ -152,12 +161,61 @@ describe('diagnostics calls through the router', () => {
     const result = await router.handle('diagnostics.cmdLineOpts', { connectionId: CONNECTION_ID });
 
     expect(value(result)).toEqual({
-      argv: ['mongod', '--config', 'mongodb://admin:***@db.internal:27017/?authSource=admin'],
+      argv: [
+        'mongod',
+        '--config',
+        'mongodb://admin:***@db.internal:27017/?authSource=admin',
+        '--tlsCertificateKeyFilePassword',
+        '***',
+        '--tlsClusterPassword=***',
+        '--keyFile',
+        '/etc/mongo/key',
+      ],
       parsed: {
         net: { tls: { sslPEMKeyPassword: '***', certificateKeyFile: '/etc/tls.pem' } },
       },
     });
     expect(JSON.stringify(result)).not.toContain('pem-secret');
+    expect(JSON.stringify(result)).not.toContain('secret1');
+    expect(JSON.stringify(result)).not.toContain('secret2');
+  });
+
+  it('masks a password inside the raw text of a log line', async () => {
+    const rawLine = JSON.stringify({ msg: 'auth', attr: { password: 'hunter2' } });
+    vi.mocked(adapter.getServerLog).mockResolvedValue({
+      kind: 'global',
+      total: 1,
+      lines: [{ message: 'auth', raw: rawLine }],
+    });
+
+    const result = await router.handle('diagnostics.getLog', {
+      connectionId: CONNECTION_ID,
+      kind: 'global',
+    });
+
+    expect(JSON.stringify(result)).not.toContain('hunter2');
+  });
+
+  it('redacts nested objects and caps an oversized parameter value', async () => {
+    const big = { list: Array.from({ length: 20000 }, (_, index) => ({ index })) };
+    vi.mocked(adapter.getParameters).mockResolvedValue([
+      {
+        name: 'featureFlags',
+        value: undefined,
+        valueEjson: JSON.stringify({ nested: { password: 'hunter2', url: URI } }),
+      },
+      { name: 'bigValue', value: undefined, valueEjson: JSON.stringify(big) },
+    ]);
+
+    const result = await router.handle('diagnostics.parameters', { connectionId: CONNECTION_ID });
+    const parameters = value(result) as { name: string; truncated?: boolean; valueEjson: string }[];
+
+    expect(parameters[0]?.valueEjson).not.toContain('hunter2');
+    expect(parameters[0]?.valueEjson).toContain('mongodb://admin:***@');
+    expect(parameters[0]?.truncated).toBeUndefined();
+    expect(parameters[1]?.truncated).toBe(true);
+    expect(parameters[1]?.valueEjson.endsWith('[truncated]')).toBe(true);
+    expect(parameters[1]?.valueEjson.length).toBeLessThan(70000);
   });
 
   it('masks secret parameters and redacts URI values', async () => {

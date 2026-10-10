@@ -23,8 +23,11 @@ import {
   type LogLine,
   type ServerLog,
   type ServerParameter,
+  capDiagnosticText,
+  redactArgv,
   redactDiagnosticRecord,
   redactDiagnosticValue,
+  redactRawLine,
   isSecretKey,
   type OpenDialogInput,
   type SaveDialogInput,
@@ -635,7 +638,7 @@ export function createRouter(deps: RouterDeps): Router {
       readOnly('diagnostics.cmdLineOpts', d.cmdLineOpts, async (client) => {
         const options = await getCommandLineOptions(client);
         return {
-          argv: options.argv.map((arg) => redactUriText(arg)),
+          argv: redactArgv(options.argv),
           parsed: toCanonicalEjson(redactDiagnosticValue(options.parsed)),
         };
       }),
@@ -1445,7 +1448,7 @@ function redactLogLine(line: LogLine): LogLine {
   return {
     ...rest,
     message: redactUriText(line.message),
-    raw: redactUriText(line.raw),
+    raw: redactRawLine(line.raw),
     ...(attributes === undefined
       ? {}
       : { attributes: toCanonicalEjson(redactDiagnosticValue(attributes)) }),
@@ -1454,6 +1457,10 @@ function redactLogLine(line: LogLine): LogLine {
 
 const PARAMETER_MASK = '***';
 
+/**
+ * A parameter with secrets masked. Strings and object or array values are redacted recursively,
+ * and a structured value longer than the cap is cut short with truncated set.
+ */
 function redactParameter(parameter: ServerParameter): ServerParameter {
   if (isSecretKey(parameter.name)) {
     return {
@@ -1462,11 +1469,31 @@ function redactParameter(parameter: ServerParameter): ServerParameter {
       valueEjson: JSON.stringify(PARAMETER_MASK),
     };
   }
-  if (typeof parameter.value !== 'string') {
-    return parameter;
+  if (parameter.value !== undefined) {
+    if (typeof parameter.value !== 'string') {
+      return parameter;
+    }
+    const value = redactUriText(parameter.value);
+    return { name: parameter.name, value, valueEjson: JSON.stringify(value) };
   }
-  const value = redactUriText(parameter.value);
-  return { name: parameter.name, value, valueEjson: JSON.stringify(value) };
+  // An object or array has no scalar value. Its canonical text is redacted as a parsed document.
+  let redacted: unknown;
+  try {
+    redacted = redactDiagnosticValue(JSON.parse(parameter.valueEjson) as unknown);
+  } catch {
+    const text = capDiagnosticText(redactUriText(parameter.valueEjson));
+    return {
+      name: parameter.name,
+      value: text.text,
+      valueEjson: text.text,
+      truncated: text.truncated,
+    };
+  }
+  const text = capDiagnosticText(JSON.stringify(redacted));
+  if (text.truncated) {
+    return { name: parameter.name, value: text.text, valueEjson: text.text, truncated: true };
+  }
+  return { name: parameter.name, value: redacted, valueEjson: text.text };
 }
 
 function canonicalEntry(entry: ProfileEntry): ProfileEntry {

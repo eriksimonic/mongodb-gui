@@ -7,16 +7,17 @@ import {
   Select,
   Stack,
   Switch,
-  Table,
   Text,
   TextInput,
 } from '@mantine/core';
+import { useVirtualizer } from '@tanstack/react-virtual';
 import { IconChevronDown, IconChevronRight } from '@tabler/icons-react';
 import type { LogLine, ServerLogKind } from '@mongo-gui/core';
-import { Fragment, useEffect, useMemo, useState } from 'react';
+import { memo, useCallback, useEffect, useMemo, useRef, useState, type CSSProperties } from 'react';
 import { useStore } from 'zustand';
 import { CopyIcon, LoadState, RefreshButton } from './common';
 import type { DiagnosticsStore } from './diagnostics-store';
+import { formatTimestamp } from './format';
 import {
   componentsOf,
   DEFAULT_LOG_FILTER,
@@ -24,10 +25,13 @@ import {
   type LogFilter,
   type MinSeverity,
 } from './log-filter';
-import { formatTimestamp } from './format';
 
 const AUTO_REFRESH_MS = 5000;
+const ROW_HEIGHT_PX = 28;
+const ATTRIBUTES_HEIGHT_PX = 160;
+const OVERSCAN_ROWS = 12;
 const NO_LINES: readonly LogLine[] = [];
+const GRID_TEMPLATE = '28px 170px 64px 130px minmax(0, 1fr) 36px';
 
 const LEVEL_OPTIONS: readonly { value: MinSeverity; label: string }[] = [
   { value: 'all', label: 'All levels' },
@@ -42,6 +46,14 @@ export interface LogsTabProps {
   readonly kind: ServerLogKind;
 }
 
+/** One row of the virtual list: a log line, or the attributes of a line that is expanded. */
+interface ListItem {
+  readonly key: string;
+  readonly index: number;
+  readonly line: LogLine;
+  readonly attributes: boolean;
+}
+
 /** The global log or the startup warnings. Newest lines first, with a filter bar on top. */
 export function LogsTab({ store, kind }: LogsTabProps) {
   const state = useStore(store, (current) => current.logs[kind]);
@@ -49,6 +61,7 @@ export function LogsTab({ store, kind }: LogsTabProps) {
   const [filter, setFilter] = useState<LogFilter>(DEFAULT_LOG_FILTER);
   const [autoRefresh, setAutoRefresh] = useState(false);
   const [open, setOpen] = useState<ReadonlySet<number>>(new Set());
+  const scrollRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
     void loadLog(kind);
@@ -65,8 +78,26 @@ export function LogsTab({ store, kind }: LogsTabProps) {
   const lines = state.data?.lines ?? NO_LINES;
   const components = useMemo(() => componentsOf(lines), [lines]);
   const shown = useMemo(() => filterLogLines(lines, filter), [lines, filter]);
+  const items = useMemo<ListItem[]>(() => {
+    const list: ListItem[] = [];
+    for (const { index, line } of shown) {
+      list.push({ key: `line-${index}`, index, line, attributes: false });
+      if (open.has(index)) {
+        list.push({ key: `attr-${index}`, index, line, attributes: true });
+      }
+    }
+    return list;
+  }, [shown, open]);
 
-  function toggle(index: number) {
+  const virtualizer = useVirtualizer({
+    count: items.length,
+    getScrollElement: () => scrollRef.current,
+    estimateSize: (position) =>
+      items[position]?.attributes === true ? ATTRIBUTES_HEIGHT_PX : ROW_HEIGHT_PX,
+    overscan: OVERSCAN_ROWS,
+  });
+
+  const toggle = useCallback((index: number) => {
     setOpen((current) => {
       const next = new Set(current);
       if (next.has(index)) {
@@ -76,7 +107,7 @@ export function LogsTab({ store, kind }: LogsTabProps) {
       }
       return next;
     });
-  }
+  }, []);
 
   return (
     <Stack gap="xs" p="sm">
@@ -136,65 +167,114 @@ export function LogsTab({ store, kind }: LogsTabProps) {
               No log lines match the filter.
             </Alert>
           ) : (
-            <Table withTableBorder verticalSpacing={2} fz="xs" layout="fixed" striped>
-              <Table.Thead>
-                <Table.Tr>
-                  <Table.Th w={28} />
-                  <Table.Th w={170}>Time</Table.Th>
-                  <Table.Th w={64}>Severity</Table.Th>
-                  <Table.Th w={130}>Component</Table.Th>
-                  <Table.Th>Message</Table.Th>
-                  <Table.Th w={40} />
-                </Table.Tr>
-              </Table.Thead>
-              <Table.Tbody>
-                {shown.map(({ index, line }) => {
-                  const expanded = open.has(index);
-                  return (
-                    <Fragment key={index}>
-                      <Table.Tr>
-                        <Table.Td>
-                          {line.attributes === undefined ? null : (
-                            <ActionIcon
-                              variant="subtle"
-                              size="xs"
-                              aria-label={expanded ? 'Hide attributes' : 'Show attributes'}
-                              aria-expanded={expanded}
-                              onClick={() => toggle(index)}
-                            >
-                              {expanded ? (
-                                <IconChevronDown size={12} />
-                              ) : (
-                                <IconChevronRight size={12} />
-                              )}
-                            </ActionIcon>
-                          )}
-                        </Table.Td>
-                        <Table.Td>{formatTimestamp(line.ts)}</Table.Td>
-                        <Table.Td>{line.severity ?? ''}</Table.Td>
-                        <Table.Td>{line.component ?? ''}</Table.Td>
-                        <Table.Td style={{ wordBreak: 'break-word' }}>{line.message}</Table.Td>
-                        <Table.Td>
-                          <CopyIcon text={line.raw} label="Copy line" />
-                        </Table.Td>
-                      </Table.Tr>
-                      {expanded ? (
-                        <Table.Tr>
-                          <Table.Td colSpan={6}>
-                            <Code block fz="xs">
-                              {JSON.stringify(line.attributes, null, 2)}
-                            </Code>
-                          </Table.Td>
-                        </Table.Tr>
-                      ) : null}
-                    </Fragment>
-                  );
-                })}
-              </Table.Tbody>
-            </Table>
+            <>
+              <div
+                role="row"
+                className="mg-log-head"
+                style={{ ...rowStyle(), fontWeight: 600, fontSize: 12 }}
+              >
+                <span />
+                <span>Time</span>
+                <span>Severity</span>
+                <span>Component</span>
+                <span>Message</span>
+                <span />
+              </div>
+              <div
+                ref={scrollRef}
+                role="grid"
+                aria-label="Server log lines"
+                className="mg-virtual-scroll"
+                style={{ height: 'min(70vh, 640px)', overflow: 'auto', position: 'relative' }}
+              >
+                <div style={{ height: virtualizer.getTotalSize(), position: 'relative' }}>
+                  {virtualizer.getVirtualItems().map((virtualRow) => {
+                    const item = items[virtualRow.index];
+                    if (item === undefined) {
+                      return null;
+                    }
+                    return (
+                      <LogRow
+                        key={item.key}
+                        item={item}
+                        expanded={open.has(item.index)}
+                        onToggle={toggle}
+                        style={{
+                          position: 'absolute',
+                          top: 0,
+                          left: 0,
+                          width: '100%',
+                          height: virtualRow.size,
+                          transform: `translateY(${virtualRow.start}px)`,
+                        }}
+                      />
+                    );
+                  })}
+                </div>
+              </div>
+            </>
           )
         }
       </LoadState>
     </Stack>
   );
 }
+
+function rowStyle(): CSSProperties {
+  return {
+    display: 'grid',
+    gridTemplateColumns: GRID_TEMPLATE,
+    alignItems: 'center',
+    columnGap: 8,
+    padding: '0 6px',
+    fontSize: 12,
+  };
+}
+
+interface LogRowProps {
+  readonly item: ListItem;
+  readonly expanded: boolean;
+  readonly onToggle: (index: number) => void;
+  readonly style: CSSProperties;
+}
+
+/** One line, or the attributes of a line. Memoised, so a refresh does not repaint unchanged rows. */
+const LogRow = memo(function LogRow({ item, expanded, onToggle, style }: LogRowProps) {
+  const { line, index } = item;
+  if (item.attributes) {
+    return (
+      <div role="row" style={{ ...style, ...rowStyle(), gridTemplateColumns: '1fr' }}>
+        <Code block fz="xs" style={{ maxHeight: ATTRIBUTES_HEIGHT_PX - 12, overflow: 'auto' }}>
+          {JSON.stringify(line.attributes, null, 2)}
+        </Code>
+      </div>
+    );
+  }
+  return (
+    <div role="row" style={{ ...style, ...rowStyle() }}>
+      {line.attributes === undefined ? (
+        <span />
+      ) : (
+        <ActionIcon
+          variant="subtle"
+          size="xs"
+          aria-label={expanded ? 'Hide attributes' : 'Show attributes'}
+          aria-expanded={expanded}
+          onClick={() => onToggle(index)}
+        >
+          {expanded ? <IconChevronDown size={12} /> : <IconChevronRight size={12} />}
+        </ActionIcon>
+      )}
+      <span role="gridcell">{formatTimestamp(line.ts)}</span>
+      <span role="gridcell">{line.severity ?? ''}</span>
+      <span role="gridcell">{line.component ?? ''}</span>
+      <span
+        role="gridcell"
+        style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}
+      >
+        {line.message}
+      </span>
+      <CopyIcon text={line.raw} label="Copy line" />
+    </div>
+  );
+});

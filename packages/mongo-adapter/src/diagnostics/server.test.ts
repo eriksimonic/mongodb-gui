@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { serverStatusDocument } from './server';
+import { serverStatusDocument, toTopEntry } from './server';
 
 describe('serverStatusDocument', () => {
   it('returns the canonical EJSON document as a plain object', () => {
@@ -25,5 +25,18 @@ describe('serverStatusDocument', () => {
     expect(
       serverStatusDocument({ at: '', stripped: [], rawJson: '[1]', canonicalJson: '[1]' }),
     ).toEqual({});
+  });
+});
+
+describe('toTopEntry', () => {
+  it('converts the microseconds of top to milliseconds', () => {
+    const entry = toTopEntry('shop.orders', {
+      total: { time: 9410000, count: 3 },
+      readLock: { time: 2500, count: 0 },
+    });
+
+    expect(entry.total).toEqual({ timeMs: 9410, count: 3 });
+    expect(entry.readLock).toEqual({ timeMs: 2.5, count: 0 });
+    expect(entry.writeLock).toEqual({ timeMs: 0, count: 0 });
   });
 });

@@ -1,7 +1,18 @@
 /**
- * The paths a search keeps visible in a document tree. A path matches when its dotted text
- * contains the query, case-insensitive. Every ancestor of a match stays visible too, so the match
- * can be reached. An empty query returns undefined, which means "no filter".
+ * A node's position in the tree, as the keys from the root. The keys stay whole, so a key that
+ * holds a dot is one segment.
+ */
+export type PathSegments = readonly string[];
+
+/** The identity of a node. JSON of the segments cannot collide, whatever the keys contain. */
+export function pathKey(segments: PathSegments): string {
+  return JSON.stringify(segments);
+}
+
+/**
+ * The nodes a search keeps visible, by pathKey. A node matches when its dotted text contains the
+ * query, case-insensitive. Every ancestor of a match stays visible too. An empty query returns
+ * undefined, which means "no filter".
  */
 export function matchingPaths(value: unknown, query: string): ReadonlySet<string> | undefined {
   const needle = query.trim().toLowerCase();
@@ -9,30 +20,33 @@ export function matchingPaths(value: unknown, query: string): ReadonlySet<string
     return undefined;
   }
   const visible = new Set<string>();
-  collect(value, '', needle, visible);
+  collect(value, [], needle, visible);
   return visible;
 }
 
 /** Returns true when the subtree at this path has a match. Adds the path and its matches to out. */
-function collect(value: unknown, path: string, needle: string, out: Set<string>): boolean {
-  const children = childEntries(value);
-  let hit = path !== '' && path.toLowerCase().includes(needle);
-  for (const [key, child] of children) {
-    const childPath = path === '' ? key : `${path}.${key}`;
-    if (collect(child, childPath, needle, out)) {
+function collect(
+  value: unknown,
+  segments: PathSegments,
+  needle: string,
+  out: Set<string>,
+): boolean {
+  let hit = segments.length > 0 && segments.join('.').toLowerCase().includes(needle);
+  for (const [key, child] of childEntries(value)) {
+    if (collect(child, [...segments, key], needle, out)) {
       hit = true;
     }
   }
-  if (hit && path !== '') {
-    out.add(path);
+  if (hit && segments.length > 0) {
+    out.add(pathKey(segments));
   }
   return hit;
 }
 
-/** The keys and values of an object or array. Scalars have none. */
+/** The keys and values of an object or array. An array's keys are its indexes. Scalars have none. */
 export function childEntries(value: unknown): [string, unknown][] {
   if (Array.isArray(value)) {
-    return value.map((item: unknown, index) => [`[${index}]`, item]);
+    return value.map((item: unknown, index) => [String(index), item]);
   }
   if (typeof value === 'object' && value !== null) {
     return Object.entries(value);
@@ -40,15 +54,11 @@ export function childEntries(value: unknown): [string, unknown][] {
   return [];
 }
 
-/** The value at a dotted path, as the tree builds the path. Undefined when the path is absent. */
-export function valueAtPath(value: unknown, path: string): unknown {
-  if (path === '') {
-    return value;
-  }
+/** The value at a path of keys. Undefined when the path does not exist. */
+export function valueAtPath(value: unknown, segments: PathSegments): unknown {
   let current: unknown = value;
-  for (const segment of path.split('.')) {
-    const entries = childEntries(current);
-    const found = entries.find(([key]) => key === segment);
+  for (const segment of segments) {
+    const found = childEntries(current).find(([key]) => key === segment);
     if (found === undefined) {
       return undefined;
     }

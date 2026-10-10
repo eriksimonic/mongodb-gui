@@ -2,7 +2,7 @@ import type { TopEntry } from '@mongo-gui/core';
 import { describe, expect, it } from 'vitest';
 import { readCount, sortTop, topTotals, writeCount } from './top-sort';
 
-const stat = (time: number, count: number) => ({ time, count });
+const stat = (timeMs: number, count: number) => ({ timeMs, count });
 
 function entry(ns: string, time: number, reads: number, writes: number): TopEntry {
   return {

@@ -105,16 +105,16 @@ export function SessionsTab({ store }: SessionsTabProps) {
         <DestructiveDialog
           title={`Kill ${selected.length} ${selected.length === 1 ? 'session' : 'sessions'}`}
           description={
-            <Stack gap={4}>
-              <Text size="sm">
+            <>
+              <span style={{ display: 'block' }}>
                 The running operations of these sessions stop, and the sessions end:
-              </Text>
+              </span>
               {selected.map((id) => (
-                <Text key={id} size="xs" style={{ fontFamily: 'monospace' }}>
+                <span key={id} style={{ display: 'block', fontFamily: 'monospace', fontSize: 12 }}>
                   {id}
-                </Text>
+                </span>
               ))}
-            </Stack>
+            </>
           }
           confirmLabel="Kill sessions"
           onConfirm={() => killSelected()}

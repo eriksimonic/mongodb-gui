@@ -24,11 +24,11 @@ export function writeCount(entry: TopEntry): number {
 export function topTotals(entries: readonly TopEntry[]) {
   return entries.reduce(
     (sum, entry) => ({
-      total: sum.total + entry.total.time,
+      total: sum.total + entry.total.timeMs,
       reads: sum.reads + readCount(entry),
       writes: sum.writes + writeCount(entry),
-      readLock: sum.readLock + entry.readLock.time,
-      writeLock: sum.writeLock + entry.writeLock.time,
+      readLock: sum.readLock + entry.readLock.timeMs,
+      writeLock: sum.writeLock + entry.writeLock.timeMs,
       commands: sum.commands + entry.commands.count,
     }),
     { total: 0, reads: 0, writes: 0, readLock: 0, writeLock: 0, commands: 0 },
@@ -49,15 +49,15 @@ export function sortTop(entries: readonly TopEntry[], sort: TopSort): TopEntry[]
 function valueOf(entry: TopEntry, column: Exclude<TopColumn, 'ns'>): number {
   switch (column) {
     case 'total':
-      return entry.total.time;
+      return entry.total.timeMs;
     case 'reads':
       return readCount(entry);
     case 'writes':
       return writeCount(entry);
     case 'readLock':
-      return entry.readLock.time;
+      return entry.readLock.timeMs;
     case 'writeLock':
-      return entry.writeLock.time;
+      return entry.writeLock.timeMs;
     case 'commands':
       return entry.commands.count;
   }

@@ -359,7 +359,7 @@ export function fixtureBuildInfo(): BuildInfo {
 }
 
 export function fixtureTop(): TopEntry[] {
-  const stat = (time: number, count: number) => ({ time, count });
+  const stat = (timeMs: number, count: number) => ({ timeMs, count });
   const entry = (
     ns: string,
     total: number,

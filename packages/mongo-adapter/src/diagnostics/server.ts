@@ -197,7 +197,8 @@ function toCpu(system: PlainObject | undefined): HostInfo['cpu'] {
   return { ...definedEntry('arch', arch), ...definedEntry('cores', cores) };
 }
 
-function toTopEntry(ns: string, value: unknown): TopEntry {
+// The top command reports time in microseconds. The entry keeps milliseconds.
+export function toTopEntry(ns: string, value: unknown): TopEntry {
   return {
     ns,
     total: toOpStat(readField(value, 'total')),
@@ -212,9 +213,11 @@ function toTopEntry(ns: string, value: unknown): TopEntry {
   };
 }
 
+const MICROSECONDS_PER_MS = 1000;
+
 function toOpStat(value: unknown): OpStat {
   return {
-    time: readNumber(value, 'time') ?? 0,
+    timeMs: (readNumber(value, 'time') ?? 0) / MICROSECONDS_PER_MS,
     count: readNumber(value, 'count') ?? 0,
   };
 }

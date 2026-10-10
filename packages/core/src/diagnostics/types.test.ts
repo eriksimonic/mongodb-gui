@@ -10,7 +10,7 @@ import {
   TopEntrySchema,
 } from './types';
 
-const opStat = { time: 0, count: 0 };
+const opStat = { timeMs: 0, count: 0 };
 
 describe('LogLineSchema', () => {
   it('accepts a structured JSON line', () => {
