@@ -17,7 +17,7 @@ import {
   type ReplicaSetStatus,
 } from '@mongo-gui/core';
 import { parseInput } from '../management/errors';
-import { readBoolean, readNumber } from '../documents';
+import { readBoolean, readNumber, readString } from '../documents';
 import { mapDriverError } from '../errors';
 import { getReplicaSetConfig, getReplicaSetStatus } from './status';
 
@@ -35,6 +35,8 @@ const WIRE_VERSION_WITH_SECONDARY_DELAY = 13;
 // caller that reads the config next see the new one on every member.
 const COMMIT_TIMEOUT_MS = 30_000;
 const COMMIT_POLL_MS = 500;
+const RECONFIG_RETRY_TIMEOUT_MS = 30_000;
+const RECONFIG_RETRY_POLL_MS = 500;
 const EMPTY_EJSON = '{}';
 const CHANGED_FIELDS: readonly { key: keyof ReplicaSetMemberConfig; label: string }[] = [
   { key: 'priority', label: 'priority' },
@@ -103,10 +105,7 @@ export async function applyReconfig(
       );
     }
     const delayField = await secondaryDelayField(client);
-    await client.db('admin').command({
-      replSetReconfig: toServerConfig(plan.next, delayField),
-      ...(options.force === true ? { force: true } : {}),
-    });
+    await sendReconfig(client, toServerConfig(plan.next, delayField), options.force === true);
     await waitForCommitment(client);
   } catch (error) {
     throw error instanceof AppErrorException ? error : new AppErrorException(mapDriverError(error));
@@ -493,6 +492,34 @@ function toServerConfig(
     document['settings'] = settings;
   }
   return document;
+}
+
+// A member that is still applying an earlier configuration refuses a new one with
+// ConfigurationInProgress, which happens right after an election. The refused command changed
+// nothing, so it is sent again until the member is ready or the retry window ends.
+async function sendReconfig(
+  client: MongoClient,
+  config: Record<string, unknown>,
+  force: boolean,
+): Promise<void> {
+  const deadline = Date.now() + RECONFIG_RETRY_TIMEOUT_MS;
+  for (;;) {
+    try {
+      await client
+        .db('admin')
+        .command({ replSetReconfig: config, ...(force ? { force: true } : {}) });
+      return;
+    } catch (error) {
+      if (!isConfigurationInProgress(error) || Date.now() >= deadline) {
+        throw error;
+      }
+      await new Promise((resolve) => setTimeout(resolve, RECONFIG_RETRY_POLL_MS));
+    }
+  }
+}
+
+function isConfigurationInProgress(error: unknown): boolean {
+  return readString(error, 'codeName') === 'ConfigurationInProgress';
 }
 
 // Polls until the server reports the new configuration as committed, or the timeout passes.
