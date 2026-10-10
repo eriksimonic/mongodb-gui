@@ -219,6 +219,9 @@ export class RuntimeSupervisor {
       );
     }
     const timeoutMs = input.timeoutMs ?? this.timings.defaultRequestTimeoutMs;
+    // Mark busy when the request is queued, not only when it starts. A queued request waits behind
+    // a completion, and the editor must not send more completions in that gap.
+    this.markBusy(slot);
     return this.enqueue(slot, requestId, async () => {
       const started = performance.now();
       if (this.isCancelled(slot, requestId)) {
@@ -266,6 +269,7 @@ export class RuntimeSupervisor {
   async next(input: NextRequest): Promise<ShellEvaluation> {
     const slot = this.slotFor(input.connectionId);
     const requestId = input.requestId;
+    this.markBusy(slot);
     return this.enqueue(slot, requestId, async () => {
       const started = performance.now();
       if (this.isCancelled(slot, requestId)) {

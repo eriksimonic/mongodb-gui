@@ -702,6 +702,52 @@ describe('RuntimeSupervisor', () => {
     expect(states).toEqual(['starting', 'ready']);
   });
 
+  it('marks busy when an evaluate queues behind a completion still in flight', async () => {
+    const held: ShellRequest[] = [];
+    const h = track(
+      harness({
+        next: () => ({
+          respond: (child, request) => {
+            if (request.kind === 'complete') {
+              held.push(request);
+              return;
+            }
+            answerProtocol(child, request);
+          },
+        }),
+      }),
+    );
+    const completing = h.supervisor.complete({
+      connectionId: CONNECTION_ID,
+      database: 'shop',
+      code: 'db.',
+      position: 3,
+    });
+    await until(() => held.length === 1);
+    const evaluating = h.supervisor.evaluate(evaluateInput());
+    await until(() =>
+      h.events.some((event) => event.type === 'shell:state' && event.state === 'busy'),
+    );
+    const statesBeforeRelease = h.events
+      .filter((event) => event.type === 'shell:state')
+      .map((event) => (event.type === 'shell:state' ? event.state : undefined));
+    expect(statesBeforeRelease).toEqual(['starting', 'ready', 'busy']);
+    const complete = held[0];
+    h.children[0]?.reply({
+      id: complete?.id,
+      kind: 'completions',
+      items: [{ text: 'find', kind: 'method' }],
+    });
+    h.children[0]?.reply({ id: complete?.id, kind: 'done' });
+    await completing;
+    const evaluation = await evaluating;
+    expect(evaluation.result?.type).toBe('string');
+    const states = h.events
+      .filter((event) => event.type === 'shell:state')
+      .map((event) => (event.type === 'shell:state' ? event.state : undefined));
+    expect(states).toEqual(['starting', 'ready', 'busy', 'ready']);
+  });
+
   it('reports state transitions as events without the result payload', async () => {
     const h = track(harness({}));
     await h.supervisor.evaluate(evaluateInput());

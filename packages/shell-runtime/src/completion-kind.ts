@@ -90,6 +90,18 @@ export function isDatabaseMemberLine(line: string): boolean {
   return DB_PREFIX.test(line);
 }
 
+// The last member after db. in a runtime text, when the text ends in one. "db.my-coll" ends in
+// "my-coll", and "db.users.find" ends in "find" after a dot, so it has no db member at the end.
+const TRAILING_DB_MEMBER = /(^|[^\w$.])db\.([^.]*)$/;
+
+// True for a runtime text whose trailing db member is not a property name, such as "db.my-coll".
+// Inserting that text makes invalid JavaScript, so the session drops it. collectionMemberItems
+// offers the db.getCollection form for the collection instead.
+export function hasInvalidDatabaseMember(text: string): boolean {
+  const member = TRAILING_DB_MEMBER.exec(text)?.[2];
+  return member !== undefined && member !== '' && !IDENTIFIER_NAME.test(member);
+}
+
 // Completions for a line that ends in db. and an optional identifier prefix. The mongosh completer
 // may list collections late or not at all, so the session adds one whole-line item per collection.
 // Names that are not identifiers go through db.getCollection. Texts the runtime already returned

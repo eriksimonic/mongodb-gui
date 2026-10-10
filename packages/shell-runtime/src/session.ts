@@ -20,6 +20,7 @@ import {
   classifyCompletion,
   collectionMemberItems,
   databaseMemberName,
+  hasInvalidDatabaseMember,
   isDatabaseMemberLine,
   lineBeforeCursor,
 } from './completion-kind';
@@ -161,7 +162,9 @@ export class ShellSession {
       const connection = await this.ensureConnection();
       const line = lineBeforeCursor(request.code, request.position);
       const completions = await connection.runtime.getCompletions(line);
-      const texts = completions.map((completion) => completion.completion);
+      const texts = completions
+        .map((completion) => completion.completion)
+        .filter((text) => !hasInvalidDatabaseMember(text));
       const memberLine = isDatabaseMemberLine(line);
       const names =
         memberLine || texts.some((text) => databaseMemberName(text) !== undefined)

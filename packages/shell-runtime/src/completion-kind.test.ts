@@ -3,6 +3,7 @@ import {
   classifyCompletion,
   collectionMemberItems,
   databaseMemberName,
+  hasInvalidDatabaseMember,
   isDatabaseMemberLine,
 } from './completion-kind';
 
@@ -73,5 +74,21 @@ describe('collectionMemberItems', () => {
 
   it('returns nothing for a line that is not a db member', () => {
     expect(collectionMemberItems('db.users.', ['users'], new Set())).toEqual([]);
+  });
+});
+
+describe('hasInvalidDatabaseMember', () => {
+  it('is true when the trailing db member is not a property name', () => {
+    expect(hasInvalidDatabaseMember('db.my-coll')).toBe(true);
+    expect(hasInvalidDatabaseMember('x = db.2024')).toBe(true);
+    expect(hasInvalidDatabaseMember('db.my coll')).toBe(true);
+  });
+
+  it('is false for identifiers, method paths and text without a db member', () => {
+    expect(hasInvalidDatabaseMember('db.users')).toBe(false);
+    expect(hasInvalidDatabaseMember('db.users.find')).toBe(false);
+    expect(hasInvalidDatabaseMember('db.my-coll.find')).toBe(false);
+    expect(hasInvalidDatabaseMember('mydb-x')).toBe(false);
+    expect(hasInvalidDatabaseMember('show')).toBe(false);
   });
 });
