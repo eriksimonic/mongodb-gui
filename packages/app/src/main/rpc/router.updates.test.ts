@@ -21,7 +21,7 @@ import {
 
 const FAST_KDF = { N: 2 ** 10, r: 8, p: 1 };
 const PASSWORD = 'correct horse battery';
-const GITHUB_LINK = 'https://github.com/eriksimonic/mongodb-mager/releases/tag/v0.2.0';
+const GITHUB_LINK = 'https://github.com/eriksimonic/mongodb-gui/releases/tag/v0.2.0';
 
 const IDLE: UpdateState = { phase: 'idle', current: '0.1.0', canInstall: true };
 
@@ -164,22 +164,22 @@ describe('app.openExternal', () => {
   it('refuses links to other hosts, other repositories and path traversal', async () => {
     const { router, openExternal } = buildRouter();
     const refused = [
-      'https://example.com/eriksimonic/mongodb-mager/releases',
-      'http://github.com/eriksimonic/mongodb-mager/releases',
+      'https://example.com/eriksimonic/mongodb-gui/releases',
+      'http://github.com/eriksimonic/mongodb-gui/releases',
       'https://github.com/someone/else/releases',
-      'https://github.com/eriksimonic/mongodb-mager/../other/releases',
+      'https://github.com/eriksimonic/mongodb-gui/../other/releases',
       'file:///etc/passwd',
-      'https://github.com/eriksimonic/mongodb-mager/%2e%2e/evil',
-      'https://github.com/eriksimonic/mongodb-mager/%2e%2e%2fevil',
-      'https://github.com/eriksimonic/mongodb-mager/../../evil',
-      'https://github.com@evil.com/eriksimonic/mongodb-mager/releases',
-      'https://mongodb-mager.evil.com/eriksimonic/mongodb-mager/releases',
+      'https://github.com/eriksimonic/mongodb-gui/%2e%2e/evil',
+      'https://github.com/eriksimonic/mongodb-gui/%2e%2e%2fevil',
+      'https://github.com/eriksimonic/mongodb-gui/../../evil',
+      'https://github.com@evil.com/eriksimonic/mongodb-gui/releases',
+      'https://mongodb-gui.evil.com/eriksimonic/mongodb-gui/releases',
       'javascript:alert(1)',
-      'https://github.com/eriksimonic/mongodb-mager/releases\nhttps://evil.example',
-      'https://github.com/eriksimonic/mongodb-mager/releases\r\nX-Injected: 1',
-      'https://github.com/eriksimonic/mongodb-mager/releases now',
-      'https://user:pass@github.com/eriksimonic/mongodb-mager/releases',
-      'https://github.com:444/eriksimonic/mongodb-mager/releases',
+      'https://github.com/eriksimonic/mongodb-gui/releases\nhttps://evil.example',
+      'https://github.com/eriksimonic/mongodb-gui/releases\r\nX-Injected: 1',
+      'https://github.com/eriksimonic/mongodb-gui/releases now',
+      'https://user:pass@github.com/eriksimonic/mongodb-gui/releases',
+      'https://github.com:444/eriksimonic/mongodb-gui/releases',
     ];
     for (const url of refused) {
       expectError(await router.handle('app.openExternal', { url }), 'VALIDATION');

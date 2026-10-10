@@ -120,7 +120,7 @@ function onConnection<T extends z.ZodType>(input: T) {
 /** The runtime URL class. Declared at module scope so no other package sees a changed global. */
 declare const URL: ParsedUrlConstructor;
 
-const PROJECT_PATH_PREFIX = '/eriksimonic/mongodb-mager/';
+const PROJECT_PATH_PREFIX = '/eriksimonic/mongodb-gui/';
 const MAX_LINK_LENGTH = 2048;
 const ENCODED_DOT_OR_SLASH = /%2e|%2f/i;
 

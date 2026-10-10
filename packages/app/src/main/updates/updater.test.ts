@@ -15,7 +15,7 @@ import {
 
 const NOW = new Date('2026-10-09T12:00:00.000Z');
 const STAMP = NOW.toISOString();
-const RELEASE_URL = 'https://github.com/eriksimonic/mongodb-mager/releases/tag/v0.2.0';
+const RELEASE_URL = 'https://github.com/eriksimonic/mongodb-gui/releases/tag/v0.2.0';
 
 interface FakeBackend extends UpdaterBackend {
   emit(event: keyof UpdaterListeners, ...args: unknown[]): void;

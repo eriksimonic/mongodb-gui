@@ -17,7 +17,7 @@ describe('UpdateStateSchema', () => {
       phase: 'available',
       available: {
         version: '0.2.0',
-        downloadUrl: 'https://github.com/eriksimonic/mongodb-mager/releases/tag/v0.2.0',
+        downloadUrl: 'https://github.com/eriksimonic/mongodb-gui/releases/tag/v0.2.0',
       },
     };
     expect(UpdateStateSchema.safeParse(state).success).toBe(true);
@@ -44,7 +44,7 @@ describe('app.openExternal input', () => {
   it('accepts a link under the project release pages', () => {
     expect(
       input.safeParse({
-        url: 'https://github.com/eriksimonic/mongodb-mager/releases/tag/v0.2.0',
+        url: 'https://github.com/eriksimonic/mongodb-gui/releases/tag/v0.2.0',
       }).success,
     ).toBe(true);
   });
@@ -52,7 +52,7 @@ describe('app.openExternal input', () => {
   it('rejects a link outside the project and a link with a parent segment', () => {
     expect(input.safeParse({ url: 'https://github.com/eriksimonic/other' }).success).toBe(false);
     expect(
-      input.safeParse({ url: 'https://github.com/eriksimonic/mongodb-mager/../other' }).success,
+      input.safeParse({ url: 'https://github.com/eriksimonic/mongodb-gui/../other' }).success,
     ).toBe(false);
   });
 });

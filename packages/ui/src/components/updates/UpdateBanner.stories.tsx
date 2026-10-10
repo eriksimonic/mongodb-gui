@@ -4,7 +4,7 @@ import { AppRoot } from '../../AppRoot';
 import { createMockUiApi } from '../../api/mock-rpc-client';
 import { UpdateBanner } from './UpdateBanner';
 
-const RELEASE_URL = 'https://github.com/eriksimonic/mongodb-mager/releases/tag/v0.2.0';
+const RELEASE_URL = 'https://github.com/eriksimonic/mongodb-gui/releases/tag/v0.2.0';
 const BASE = { current: '0.1.0', canInstall: true };
 const AVAILABLE = { version: '0.2.0', downloadUrl: RELEASE_URL };
 

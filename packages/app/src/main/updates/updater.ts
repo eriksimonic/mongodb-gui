@@ -13,7 +13,7 @@ import { redactText } from '../redact';
 
 export const FIRST_CHECK_DELAY_MS = 10_000;
 export const CHECK_INTERVAL_MS = 6 * 60 * 60 * 1000;
-export const RELEASE_PAGE_PREFIX = 'https://github.com/eriksimonic/mongodb-mager/releases/tag/';
+export const RELEASE_PAGE_PREFIX = 'https://github.com/eriksimonic/mongodb-gui/releases/tag/';
 
 const NO_PUBLISHED_RELEASE = 'ERR_UPDATER_NO_PUBLISHED_VERSIONS';
 const NO_PUBLISHED_RELEASE_MESSAGE = 'No published versions on GitHub';

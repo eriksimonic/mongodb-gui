@@ -9,10 +9,10 @@
     "email": "erik.simonic@b-s.si"
   },
   "license": "MIT",
-  "homepage": "https://github.com/eriksimonic/mongodb-mager",
+  "homepage": "https://github.com/eriksimonic/mongodb-gui",
   "repository": {
     "type": "git",
-    "url": "git+https://github.com/eriksimonic/mongodb-mager.git",
+    "url": "git+https://github.com/eriksimonic/mongodb-gui.git",
     "directory": "packages/app"
   },
   "private": true,

@@ -112,7 +112,7 @@ signing, which needs no certificate. Gatekeeper still refuses the first launch w
 and choose "Open Anyway". On Linux, no signature check applies. Run `chmod +x` on the
 AppImage, or install the `.deb` with `apt install ./<file>.deb`.
 
-Downloads appear on the [Releases page](https://github.com/eriksimonic/mongodb-mager/releases).
+Downloads appear on the [Releases page](https://github.com/eriksimonic/mongodb-gui/releases).
 
 ### Updates
 

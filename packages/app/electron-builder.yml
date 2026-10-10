@@ -18,7 +18,7 @@ extraMetadata:
 publish:
   provider: github
   owner: eriksimonic
-  repo: mongodb-mager
+  repo: mongodb-gui
   # The release starts as a draft. The publish job in release.yml marks it public once all
   # platforms have uploaded, so users never see a partial release.
   releaseType: draft

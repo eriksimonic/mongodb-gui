@@ -5,7 +5,7 @@ import { describe, expect, it, vi } from 'vitest';
 import { renderWithApp } from '../../test-support/render';
 import { UpdateBanner } from './UpdateBanner';
 
-const RELEASE_URL = 'https://github.com/eriksimonic/mongodb-mager/releases/tag/v0.2.0';
+const RELEASE_URL = 'https://github.com/eriksimonic/mongodb-gui/releases/tag/v0.2.0';
 const BASE = { current: '0.1.0', canInstall: true };
 const AVAILABLE_INFO = { version: '0.2.0', downloadUrl: RELEASE_URL };
 
