@@ -29,6 +29,8 @@ All notable changes to Mongo GUI are listed here, newest first.
   no longer blanks completions while it runs.
 - Field completion works inside queries on collections named with `db.getCollection("...")` or
   `db["..."]`.
+- Completing `db.` on a collection whose name is not a valid identifier, such as `my-coll`, offers
+  `db.getCollection("my-coll")` and no longer inserts an invalid `db.my-coll`.
 
 ## 0.1.0 - 2026-10-10
 

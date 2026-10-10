@@ -71,6 +71,18 @@ describe('ShellSession.complete', () => {
     expect(message).toMatchObject({ items: [{ text: 'count = db.users', kind: 'collection' }] });
   });
 
+  it('drops runtime texts with an invalid db member and offers db.getCollection instead', async () => {
+    const session = sessionWith({
+      collections: ['my-coll'],
+      runtimeTexts: ['db.my-coll', 'db.find'],
+    });
+    const [message] = await complete(session, 'db.');
+    const texts = message?.kind === 'completions' ? message.items.map((item) => item.text) : [];
+    expect(texts).toContain('db.getCollection("my-coll")');
+    expect(texts).toContain('db.find');
+    expect(texts).not.toContain('db.my-coll');
+  });
+
   it('uses db.getCollection for names that are not identifiers', async () => {
     const session = sessionWith({ collections: ['my-logs', '2024'], runtimeTexts: [] });
     const [message] = await complete(session, 'db.');
