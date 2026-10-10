@@ -7,6 +7,7 @@ import {
   clientLabel,
   durationPercent,
   examinedRatio,
+  formatDuration,
   formatLocalTime,
   isCollscan,
   type EntrySort,
@@ -288,7 +289,7 @@ const SlowQueryRow = memo(function SlowQueryRow({
       </div>
       <div role="gridcell" className="mg-profiler-cell">
         <span className="mg-profiler-duration">
-          <span className="mg-profiler-duration-label">{entry.millis} ms</span>
+          <span className="mg-profiler-duration-label">{formatDuration(entry.millis)}</span>
           <span className="mg-profiler-bar-track">
             <span
               className="mg-profiler-bar"
@@ -317,6 +318,17 @@ const SlowQueryRow = memo(function SlowQueryRow({
             style={{ flexShrink: 0, maxWidth: 'none' }}
           >
             COLLSCAN
+          </Badge>
+        ) : null}
+        {entry.hasSortStage === true ? (
+          <Badge
+            tt="none"
+            color="orange"
+            variant="filled"
+            size="xs"
+            style={{ flexShrink: 0, maxWidth: 'none' }}
+          >
+            SORT
           </Badge>
         ) : null}
         <span className="mg-profiler-cell">{entry.planSummary ?? '-'}</span>

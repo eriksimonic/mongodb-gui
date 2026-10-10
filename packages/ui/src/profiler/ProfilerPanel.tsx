@@ -9,7 +9,7 @@ import { ShapesTable } from './ShapesTable';
 import { SlowQueryTable } from './SlowQueryTable';
 import { useProfilerStore } from './profiler-store-context';
 import type { ProfilerPanelState, ProfilerSeed } from './profiler-store';
-import { entriesOfShape, isProblematic, sortEntries } from './profiler-model';
+import { entriesOfShape, isProblematic, namespaceOptions, sortEntries } from './profiler-model';
 import './profiler.css';
 
 const MIN_DETAIL_WIDTH = 240;
@@ -98,6 +98,11 @@ function ProfilerBody({ panelId, connectionId, database, namespaces, panel }: Pr
     return sortEntries(rows, panel.sort);
   }, [panel.entries, panel.shapeFilter, panel.filters.onlyProblematic, panel.sort]);
   const highlighted = useMemo(() => new Set(panel.highlighted), [panel.highlighted]);
+  // A namespace in the loaded entries may be missing from the catalog, for example system.js.
+  const suggestions = useMemo(
+    () => namespaceOptions(namespaces, panel.entries),
+    [namespaces, panel.entries],
+  );
   const selected = panel.entries.find((entry) => entry.id === panel.selectedId);
 
   // Stable callbacks, so memoised table rows do not re-render on unrelated store updates.
@@ -117,7 +122,7 @@ function ProfilerBody({ panelId, connectionId, database, namespaces, panel }: Pr
   return (
     <Stack gap={8} h="100%" p={8} style={{ minHeight: 0 }}>
       <ProfilerHeader panelId={panelId} panel={panel} />
-      <ProfilerFilterRow panelId={panelId} panel={panel} namespaces={namespaces} />
+      <ProfilerFilterRow panelId={panelId} panel={panel} namespaces={suggestions} />
       {panel.error === undefined ? null : (
         <Alert color="red" variant="light" title="The profiler could not load" p="xs">
           {panel.error.message}

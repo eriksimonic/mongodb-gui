@@ -27,6 +27,8 @@ export interface MockProfilerDeps {
   emit(event: RpcEvent): void;
   /** When set, every database holds this many generated rows in its own namespace. For performance checks. */
   readonly bulkRows?: number | undefined;
+  /** When set, every database holds these entries instead of the fixtures. For scenario tests. */
+  readonly seedEntries?: readonly ProfileEntry[] | undefined;
 }
 
 interface MockLevel {
@@ -101,11 +103,13 @@ export function createMockProfiler(deps: MockProfilerDeps): Rpc {
     if (!rows.has(key)) {
       const prefix = FIXTURE_PREFIXES[database];
       const fixtures =
-        deps.bulkRows !== undefined
-          ? bulkProfileEntries(deps.bulkRows, Date.now(), database)
-          : fixtureProfileEntries(Date.now()).filter(
-              (entry) => prefix !== undefined && entry.ns.startsWith(prefix),
-            );
+        deps.seedEntries !== undefined
+          ? deps.seedEntries.slice()
+          : deps.bulkRows !== undefined
+            ? bulkProfileEntries(deps.bulkRows, Date.now(), database)
+            : fixtureProfileEntries(Date.now()).filter(
+                (entry) => prefix !== undefined && entry.ns.startsWith(prefix),
+              );
       rows.set(key, fixtures);
       levels.set(
         key,

@@ -9,7 +9,9 @@ import {
   examinedRatio,
   filtersToQuery,
   formatBytes,
+  formatDuration,
   commandPreview,
+  namespaceOptions,
   userCommand,
   formatCommand,
   formatCommandJson,
@@ -209,8 +211,27 @@ describe('display helpers', () => {
 
   it('divides examined documents by returned documents', () => {
     expect(examinedRatio(entry('a', { docsExamined: 1200, nreturned: 50 }))).toBe(24);
-    expect(examinedRatio(entry('b', { docsExamined: 7, nreturned: 0 }))).toBe(7);
+    expect(examinedRatio(entry('b', { docsExamined: 7, nreturned: 0 }))).toBeUndefined();
     expect(examinedRatio(entry('c'))).toBeUndefined();
+    expect(examinedRatio(entry('d', { docsExamined: 7 }))).toBeUndefined();
+  });
+
+  it('formats a duration in ms below one second and in seconds from one second up', () => {
+    expect(formatDuration(0)).toBe('0 ms');
+    expect(formatDuration(999)).toBe('999 ms');
+    expect(formatDuration(1000)).toBe('1.0 s');
+    expect(formatDuration(12_500)).toBe('12.5 s');
+    expect(formatDuration(2100)).toBe('2.1 s');
+  });
+
+  it('offers the catalog and entry namespaces once each, sorted', () => {
+    expect(
+      namespaceOptions(
+        ['shop.orders', 'shop.customers'],
+        [entry('a', { ns: 'shop.system.js' }), entry('b', { ns: 'shop.orders' })],
+      ),
+    ).toEqual(['shop.customers', 'shop.orders', 'shop.system.js']);
+    expect(namespaceOptions([], [])).toEqual([]);
   });
 });
 
@@ -280,7 +301,17 @@ describe('isProblematic', () => {
 
   it('formats a local time with milliseconds', () => {
     const iso = '2026-10-09T10:00:00.007Z';
-    expect(formatLocalTime(iso)).toMatch(/^\d{2}:\d{2}:\d{2}\.007$/);
+    expect(formatLocalTime(iso, new Date(iso))).toMatch(/^\d{2}:\d{2}:\d{2}\.007$/);
+  });
+
+  it('adds the local date to an entry from another day than now', () => {
+    const iso = '1999-03-01T12:00:00.000Z';
+    const local = new Date(iso);
+    const day = `${local.getFullYear()}-${String(local.getMonth() + 1).padStart(2, '0')}-${String(
+      local.getDate(),
+    ).padStart(2, '0')}`;
+    expect(formatLocalTime(iso, NOW)).toMatch(new RegExp(`^${day} \\d{2}:\\d{2}:\\d{2}\\.000$`));
+    expect(formatLocalTime(iso, new Date(iso))).not.toContain(day);
   });
 
   it('leaves the driver session fields out of the command a copy or the editor gets', () => {

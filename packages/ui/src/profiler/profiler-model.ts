@@ -69,6 +69,7 @@ export interface EntrySort {
 
 export const DEFAULT_SORT: EntrySort = { key: 'time', direction: 'desc' };
 
+const MS_PER_SECOND = 1000;
 const MS_PER_MINUTE = 60_000;
 const PROFILE_PLAN_COLLSCAN = /COLLSCAN/;
 /** Documents examined per document returned above which a query counts as problematic. */
@@ -207,15 +208,38 @@ export function isProblematic(entry: ProfileEntry): boolean {
   return entry.docsExamined / entry.nreturned > PROBLEMATIC_EXAMINED_RATIO;
 }
 
-/** Documents examined per document returned. With nothing returned, the examined count itself. */
+/**
+ * Documents examined per document returned. Undefined when the counts are missing or nothing was
+ * returned, so the table shows a dash and the Examined column carries the count.
+ */
 export function examinedRatio(entry: ProfileEntry): number | undefined {
   if (entry.docsExamined === undefined) {
     return undefined;
   }
   if (entry.nreturned === undefined || entry.nreturned === 0) {
-    return entry.docsExamined;
+    return undefined;
   }
   return entry.docsExamined / entry.nreturned;
+}
+
+/** A duration for a table cell. From one second up it shows seconds with one decimal. */
+export function formatDuration(millis: number): string {
+  if (millis >= MS_PER_SECOND) {
+    return `${(millis / MS_PER_SECOND).toFixed(1)} s`;
+  }
+  return `${millis} ms`;
+}
+
+/**
+ * The namespaces the filter offers: the catalog collections of the database, plus every namespace
+ * in the loaded entries, without repeats and sorted.
+ */
+export function namespaceOptions(
+  catalogNamespaces: readonly string[],
+  entries: readonly ProfileEntry[],
+): string[] {
+  const all = new Set([...catalogNamespaces, ...entries.map((entry) => entry.ns)]);
+  return [...all].sort(compareText);
 }
 
 /** Width of a duration bar as a whole percentage of the slowest row in view. */
@@ -303,11 +327,31 @@ export function commandPreview(command: unknown): string {
     : `${text.slice(0, COMMAND_PREVIEW_CHARS - 1)}…`;
 }
 
-/** Local time with milliseconds. The table and the detail pane both show this form. */
-export function formatLocalTime(iso: string): string {
+/**
+ * Local time with milliseconds. The table and the detail pane both show this form. An entry from
+ * a day other than `now` also shows its local date, such as 1999-12-31 12:00:00.000.
+ */
+export function formatLocalTime(iso: string, now: Date = new Date()): string {
   const date = new Date(iso);
   const time = date.toLocaleTimeString(undefined, { hour12: false });
-  return `${time}.${String(date.getMilliseconds()).padStart(3, '0')}`;
+  const clock = `${time}.${String(date.getMilliseconds()).padStart(3, '0')}`;
+  if (isSameLocalDay(date, now)) {
+    return clock;
+  }
+  const day = [
+    date.getFullYear(),
+    String(date.getMonth() + 1).padStart(2, '0'),
+    String(date.getDate()).padStart(2, '0'),
+  ].join('-');
+  return `${day} ${clock}`;
+}
+
+function isSameLocalDay(a: Date, b: Date): boolean {
+  return (
+    a.getFullYear() === b.getFullYear() &&
+    a.getMonth() === b.getMonth() &&
+    a.getDate() === b.getDate()
+  );
 }
 
 export function formatBytes(bytes: number): string {
