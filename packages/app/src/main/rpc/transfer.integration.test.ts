@@ -73,10 +73,15 @@ describe('transfers through the router against a real MongoDB 8.0 server', () =>
   // The file the mocked open dialog returns. An import reads only a file the dialog returned.
   let openPick: string | undefined;
 
+  /** Picks a file in the open dialog, the step the renderer takes before a preview or an import. */
+  async function pickImportFile(path: string): Promise<void> {
+    openPick = path;
+    await router.handle('app.showOpenDialog', { title: 'Choose a file', filters: [] });
+  }
+
   /** Picks the file in the open dialog and starts the import, the order the renderer uses. */
   async function startImportOf(input: { path: string } & Record<string, unknown>) {
-    openPick = input.path;
-    await router.handle('app.showOpenDialog', { title: 'Choose a file', filters: [] });
+    await pickImportFile(input.path);
     return router.handle('transfer.startImport', input);
   }
 
@@ -159,6 +164,7 @@ describe('transfers through the router against a real MongoDB 8.0 server', () =>
       expect(exportDone.processed).toBe(DOCUMENT_COUNT);
       expect(readFileSync(exportPath, 'utf8').trim().split('\n')).toHaveLength(DOCUMENT_COUNT);
 
+      await pickImportFile(exportPath);
       const preview = valueOf(
         await router.handle('transfer.previewImport', {
           connectionId,
@@ -311,6 +317,7 @@ describe('transfers through the router against a real MongoDB 8.0 server', () =>
       ) as { transferId: string };
       expect((await waitForDone(router, exported.transferId)).error).toBeUndefined();
 
+      await pickImportFile(path);
       const preview = valueOf(
         await router.handle('transfer.previewImport', { connectionId, path, sampleRows: 5 }),
       ) as ImportPreview;

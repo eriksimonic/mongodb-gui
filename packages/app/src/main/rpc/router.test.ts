@@ -1,4 +1,4 @@
-import { mkdtempSync, rmSync, statSync } from 'node:fs';
+import { mkdirSync, mkdtempSync, rmSync, statSync, symlinkSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { afterEach, describe, expect, it, vi } from 'vitest';
@@ -1061,8 +1061,14 @@ describe('file picks', () => {
   // What the mocked dialogs return next. Undefined means the user cancelled.
   const picks: { open: string | undefined; folder: string | undefined; save: string | undefined } =
     { open: undefined, folder: undefined, save: undefined };
+  const IMPORT_OPTIONS = { format: 'ndjson', mode: 'insert', batchSize: 10, stopOnError: false };
+  const OUTSIDE_MESSAGE = 'Choose the folder or the save location in a dialog first.';
 
-  async function setUp(): Promise<{ router: Router; connectionId: string }> {
+  async function setUp(): Promise<{
+    router: Router;
+    connectionId: string;
+    connections: Harness['connections'];
+  }> {
     base = mkdtempSync(join(tmpdir(), 'picks-'));
     harness = buildHarness(undefined, undefined, {
       showOpenDialog: async (input) => {
@@ -1072,12 +1078,17 @@ describe('file picks', () => {
       showSaveDialog: async () => (picks.save === undefined ? {} : { path: picks.save }),
       showItemInFolder: () => undefined,
     });
-    const { router } = harness;
+    const { router, connections } = harness;
     expectValue(await router.handle('vault.initialise', { password: PASSWORD }));
     const created = expectValue(await router.handle('connections.create', profileInput)) as {
       id: string;
     };
-    return { router, connectionId: created.id };
+    return { router, connectionId: created.id, connections };
+  }
+
+  /** Makes the connection usable: the fake returns a client stub, so a start succeeds. */
+  function connect(connections: Harness['connections']): void {
+    vi.spyOn(connections, 'getClient').mockReturnValue({} as never);
   }
 
   function downloadInput(connectionId: string, path: string, overwrite = false) {
@@ -1091,9 +1102,36 @@ describe('file picks', () => {
     };
   }
 
+  function importInput(connectionId: string, path: string) {
+    return { connectionId, database: 'shop', collection: 'copy', path, options: IMPORT_OPTIONS };
+  }
+
+  /** Cancels a transfer that a successful start returned, so no transfer outlives the test. */
+  async function cancelStarted(started: Promise<RpcResult>, router: Router): Promise<void> {
+    const { transferId } = expectValue(await started) as { transferId: string };
+    expectValue(await router.handle('transfer.cancel', { transferId }));
+    // Cancelling is cooperative, so wait for the transfer to finish before the test ends.
+    for (let attempt = 0; attempt < 200; attempt += 1) {
+      const status = expectValue(await router.handle('transfer.status', { transferId })) as {
+        done: boolean;
+      };
+      if (status.done) {
+        return;
+      }
+      await new Promise((resolve) => setTimeout(resolve, 10));
+    }
+  }
+
+  function fixture(name: string, content: string): string {
+    const path = join(base, name);
+    writeFileSync(path, content);
+    return path;
+  }
+
   afterEach(() => {
     harness?.dispose();
     harness = undefined;
+    vi.restoreAllMocks();
     picks.open = undefined;
     picks.folder = undefined;
     picks.save = undefined;
@@ -1121,22 +1159,74 @@ describe('file picks', () => {
         ),
         'VALIDATION',
       );
-      expect(error.message).toBe('Choose the folder or the save location in a dialog first.');
+      expect(error.message).toBe(OUTSIDE_MESSAGE);
     }
   });
 
-  it('allows a download directly inside the picked folder', async () => {
+  it('refuses a path with a .. segment, even one that stays inside the picked folder', async () => {
     const { router, connectionId } = await setUp();
-    picks.folder = join(base, 'out');
+    const folder = join(base, 'out');
+    mkdirSync(folder);
+    picks.folder = folder;
+    expectValue(
+      await router.handle('app.showOpenDialog', { title: 't', filters: [], directory: true }),
+    );
+    const error = expectError(
+      await router.handle('gridfs.startDownload', {
+        ...downloadInput(connectionId, folder),
+        path: `${folder}/sub/../a.pdf`,
+      }),
+      'VALIDATION',
+    );
+    expect(error.message).toBe('A path may not contain ".." segments.');
+    expectError(
+      await router.handle('gridfs.startUpload', {
+        connectionId,
+        database: 'shop',
+        bucket: 'receipts',
+        path: `${folder}/../a.pdf`,
+      }),
+      'VALIDATION',
+    );
+  });
+
+  it('refuses a folder download through a symlink that leads out of the picked folder', async () => {
+    const { router, connectionId } = await setUp();
+    const folder = join(base, 'out');
+    const outside = join(base, 'elsewhere', 'deep');
+    mkdirSync(folder);
+    mkdirSync(outside, { recursive: true });
+    // out/sub is a real symlink to a folder outside the pick, so out/sub/x.txt lands outside it.
+    symlinkSync(outside, join(folder, 'sub'), 'dir');
+    picks.folder = folder;
+    expectValue(
+      await router.handle('app.showOpenDialog', { title: 't', filters: [], directory: true }),
+    );
+    for (const overwrite of [false, true]) {
+      const error = expectError(
+        await router.handle(
+          'gridfs.startDownload',
+          downloadInput(connectionId, join(folder, 'sub', 'x.txt'), overwrite),
+        ),
+        'VALIDATION',
+      );
+      expect(error.message).toBe(OUTSIDE_MESSAGE);
+    }
+  });
+
+  it('allows a picked folder that is itself a symlink to the real folder', async () => {
+    const { router, connectionId } = await setUp();
+    const folder = join(base, 'out');
+    const link = join(base, 'link');
+    mkdirSync(folder);
+    symlinkSync(folder, link, 'dir');
+    picks.folder = link;
     expectValue(
       await router.handle('app.showOpenDialog', { title: 't', filters: [], directory: true }),
     );
     // The pick check passes; the call then stops at the connection, which this harness never opens.
     expectError(
-      await router.handle(
-        'gridfs.startDownload',
-        downloadInput(connectionId, join(base, 'out', 'a.pdf')),
-      ),
+      await router.handle('gridfs.startDownload', downloadInput(connectionId, join(link, 'a.pdf'))),
       'NOT_CONNECTED',
     );
   });
@@ -1163,29 +1253,80 @@ describe('file picks', () => {
 
   it('refuses an upload or an import of a file the open dialog did not return', async () => {
     const { router, connectionId } = await setUp();
-    const upload = {
-      connectionId,
-      database: 'shop',
-      bucket: 'receipts',
-      path: join(base, 'secret.env'),
-    };
-    const importInput = {
-      connectionId,
-      database: 'shop',
-      collection: 'copy',
-      path: join(base, 'secret.env'),
-      options: { format: 'ndjson', mode: 'insert', batchSize: 10, stopOnError: false },
-    };
-    expectError(await router.handle('gridfs.startUpload', upload), 'VALIDATION');
-    expectError(await router.handle('transfer.startImport', importInput), 'VALIDATION');
+    const file = join(base, 'secret.env');
+    expectError(
+      await router.handle('gridfs.startUpload', {
+        connectionId,
+        database: 'shop',
+        bucket: 'receipts',
+        path: file,
+      }),
+      'VALIDATION',
+    );
+    expectError(
+      await router.handle('transfer.startImport', importInput(connectionId, file)),
+      'VALIDATION',
+    );
   });
 
-  it('uses each open-dialog pick once for an upload', async () => {
+  it('refuses a preview of a file the open dialog did not return', async () => {
     const { router, connectionId } = await setUp();
-    picks.open = join(base, 'invoice.bin');
+    const file = fixture('unpicked.ndjson', '{"sku":"a1"}\n');
+    expectError(
+      await router.handle('transfer.previewImport', { connectionId, path: file, sampleRows: 5 }),
+      'VALIDATION',
+    );
+  });
+
+  it('previews a picked file, and the preview leaves the pick for the start', async () => {
+    const { router, connectionId, connections } = await setUp();
+    const file = fixture('in.ndjson', '{"sku":"a1","total":3}\n');
+    picks.open = file;
     expectValue(await router.handle('app.showOpenDialog', { title: 't', filters: [] }));
-    const upload = { connectionId, database: 'shop', bucket: 'receipts', path: picks.open };
+    const preview = expectValue(
+      await router.handle('transfer.previewImport', { connectionId, path: file, sampleRows: 5 }),
+    ) as { sampleRows: unknown[] };
+    expect(preview.sampleRows).toHaveLength(1);
+    connect(connections);
+    await cancelStarted(
+      router.handle('transfer.startImport', importInput(connectionId, file)),
+      router,
+    );
+  });
+
+  it('keeps an import pick through a failed start, and uses it up once the start succeeds', async () => {
+    const { router, connectionId, connections } = await setUp();
+    const file = fixture('bulk.ndjson', '{"sku":"a1"}\n');
+    picks.open = file;
+    expectValue(await router.handle('app.showOpenDialog', { title: 't', filters: [] }));
+    expectError(
+      await router.handle('transfer.startImport', importInput(connectionId, file)),
+      'NOT_CONNECTED',
+    );
+    expectError(
+      await router.handle('transfer.startImport', importInput(connectionId, file)),
+      'NOT_CONNECTED',
+    );
+    connect(connections);
+    await cancelStarted(
+      router.handle('transfer.startImport', importInput(connectionId, file)),
+      router,
+    );
+    expectError(
+      await router.handle('transfer.startImport', importInput(connectionId, file)),
+      'VALIDATION',
+    );
+  });
+
+  it('keeps an upload pick through a failed start, and uses it up once the start succeeds', async () => {
+    const { router, connectionId, connections } = await setUp();
+    const file = fixture('invoice.bin', 'bytes');
+    picks.open = file;
+    expectValue(await router.handle('app.showOpenDialog', { title: 't', filters: [] }));
+    const upload = { connectionId, database: 'shop', bucket: 'receipts', path: file };
     expectError(await router.handle('gridfs.startUpload', upload), 'NOT_CONNECTED');
+    connect(connections);
+    await cancelStarted(router.handle('gridfs.startUpload', upload), router);
     expectError(await router.handle('gridfs.startUpload', upload), 'VALIDATION');
   });
 
@@ -1203,13 +1344,10 @@ describe('file picks', () => {
     router.resetRenderer();
 
     expectError(
-      await router.handle('transfer.startImport', {
-        connectionId,
-        database: 'shop',
-        collection: 'copy',
-        path: join(base, 'in.ndjson'),
-        options: { format: 'ndjson', mode: 'insert', batchSize: 10, stopOnError: false },
-      }),
+      await router.handle(
+        'transfer.startImport',
+        importInput(connectionId, join(base, 'in.ndjson')),
+      ),
       'VALIDATION',
     );
     expectError(

@@ -5,6 +5,7 @@ import {
   type RpcClient,
 } from '@mongo-gui/core';
 import { objectIdHex } from './mock-catalog';
+import type { MockPicks } from './mock-picks';
 import { fail, method } from './mock-support';
 import { GRIDFS_JOB_BYTES, type GridFsTransferKind } from './mock-transfer';
 
@@ -16,6 +17,8 @@ export const MOCK_FOLDER_PATH = MOCK_EXISTING_FOLDER;
 
 export interface MockGridFsContext {
   readonly latencyMs: number;
+  /** The picks the mock dialogs registered. Uploads and downloads are checked against them. */
+  readonly picks: MockPicks;
   /** Throws unless the vault is unlocked and the connection is connected. */
   guard(connectionId: string): void;
   /** Starts a scripted upload or download. `onDone` runs only when the job is not cancelled. */
@@ -265,6 +268,7 @@ export function createMockGridFs(context: MockGridFsContext): RpcClient['gridfs'
     }),
     startUpload: method(rpcContract.gridfs.startUpload, latencyMs, (input) => {
       context.guard(input.connectionId);
+      context.picks.requireOpened(input.path);
       const metadata = input.metadataEjson === undefined ? {} : parseMetadata(input.metadataEjson);
       if (input.contentType !== undefined) {
         metadata.contentType = input.contentType;
@@ -287,10 +291,12 @@ export function createMockGridFs(context: MockGridFsContext): RpcClient['gridfs'
           });
         },
       );
+      context.picks.useOpened(input.path);
       return { transferId };
     }),
     startDownload: method(rpcContract.gridfs.startDownload, latencyMs, (input) => {
       context.guard(input.connectionId);
+      context.picks.requireDownloadTarget(input.path);
       const files = filesOf(input.connectionId, input.database, input.bucket);
       requireFile(files, input.idEjson);
       if (input.overwrite !== true && existingPaths.has(input.path)) {
