@@ -18,6 +18,28 @@ export class ConnectionsRepository {
     this.#store = store;
   }
 
+  /**
+   * Runs fn in one SQLite transaction. When fn throws, every write it made is rolled back and the
+   * error is rethrown. fn must be synchronous, because a transaction cannot wait for a promise.
+   */
+  transaction<T>(fn: () => T): T {
+    this.#store.assertUnlocked();
+    const db = this.#store.db;
+    db.exec('BEGIN IMMEDIATE');
+    try {
+      const result = fn();
+      db.exec('COMMIT');
+      return result;
+    } catch (error) {
+      try {
+        db.exec('ROLLBACK');
+      } catch {
+        // The failure that aborted fn is the one to report, so a failed rollback is ignored here.
+      }
+      throw error;
+    }
+  }
+
   list(): ConnectionProfile[] {
     this.#store.assertUnlocked();
     const rows = this.#store.db

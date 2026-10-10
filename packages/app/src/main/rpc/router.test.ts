@@ -1596,6 +1596,75 @@ describe('connection files', () => {
     ).toEqual({ imported: 0, skipped: 1, renamed: 0, replaced: 0 });
   });
 
+  it('replaces a target once when the file repeats its name, and counts both entries', async () => {
+    const { router, localId, remoteId } = await setUp();
+    expectValue(
+      await router.handle('connections.update', { id: remoteId, patch: { name: 'Local' } }),
+    );
+    const written = await exportTo(router, [localId, remoteId]);
+    expectValue(await router.handle('connections.remove', { id: remoteId }));
+    await pickOpen(router, written);
+
+    const result = expectValue(
+      await router.handle('connections.importFromFile', {
+        path: written,
+        passphrase: PASSPHRASE,
+        mode: 'replace',
+      }),
+    );
+    expect(result).toEqual({ imported: 1, skipped: 0, renamed: 1, replaced: 1 });
+    expect(
+      (expectValue(await router.handle('connections.list', undefined)) as { name: string }[])
+        .map((item) => item.name)
+        .sort(),
+    ).toEqual(['Local', 'Local (2)']);
+  });
+
+  it('rolls back every write when one create fails, and keeps the pick for a retry', async () => {
+    const { router, localId, remoteId } = await setUp();
+    const written = await exportTo(router, [localId, remoteId]);
+    await pickOpen(router, written);
+    const connections = harness?.handles.repos.connections;
+    if (connections === undefined) {
+      throw new Error('the harness is not open');
+    }
+    const real = connections.create.bind(connections);
+    let calls = 0;
+    const failing = vi.spyOn(connections, 'create').mockImplementation((input) => {
+      calls += 1;
+      if (calls === 2) {
+        throw new Error('disk full');
+      }
+      return real(input);
+    });
+
+    expectError(
+      await router.handle('connections.importFromFile', {
+        path: written,
+        passphrase: PASSPHRASE,
+        mode: 'rename',
+      }),
+      'INTERNAL',
+    );
+    expect(calls).toBe(2);
+    failing.mockRestore();
+    expect(
+      (expectValue(await router.handle('connections.list', undefined)) as { name: string }[])
+        .map((item) => item.name)
+        .sort(),
+    ).toEqual(['Local', 'Remote']);
+
+    expect(
+      expectValue(
+        await router.handle('connections.importFromFile', {
+          path: written,
+          passphrase: PASSPHRASE,
+          mode: 'rename',
+        }),
+      ),
+    ).toEqual({ imported: 2, skipped: 0, renamed: 2, replaced: 0 });
+  });
+
   it('replaces a colliding connection and clears the options the file leaves out', async () => {
     const { router, remoteId } = await setUp();
     const written = await exportTo(router, [remoteId]);

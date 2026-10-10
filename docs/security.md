@@ -89,7 +89,7 @@ depend on the vault.
 - The payload is encrypted with AES-256-GCM. Each export draws a new 12-byte IV.
 - The authenticated data covers the format name, the version, the scrypt parameters, the salt and
   the IV. A changed header fails the check.
-- The passphrase must be at least 10 characters. The app does not store it, and it cannot recover
+- The passphrase must be 10 to 1024 characters. The app does not store it, and it cannot recover
   it. A lost passphrase means the file cannot be opened.
 - The GCM tag is the only check on the passphrase. A wrong passphrase and a damaged file give the
   same message.
@@ -109,7 +109,13 @@ The file is one JSON object:
 ```
 
 Import refuses a file with another format name or another version. It also refuses a file whose
-scrypt cost is above N = 2^20 or above 256 MiB of memory, and a file larger than 8 MiB. The preview and
+scrypt parameters fall outside these bounds, before any key is derived:
+
+- N is a power of two between 2^14 and 2^20.
+- r is between 1 and 16, and p is between 1 and 4.
+- 128 * r * (N + 2 + p) is at most 256 MiB, which is the memory scrypt allocates.
+
+Import also refuses a file larger than 8 MiB. The preview and
 the import each read and decrypt the file.
 
 ## What is never stored or logged

@@ -56,7 +56,7 @@ import {
 } from './mock-fixtures';
 import { createMockShell } from './mock-shell';
 import { createMockPicks } from './mock-picks';
-import { createMockConnectionFiles } from './mock-connection-files';
+import { CONNECTIONS_EXTENSION, createMockConnectionFiles } from './mock-connection-files';
 import { delay, fail, method } from './mock-support';
 import { createMockMonitor } from './mock-monitor';
 import {
@@ -656,14 +656,24 @@ export function createMockUiApi(options: MockUiApiOptions = {}): UiApi {
     app: {
       openExternal: method(rpcContract.app.openExternal, latencyMs, () => undefined),
       versions: method(rpcContract.app.versions, latencyMs, () => ({ ...MOCK_VERSIONS })),
-      showOpenDialog: method(rpcContract.app.showOpenDialog, latencyMs, ({ directory }) => {
-        if (directory === true) {
-          picks.folder(MOCK_FOLDER_PATH);
-          return { path: MOCK_FOLDER_PATH };
-        }
-        picks.opened(dialogPath);
-        return { path: dialogPath };
-      }),
+      showOpenDialog: method(
+        rpcContract.app.showOpenDialog,
+        latencyMs,
+        ({ directory, filters }) => {
+          if (directory === true) {
+            picks.folder(MOCK_FOLDER_PATH);
+            return { path: MOCK_FOLDER_PATH };
+          }
+          // A connections dialog gets the file the last export wrote, so the import opens it.
+          const connectionsDialog = filters.some((filter) =>
+            filter.extensions.includes(CONNECTIONS_EXTENSION),
+          );
+          const last = connectionFiles.lastPath();
+          const path = connectionsDialog && last !== undefined ? last : dialogPath;
+          picks.opened(path);
+          return { path };
+        },
+      ),
       showSaveDialog: method(rpcContract.app.showSaveDialog, latencyMs, ({ filters }) => {
         const path = mockSavePath(filters[0]?.extensions[0] ?? 'csv');
         picks.saved(path);

@@ -53,6 +53,14 @@ describe('parseConnectionsFile', () => {
     );
   });
 
+  it('caps the version text echoed in the message at 32 characters', () => {
+    const long = 'v'.repeat(500);
+    const message = messageOf({ ...validFile, version: long });
+    expect(message).toBe(
+      `This connections file has version ${'v'.repeat(32)}. This app reads version 1.`,
+    );
+  });
+
   it('refuses unknown fields and bad base64 with one generic message', () => {
     expect(messageOf({ ...validFile, extra: true })).toBe('The connections file is damaged.');
     expect(messageOf({ ...validFile, payload: 'not base64!' })).toBe(
@@ -72,6 +80,31 @@ describe('parseConnectionsFile', () => {
 });
 
 describe('describeConnectionUri', () => {
+  it('never reports a host from inside a password that holds "/", "?" or "@"', () => {
+    const cases: [string, string][] = [
+      ['mongodb://usr:pa/ss@hostA:1/db', 'hostA:1'],
+      ['mongodb://usr:pa?ss@hostA:1/db', 'hostA:1'],
+      ['mongodb://usr:pa@ss@hostA:1/db', 'hostA:1'],
+      ['mongodb://usr:pa/ss@hostA:1/db?authSource=a@b', 'hostA:1'],
+      ['mongodb://usr:pa%2Fss%3Fx%40y@hostB:27017/db', 'hostB:27017'],
+      ['mongodb+srv://usr:p%40ss@cluster.example/?retryWrites=true', 'cluster.example'],
+    ];
+    for (const [uri, host] of cases) {
+      const summary = describeConnectionUri(uri);
+      expect(summary.host).toBe(host);
+      expect(summary.authKind).toBe('password');
+      expect(summary.host).not.toMatch(/[@/?]/);
+    }
+  });
+
+  it('reports the host for a URI without userinfo, even when an option holds "@"', () => {
+    expect(describeConnectionUri('mongodb://hostD:27017/?authSource=a@b')).toEqual({
+      host: 'hostD:27017',
+      authKind: 'none',
+    });
+    expect(describeConnectionUri('mongodb://hostE')).toEqual({ host: 'hostE', authKind: 'none' });
+  });
+
   it('reports the hosts and the auth kind without the credentials', () => {
     expect(
       describeConnectionUri('mongodb://app:s3cret@a.example:27017,b.example:27017/shop'),
@@ -142,6 +175,15 @@ describe('planConnectionsImport', () => {
       targetId: '11111111-1111-4111-8111-111111111111',
       input: { name: 'Orders' },
     });
+  });
+
+  it('replaces a target once: a second entry with the same name is renamed', () => {
+    const plan = planConnectionsImport([orders, orders], existing, 'replace');
+    expect(plan[0]).toMatchObject({
+      kind: 'replace',
+      targetId: '11111111-1111-4111-8111-111111111111',
+    });
+    expect(plan[1]).toMatchObject({ kind: 'create', renamed: true, input: { name: 'Orders (2)' } });
   });
 
   it('renames a repeat of a name created earlier in replace mode', () => {

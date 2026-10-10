@@ -9,6 +9,8 @@ import {
   ConnectionProfileSummarySchema,
   describeConnectionUri,
   planConnectionsImport,
+  type ConnectionImportAction,
+  type ConnectionsImportResult,
   DEFAULT_BATCH_SIZE,
   appError,
   groupByShape,
@@ -1057,24 +1059,27 @@ export function createRouter(deps: RouterDeps): Router {
       const existing = repos().connections.list();
       const path = pickedFile(input.path, openedFiles);
       const incoming = readConnectionsFile(path, input.passphrase);
-      const result = { imported: 0, skipped: 0, renamed: 0, replaced: 0 };
-      for (const action of planConnectionsImport(incoming, existing, input.mode)) {
-        if (action.kind === 'skip') {
-          result.skipped += 1;
-        } else if (action.kind === 'create') {
-          repos().connections.create(action.input);
-          result.imported += 1;
-          result.renamed += action.renamed ? 1 : 0;
-        } else {
+      const plan = planConnectionsImport(incoming, existing, input.mode);
+      // A transaction cannot wait, so each replaced connection disconnects before the writes start.
+      for (const action of plan) {
+        if (action.kind === 'replace') {
           const current = existing.find((connection) => connection.id === action.targetId);
           await disconnectConnection(action.targetId, current);
-          repos().connections.update(action.targetId, replacementPatch(action.input));
-          result.replaced += 1;
         }
       }
-      // The pick is good for one import. A failed import keeps it, so the passphrase can be retried.
+      // One transaction holds every write. A failed write rolls back the others, and the pick stays
+      // usable, so the same file can be imported again.
+      repos().connections.transaction(() => {
+        for (const action of plan) {
+          if (action.kind === 'create') {
+            repos().connections.create(action.input);
+          } else if (action.kind === 'replace') {
+            repos().connections.update(action.targetId, replacementPatch(action.input));
+          }
+        }
+      });
       openedFiles.delete(path);
-      return result;
+      return summariseImportPlan(plan);
     }),
 
     entry('databases.list', rpcContract.databases.list, (input) =>
@@ -2009,6 +2014,22 @@ function refuseMissingFolder(path: string): void {
   if (!isDirectory(folder)) {
     throw new AppErrorException(appError('VALIDATION', 'The folder does not exist.', folder));
   }
+}
+
+/** Counts what an import plan did. A renamed entry also counts as imported. */
+function summariseImportPlan(plan: readonly ConnectionImportAction[]): ConnectionsImportResult {
+  const result = { imported: 0, skipped: 0, renamed: 0, replaced: 0 };
+  for (const action of plan) {
+    if (action.kind === 'skip') {
+      result.skipped += 1;
+    } else if (action.kind === 'create') {
+      result.imported += 1;
+      result.renamed += action.renamed ? 1 : 0;
+    } else {
+      result.replaced += 1;
+    }
+  }
+  return result;
 }
 
 /**

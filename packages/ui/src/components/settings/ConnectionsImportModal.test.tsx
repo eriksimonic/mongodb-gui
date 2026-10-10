@@ -2,16 +2,23 @@
 import { fireEvent, screen, waitFor, within } from '@testing-library/react';
 import { describe, expect, it, vi } from 'vitest';
 import { createMockUiApi } from '../../api/mock-rpc-client';
+import { MOCK_SAMPLE_PASSPHRASE } from '../../api/mock-connection-files';
 import { localConnectionId } from '../../api/mock-fixtures';
 import type { UiApi } from '../../api/ui-api';
 import { renderWithApp } from '../../test-support/render';
 import { ConnectionsImportModal } from './ConnectionsImportModal';
+import { CONNECTIONS_FILE_FILTER } from './connections-file-model';
 
 const PASSPHRASE = 'export passphrase';
+/** The sample file opens only with the mock sample passphrase. */
+const SAMPLE = MOCK_SAMPLE_PASSPHRASE;
 
 /** Exports the local connection to the path the mock save dialog returns. */
 async function exportLocal(api: UiApi, passphrase = PASSPHRASE): Promise<void> {
-  const saved = await api.rpc.app.showSaveDialog({ title: 'Save', filters: [] });
+  const saved = await api.rpc.app.showSaveDialog({
+    title: 'Save',
+    filters: [CONNECTIONS_FILE_FILTER],
+  });
   if (saved.path === undefined) {
     throw new Error('the mock save dialog returned no path');
   }
@@ -24,7 +31,10 @@ async function exportLocal(api: UiApi, passphrase = PASSPHRASE): Promise<void> {
 
 /** Opens the import modal on the file the mock open dialog returns, as the Settings button does. */
 async function openImport(api: UiApi): Promise<void> {
-  const picked = await api.rpc.app.showOpenDialog({ title: 'Choose a file', filters: [] });
+  const picked = await api.rpc.app.showOpenDialog({
+    title: 'Choose a file',
+    filters: [CONNECTIONS_FILE_FILTER],
+  });
   renderWithApp(<ConnectionsImportModal path={picked.path} onClose={() => undefined} />, { api });
 }
 
@@ -56,7 +66,7 @@ describe('ConnectionsImportModal', () => {
     const api = createMockUiApi({ preset: 'unlocked' });
     await openImport(api);
 
-    await readFile(PASSPHRASE);
+    await readFile(SAMPLE);
 
     const table = await screen.findByRole('table', { name: 'Connections in the file' });
     expect(within(table).getByText('Staging')).toBeInTheDocument();
@@ -64,6 +74,27 @@ describe('ConnectionsImportModal', () => {
     expect(within(table).getByText('Reporting')).toBeInTheDocument();
     expect(within(table).getByText('Username and password')).toBeInTheDocument();
     expect(screen.queryByText(/staging-secret/)).toBeNull();
+  });
+
+  it('opens the file the last export wrote, with the export passphrase', async () => {
+    const api = createMockUiApi({ preset: 'unlocked' });
+    await exportLocal(api);
+    await openImport(api);
+
+    await readFile(PASSPHRASE);
+
+    const table = await screen.findByRole('table', { name: 'Connections in the file' });
+    expect(within(table).getByText('Local dev')).toBeInTheDocument();
+    expect(within(table).queryByText('Staging')).toBeNull();
+  });
+
+  it('refuses the sample file with any passphrase other than the sample one', async () => {
+    const api = createMockUiApi({ preset: 'unlocked' });
+    await openImport(api);
+
+    await readFile(PASSPHRASE);
+
+    expect(await screen.findByRole('alert')).toHaveTextContent('Wrong passphrase or damaged file.');
   });
 
   it('shows a red alert when the passphrase does not open the file', async () => {
@@ -80,7 +111,7 @@ describe('ConnectionsImportModal', () => {
   it('imports with skip, reports the counts and reloads the tree', async () => {
     const api = createMockUiApi({ preset: 'unlocked' });
     await openImport(api);
-    await readFile(PASSPHRASE);
+    await readFile(SAMPLE);
     await screen.findByRole('table', { name: 'Connections in the file' });
     fireEvent.click(screen.getByRole('radio', { name: 'Skip connections whose name exists' }));
     const before = (await api.rpc.connections.list()).length;
@@ -98,7 +129,7 @@ describe('ConnectionsImportModal', () => {
   it('imports as copies when rename is chosen, which is the default', async () => {
     const api = createMockUiApi({ preset: 'unlocked' });
     await openImport(api);
-    await readFile(PASSPHRASE);
+    await readFile(SAMPLE);
     await screen.findByRole('table', { name: 'Connections in the file' });
     expect(screen.getByRole('radio', { name: /Import as copies/ })).toBeChecked();
 
@@ -114,7 +145,7 @@ describe('ConnectionsImportModal', () => {
   it('replaces the existing connection in replace mode', async () => {
     const api = createMockUiApi({ preset: 'unlocked' });
     await openImport(api);
-    await readFile(PASSPHRASE);
+    await readFile(SAMPLE);
     await screen.findByRole('table', { name: 'Connections in the file' });
     fireEvent.click(screen.getByRole('radio', { name: 'Replace the existing connection' }));
 

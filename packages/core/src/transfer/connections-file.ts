@@ -3,6 +3,7 @@ import { AppErrorException, appError } from '../domain/errors';
 import { ConnectionProfileInputSchema, ConnectionProfileSchema } from '../schemas/connection';
 import type { ConnectionProfile, ConnectionProfileInput } from '../domain/connection';
 import { AbsolutePathSchema } from './types';
+import { userInfoEnd } from '../redact';
 
 export const CONNECTIONS_FILE_FORMAT = 'mongo-gui-connections';
 export const CONNECTIONS_FILE_VERSION = 1;
@@ -21,6 +22,7 @@ const SCRYPT_MAX_P = 4;
 // OpenSSL allocates 128 * r * (N + 2 + p) bytes for scrypt.
 const SCRYPT_MAX_MEMORY = 256 * 1024 * 1024;
 const SALT_BYTES = 32;
+const VERSION_TEXT_MAX = 32;
 const IV_BYTES = 12;
 const TAG_BYTES = 16;
 
@@ -129,10 +131,12 @@ export function parseConnectionsFile(value: unknown): ConnectionsFile {
     );
   }
   if (record.version !== CONNECTIONS_FILE_VERSION) {
+    // The file's own value is echoed, so it is capped to keep a hostile file from filling the error.
+    const shown = String(record.version).slice(0, VERSION_TEXT_MAX);
     throw new AppErrorException(
       appError(
         'VALIDATION',
-        `This connections file has version ${String(record.version)}. This app reads version ${CONNECTIONS_FILE_VERSION}.`,
+        `This connections file has version ${shown}. This app reads version ${CONNECTIONS_FILE_VERSION}.`,
       ),
     );
   }
@@ -181,11 +185,12 @@ export function describeConnectionUri(
   uri: string,
 ): Pick<ConnectionSummaryLine, 'host' | 'authKind'> {
   const rest = uri.replace(SCHEME, '');
-  const authorityEnd = rest.search(/[/?]/);
-  const authority = authorityEnd === -1 ? rest : rest.slice(0, authorityEnd);
-  const at = authority.lastIndexOf('@');
-  const userInfo = at === -1 ? undefined : authority.slice(0, at);
-  const host = at === -1 ? authority : authority.slice(at + 1);
+  const at = userInfoEnd(rest);
+  const userInfo = at === -1 ? undefined : rest.slice(0, at);
+  // The host starts after the userinfo, so no part of a password can reach it.
+  const afterUserInfo = at === -1 ? rest : rest.slice(at + 1);
+  const hostEnd = afterUserInfo.search(/[/?]/);
+  const host = hostEnd === -1 ? afterUserInfo : afterUserInfo.slice(0, hostEnd);
   const x509 = /authMechanism=MONGODB-X509/i.test(rest);
   let authKind: ConnectionSummaryLine['authKind'] = 'none';
   if (x509) {
@@ -270,6 +275,8 @@ export function planConnectionsImport(
       idByName.set(connection.name, connection.id);
     }
   }
+  // Names whose stored connection an earlier entry already replaced. Each target is replaced once.
+  const replacedNames = new Set<string>();
   return incoming.map((profile): ConnectionImportAction => {
     // The input schema drops the identity and timestamp fields, so the store assigns new ones.
     const input = ConnectionProfileInputSchema.parse(profile);
@@ -280,13 +287,15 @@ export function planConnectionsImport(
     if (mode === 'skip') {
       return { kind: 'skip', name: input.name };
     }
-    if (mode === 'replace') {
+    if (mode === 'replace' && !replacedNames.has(input.name)) {
       const targetId = idByName.get(input.name);
       if (targetId !== undefined) {
+        replacedNames.add(input.name);
         return { kind: 'replace', targetId, input };
       }
       // A name created earlier in this import has no stored id yet, so it is renamed instead.
     }
+    // A second entry with a name that was already replaced is a collision, so it is renamed.
     const name = freeName(input.name, taken);
     taken.add(name);
     return { kind: 'create', input: { ...input, name }, renamed: true };
