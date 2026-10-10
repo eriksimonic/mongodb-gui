@@ -1,12 +1,14 @@
-import { readFileSync } from 'node:fs';
-import { join } from 'node:path';
 import { describe, expect, it } from 'vitest';
 import { parseToolLine } from './log-lines';
 
+const FIXTURES = import.meta.glob<string>('./fixtures/*.txt', {
+  eager: true,
+  import: 'default',
+  query: '?raw',
+});
+
 function fixture(name: string): string[] {
-  return readFileSync(join(__dirname, 'fixtures', name), 'utf8')
-    .split('\n')
-    .filter(Boolean);
+  return (FIXTURES[`./fixtures/${name}`] ?? '').split('\n').filter(Boolean);
 }
 
 describe('parseToolLine', () => {
@@ -29,7 +31,7 @@ describe('parseToolLine', () => {
   });
 
   it('reads a progress bar with counts', () => {
-    const line = fixture('dump-progress.txt')[7]!;
+    const line = fixture('dump-progress.txt')[7] ?? '';
     expect(parseToolLine(line)).toEqual({
       kind: 'bar',
       namespace: 'shop.orders',
@@ -43,12 +45,12 @@ describe('parseToolLine', () => {
 
   it('maps a time series bucket collection to its view name', () => {
     const lines = fixture('dump-progress.txt');
-    expect(parseToolLine(lines[3]!)).toEqual({
+    expect(parseToolLine(lines[3] ?? '')).toEqual({
       kind: 'writing',
       namespace: 'shop.ts',
       timeseries: true,
     });
-    expect(parseToolLine(lines[6]!)).toMatchObject({
+    expect(parseToolLine(lines[6] ?? '')).toMatchObject({
       kind: 'dumped',
       namespace: 'shop.ts',
       timeseries: true,
@@ -57,11 +59,11 @@ describe('parseToolLine', () => {
   });
 
   it('reads singular and plural document counts', () => {
-    expect(parseToolLine(fixture('dump-dir.txt')[3]!)).toMatchObject({
+    expect(parseToolLine(fixture('dump-dir.txt')[3] ?? '')).toMatchObject({
       kind: 'dumped',
       documents: 1,
     });
-    expect(parseToolLine(fixture('dump-dir.txt')[5]!)).toMatchObject({
+    expect(parseToolLine(fixture('dump-dir.txt')[5] ?? '')).toMatchObject({
       kind: 'dumped',
       documents: 400000,
     });

@@ -48,7 +48,7 @@ function preferences(platform: ToolsPlatform): [string, string[]][] {
 
 function safeUrl(url: string): boolean {
   const m = /^https:\/\/([^/?#@:]+)(\/[^?#]*)$/.exec(url);
-  return m !== null && ALLOWED_HOSTS.has(m[1]!) && /\.(tgz|zip)$/.test(m[2]!);
+  return m !== null && ALLOWED_HOSTS.has(m[1] ?? '') && /\.(tgz|zip)$/.test(m[2] ?? '');
 }
 
 // The download for this platform, or undefined when the feed has none or its URL is not trusted.
@@ -73,7 +73,7 @@ export function selectFeedDownload(
 function compare(a: string, b: string): number {
   const pa = a.split('.').map(Number);
   const pb = b.split('.').map(Number);
-  for (let i = 0; i < 3; i++) if (pa[i] !== pb[i]) return pa[i]! - pb[i]!;
+  for (let i = 0; i < 3; i++) if (pa[i] !== pb[i]) return (pa[i] ?? 0) - (pb[i] ?? 0);
   return 0;
 }
 

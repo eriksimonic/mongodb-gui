@@ -53,7 +53,8 @@ const UNITS: Record<string, number> = {
 // "86.6MB" becomes bytes, "141578" stays a count.
 function amount(text: string): { value: number; unit: 'documents' | 'bytes' } | undefined {
   const size = SIZE.exec(text);
-  if (size) return { value: Math.round(Number(size[1]) * UNITS[size[2]!]!), unit: 'bytes' };
+  if (size)
+    return { value: Math.round(Number(size[1]) * (UNITS[size[2] ?? ''] ?? 1)), unit: 'bytes' };
   if (/^\d+$/.test(text)) return { value: Number(text), unit: 'documents' };
   return undefined;
 }
@@ -75,12 +76,12 @@ export function parseToolLine(line: string): ToolLogLine {
   let m: RegExpExecArray | null;
 
   if ((m = BAR.exec(text))) {
-    const done = amount(m[2]!);
-    const total = amount(m[3]!);
+    const done = amount(m[2] ?? '');
+    const total = amount(m[3] ?? '');
     if (done && total) {
       return {
         kind: 'bar',
-        ...namespaceOf(m[1]!),
+        ...namespaceOf(m[1] ?? ''),
         done: done.value,
         total: total.value,
         unit: done.unit,
@@ -88,18 +89,19 @@ export function parseToolLine(line: string): ToolLogLine {
       };
     }
   } else if ((m = BAR_OPEN.exec(text))) {
-    const done = amount(m[2]!);
-    if (done) return { kind: 'bar-open', ...namespaceOf(m[1]!), done: done.value, unit: done.unit };
+    const done = amount(m[2] ?? '');
+    if (done)
+      return { kind: 'bar-open', ...namespaceOf(m[1] ?? ''), done: done.value, unit: done.unit };
   }
-  if ((m = WRITING.exec(text))) return { kind: 'writing', ...namespaceOf(m[1]!) };
+  if ((m = WRITING.exec(text))) return { kind: 'writing', ...namespaceOf(m[1] ?? '') };
   if ((m = DUMPED.exec(text))) {
-    return { kind: 'dumped', ...namespaceOf(m[1]!), documents: Number(m[2]) };
+    return { kind: 'dumped', ...namespaceOf(m[1] ?? ''), documents: Number(m[2]) };
   }
-  if ((m = RESTORING.exec(text))) return { kind: 'restoring', ...namespaceOf(m[1]!) };
+  if ((m = RESTORING.exec(text))) return { kind: 'restoring', ...namespaceOf(m[1] ?? '') };
   if ((m = RESTORED.exec(text))) {
     return {
       kind: 'restored',
-      ...namespaceOf(m[1]!),
+      ...namespaceOf(m[1] ?? ''),
       documents: Number(m[2]),
       failures: Number(m[3]),
     };
@@ -107,6 +109,6 @@ export function parseToolLine(line: string): ToolLogLine {
   if ((m = SUMMARY.exec(text)))
     return { kind: 'summary', restored: Number(m[1]), failed: Number(m[2]) };
   if (text.startsWith('WARNING:')) return { kind: 'warning', text };
-  if ((m = /^Failed: (.*)/.exec(text))) return { kind: 'failed', reason: m[1]! };
+  if ((m = /^Failed: (.*)/.exec(text))) return { kind: 'failed', reason: m[1] ?? '' };
   return { kind: 'other', text };
 }

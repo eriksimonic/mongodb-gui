@@ -1,11 +1,11 @@
-import { readFileSync } from 'node:fs';
-import { join } from 'node:path';
 import { describe, expect, it } from 'vitest';
 import { feedVersionsFor, selectFeedDownload, ToolsFeedSchema } from './feed';
 
-const feed = ToolsFeedSchema.parse(
-  JSON.parse(readFileSync(join(__dirname, 'fixtures', 'feed-excerpt.json'), 'utf8')),
-);
+const FIXTURES = import.meta.glob<unknown>('./fixtures/feed-excerpt.json', {
+  eager: true,
+  import: 'default',
+});
+const feed = ToolsFeedSchema.parse(FIXTURES['./fixtures/feed-excerpt.json']);
 const sha = 'a'.repeat(64);
 
 function entry(name: string, arch: string, url: string, hash = sha) {
@@ -16,24 +16,24 @@ describe('feedVersionsFor', () => {
   it('keeps 100.x, dedupes and sorts newest first', () => {
     const list = feedVersionsFor(feed, { os: 'linux', arch: 'x64' });
     expect(list.map((d) => d.version)).toEqual(['100.19.1', '100.18.0', '100.12.1', '100.0.2']);
-    expect(list[0]!.target).toBe('ubuntu2004');
+    expect(list[0]?.target).toBe('ubuntu2004');
   });
 
   it('falls back to rhel70 on Linux x64', () => {
     const list = feedVersionsFor(feed, { os: 'linux', arch: 'x64' });
-    expect(list.find((d) => d.version === '100.0.2')!.target).toBe('rhel70');
+    expect(list.find((d) => d.version === '100.0.2')?.target).toBe('rhel70');
   });
 
   it('picks per platform', () => {
-    expect(feedVersionsFor(feed, { os: 'win32', arch: 'x64' })[0]!.url).toMatch(/windows.*\.zip$/);
+    expect(feedVersionsFor(feed, { os: 'win32', arch: 'x64' })[0]?.url).toMatch(/windows.*\.zip$/);
     expect(feedVersionsFor(feed, { os: 'linux', arch: 'arm64' }).map((d) => d.version)).toEqual([
       '100.19.1',
       '100.18.0',
       '100.12.1',
     ]);
     const arm = feedVersionsFor(feed, { os: 'darwin', arch: 'arm64' });
-    expect(arm[0]!.url).toContain('arm64');
-    expect(arm.find((d) => d.version === '100.0.2')!.url).toContain('x86_64');
+    expect(arm[0]?.url).toContain('arm64');
+    expect(arm.find((d) => d.version === '100.0.2')?.url).toContain('x86_64');
   });
 });
 
