@@ -21,4 +21,6 @@ export const AppErrorSchema = z.object({
   message: z.string(),
   detail: z.string().optional(),
   cause: z.string().optional(),
+  // The server's error name, such as NotYetInitialized, when the server rejected a command.
+  codeName: z.string().optional(),
 });

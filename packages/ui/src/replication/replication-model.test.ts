@@ -144,4 +144,22 @@ describe('tag rows', () => {
     ).toBe('dc');
     expect(duplicateTagKey([{ key: 'dc', value: 'east' }])).toBeUndefined();
   });
+
+  it('detects the server error names before it reads the detail', () => {
+    expect(isUninitiatedError(appError('COMMAND_FAILED', 'The server rejected the command'))).toBe(
+      false,
+    );
+    expect(
+      isUninitiatedError({
+        ...appError('COMMAND_FAILED', 'The server rejected the command'),
+        codeName: 'NotYetInitialized',
+      }),
+    ).toBe(true);
+    expect(
+      isNoReplicationError({
+        ...appError('COMMAND_FAILED', 'The server rejected the command'),
+        codeName: 'NoReplicationEnabled',
+      }),
+    ).toBe(true);
+  });
 });

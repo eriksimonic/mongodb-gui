@@ -58,6 +58,12 @@ describe('rpcContract', () => {
       replication.stepDown.input.safeParse({ connectionId, stepDownSeconds: 3601 }).success,
     ).toBe(false);
     expect(
+      replication.stepDown.input.safeParse({ connectionId, stepDownSeconds: 10 }).success,
+    ).toBe(false);
+    expect(
+      replication.stepDown.input.safeParse({ connectionId, stepDownSeconds: 11 }).success,
+    ).toBe(true);
+    expect(
       replication.initiate.input.safeParse({ connectionId, setName: 'rs0', members: [] }).success,
     ).toBe(false);
   });

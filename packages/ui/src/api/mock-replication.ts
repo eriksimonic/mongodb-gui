@@ -1,4 +1,5 @@
 import {
+  AppErrorException,
   rpcContract,
   type ReconfigChange,
   type ReconfigPlan,
@@ -9,6 +10,16 @@ import {
   type RpcClient,
 } from '@mongo-gui/core';
 import { fail, method } from './mock-support';
+
+/** A command the server refused, with the server's error name the UI reads by code. */
+function serverRefusal(codeName: string, detail: string): AppErrorException {
+  return new AppErrorException({
+    code: 'COMMAND_FAILED',
+    message: 'The server rejected the command',
+    detail,
+    codeName,
+  });
+}
 
 /** Replica set state of one mock connection. */
 export type MockReplicaMode = 'standalone' | 'uninitiated' | 'member';
@@ -75,6 +86,10 @@ const MAX_PRIORITY = 1000;
 const MAX_STEP_DOWN = 3600;
 const UNINITIATED_DETAIL = 'no replset config has been received';
 const STANDALONE_DETAIL = 'not running with --replSet';
+const NOT_INITIALISED = 'NotYetInitialized';
+const NO_REPLICATION = 'NoReplicationEnabled';
+const ALREADY_INITIALISED = 'AlreadyInitialized';
+const DEFAULT_CATCH_UP_SECONDS = 10;
 
 function seededMembers(): MockMember[] {
   return [
@@ -149,7 +164,7 @@ export function createMockReplication(options: MockReplicationOptions): MockRepl
   function setOf(connectionId: string): MockSet {
     const found = sets.get(connectionId);
     if (found === undefined) {
-      throw fail('COMMAND_FAILED', 'The server rejected the command', STANDALONE_DETAIL);
+      throw serverRefusal(NO_REPLICATION, STANDALONE_DETAIL);
     }
     return found;
   }
@@ -158,10 +173,10 @@ export function createMockReplication(options: MockReplicationOptions): MockRepl
   function requireSet(connectionId: string): MockSet {
     const mode = modeOf(connectionId);
     if (mode === 'standalone') {
-      throw fail('COMMAND_FAILED', 'The server rejected the command', STANDALONE_DETAIL);
+      throw serverRefusal(NO_REPLICATION, STANDALONE_DETAIL);
     }
     if (mode === 'uninitiated') {
-      throw fail('COMMAND_FAILED', 'The server rejected the command', UNINITIATED_DETAIL);
+      throw serverRefusal(NOT_INITIALISED, UNINITIATED_DETAIL);
     }
     return setOf(connectionId);
   }
@@ -362,6 +377,11 @@ export function createMockReplication(options: MockReplicationOptions): MockRepl
       guard(connectionId);
       return statusOf(requireSet(connectionId));
     }),
+    selfHost: method(rpcContract.replication.selfHost, latencyMs, ({ connectionId }) => {
+      guard(connectionId);
+      // A node names itself by the address it listens on. The mock's local node is MOCK_HOST.
+      return { host: MOCK_HOST };
+    }),
     getConfig: method(rpcContract.replication.getConfig, latencyMs, ({ connectionId }) => {
       guard(connectionId);
       return configOf(requireSet(connectionId));
@@ -409,6 +429,14 @@ export function createMockReplication(options: MockReplicationOptions): MockRepl
       ({ connectionId, stepDownSeconds }) => {
         guard(connectionId);
         const set = requireSet(connectionId);
+        // The contract refuses anything under the minimum before this runs. The check here keeps the
+        // server's rule next to the mock: the step-down must outlast the 10 second catch-up.
+        if (stepDownSeconds <= DEFAULT_CATCH_UP_SECONDS) {
+          throw fail(
+            'VALIDATION',
+            `The step-down period must be longer than the catch-up period of ${DEFAULT_CATCH_UP_SECONDS} seconds`,
+          );
+        }
         if (stepDownSeconds > MAX_STEP_DOWN) {
           throw fail('VALIDATION', 'Step down at most 3600 seconds');
         }
@@ -439,7 +467,7 @@ export function createMockReplication(options: MockReplicationOptions): MockRepl
       ({ connectionId, setName, members }) => {
         guard(connectionId);
         if (modeOf(connectionId) !== 'uninitiated') {
-          throw fail('COMMAND_FAILED', 'The server rejected the command', 'already initialized');
+          throw serverRefusal(ALREADY_INITIALISED, 'already initialized');
         }
         const self =
           members.find((member) => member.host === MOCK_HOST)?.host ??

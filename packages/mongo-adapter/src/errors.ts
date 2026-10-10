@@ -26,7 +26,8 @@ export function mapDriverError(error: unknown): AppError {
   }
   // A server reply that is not an auth failure means the server answered and refused the command.
   if (error instanceof MongoServerError) {
-    return appError('COMMAND_FAILED', 'The server rejected the command', detail);
+    const failure = appError('COMMAND_FAILED', 'The server rejected the command', detail);
+    return error.codeName === undefined ? failure : { ...failure, codeName: error.codeName };
   }
   return appError('CONNECTION_FAILED', 'Could not connect to the server', detail);
 }

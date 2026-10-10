@@ -118,6 +118,7 @@ import {
   ReplicationInitiateInputSchema,
   ReplicationPlanInputSchema,
   ReplicationPlanOutputSchema,
+  ReplicationSelfOutputSchema,
   ReplicationStatusOutputSchema,
   ReplicationStepDownInputSchema,
   ReplicationStepDownOutputSchema,
@@ -274,6 +275,7 @@ export const rpcContract = {
   replication: {
     getStatus: defineCall(ReplicationConnectionInputSchema, ReplicationStatusOutputSchema),
     getConfig: defineCall(ReplicationConnectionInputSchema, ReplicationConfigOutputSchema),
+    selfHost: defineCall(ReplicationConnectionInputSchema, ReplicationSelfOutputSchema),
     planReconfig: defineCall(ReplicationPlanInputSchema, ReplicationPlanOutputSchema),
     applyReconfig: defineCall(ReplicationApplyInputSchema, z.void()),
     stepDown: defineCall(ReplicationStepDownInputSchema, ReplicationStepDownOutputSchema),

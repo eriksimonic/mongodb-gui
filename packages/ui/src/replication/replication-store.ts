@@ -30,10 +30,19 @@ export interface ReplicationState {
   readonly pending: PendingPlan | undefined;
   /** Set when an apply failed because the configuration moved after the plan was made. */
   readonly stale: boolean;
+  /**
+   * Set when the last read failed. The status on screen may no longer match the set, so the
+   * actions that change the set stay disabled until a read succeeds.
+   */
+  readonly statusStale: boolean;
+  /** The host the node names itself by. Starts an initiate with the node's own address. */
+  readonly selfHost: string | undefined;
 }
 
 export interface ReplicationActions {
   refresh(): Promise<void>;
+  /** Reads the node's own host. A failure leaves it unknown, and the dialog asks for it instead. */
+  loadSelfHost(): Promise<void>;
   setAutoRefresh(enabled: boolean): void;
   /** Steps the connected primary down. Resolves with the member that took over. */
   stepDown(seconds: number): Promise<string>;
@@ -49,6 +58,15 @@ export interface ReplicationActions {
 export type ReplicationStore = StoreApi<ReplicationState & ReplicationActions>;
 
 export const AUTO_REFRESH_MS = 5000;
+
+/** Refuses a change while the last read failed. The change would rest on a status that may be old. */
+function requireFreshStatus(statusStale: boolean): void {
+  if (statusStale) {
+    throw new AppErrorException(
+      appError('VALIDATION', 'The status could not be read. Refresh before changing the set.'),
+    );
+  }
+}
 
 /**
  * The state of one replication panel. The panel calls the replication namespace through the api.
@@ -75,15 +93,28 @@ export function createReplicationStore(api: UiApi, connectionId: string): Replic
       autoRefresh: false,
       pending: undefined,
       stale: false,
+      statusStale: false,
+      selfHost: undefined,
 
       async refresh() {
         set({ loading: true });
         try {
           await readSet();
+          set({ statusStale: false });
         } catch (failure) {
-          set({ error: toAppError(failure) });
+          set({ error: toAppError(failure), statusStale: true });
         } finally {
           set({ loading: false });
+        }
+      },
+
+      async loadSelfHost() {
+        try {
+          const { host } = await rpc.replication.selfHost({ connectionId });
+          set({ selfHost: host ?? undefined });
+        } catch {
+          // The node may not answer hello yet. The dialog then starts with an empty host.
+          set({ selfHost: undefined });
         }
       },
 
@@ -92,6 +123,7 @@ export function createReplicationStore(api: UiApi, connectionId: string): Replic
       },
 
       async stepDown(seconds) {
+        requireFreshStatus(get().statusStale);
         const { primary } = await rpc.replication.stepDown({
           connectionId,
           stepDownSeconds: seconds,
@@ -101,11 +133,13 @@ export function createReplicationStore(api: UiApi, connectionId: string): Replic
       },
 
       async freeze(seconds) {
+        requireFreshStatus(get().statusStale);
         await rpc.replication.freeze({ connectionId, seconds });
         await get().refresh();
       },
 
       async planChange(change) {
+        requireFreshStatus(get().statusStale);
         const { planId, plan } = await rpc.replication.planReconfig({ connectionId, change });
         set({ pending: { planId, plan }, stale: false });
         return plan;

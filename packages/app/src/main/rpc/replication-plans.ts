@@ -18,6 +18,8 @@ export interface ReplicationPlans {
    * unknown, expired, made for another connection, or made from another configuration version.
    */
   take(connectionId: string, planId: string, expectedVersion: number): ReconfigPlan;
+  /** Drops every plan. Runs when the renderer resets, so a page never applies a plan it made. */
+  clear(): void;
 }
 
 /**
@@ -50,6 +52,9 @@ export function createReplicationPlans(now: () => number = Date.now): Replicatio
       const planId = randomUUID();
       plans.set(planId, { connectionId, plan, expiresAt: now() + PLAN_TTL_MS });
       return planId;
+    },
+    clear() {
+      plans.clear();
     },
     take(connectionId, planId, expectedVersion) {
       const stored = plans.get(planId);

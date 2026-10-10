@@ -16,12 +16,10 @@ import { useEffect, useState } from 'react';
 import { useStore } from 'zustand';
 import type { ReplicaSetMember } from '@mongo-gui/core';
 import { useUiApi } from '../api/ui-api';
-import { useAppStore } from '../state/app-store-context';
 import { errorText } from '../components/notify-error';
 import { FreezeDialog, InitiateDialog, StepDownDialog } from './ReplicationDialogs';
 import { MemberDialog, type MemberDialogMode } from './MemberDialogs';
 import {
-  connectionHost,
   electionEvents,
   formatLag,
   isNoReplicationError,
@@ -61,11 +59,13 @@ export function ReplicationPanel({ connectionId }: ReplicationPanelProps) {
   const autoRefresh = useStore(store, (state) => state.autoRefresh);
   const setAutoRefresh = useStore(store, (state) => state.setAutoRefresh);
   const refresh = useStore(store, (state) => state.refresh);
-  const connection = useAppStore((state) => state.statuses[connectionId]);
+  const statusStale = useStore(store, (state) => state.statusStale);
+  const selfHost = useStore(store, (state) => state.selfHost);
   const [dialog, setDialog] = useState<OpenDialog | undefined>(undefined);
 
   useEffect(() => {
     void store.getState().refresh();
+    void store.getState().loadSelfHost();
   }, [store]);
 
   useEffect(() => {
@@ -76,7 +76,6 @@ export function ReplicationPanel({ connectionId }: ReplicationPanelProps) {
     return () => clearInterval(timer);
   }, [autoRefresh, store]);
 
-  const hosts = connection?.state === 'connected' ? connection.hosts : [];
   const uninitiated = status === undefined && isUninitiatedError(error);
   const standalone = status === undefined && isNoReplicationError(error);
   const self = status?.members.find((member) => member.self);
@@ -126,7 +125,7 @@ export function ReplicationPanel({ connectionId }: ReplicationPanelProps) {
                   variant="default"
                   size="xs"
                   color="orange"
-                  disabled={!selfIsPrimary}
+                  disabled={!selfIsPrimary || statusStale}
                   onClick={() => setDialog({ kind: 'stepDown' })}
                 >
                   Step down
@@ -135,6 +134,7 @@ export function ReplicationPanel({ connectionId }: ReplicationPanelProps) {
               <Button
                 size="xs"
                 leftSection={<IconPlus size={14} />}
+                disabled={statusStale}
                 onClick={() => setDialog({ kind: 'member', mode: { kind: 'add' } })}
               >
                 Add member
@@ -190,7 +190,12 @@ export function ReplicationPanel({ connectionId }: ReplicationPanelProps) {
               </Table.Thead>
               <Table.Tbody>
                 {status.members.map((member) => (
-                  <MemberRow key={member.id} member={member} onAction={(next) => setDialog(next)} />
+                  <MemberRow
+                    key={member.id}
+                    member={member}
+                    disabled={statusStale}
+                    onAction={(next) => setDialog(next)}
+                  />
                 ))}
               </Table.Tbody>
             </Table>
@@ -222,7 +227,7 @@ export function ReplicationPanel({ connectionId }: ReplicationPanelProps) {
           setName={status?.setName ?? ''}
           primaryName={primary?.name}
           selfName={self?.name}
-          host={connectionHost(hosts)}
+          defaultHost={selfHost}
           onClose={() => setDialog(undefined)}
         />
       )}
@@ -236,7 +241,7 @@ interface DialogHostProps {
   readonly setName: string;
   readonly primaryName: string | undefined;
   readonly selfName: string | undefined;
-  readonly host: string;
+  readonly defaultHost: string | undefined;
   readonly onClose: () => void;
 }
 
@@ -246,7 +251,7 @@ function DialogHost({
   setName,
   primaryName,
   selfName,
-  host,
+  defaultHost,
   onClose,
 }: DialogHostProps) {
   const state = store.getState();
@@ -270,7 +275,7 @@ function DialogHost({
     case 'initiate':
       return (
         <InitiateDialog
-          host={host}
+          defaultHost={defaultHost}
           onInitiate={(input) => state.initiate(input)}
           onClose={onClose}
         />
@@ -282,10 +287,12 @@ function DialogHost({
 
 interface MemberRowProps {
   readonly member: ReplicaSetMember;
+  /** True while the last read failed. The row's actions stay off until a read succeeds. */
+  readonly disabled: boolean;
   readonly onAction: (dialog: OpenDialog) => void;
 }
 
-function MemberRow({ member, onAction }: MemberRowProps) {
+function MemberRow({ member, disabled, onAction }: MemberRowProps) {
   const meaning = memberMeaning(member);
   const tags = Object.entries(member.tags)
     .map(([key, value]) => `${key}=${value}`)
@@ -323,6 +330,7 @@ function MemberRow({ member, onAction }: MemberRowProps) {
           <Button
             size="compact-xs"
             variant="default"
+            disabled={disabled}
             onClick={() => onAction({ kind: 'member', mode: { kind: 'edit', member } })}
           >
             Edit
@@ -331,6 +339,7 @@ function MemberRow({ member, onAction }: MemberRowProps) {
             size="compact-xs"
             variant="default"
             color="red"
+            disabled={disabled}
             onClick={() => onAction({ kind: 'member', mode: { kind: 'remove', member } })}
           >
             Remove
@@ -339,6 +348,7 @@ function MemberRow({ member, onAction }: MemberRowProps) {
             <Button
               size="compact-xs"
               variant="default"
+              disabled={disabled}
               onClick={() => onAction({ kind: 'freeze' })}
             >
               Freeze

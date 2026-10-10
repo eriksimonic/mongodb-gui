@@ -1,5 +1,8 @@
 import type { AppError, ReplicaSetMember, ReplicaSetStatus } from '@mongo-gui/core';
 
+const NOT_INITIALISED_CODE_NAME = 'NotYetInitialized';
+const NO_REPLICATION_CODE_NAME = 'NoReplicationEnabled';
+
 /** What a member's state means to a reader. The colour follows from it. */
 export type MemberMeaning = 'primary' | 'secondary' | 'arbiter' | 'recovering' | 'down';
 
@@ -132,21 +135,27 @@ function isRecord(value: unknown): value is Record<string, unknown> {
 }
 
 /**
- * True when the server reports that the node has no replica set configuration. The adapter passes
- * the driver's text through as the detail, so the match is on the server's wording.
+ * True when the server reports that the node has no replica set configuration. The server's error
+ * name decides. The wording of the detail is the fallback for an error without a name.
  */
 export function isUninitiatedError(error: AppError | undefined): boolean {
-  return error !== undefined && /no replset config/i.test(error.detail ?? '');
+  if (error === undefined) {
+    return false;
+  }
+  return (
+    error.codeName === NOT_INITIALISED_CODE_NAME || /no replset config/i.test(error.detail ?? '')
+  );
 }
 
 /** True when the server is running without --replSet, so it has no set to show. */
 export function isNoReplicationError(error: AppError | undefined): boolean {
-  return error !== undefined && /not running with --replSet/i.test(error.detail ?? '');
-}
-
-/** The host a new set starts with: the one the connection points at. */
-export function connectionHost(hosts: readonly string[]): string {
-  return hosts[0] ?? 'localhost:27017';
+  if (error === undefined) {
+    return false;
+  }
+  return (
+    error.codeName === NO_REPLICATION_CODE_NAME ||
+    /not running with --replSet/i.test(error.detail ?? '')
+  );
 }
 
 /** Key and value rows the tags editor works with. Rows with an empty key are dropped on save. */

@@ -10,6 +10,9 @@ import {
 
 const connectionId = z.uuid();
 
+// The server refuses a step-down that is not longer than the secondary catch-up period, which it
+// defaults to 10 seconds. The shortest step-down the UI offers is therefore 11 seconds.
+export const MIN_STEP_DOWN_SECONDS = 11;
 // The longest step-down the UI offers. A step-down that long leaves the set without a primary for
 // most of an hour.
 export const MAX_STEP_DOWN_SECONDS = 3600;
@@ -18,7 +21,12 @@ export const ReplicationConnectionInputSchema = z.object({ connectionId });
 
 export const ReplicationStepDownInputSchema = z.object({
   connectionId,
-  stepDownSeconds: z.number().int().min(0).max(MAX_STEP_DOWN_SECONDS).default(60),
+  stepDownSeconds: z
+    .number()
+    .int()
+    .min(MIN_STEP_DOWN_SECONDS)
+    .max(MAX_STEP_DOWN_SECONDS)
+    .default(60),
 });
 
 export const ReplicationStepDownOutputSchema = z.object({
@@ -52,4 +60,9 @@ export const ReplicationApplyInputSchema = z.object({
 export const ReplicationInitiateInputSchema = z.object({ connectionId }).and(InitiateInputSchema);
 
 export const ReplicationStatusOutputSchema = ReplicaSetStatusSchema;
+
+export const ReplicationSelfOutputSchema = z.object({
+  // The host the node names itself by, or null when the reply does not name one.
+  host: z.string().min(1).nullable(),
+});
 export const ReplicationConfigOutputSchema = ReplicaSetConfigSchema;

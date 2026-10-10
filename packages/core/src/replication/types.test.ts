@@ -97,6 +97,49 @@ describe('member inputs', () => {
     expect(AddMemberInputSchema.safeParse({ host: 'mongo3:27017' }).success).toBe(true);
   });
 
+  it('accepts host:port and a bracketed IPv6 address with a port', () => {
+    for (const host of [
+      'db4.example.net:27017',
+      'localhost:27018',
+      '10.0.0.5:1',
+      '[::1]:27017',
+      '[2001:db8::7334]:65535',
+      '[::ffff:10.0.0.5]:27017',
+    ]) {
+      expect(AddMemberInputSchema.safeParse({ host }).success, host).toBe(true);
+    }
+  });
+
+  it('refuses credentials, an options query, a path and a space', () => {
+    for (const host of [
+      'user:pass@db4:27017',
+      'db4:27017?authSource=admin',
+      'db4:27017/admin',
+      'db 4:27017',
+      'db4:27017 ',
+    ]) {
+      expect(AddMemberInputSchema.safeParse({ host }).success, host).toBe(false);
+    }
+  });
+
+  it('refuses a second colon outside brackets and an IPv6 address without brackets', () => {
+    for (const host of ['db4:27017:1', '::1:27017', '2001:db8::1:27017', 'db4:']) {
+      expect(AddMemberInputSchema.safeParse({ host }).success, host).toBe(false);
+    }
+  });
+
+  it('refuses a missing port and a port outside 1 to 65535', () => {
+    for (const host of ['db4', 'db4:0', 'db4:65536', 'db4:port', '[::1]', '[::1]:0']) {
+      expect(AddMemberInputSchema.safeParse({ host }).success, host).toBe(false);
+    }
+  });
+
+  it('refuses a hostname with characters other than letters, digits, dots and hyphens', () => {
+    for (const host of ['db_4:27017', 'db4..net:27017', '.db4:27017', 'db4$:27017']) {
+      expect(AddMemberInputSchema.safeParse({ host }).success, host).toBe(false);
+    }
+  });
+
   it('rejects an empty host and a host with a space', () => {
     expect(AddMemberInputSchema.safeParse({ host: '' }).success).toBe(false);
     expect(AddMemberInputSchema.safeParse({ host: 'mongo 3' }).success).toBe(false);

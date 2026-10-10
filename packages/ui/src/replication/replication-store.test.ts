@@ -1,4 +1,5 @@
-import { describe, expect, it } from 'vitest';
+import { describe, expect, it, vi } from 'vitest';
+import { AppErrorException, appError } from '@mongo-gui/core';
 import { localConnectionId } from '../api/mock-fixtures';
 import { createMockUiApi } from '../api/mock-rpc-client';
 import type { UiApi } from '../api/ui-api';
@@ -113,5 +114,42 @@ describe('replication store', () => {
     expect(store.getState().autoRefresh).toBe(true);
     store.getState().setAutoRefresh(false);
     expect(store.getState().autoRefresh).toBe(false);
+  });
+
+  it('marks the status stale when a read fails and refuses changes until a read succeeds', async () => {
+    const api = await replicaSetApi();
+    const store = createReplicationStore(api, localConnectionId);
+    await store.getState().refresh();
+    const before = store.getState().status;
+
+    vi.spyOn(api.rpc.replication, 'getStatus').mockRejectedValueOnce(
+      new AppErrorException(appError('CONNECTION_FAILED', 'Could not connect to the server')),
+    );
+    await store.getState().refresh();
+    expect(store.getState().statusStale).toBe(true);
+    expect(store.getState().error?.code).toBe('CONNECTION_FAILED');
+    expect(store.getState().status).toBe(before);
+
+    const stepDown = vi.spyOn(api.rpc.replication, 'stepDown');
+    await expect(store.getState().stepDown(60)).rejects.toMatchObject({
+      error: { code: 'VALIDATION' },
+    });
+    await expect(store.getState().freeze(10)).rejects.toMatchObject({
+      error: { code: 'VALIDATION' },
+    });
+    await expect(store.getState().planChange(ADD_ARBITER)).rejects.toMatchObject({
+      error: { code: 'VALIDATION' },
+    });
+    expect(stepDown).not.toHaveBeenCalled();
+
+    await store.getState().refresh();
+    expect(store.getState().statusStale).toBe(false);
+    expect(store.getState().error).toBeUndefined();
+  });
+
+  it('reads the host the node names itself by', async () => {
+    const store = createReplicationStore(await replicaSetApi(), localConnectionId);
+    await store.getState().loadSelfHost();
+    expect(store.getState().selfHost).toBe('localhost:27017');
   });
 });

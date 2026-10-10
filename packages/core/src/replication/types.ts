@@ -6,16 +6,26 @@ export const MAX_REPLICA_SET_MEMBERS = 50;
 export const MAX_VOTING_MEMBERS = 7;
 export const MAX_MEMBER_PRIORITY = 1000;
 const MAX_MEMBER_ID = 255;
+const MAX_PORT = 65535;
 
 const NonNegativeInt = z.number().int().nonnegative();
 const MemberIdSchema = z.number().int().min(0).max(MAX_MEMBER_ID);
-const HostSchema = z
-  .string()
-  .trim()
-  .min(1)
-  .refine((value) => !/[\s/]/.test(value), {
-    message: 'Hosts may not contain spaces or slashes',
-  });
+// A host is host:port, or [address]:port for IPv6. A user name, a query string, a path or a space
+// would carry credentials or options into the configuration, so the pattern refuses them.
+const HOST_PATTERN = /^(?:\[[0-9A-Fa-f:.]+\]|[A-Za-z0-9-]+(?:\.[A-Za-z0-9-]+)*):(\d{1,5})$/;
+const HostSchema = z.string().refine(isHostPort, {
+  message:
+    'Hosts take the form host:port with a port from 1 to 65535, such as db4.example.net:27017',
+});
+
+function isHostPort(value: string): boolean {
+  const match = HOST_PATTERN.exec(value);
+  if (match === null) {
+    return false;
+  }
+  const port = Number(match[1]);
+  return port >= 1 && port <= MAX_PORT;
+}
 const PrioritySchema = z.number().min(0).max(MAX_MEMBER_PRIORITY);
 const VotesSchema = z.number().int().min(0).max(1, { message: 'Votes must be 0 or 1' });
 const TagsSchema = z.record(z.string(), z.string());

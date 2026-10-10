@@ -124,6 +124,16 @@ describe('mapDriverError', () => {
       code: 'COMMAND_FAILED',
       message: 'The server rejected the command',
       detail: 'driver says no',
+      codeName: 'Unauthorized',
+    });
+  });
+
+  it('keeps the server error name so callers can tell a server state by code', () => {
+    const error = serverError(94, 'NotYetInitialized');
+    expect(mapDriverError(error)).toMatchObject({
+      code: 'COMMAND_FAILED',
+      message: 'The server rejected the command',
+      codeName: 'NotYetInitialized',
     });
   });
 

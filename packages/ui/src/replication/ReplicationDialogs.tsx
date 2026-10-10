@@ -1,6 +1,11 @@
 import { Alert, Button, Group, Modal, NumberInput, Stack, Text, TextInput } from '@mantine/core';
 import { useState, type ReactNode } from 'react';
-import { MAX_STEP_DOWN_SECONDS, type InitiateMemberInput } from '@mongo-gui/core';
+import {
+  AddMemberInputSchema,
+  MAX_STEP_DOWN_SECONDS,
+  MIN_STEP_DOWN_SECONDS,
+  type InitiateMemberInput,
+} from '@mongo-gui/core';
 import { errorText } from '../components/notify-error';
 
 export interface ActionModalProps {
@@ -103,7 +108,7 @@ export function StepDownDialog({ primary, onStepDown, onClose }: StepDownDialogP
       title="Step down primary"
       confirmLabel="Step down"
       confirmColor="orange"
-      confirmDisabled={!isSeconds(seconds, MAX_STEP_DOWN_SECONDS)}
+      confirmDisabled={!inRange(seconds, MIN_STEP_DOWN_SECONDS, MAX_STEP_DOWN_SECONDS)}
       onConfirm={async () => {
         await onStepDown(seconds);
       }}
@@ -115,8 +120,9 @@ export function StepDownDialog({ primary, onStepDown, onClose }: StepDownDialogP
       </Text>
       <NumberInput
         label="Seconds"
+        description={`At least ${MIN_STEP_DOWN_SECONDS}: the server needs longer than its 10 second catch-up.`}
         value={seconds}
-        min={0}
+        min={MIN_STEP_DOWN_SECONDS}
         max={MAX_STEP_DOWN_SECONDS}
         onChange={(value) => setSeconds(Number(value))}
         allowDecimal={false}
@@ -139,7 +145,7 @@ export function FreezeDialog({ member, onFreeze, onClose }: FreezeDialogProps) {
       title="Freeze member"
       confirmLabel="Freeze"
       confirmColor="orange"
-      confirmDisabled={!isSeconds(seconds, MAX_STEP_DOWN_SECONDS)}
+      confirmDisabled={!inRange(seconds, 0, MAX_STEP_DOWN_SECONDS)}
       onConfirm={() => onFreeze(seconds)}
       onClose={onClose}
     >
@@ -159,7 +165,8 @@ export function FreezeDialog({ member, onFreeze, onClose }: FreezeDialogProps) {
 }
 
 export interface InitiateDialogProps {
-  readonly host: string;
+  /** The node's own host from its hello reply. Undefined while it is unknown. */
+  readonly defaultHost: string | undefined;
   readonly onInitiate: (input: {
     setName: string;
     members: InitiateMemberInput[];
@@ -171,22 +178,27 @@ export interface InitiateDialogProps {
  * Starts a set on a standalone node started with --replSet. The set begins with the one member,
  * the node the connection points at. More members are added after the set is up.
  */
-export function InitiateDialog({ host, onInitiate, onClose }: InitiateDialogProps) {
+export function InitiateDialog({ defaultHost, onInitiate, onClose }: InitiateDialogProps) {
   const [setName, setSetName] = useState('rs0');
+  // The node's own address arrives after the dialog opens. It shows until the user types a host.
+  const [typedHost, setTypedHost] = useState<string | undefined>(undefined);
+  const host = typedHost ?? defaultHost ?? '';
   const setNameValid = /^[A-Za-z0-9_-]+$/.test(setName);
+  const hostCheck = AddMemberInputSchema.shape.host.safeParse(host);
+  const hostError = hostCheck.success ? undefined : hostCheck.error.issues[0]?.message;
   return (
     <ActionModal
       title="Initiate replica set"
       confirmLabel="Initiate"
-      confirmDisabled={!setNameValid}
+      confirmDisabled={!setNameValid || !hostCheck.success}
       typedConfirmation={setName}
-      onConfirm={() => onInitiate({ setName, members: [{ host }] })}
+      onConfirm={() => onInitiate({ setName, members: [{ host: host.trim() }] })}
       onClose={onClose}
     >
       <Text size="sm">
-        Start the set {setName || '(unnamed)'} with {host} as its only member. The node elects
-        itself primary. This writes the configuration to the node and cannot be undone from this
-        panel.
+        Start the set {setName || '(unnamed)'} with {host || 'the node'} as its only member. The
+        node elects itself primary. This writes the configuration to the node and cannot be undone
+        from this panel. Add the other members after the set is up.
       </Text>
       <TextInput
         label="Set name"
@@ -196,10 +208,21 @@ export function InitiateDialog({ host, onInitiate, onClose }: InitiateDialogProp
         autoComplete="off"
         spellCheck={false}
       />
+      <TextInput
+        label="Host"
+        description="The address other members use to reach this node."
+        value={host}
+        error={host === '' ? undefined : hostError}
+        onChange={(event) => {
+          setTypedHost(event.currentTarget.value);
+        }}
+        autoComplete="off"
+        spellCheck={false}
+      />
     </ActionModal>
   );
 }
 
-function isSeconds(value: number, max: number): boolean {
-  return Number.isInteger(value) && value >= 0 && value <= max;
+function inRange(value: number, min: number, max: number): boolean {
+  return Number.isInteger(value) && value >= min && value <= max;
 }

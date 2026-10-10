@@ -1,6 +1,7 @@
 // @vitest-environment jsdom
 import { fireEvent, screen, waitFor, within } from '@testing-library/react';
 import { describe, expect, it, vi } from 'vitest';
+import { AppErrorException, appError } from '@mongo-gui/core';
 import { localConnectionId } from '../api/mock-fixtures';
 import { createMockUiApi } from '../api/mock-rpc-client';
 import type { UiApi } from '../api/ui-api';
@@ -175,5 +176,86 @@ describe('ReplicationPanel', () => {
     fireEvent.click(within(dialog()).getByRole('button', { name: 'Initiate' }));
 
     expect(await screen.findByText('Replica set rs1')).toBeInTheDocument();
+  });
+
+  it('disables the actions that change the set after a failed refresh', async () => {
+    const api = await replicaSetApi();
+    renderPanel(api);
+    await waitForMembers(3);
+    expect(screen.getByRole('button', { name: 'Step down' })).toBeEnabled();
+
+    vi.spyOn(api.rpc.replication, 'getStatus').mockRejectedValueOnce(
+      new AppErrorException(appError('CONNECTION_FAILED', 'Could not connect to the server')),
+    );
+    fireEvent.click(screen.getByRole('button', { name: 'Refresh' }));
+
+    expect(await screen.findByText('Could not connect to the server')).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Step down' })).toBeDisabled();
+    expect(screen.getByRole('button', { name: 'Add member' })).toBeDisabled();
+    expect(
+      within(memberRow('localhost:27018')).getByRole('button', { name: 'Edit' }),
+    ).toBeDisabled();
+    expect(
+      within(memberRow('localhost:27018')).getByRole('button', { name: 'Remove' }),
+    ).toBeDisabled();
+
+    fireEvent.click(screen.getByRole('button', { name: 'Refresh' }));
+    await waitFor(() => expect(screen.getByRole('button', { name: 'Step down' })).toBeEnabled());
+  });
+
+  it('keeps the step-down minimum at 11 seconds', async () => {
+    const api = await replicaSetApi();
+    renderPanel(api);
+    await waitForMembers(3);
+
+    fireEvent.click(screen.getByRole('button', { name: 'Step down' }));
+    const seconds = within(dialog()).getByLabelText('Seconds');
+    const confirm = within(dialog()).getByRole('button', { name: 'Step down' });
+    fireEvent.change(seconds, { target: { value: '10' } });
+    expect(confirm).toBeDisabled();
+    fireEvent.change(seconds, { target: { value: '11' } });
+    expect(confirm).toBeEnabled();
+  });
+
+  it('starts the initiate host from the node and sends the host the user edits', async () => {
+    const api = createMockUiApi({ preset: 'unlocked', replSetUninitiated: true });
+    await api.rpc.connections.connect({ id: localConnectionId });
+    const spy = vi.spyOn(api.rpc.replication, 'initiate');
+    renderPanel(api);
+
+    await screen.findByText('No replica set yet');
+    fireEvent.click(screen.getByRole('button', { name: 'Initiate' }));
+    const host = within(dialog()).getByLabelText('Host');
+    await waitFor(() => expect(host).toHaveValue('localhost:27017'));
+
+    fireEvent.change(host, { target: { value: 'db4.example.net:27017' } });
+    fireEvent.change(within(dialog()).getByLabelText('Type rs0 to confirm'), {
+      target: { value: 'rs0' },
+    });
+    fireEvent.click(within(dialog()).getByRole('button', { name: 'Initiate' }));
+
+    await waitFor(() =>
+      expect(spy).toHaveBeenCalledWith({
+        connectionId: localConnectionId,
+        setName: 'rs0',
+        members: [{ host: 'db4.example.net:27017' }],
+      }),
+    );
+  });
+
+  it('refuses an initiate host that is not host:port', async () => {
+    const api = createMockUiApi({ preset: 'unlocked', replSetUninitiated: true });
+    await api.rpc.connections.connect({ id: localConnectionId });
+    renderPanel(api);
+
+    await screen.findByText('No replica set yet');
+    fireEvent.click(screen.getByRole('button', { name: 'Initiate' }));
+    const host = within(dialog()).getByLabelText('Host');
+    await waitFor(() => expect(host).toHaveValue('localhost:27017'));
+    fireEvent.change(host, { target: { value: 'user:pw@db4:27017' } });
+    fireEvent.change(within(dialog()).getByLabelText('Type rs0 to confirm'), {
+      target: { value: 'rs0' },
+    });
+    expect(within(dialog()).getByRole('button', { name: 'Initiate' })).toBeDisabled();
   });
 });

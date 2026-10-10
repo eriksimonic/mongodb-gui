@@ -66,6 +66,7 @@ import {
   listIndexes,
   getReplicaSetConfig,
   getReplicaSetStatus,
+  getSelfHost,
   applyReconfig,
   freeze,
   initiate,
@@ -303,6 +304,8 @@ type CatalogScope = Omit<Extract<RpcEvent, { type: 'catalog:changed' }>, 'type' 
 const KEYRING_DIR_MODE = 0o700;
 const MS_PER_MINUTE = 60_000;
 const STORE_FILE_NAME = 'store.sqlite';
+// The server's default secondary catch-up period, in seconds.
+const DEFAULT_CATCH_UP_SECONDS = 10;
 
 export function createRouter(deps: RouterDeps): Router {
   let active: StoreHandles = { store: deps.store, repos: deps.repos };
@@ -313,6 +316,10 @@ export function createRouter(deps: RouterDeps): Router {
   const tails = new Map<string, ActiveTail>();
   // Per-renderer cleanups. Tails register first; other services join the same registry.
   const rendererResets = new Set<() => void>();
+  // Plans belong to the page that made them. A reset drops them, so a reloaded page cannot apply one.
+  rendererResets.add(() => {
+    replicationPlans.clear();
+  });
   const profilerClient = (connectionId: string): DriverClient =>
     deps.connections.getClient(connectionId);
 
@@ -765,6 +772,11 @@ export function createRouter(deps: RouterDeps): Router {
     entry('replication.getConfig', rpcContract.replication.getConfig, (input) =>
       driverCall(() => getReplicaSetConfig(deps.connections.getClient(input.connectionId))),
     ),
+    entry('replication.selfHost', rpcContract.replication.selfHost, (input) =>
+      driverCall(async () => ({
+        host: (await getSelfHost(deps.connections.getClient(input.connectionId))) ?? null,
+      })),
+    ),
     entry('replication.planReconfig', rpcContract.replication.planReconfig, (input) =>
       driverCall(async () => {
         const client = deps.connections.getClient(input.connectionId);
@@ -782,8 +794,11 @@ export function createRouter(deps: RouterDeps): Router {
     ),
     entry('replication.stepDown', rpcContract.replication.stepDown, (input) =>
       driverCall(async () => ({
+        // The server needs the step-down longer than the catch-up period. The UI's minimum leaves
+        // room for the default 10 seconds of catch-up.
         primary: await stepDown(deps.connections.getClient(input.connectionId), {
           stepDownSeconds: input.stepDownSeconds,
+          secondaryCatchUpSeconds: Math.min(DEFAULT_CATCH_UP_SECONDS, input.stepDownSeconds - 1),
         }),
       })),
     ),
