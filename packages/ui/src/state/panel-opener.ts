@@ -1,13 +1,22 @@
 import { createContext, useContext } from 'react';
 
 /** Panels a connection can open in the centre group. */
-export type PanelKind = 'monitor' | 'operations';
+export type ConnectionPanelKind = 'monitor' | 'operations';
 
-export interface PanelRequest {
-  readonly kind: PanelKind;
+export interface ConnectionPanelRequest {
+  readonly kind: ConnectionPanelKind;
   readonly connectionId: string;
   readonly connectionName: string;
 }
+
+/** The users and roles panel of one database. The admin database is the one connection-level entry. */
+export interface UsersPanelRequest {
+  readonly kind: 'users';
+  readonly connectionId: string;
+  readonly database: string;
+}
+
+export type PanelRequest = ConnectionPanelRequest | UsersPanelRequest;
 
 export type OpenPanel = (request: PanelRequest) => void;
 

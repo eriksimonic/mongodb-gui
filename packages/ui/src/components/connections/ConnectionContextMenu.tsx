@@ -5,6 +5,9 @@ import { useAppStore } from '../../state/app-store-context';
 import { usePanelOpener } from '../../state/panel-opener';
 import { runReported } from '../notify-error';
 
+/** The database that holds the server's users and roles. */
+const ADMIN_DATABASE = 'admin';
+
 export interface ConnectionContextMenuProps {
   readonly connection: ConnectionProfileSummary;
   readonly status: ConnectionStatus;
@@ -90,6 +93,15 @@ export function ConnectionContextMenu({
           }}
         >
           New database
+        </Menu.Item>
+        <Menu.Item
+          disabled={status.state !== 'connected'}
+          onClick={() => {
+            onClose();
+            openPanel({ kind: 'users', connectionId: connection.id, database: ADMIN_DATABASE });
+          }}
+        >
+          Users and roles
         </Menu.Item>
         <Menu.Item
           onClick={() => {

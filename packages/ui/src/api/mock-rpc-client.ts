@@ -39,6 +39,7 @@ import {
   type MockDatabase,
 } from './mock-catalog';
 import { createManagementCalls } from './mock-management';
+import { createSecurityCalls, fixtureSecurity, type MockSecurity } from './mock-security';
 import {
   fixtureConnections,
   DOCKER_PROFILE_ID,
@@ -104,6 +105,8 @@ interface MockState {
   /** Databases and collections per connection id. Mutated by the management calls. */
   catalogs: Map<string, MockDatabase[]>;
   builds: Map<string, MockBuild[]>;
+  /** Users and custom roles per connection id. Created on first use. */
+  security: Map<string, MockSecurity>;
   dockerAvailable: boolean;
   dockerContainers: DockerMongoContainerSummary[];
   updateStates: readonly UpdateState[];
@@ -133,6 +136,7 @@ function initialState(preset: MockPreset): MockState {
     layout: new Map(),
     catalogs: new Map(),
     builds: new Map(),
+    security: new Map(),
     dockerAvailable: true,
     dockerContainers: fixtureDockerContainers(),
     updateStates: [DEFAULT_UPDATE_STATE],
@@ -434,6 +438,18 @@ export function createMockUiApi(options: MockUiApiOptions = {}): UiApi {
     requireUnlocked();
     requireConnected(connectionId);
   }
+
+  function securityOf(connectionId: string): MockSecurity {
+    const key = catalogSource(connectionId);
+    let security = state.security.get(key);
+    if (security === undefined) {
+      security = fixtureSecurity();
+      state.security.set(key, security);
+    }
+    return security;
+  }
+
+  const security = createSecurityCalls({ latencyMs, guard, securityOf });
 
   const management = createManagementCalls({
     latencyMs,
@@ -755,6 +771,7 @@ export function createMockUiApi(options: MockUiApiOptions = {}): UiApi {
       }),
     },
     management,
+    security,
     settings: {
       get: method(rpcContract.settings.get, latencyMs, () => {
         requireUnlocked();

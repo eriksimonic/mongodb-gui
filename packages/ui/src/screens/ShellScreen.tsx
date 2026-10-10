@@ -34,8 +34,13 @@ import { UpdateBanner } from '../components/updates/UpdateBanner';
 import { ProfilerOpenerContext, type ProfilerOpener } from '../profiler/profiler-opener';
 import type { PanelRequest } from '../state/app-store';
 import { useAppStore } from '../state/app-store-context';
-import { PanelOpenerContext, type OpenPanel } from '../state/panel-opener';
-import { profilerPanelId } from '../state/node-ids';
+import {
+  PanelOpenerContext,
+  type ConnectionPanelRequest,
+  type OpenPanel,
+  type UsersPanelRequest,
+} from '../state/panel-opener';
+import { profilerPanelId, usersPanelId } from '../state/node-ids';
 import { databasePanelIds, restoredCollectionRequest, stalePanelIds } from './collection-panels';
 import { createLayoutSaver, loadDockLayout, restoreDockLayout } from './dock-layout';
 import {
@@ -49,6 +54,7 @@ import {
   OutputPanel,
   ProfilerDockPanel,
   SchemaDockPanel,
+  UsersDockPanel,
   ValidationDockPanel,
   WelcomePanel,
 } from './ShellPanels';
@@ -65,6 +71,7 @@ const PANEL_COMPONENTS = {
   documents: DocumentsDockPanel,
   explain: ExplainDockPanel,
   schema: SchemaDockPanel,
+  users: UsersDockPanel,
 };
 
 const TAB_COMPONENTS = { fixed: FixedTab };
@@ -177,7 +184,7 @@ function openProfilerPanel(api: DockviewApi, connectionId: string, database: str
  * Opens a connection's monitor or operations panel in the centre group. A panel that is already
  * open is brought to the front, so each connection has at most one of each.
  */
-function openConnectionPanel(api: DockviewApi, request: Parameters<OpenPanel>[0]): void {
+function openConnectionPanel(api: DockviewApi, request: ConnectionPanelRequest): void {
   const id = `${request.kind}:${request.connectionId}`;
   const existing = api.getPanel(id);
   if (existing !== undefined) {
@@ -191,6 +198,29 @@ function openConnectionPanel(api: DockviewApi, request: Parameters<OpenPanel>[0]
     component: request.kind,
     title: `${request.connectionName} ${suffix}`,
     params: { connectionId: request.connectionId },
+    ...(centre === undefined
+      ? {}
+      : { position: { referencePanel: centre, direction: 'within' as const } }),
+  });
+}
+
+/**
+ * Opens the users and roles panel of one database, or focuses it when it is open. One panel per
+ * database, titled "<database> users and roles".
+ */
+function openUsersPanel(api: DockviewApi, request: UsersPanelRequest): void {
+  const id = usersPanelId(request.connectionId, request.database);
+  const existing = api.getPanel(id);
+  if (existing !== undefined) {
+    existing.api.setActive();
+    return;
+  }
+  const centre = api.getPanel('welcome') === undefined ? undefined : 'welcome';
+  api.addPanel({
+    id,
+    component: 'users',
+    title: `${request.database} users and roles`,
+    params: { connectionId: request.connectionId, database: request.database },
     ...(centre === undefined
       ? {}
       : { position: { referencePanel: centre, direction: 'within' as const } }),
@@ -321,7 +351,12 @@ export function ShellScreen() {
   // The revision seen at mount. Only a later change rebuilds the panels, so a remount keeps the layout.
   const seenRevision = useRef(layoutRevision);
   const openPanel = useCallback<OpenPanel>((request) => {
-    if (dockApi.current !== undefined) {
+    if (dockApi.current === undefined) {
+      return;
+    }
+    if (request.kind === 'users') {
+      openUsersPanel(dockApi.current, request);
+    } else {
       openConnectionPanel(dockApi.current, request);
     }
   }, []);

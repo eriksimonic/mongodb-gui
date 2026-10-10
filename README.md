@@ -60,6 +60,10 @@ release.
 | ---------------------------------------------------------------------------------------- |
 | ![Add panel picker with panels grouped by category](docs/screenshots/monitor-picker.png) |
 
+| Users and roles of a database                                                                     |
+| ------------------------------------------------------------------------------------------------- |
+| ![Users and roles panel with the users of a database and their roles](docs/screenshots/users.png) |
+
 | Import wizard, preview and field mapping                                      | Export dialog                                                                     |
 | ----------------------------------------------------------------------------- | --------------------------------------------------------------------------------- |
 | ![Import wizard at the preview and mapping step](docs/screenshots/import.png) | ![Export dialog with a filter and the NDJSON format](docs/screenshots/export.png) |
