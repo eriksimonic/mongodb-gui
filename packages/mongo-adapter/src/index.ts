@@ -63,5 +63,10 @@ export {
   type ApplyOptions,
 } from './replication/reconfig';
 export { freeze, initiate, stepDown } from './replication/operations';
-export { getReplicaSetConfig, getReplicaSetStatus, isReplicaSet } from './replication/status';
+export {
+  getReplicaSetConfig,
+  getReplicaSetStatus,
+  getSelfHost,
+  isReplicaSet,
+} from './replication/status';
 export * from './sharding/index';

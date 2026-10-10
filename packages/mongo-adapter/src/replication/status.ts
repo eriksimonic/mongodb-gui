@@ -61,6 +61,17 @@ export async function getReplicaSetConfig(client: MongoClient): Promise<ReplicaS
   }
 }
 
+// The host the connection reached the node by, as the node names itself in its hello reply. A node
+// behind a port mapping reports the address it listens on, so this can differ from the URI.
+export async function getSelfHost(client: MongoClient): Promise<string | undefined> {
+  try {
+    const hello: unknown = await client.db('admin').command({ hello: 1 });
+    return readString(hello, 'me');
+  } catch (error) {
+    throw new AppErrorException(mapDriverError(error));
+  }
+}
+
 // A failed oplog read leaves the window out of the status rather than failing the whole read.
 async function readOplogEdge(client: MongoClient, direction: 1 | -1): Promise<unknown> {
   try {

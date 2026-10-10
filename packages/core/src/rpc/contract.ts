@@ -146,6 +146,19 @@ import {
   SecurityRoleListInputSchema,
   SecurityUserListInputSchema,
 } from '../security/calls';
+import {
+  ReplicationApplyInputSchema,
+  ReplicationConfigOutputSchema,
+  ReplicationConnectionInputSchema,
+  ReplicationFreezeInputSchema,
+  ReplicationInitiateInputSchema,
+  ReplicationPlanInputSchema,
+  ReplicationPlanOutputSchema,
+  ReplicationSelfOutputSchema,
+  ReplicationStatusOutputSchema,
+  ReplicationStepDownInputSchema,
+  ReplicationStepDownOutputSchema,
+} from '../replication/rpc-schemas';
 import { defineCall, type RpcContract } from './define';
 
 const idParam = z.object({ id: z.uuid() });
@@ -314,6 +327,19 @@ export const rpcContract = {
     ),
     /** Built-in actions from core, grouped by category. Needs no connection. */
     privilegeActions: defineCall(z.void(), PrivilegeActionCatalogSchema),
+  },
+
+  // Reads and changes a replica set through the connection. Only the node a connection points at
+  // takes step-down and freeze. A plan lives in the main process until it is applied or expires.
+  replication: {
+    getStatus: defineCall(ReplicationConnectionInputSchema, ReplicationStatusOutputSchema),
+    getConfig: defineCall(ReplicationConnectionInputSchema, ReplicationConfigOutputSchema),
+    selfHost: defineCall(ReplicationConnectionInputSchema, ReplicationSelfOutputSchema),
+    planReconfig: defineCall(ReplicationPlanInputSchema, ReplicationPlanOutputSchema),
+    applyReconfig: defineCall(ReplicationApplyInputSchema, z.void()),
+    stepDown: defineCall(ReplicationStepDownInputSchema, ReplicationStepDownOutputSchema),
+    freeze: defineCall(ReplicationFreezeInputSchema, z.void()),
+    initiate: defineCall(ReplicationInitiateInputSchema, z.void()),
   },
   // The sample is read by the shell runtime and the total from the server's metadata.
   schema: {

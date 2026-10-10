@@ -8,6 +8,9 @@ const SOCKET_TIMEOUT_CODE = 'ETIMEDOUT';
 const EMBEDDED_URI = /mongodb(?:\+srv)?:\/\/\S+/gi;
 const MAX_CAUSE_DEPTH = 10;
 
+// The same shape AppErrorSchema accepts. Any other name is dropped rather than carried.
+const CODE_NAME_PATTERN = /^[A-Za-z0-9_]{1,64}$/;
+
 export function mapDriverError(error: unknown): AppError {
   if (error instanceof AppErrorException) {
     return error.error;
@@ -26,7 +29,10 @@ export function mapDriverError(error: unknown): AppError {
   }
   // A server reply that is not an auth failure means the server answered and refused the command.
   if (error instanceof MongoServerError) {
-    return appError('COMMAND_FAILED', 'The server rejected the command', detail);
+    const failure = appError('COMMAND_FAILED', 'The server rejected the command', detail);
+    return error.codeName !== undefined && CODE_NAME_PATTERN.test(error.codeName)
+      ? { ...failure, codeName: error.codeName }
+      : failure;
   }
   return appError('CONNECTION_FAILED', 'Could not connect to the server', detail);
 }

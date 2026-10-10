@@ -70,9 +70,12 @@ inline edits in the tree, and a history and favourites list in the Output panel.
 | ---------------------------------------------------------------------------------------- |
 | ![Add panel picker with panels grouped by category](docs/screenshots/monitor-picker.png) |
 
-| Users and roles of a database                                                                     |
-| ------------------------------------------------------------------------------------------------- |
-| ![Users and roles panel with the users of a database and their roles](docs/screenshots/users.png) |
+| Users and roles of a database                                                                                          |
+| ---------------------------------------------------------------------------------------------------------------------- |
+| ![Users and roles panel with the users of a database and their roles](docs/screenshots/users.png)                      |
+| Replica set members, lag and elections                                                                                 |
+| ---------------------------------------------------------------------------------------------------------------------- |
+| ![Replica set panel with the members table, state badges, lag and the election list](docs/screenshots/replica-set.png) |
 
 | Import wizard, preview and field mapping                                      | Export dialog                                                                     |
 | ----------------------------------------------------------------------------- | --------------------------------------------------------------------------------- |

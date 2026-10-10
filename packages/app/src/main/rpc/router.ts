@@ -71,9 +71,16 @@ import {
   listFiles,
   listIndexBuilds,
   listIndexes,
+  getReplicaSetConfig,
+  getReplicaSetStatus,
+  getSelfHost,
+  applyReconfig,
+  freeze,
+  initiate,
   listProfileEntries,
   mapDriverError,
   previewImport,
+  planReconfig,
   renameCollection,
   renameFile,
   replaceDocument,
@@ -81,6 +88,7 @@ import {
   setFileMetadata,
   setIndexHidden,
   setValidation,
+  stepDown,
   updateDocumentFields,
   profileCollectionInfo,
   setProfilingLevel,
@@ -135,6 +143,7 @@ import {
   type SamplerFactory,
 } from './monitor-service';
 import { createTransferService, type TransferAdapter } from './transfer-service';
+import { createReplicationPlans } from './replication-plans';
 
 /** Native file dialogs and the shell reveal. The main window's dialogs live in index.ts. */
 export interface NativeDialogs {
@@ -317,15 +326,22 @@ type CatalogScope = Omit<Extract<RpcEvent, { type: 'catalog:changed' }>, 'type' 
 const KEYRING_DIR_MODE = 0o700;
 const MS_PER_MINUTE = 60_000;
 const STORE_FILE_NAME = 'store.sqlite';
+// The server's default secondary catch-up period, in seconds.
+const DEFAULT_CATCH_UP_SECONDS = 10;
 
 export function createRouter(deps: RouterDeps): Router {
   let active: StoreHandles = { store: deps.store, repos: deps.repos };
   const repos = (): RouterRepos => active.repos;
   const profiler = deps.profiler ?? adapterProfilerPort;
+  const replicationPlans = createReplicationPlans();
   // At most one tail per connection and database, keyed by both.
   const tails = new Map<string, ActiveTail>();
   // Per-renderer cleanups. Tails register first; other services join the same registry.
   const rendererResets = new Set<() => void>();
+  // Plans belong to the page that made them. A reset drops them, so a reloaded page cannot apply one.
+  rendererResets.add(() => {
+    replicationPlans.clear();
+  });
   const profilerClient = (connectionId: string): DriverClient =>
     deps.connections.getClient(connectionId);
 
@@ -831,6 +847,53 @@ export function createRouter(deps: RouterDeps): Router {
       monitor.setInterval(input.connectionId, input.intervalMs),
     ),
 
+    entry('replication.getStatus', rpcContract.replication.getStatus, (input) =>
+      driverCall(() => getReplicaSetStatus(deps.connections.getClient(input.connectionId))),
+    ),
+    entry('replication.getConfig', rpcContract.replication.getConfig, (input) =>
+      driverCall(() => getReplicaSetConfig(deps.connections.getClient(input.connectionId))),
+    ),
+    entry('replication.selfHost', rpcContract.replication.selfHost, (input) =>
+      driverCall(async () => ({
+        host: (await getSelfHost(deps.connections.getClient(input.connectionId))) ?? null,
+      })),
+    ),
+    entry('replication.planReconfig', rpcContract.replication.planReconfig, (input) =>
+      driverCall(async () => {
+        const client = deps.connections.getClient(input.connectionId);
+        const status = await getReplicaSetStatus(client);
+        const config = await getReplicaSetConfig(client);
+        const plan = planReconfig(config, input.change, status);
+        return { planId: replicationPlans.store(input.connectionId, plan), plan };
+      }),
+    ),
+    entry('replication.applyReconfig', rpcContract.replication.applyReconfig, (input) =>
+      driverCall(async () => {
+        const plan = replicationPlans.take(input.connectionId, input.planId, input.expectedVersion);
+        await applyReconfig(deps.connections.getClient(input.connectionId), plan);
+      }),
+    ),
+    entry('replication.stepDown', rpcContract.replication.stepDown, (input) =>
+      driverCall(async () => ({
+        // The server needs the step-down longer than the catch-up period. The UI's minimum leaves
+        // room for the default 10 seconds of catch-up.
+        primary: await stepDown(deps.connections.getClient(input.connectionId), {
+          stepDownSeconds: input.stepDownSeconds,
+          secondaryCatchUpSeconds: Math.min(DEFAULT_CATCH_UP_SECONDS, input.stepDownSeconds - 1),
+        }),
+      })),
+    ),
+    entry('replication.freeze', rpcContract.replication.freeze, (input) =>
+      driverCall(() => freeze(deps.connections.getClient(input.connectionId), input.seconds)),
+    ),
+    entry('replication.initiate', rpcContract.replication.initiate, (input) =>
+      driverCall(() =>
+        initiate(deps.connections.getClient(input.connectionId), {
+          setName: input.setName,
+          members: input.members,
+        }),
+      ),
+    ),
     entry('layout.get', rpcContract.layout.get, (input) => ({
       value: repos().layout.get(input.key) ?? null,
     })),

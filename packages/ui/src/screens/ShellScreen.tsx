@@ -36,6 +36,7 @@ import type { AppData, PanelRequest } from '../state/app-store';
 import { useAppStore, useAppStoreApi } from '../state/app-store-context';
 import {
   PanelOpenerContext,
+  type ConnectionPanelKind,
   type ConnectionPanelRequest,
   type OpenPanel,
   type UsersPanelRequest,
@@ -57,6 +58,7 @@ import {
   OperationsPanelView,
   OutputPanel,
   ProfilerDockPanel,
+  ReplicationDockPanel,
   SchemaDockPanel,
   UsersDockPanel,
   ValidationDockPanel,
@@ -70,6 +72,7 @@ const PANEL_COMPONENTS = {
   profiler: ProfilerDockPanel,
   monitor: MonitorPanel,
   operations: OperationsPanelView,
+  replication: ReplicationDockPanel,
   indexes: IndexesDockPanel,
   validation: ValidationDockPanel,
   documents: DocumentsDockPanel,
@@ -188,6 +191,12 @@ function openProfilerPanel(api: DockviewApi, connectionId: string, database: str
   });
 }
 
+const SUFFIX_BY_KIND: Readonly<Record<ConnectionPanelKind, string>> = {
+  monitor: 'monitor',
+  operations: 'operations',
+  replication: 'replica set',
+};
+
 /**
  * Opens a connection's monitor or operations panel in the centre group. A panel that is already
  * open is brought to the front, so each connection has at most one of each.
@@ -199,7 +208,7 @@ function openConnectionPanel(api: DockviewApi, request: ConnectionPanelRequest):
     existing.api.setActive();
     return;
   }
-  const suffix = request.kind === 'monitor' ? 'monitor' : 'operations';
+  const suffix = SUFFIX_BY_KIND[request.kind];
   const centre = api.getPanel('welcome') === undefined ? undefined : 'welcome';
   api.addPanel({
     id,

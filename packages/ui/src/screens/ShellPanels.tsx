@@ -20,6 +20,7 @@ import { UsersRolesPanel } from '../components/security/UsersRolesPanel';
 import { ValidationPanel } from '../components/management/ValidationPanel';
 import { ExplainPanel } from '../explain/ExplainPanel';
 import { ProfilerPanel } from '../profiler/ProfilerPanel';
+import { ReplicationPanel } from '../replication/ReplicationPanel';
 import { EditorView } from '../components/editor/EditorView';
 
 export { OutputPanel } from '../components/editor/OutputPanel';
@@ -60,6 +61,16 @@ export function ExplainDockPanel({ params }: IDockviewPanelProps<ExplainPanelPar
 /** A profiler panel of one database. Closing the tab drops its state and stops its tail. */
 export function ProfilerDockPanel({ params }: IDockviewPanelProps<ProfilerPanelParams>) {
   return <ProfilerPanel connectionId={params.connectionId} database={params.database} />;
+}
+
+/** Params of a replica set panel. The shell sets the connection when it opens the panel. */
+export interface ReplicationPanelParams {
+  readonly connectionId: string;
+}
+
+/** The replica set panel of one connection. Closing the tab drops its state and stops auto refresh. */
+export function ReplicationDockPanel({ params }: IDockviewPanelProps<ReplicationPanelParams>) {
+  return <ReplicationPanel connectionId={params.connectionId} />;
 }
 
 /** Params of an editor panel. The tab's state lives in the store, so only its id is passed. */

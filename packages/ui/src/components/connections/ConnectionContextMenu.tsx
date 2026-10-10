@@ -33,6 +33,12 @@ export function ConnectionContextMenu({
   const loadedDatabases = useAppStore((state) => state.databases[connection.id]);
   const canConnect = status.state === 'disconnected' || status.state === 'error';
   const canDisconnect = status.state === 'connected' || status.state === 'connecting';
+  // A replica set member, or a node started with --replSet that has no configuration yet. The
+  // second reads as 'unknown' topology, because the server reports no set name and no writable
+  // primary.
+  const canOpenReplicaSet =
+    status.state === 'connected' &&
+    (status.topology === 'replicaSet' || status.topology === 'unknown');
 
   function runAndClose(action: () => Promise<void>) {
     onClose();
@@ -86,6 +92,19 @@ export function ConnectionContextMenu({
           }}
         >
           Monitor
+        </Menu.Item>
+        <Menu.Item
+          disabled={!canOpenReplicaSet}
+          onClick={() => {
+            onClose();
+            openPanel({
+              kind: 'replication',
+              connectionId: connection.id,
+              connectionName: connection.name,
+            });
+          }}
+        >
+          Replica set
         </Menu.Item>
         <Menu.Item
           disabled={status.state !== 'connected'}

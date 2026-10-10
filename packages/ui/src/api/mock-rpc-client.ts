@@ -29,6 +29,7 @@ import {
   type UpdateState,
   type VaultStatus,
 } from '@mongo-gui/core';
+import type { MockReplicaSetInfo } from './mock-replication';
 import {
   fixtureBuilds,
   fixtureCatalog,
@@ -62,6 +63,7 @@ import {
 } from './mock-transfer';
 import { createMockProfiler } from './mock-profiler';
 import { createMockGridFs, MOCK_FOLDER_PATH } from './mock-gridfs';
+import { createMockReplication } from './mock-replication';
 import { createMockExplain } from './mock-explain';
 import type { UiApi } from './ui-api';
 
@@ -86,12 +88,17 @@ export interface MockUiApiOptions {
   readonly docker?: 'available' | 'unavailable';
   /** Scripted update states. Defaults to an idle updater on version 0.1.0. */
   readonly updates?: MockUpdatesOptions;
-  /** Adds replica set members and lag to the monitor samples. Defaults to standalone. */
+  /**
+   * The local connection is a three-member replica set: a primary, a lagging secondary and an
+   * arbiter. It also gets the replication section in monitor samples. Defaults to standalone.
+   */
   readonly replication?: boolean;
   /** `viewer` signs in with no user or role rights, so the users and roles controls read disabled. */
   readonly security?: 'admin' | 'viewer';
   /** The file the mock open dialog returns. Defaults to the sample CSV. */
   readonly dialogPath?: string;
+  /** The local connection is a standalone started with --replSet and not yet initiated. */
+  readonly replSetUninitiated?: boolean;
 }
 
 const DEFAULT_UPDATE_STATE: UpdateState = { phase: 'idle', current: '0.1.0', canInstall: true };
@@ -226,6 +233,17 @@ function connectedStatus(): ConnectionStatus {
     serverVersion: SERVER_VERSION,
     topology: 'standalone',
     hosts: ['localhost:27017'],
+  };
+}
+
+/** The status a connection reports once connected. A replica set reports its name and members. */
+function connectedStatusFor(info: MockReplicaSetInfo): ConnectionStatus {
+  return {
+    state: 'connected',
+    serverVersion: SERVER_VERSION,
+    topology: info.topology,
+    hosts: [...info.hosts],
+    ...(info.setName === undefined ? {} : { setName: info.setName }),
   };
 }
 
@@ -502,6 +520,22 @@ export function createMockUiApi(options: MockUiApiOptions = {}): UiApi {
 
   const explain = createMockExplain({ wrap: wrapCall, requireUnlocked, requireConnected });
 
+  const replication = createMockReplication({
+    latencyMs,
+    guard,
+    onChange(connectionId) {
+      if (statusOf(connectionId).state === 'connected') {
+        setStatus(connectionId, connectedStatusFor(replication.infoFor(connectionId)));
+      }
+    },
+  });
+  if (options.replication === true) {
+    replication.setMode(localConnectionId, 'member');
+  }
+  if (options.replSetUninitiated === true) {
+    replication.setMode(localConnectionId, 'uninitiated');
+  }
+
   const rpc: RpcClient = {
     updates: {
       state: method(rpcContract.updates.state, latencyMs, () => currentUpdate()),
@@ -697,7 +731,7 @@ export function createMockUiApi(options: MockUiApiOptions = {}): UiApi {
         setStatus(id, { state: 'connecting' });
         await delay(latencyMs);
         const status: ConnectionStatus = isReachable(profile.uri)
-          ? connectedStatus()
+          ? connectedStatusFor(replication.infoFor(id))
           : { state: 'error', error: authError() };
         setStatus(id, status);
         return status;
@@ -940,6 +974,7 @@ export function createMockUiApi(options: MockUiApiOptions = {}): UiApi {
     },
     profiler,
     explain,
+    replication: replication.rpc,
     docker: {
       status: method(rpcContract.docker.status, latencyMs, (): DockerStatus => {
         return state.dockerAvailable
