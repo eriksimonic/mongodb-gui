@@ -15,7 +15,15 @@ function renderSettings() {
 describe('SettingsModal sections', () => {
   it('shows every section heading', async () => {
     renderSettings();
-    for (const title of ['Appearance', 'Security', 'Connections', 'Updates', 'Data', 'About']) {
+    for (const title of [
+      'Appearance',
+      'Security',
+      'Connections',
+      'Updates',
+      'Data',
+      'MongoDB tools',
+      'About',
+    ]) {
       expect(await screen.findByRole('heading', { name: title })).toBeInTheDocument();
     }
   });
