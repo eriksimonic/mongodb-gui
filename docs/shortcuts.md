@@ -13,6 +13,7 @@ shortcut, add its row to the registry too.
 | Shift+?  | Open the keyboard shortcut reference                      |
 | Mod+,    | Open Settings                                             |
 | Mod+L    | Lock the app                                              |
+| Mod+J    | Collapse or expand the output panel                       |
 | Mod+N    | Open a new editor on the selected connection and database |
 
 Ctrl+N and Cmd+N both work on every platform. The shortcut needs a selection in the connection

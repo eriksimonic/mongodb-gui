@@ -59,6 +59,7 @@ import { GridFsOpenerContext, type GridFsOpener } from '../components/gridfs/gri
 import { ChangesOpenerContext, type ChangesOpener } from '../changes/changes-opener';
 import { databasePanelIds, restoredCollectionRequest, stalePanelIds } from './collection-panels';
 import { createLayoutSaver, loadDockLayout, restoreDockLayout } from './dock-layout';
+import { OUTPUT_SHARE, toggleOutputPanel } from './output-collapse';
 import {
   ChangesDockPanel,
   ConnectionsPanel,
@@ -66,6 +67,7 @@ import {
   EditorDockPanel,
   ExplainDockPanel,
   ClosableTab,
+  GroupHeaderActions,
   FixedTab,
   GridFsDockPanel,
   IndexesDockPanel,
@@ -118,7 +120,6 @@ const MONGO_THEME: DockviewTheme = { ...themeDark, name: 'mongo-gui', className:
 type ConnectionsState = AppData['connections'];
 
 const SIDEBAR_WIDTH_PX = 280;
-const OUTPUT_SHARE = 0.3;
 const PANEL_TITLE_SUFFIX: Readonly<Record<PanelRequest['panel'], string>> = {
   indexes: 'indexes',
   validation: 'validation',
@@ -598,6 +599,11 @@ export function ShellScreen() {
       openSettings: () => setSettingsOpen(true),
       lock: () => void runReported(() => lock()),
       openHelp: () => setShortcutsOpen(true),
+      toggleOutput: () => {
+        if (dock !== undefined) {
+          toggleOutputPanel(dock);
+        }
+      },
     }),
   );
 
@@ -774,6 +780,7 @@ export function ShellScreen() {
                     components={PANEL_COMPONENTS}
                     tabComponents={TAB_COMPONENTS}
                     defaultTabComponent={ClosableTab}
+                    rightHeaderActionsComponent={GroupHeaderActions}
                     onReady={(event) => {
                       dockApi.current = event.api;
                       setDock(event.api);

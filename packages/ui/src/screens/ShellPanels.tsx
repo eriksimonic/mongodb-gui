@@ -1,4 +1,5 @@
 import {
+  ActionIcon,
   Box,
   Group,
   Paper,
@@ -11,6 +12,8 @@ import {
 } from '@mantine/core';
 import {
   IconBrandDocker,
+  IconChevronDown,
+  IconChevronUp,
   IconKeyboard,
   IconLock,
   IconPlus,
@@ -20,11 +23,13 @@ import { useEffect, useState } from 'react';
 import {
   DockviewDefaultTab,
   type DockviewApi,
+  type IDockviewHeaderActionsProps,
   type IDockviewPanelHeaderProps,
   type IDockviewPanelProps,
 } from 'dockview-react';
 import { ConnectionTree } from '../components/connections/ConnectionTree';
 import { TreeMenu, type TreeMenuEntry } from '../components/connections/TreeMenu';
+import { isOutputCollapsed, toggleOutputPanel } from './output-collapse';
 import { DocumentsPanel } from '../components/management/DocumentsPanel';
 import { GridFsPanel } from '../components/gridfs/GridFsPanel';
 import { IndexesPanel } from '../components/management/IndexesPanel';
@@ -119,6 +124,38 @@ export interface EditorPanelParams {
 /** A query editor tab. Closing the tab removes the editor from the store. */
 export function EditorDockPanel({ params }: IDockviewPanelProps<EditorPanelParams>) {
   return <EditorView tabId={params.tabId} />;
+}
+
+/**
+ * The right end of a group's tab strip. The group that holds the Output panel gets a button that
+ * folds the group down to its tab strip and unfolds it again. Other groups show nothing.
+ */
+export function GroupHeaderActions({ group, containerApi }: IDockviewHeaderActionsProps) {
+  const holdsOutput = group.panels.some((panel) => panel.id === 'output');
+  const [height, setHeight] = useState(group.api.height);
+  useEffect(() => {
+    const subscription = group.api.onDidDimensionsChange((event) => setHeight(event.height));
+    return () => subscription.dispose();
+  }, [group]);
+  if (!holdsOutput) {
+    return null;
+  }
+  const collapsed = isOutputCollapsed(height);
+  const label = collapsed ? 'Expand the output panel' : 'Collapse the output panel';
+  return (
+    <Group h="100%" px={4} align="center">
+      <ActionIcon
+        size="sm"
+        variant="subtle"
+        color="gray"
+        aria-label={label}
+        title={`${label} (Ctrl+J)`}
+        onClick={() => toggleOutputPanel(containerApi)}
+      >
+        {collapsed ? <IconChevronUp size={14} /> : <IconChevronDown size={14} />}
+      </ActionIcon>
+    </Group>
+  );
 }
 
 /** Tab for the three fixed panels. Same as dockview's default tab without the close button. */
