@@ -516,6 +516,34 @@ export function createAppStore(api: UiApi, initial: Partial<AppData> = {}): AppS
     }
 
     /**
+     * A saved Docker connection whose server rejected the stored credentials gets the same
+     * credentials dialog as a container row, so the user can fix them in place.
+     */
+    function offerDockerCredentials(connectionId: string, status: ConnectionStatus): void {
+      if (status.state !== 'error' || status.error.code !== 'AUTH_FAILED') {
+        return;
+      }
+      const connections = get().connections;
+      const profile =
+        connections.state === 'ready'
+          ? connections.data.find((item) => item.id === connectionId)
+          : undefined;
+      if (profile?.source !== 'docker' || profile.dockerContainerId === undefined) {
+        return;
+      }
+      const containers = get().docker.containers;
+      const container =
+        containers.state === 'ready'
+          ? containers.data.find((item) => item.id === profile.dockerContainerId)
+          : undefined;
+      useDockerCredentialsStore.getState().open({
+        containerId: profile.dockerContainerId,
+        containerName: container?.name ?? profile.name,
+        hint: container?.hasCredentials === true ? 'envFound' : 'noEnv',
+      });
+    }
+
+    /**
      * Each start and stop takes a new number. A start that resolves after a later number has been
      * issued does not apply its result, so a late start cannot resurrect a stopped sampler.
      */
@@ -713,7 +741,9 @@ export function createAppStore(api: UiApi, initial: Partial<AppData> = {}): AppS
         }
         setStatus(id, { state: 'connecting' });
         try {
-          setStatus(id, await rpc.connections.connect({ id }));
+          const status = await rpc.connections.connect({ id });
+          setStatus(id, status);
+          offerDockerCredentials(id, status);
         } catch (error) {
           setStatus(id, { state: 'error', error: toAppError(error) });
         }

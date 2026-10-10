@@ -1,6 +1,9 @@
 import { describe, expect, it } from 'vitest';
 import { localConnectionId, mockMasterPassword, stagingConnectionId } from '../api/mock-fixtures';
 import { createMockUiApi } from '../api/mock-rpc-client';
+
+const SECURE_CONTAINER_ID = 'e7b2c9a4d1f3065b8c2e7d9a4f1b3c6e0d8a2f5b7c9e1d3a6f8b0c2e4d6a8f1c';
+import { useDockerCredentialsStore } from '../components/connections/docker-credentials-store';
 import { createAppStore, type AppStore } from './app-store';
 
 async function unlockedStore(): Promise<AppStore> {
@@ -70,6 +73,28 @@ describe('createAppStore connections', () => {
     expect(store.getState().statuses[stagingConnectionId]).toMatchObject({
       state: 'error',
       error: { code: 'AUTH_FAILED' },
+    });
+  });
+
+  it('opens the Docker credentials dialog when a saved Docker connection fails to authenticate', async () => {
+    const store = await unlockedStore();
+    await store.getState().loadDocker();
+    const profile = await store.getState().createConnection({
+      name: 'stale-mongo',
+      uri: 'mongodb://app:old@unreachable:27017/?directConnection=true',
+      source: 'docker',
+      dockerContainerId: SECURE_CONTAINER_ID,
+    });
+
+    await store.getState().connect(profile.id);
+
+    expect(store.getState().statuses[profile.id]).toMatchObject({
+      state: 'error',
+      error: { code: 'AUTH_FAILED' },
+    });
+    expect(useDockerCredentialsStore.getState().request).toMatchObject({
+      containerId: SECURE_CONTAINER_ID,
+      containerName: 'secure-mongo',
     });
   });
 
