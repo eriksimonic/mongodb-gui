@@ -128,6 +128,11 @@ describe('mapDriverError', () => {
     });
   });
 
+  it('drops a server error name that is not a plain identifier', () => {
+    const error = serverError(2, 'bad name mongodb://u:p@db.example.com');
+    expect(mapDriverError(error)).not.toHaveProperty('codeName');
+  });
+
   it('keeps the server error name so callers can tell a server state by code', () => {
     const error = serverError(94, 'NotYetInitialized');
     expect(mapDriverError(error)).toMatchObject({

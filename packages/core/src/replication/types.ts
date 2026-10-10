@@ -10,22 +10,46 @@ const MAX_PORT = 65535;
 
 const NonNegativeInt = z.number().int().nonnegative();
 const MemberIdSchema = z.number().int().min(0).max(MAX_MEMBER_ID);
-// A host is host:port, or [address]:port for IPv6. A user name, a query string, a path or a space
-// would carry credentials or options into the configuration, so the pattern refuses them.
-const HOST_PATTERN = /^(?:\[[0-9A-Fa-f:.]+\]|[A-Za-z0-9-]+(?:\.[A-Za-z0-9-]+)*):(\d{1,5})$/;
-const HostSchema = z.string().refine(isHostPort, {
-  message:
-    'Hosts take the form host:port with a port from 1 to 65535, such as db4.example.net:27017',
-});
+// A host is host:port, or [address]:port for IPv6. Input hosts are checked strictly: a user name, a
+// query string, a path or a space would carry credentials or options into the configuration.
+// Labels start and end with a letter or digit, and the port has no leading zeros.
+const HOST_PATTERN =
+  /^(?:\[([0-9A-Fa-f:.]+)\]|([A-Za-z0-9](?:[A-Za-z0-9-]*[A-Za-z0-9])?(?:\.[A-Za-z0-9](?:[A-Za-z0-9-]*[A-Za-z0-9])?)*)):([1-9][0-9]{0,4})$/;
+const MAX_HOSTNAME_LENGTH = 253;
+const MIN_IPV6_COLONS = 2;
 
 function isHostPort(value: string): boolean {
   const match = HOST_PATTERN.exec(value);
   if (match === null) {
     return false;
   }
-  const port = Number(match[1]);
-  return port >= 1 && port <= MAX_PORT;
+  const [, address, name, portText] = match;
+  if (Number(portText) > MAX_PORT) {
+    return false;
+  }
+  if (address !== undefined) {
+    // An IPv6 address needs at least one hex digit and two colons, so [:] and [::] are refused.
+    const colons = address.split(':').length - 1;
+    return colons >= MIN_IPV6_COLONS && /[0-9A-Fa-f]/.test(address);
+  }
+  return name !== undefined && name.length <= MAX_HOSTNAME_LENGTH;
 }
+
+const HostSchema = z.string().refine(isHostPort, {
+  message:
+    'Hosts take the form host:port with a port from 1 to 65535, such as db4.example.net:27017',
+});
+
+// Hosts the server reports, such as the members of a configuration. A name the server chose is
+// read as it is. Only credentials and query strings are refused, because they must never reach
+// the renderer.
+const ReadHostSchema = z
+  .string()
+  .min(1)
+  .refine((value) => /^[^\s@?]+$/.test(value), {
+    message: 'Host names may not contain spaces, @ or ?',
+  });
+
 const PrioritySchema = z.number().min(0).max(MAX_MEMBER_PRIORITY);
 const VotesSchema = z.number().int().min(0).max(1, { message: 'Votes must be 0 or 1' });
 const TagsSchema = z.record(z.string(), z.string());
@@ -75,7 +99,7 @@ export const ReplicaSetStatusSchema = z.object({
 
 export const ReplicaSetMemberConfigSchema = z.object({
   id: MemberIdSchema,
-  host: HostSchema,
+  host: ReadHostSchema,
   priority: PrioritySchema,
   votes: VotesSchema,
   hidden: z.boolean(),
