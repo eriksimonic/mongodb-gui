@@ -191,6 +191,27 @@ describe('BLOCKING_STAGE_BEFORE_MATCH', () => {
     expect(warning?.stageName).toBe('$match');
   });
 
+  it('does not fire when an $addFields between a $group and a $match creates the field', () => {
+    const codes = codesOf(
+      aggregateDoc([
+        { $group: { _id: '$s', n: { $sum: 1 } }, nReturned: 5 },
+        { $addFields: { m: '$n' }, nReturned: 5 },
+        { $match: { m: 1 }, nReturned: 1 },
+      ]),
+    );
+    expect(codes).not.toContain('BLOCKING_STAGE_BEFORE_MATCH');
+  });
+
+  it('does not fire on a dotted path into an accumulator', () => {
+    const codes = codesOf(
+      aggregateDoc([
+        { $group: { _id: '$s', n: { $push: '$x' } }, nReturned: 5 },
+        { $match: { 'n.x': 1 }, nReturned: 1 },
+      ]),
+    );
+    expect(codes).not.toContain('BLOCKING_STAGE_BEFORE_MATCH');
+  });
+
   it('fires for a $match on a plain field after a $sort', () => {
     const codes = codesOf(
       aggregateDoc([

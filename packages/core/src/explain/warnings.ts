@@ -196,14 +196,16 @@ function blockingBeforeMatchWarnings(stages: PlanStage[]): PlanWarning[] {
 // does not compute can move, which means _id. After a $sort, the fields must be plain document
 // fields, and no $match above the sort may already filter on them.
 function isMovable(blocker: PlanStage, fields: string[], between: PlanStage[]): boolean {
+  // A stage between the match and the blocker that creates fields may define the matched field.
+  if (between.some((stage) => FIELD_CREATING_STAGES.has(stage.name))) {
+    return false;
+  }
   if (blocker.name === '$sort') {
-    if (between.some((stage) => FIELD_CREATING_STAGES.has(stage.name))) {
-      return false;
-    }
     return !earlierMatchOn(blocker, fields);
   }
+  // A dotted path reads inside its first segment, so n.x reads the accumulator n.
   const computed = accumulatorNames(blocker);
-  return fields.every((field) => !computed.includes(field));
+  return fields.every((field) => !computed.includes(field.split('.')[0] ?? field));
 }
 
 // A $match below the sort, on any of the fields, already filters them.
