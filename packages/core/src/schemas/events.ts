@@ -9,6 +9,7 @@ import { ConnectionStatusSchema } from './connection';
 import { TransferIdSchema, TransferKindSchema } from '../transfer/calls';
 import { TransferProgressSchema } from '../transfer/types';
 import { ShellRuntimeStateSchema } from '../shell/rpc-schemas';
+import { GenerateProgressSchema } from '../generate/spec';
 
 export const RpcEventSchema = z.discriminatedUnion('type', [
   z.object({
@@ -75,5 +76,12 @@ export const RpcEventSchema = z.discriminatedUnion('type', [
     transferId: TransferIdSchema,
     kind: TransferKindSchema,
     progress: TransferProgressSchema,
+  }),
+  // Progress of one generate-data job. Sent at most four times a second, and once more when it ends.
+  z.object({
+    type: z.literal('generate:progress'),
+    connectionId: z.uuid(),
+    jobId: z.uuid(),
+    progress: GenerateProgressSchema,
   }),
 ]);

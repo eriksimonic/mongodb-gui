@@ -23,6 +23,7 @@ export { openChangeWatch, type ChangeWatch, type ChangeWatchHandlers } from './c
 export { parsePipeline, toChangeEvent } from './changes/helpers';
 export { mapDriverError } from './errors';
 export { exportCollection } from './transfer/export';
+export { objectIdFromHex } from './generate/object-id';
 export { dropBucket, listBuckets } from './gridfs/buckets';
 export {
   deleteFiles,
