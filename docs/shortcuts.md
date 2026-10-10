@@ -2,21 +2,20 @@
 
 Open the reference in the app with Shift+? or from the "Help" menu, then "Keyboard shortcuts".
 
-In the tables, Mod means Ctrl on Windows and Linux, and Cmd on macOS. The shortcuts that the
-reference lists come from one registry in `packages/ui/src/shortcuts/shortcuts.ts`. Shortcuts
-that the editor and the shell register in code appear in their own table. The reference does not
-list them.
+In the tables, Mod means Ctrl on Windows and Linux, and Cmd on macOS. The reference modal lists
+every row of the registry in `packages/ui/src/shortcuts/shortcuts.ts`. When the app binds a new
+shortcut, add its row to the registry too.
 
 ## Anywhere
 
-| Shortcut        | Action                                                    | Source                     |
-| --------------- | --------------------------------------------------------- | -------------------------- |
-| Shift+?         | Open the keyboard shortcut reference                      | Registry                   |
-| Mod+,           | Open Settings                                             | Registry                   |
-| Mod+L           | Lock the app                                              | Registry                   |
-| Ctrl+N or Cmd+N | Open a new editor on the selected connection and database | Code, not in the reference |
+| Shortcut | Action                                                    |
+| -------- | --------------------------------------------------------- |
+| Shift+?  | Open the keyboard shortcut reference                      |
+| Mod+,    | Open Settings                                             |
+| Mod+L    | Lock the app                                              |
+| Mod+N    | Open a new editor on the selected connection and database |
 
-Ctrl+N works with either Ctrl or Cmd on every platform. It needs a selection in the connection
+Ctrl+N and Cmd+N both work on every platform. The shortcut needs a selection in the connection
 tree, and it does nothing when no connection is selected. Holding Shift or Alt with the key cancels
 it.
 
@@ -46,11 +45,11 @@ it.
 
 ## Editors
 
-| Shortcut        | Action                                               | Source                     |
-| --------------- | ---------------------------------------------------- | -------------------------- |
-| Mod+F           | Find text in a JSON editor                           | Registry                   |
-| Mod+Enter       | Run the selection, or the statement under the cursor | Code, not in the reference |
-| Mod+Shift+Enter | Run all the text in the editor                       | Code, not in the reference |
+| Shortcut        | Action                                               |
+| --------------- | ---------------------------------------------------- |
+| Mod+F           | Find text in a JSON editor                           |
+| Mod+Enter       | Run the selection, or the statement under the cursor |
+| Mod+Shift+Enter | Run all the text in the editor                       |
 
 In the mongosh editor, Mod+Enter and Mod+Shift+Enter use Cmd on macOS and Ctrl elsewhere. The
 Explain action has no shortcut. Use the "Explain" button.
