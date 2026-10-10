@@ -89,6 +89,10 @@ inline edits in the tree, and a history and favourites list in the Output panel.
 | ---------------------------------------------------------------------------------------------------------------------- |
 | ![GridFS panel with the files of a bucket, the metadata badges and an upload in progress](docs/screenshots/gridfs.png) |
 
+| Sharding panel with the balancer, collections and chunks per shard                                                                                  |
+| --------------------------------------------------------------------------------------------------------------------------------------------------- |
+| ![Sharding panel with the balancer state, a collections table with chunk bars per shard and the Distribution action](docs/screenshots/sharding.png) |
+
 ## Prerequisites
 
 - Node.js 24 (see `.nvmrc`)

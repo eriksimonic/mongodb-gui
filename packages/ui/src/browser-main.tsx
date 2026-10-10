@@ -15,6 +15,11 @@ const preset =
 const profilerRowsParam = Number(new URLSearchParams(window.location.search).get('profilerRows'));
 const profilerRows =
   Number.isInteger(profilerRowsParam) && profilerRowsParam > 0 ? profilerRowsParam : undefined;
+// ?sharding=cluster makes the local connection report a sharded topology with the seeded cluster.
+const sharding =
+  new URLSearchParams(window.location.search).get('sharding') === 'cluster'
+    ? 'cluster'
+    : 'standalone';
 // ?replset=member makes the local connection a three-member set. ?replset=uninitiated makes it a
 // standalone started with --replSet that has no configuration yet.
 const replsetParam = new URLSearchParams(window.location.search).get('replset');
@@ -24,6 +29,7 @@ const api = createMockUiApi({
   profilerRows,
   replication: replsetParam === 'member',
   replSetUninitiated: replsetParam === 'uninitiated',
+  sharding,
 });
 
 createRoot(container).render(

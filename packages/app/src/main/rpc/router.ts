@@ -132,6 +132,20 @@ import {
   revokeRoles,
   updateRole,
   userManagementCapabilities,
+  addShardToZone,
+  clearBalancerWindow,
+  describeShardCollection,
+  enableSharding,
+  getShardDistribution,
+  getShardingOverview,
+  moveChunk,
+  removeShardFromZone,
+  removeShardStatus,
+  setBalancerWindow,
+  shardCollection,
+  startBalancer,
+  stopBalancer,
+  updateZoneKeyRange,
 } from '@mongo-gui/mongo-adapter';
 import {
   createDockerEngineClient,
@@ -613,6 +627,82 @@ export function createRouter(deps: RouterDeps): Router {
     });
   }
 
+  /**
+   * A sharding call that changes server settings but not the database or collection tree. It
+   * reports no catalog change.
+   */
+  function serverOp<C extends RpcCall>(
+    method: string,
+    call: C,
+    run: (client: ClientOf, input: CallInput<C>) => Promise<unknown>,
+  ): [string, Operation] {
+    return entry(method, call, (input) =>
+      driverCall(() =>
+        run(deps.connections.getClient((input as ConnectionScoped).connectionId), input),
+      ),
+    );
+  }
+
+  /**
+   * Sharding calls. Each one runs against the connection's mongos. The adapter validates the
+   * input and the server refuses what it must. Enabling sharding and sharding a collection
+   * report a catalog change, so the tree refreshes.
+   */
+  function shardingOperations(): [string, Operation][] {
+    const s = rpcContract.sharding;
+    return [
+      readOnly('sharding.overview', s.overview, (client) => getShardingOverview(client)),
+      readOnly('sharding.collectionDistribution', s.collectionDistribution, (client, input) =>
+        getShardDistribution(client, input.namespace),
+      ),
+      serverOp('sharding.setBalancer', s.setBalancer, (client, input) =>
+        input.enabled ? startBalancer(client) : stopBalancer(client),
+      ),
+      serverOp('sharding.setBalancerWindow', s.setBalancerWindow, (client, input) =>
+        setBalancerWindow(client, input),
+      ),
+      serverOp('sharding.clearBalancerWindow', s.clearBalancerWindow, (client) =>
+        clearBalancerWindow(client),
+      ),
+      managed(
+        'sharding.enableSharding',
+        s.enableSharding,
+        (client, input) => enableSharding(client, input),
+        (input) => ({ database: input.database }),
+      ),
+      entry('sharding.shardCollection', s.shardCollection, (input) =>
+        driverCall(async () => {
+          const client = deps.connections.getClient(input.connectionId);
+          const summary = await describeShardCollection(client, input);
+          if (!input.confirmed) {
+            return { applied: false, summary };
+          }
+          await shardCollection(client, input);
+          deps.onEvent({
+            type: 'catalog:changed',
+            connectionId: input.connectionId,
+            database: input.database,
+            collection: input.collection,
+          });
+          return { applied: true, summary };
+        }),
+      ),
+      serverOp('sharding.moveChunk', s.moveChunk, (client, input) => moveChunk(client, input)),
+      serverOp('sharding.addShardToZone', s.addShardToZone, (client, input) =>
+        addShardToZone(client, input),
+      ),
+      serverOp('sharding.removeShardFromZone', s.removeShardFromZone, (client, input) =>
+        removeShardFromZone(client, input),
+      ),
+      serverOp('sharding.updateZoneKeyRange', s.updateZoneKeyRange, (client, input) =>
+        updateZoneKeyRange(client, input),
+      ),
+      serverOp('sharding.removeShard', s.removeShard, (client, input) =>
+        removeShardStatus(client, input),
+      ),
+    ];
+  }
+
   function securityOperations(): [string, Operation][] {
     const s = rpcContract.security;
     return [
@@ -898,6 +988,7 @@ export function createRouter(deps: RouterDeps): Router {
     entry('explain.runCommand', rpcContract.explain.runCommand, (input) => explainCommand(input)),
     ...managementOperations(),
     ...securityOperations(),
+    ...shardingOperations(),
     ...diagnosticsOperations(),
 
     entry('monitor.start', rpcContract.monitor.start, (input) =>

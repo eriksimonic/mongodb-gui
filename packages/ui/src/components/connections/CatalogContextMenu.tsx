@@ -1,5 +1,6 @@
 import { useProfilerOpener } from '../../profiler/profiler-opener';
 import { useAppStore } from '../../state/app-store-context';
+import { shardingAvailability } from '../../sharding/sharding-availability';
 import { usePanelOpener } from '../../state/panel-opener';
 import { TreeMenu, type TreeMenuEntry } from './TreeMenu';
 
@@ -97,6 +98,7 @@ export function CollectionContextMenu({
   const setManagementDialog = useAppStore((state) => state.setManagementDialog);
   const setTransferDialog = useAppStore((state) => state.setTransferDialog);
   const refreshDatabase = useAppStore((state) => state.refreshDatabase);
+  const sharding = shardingAvailability(useAppStore((state) => state.statuses[connectionId]));
   const openPanel = usePanelOpener();
   const target = { connectionId, database, collection };
   const entries: TreeMenuEntry[] = [
@@ -134,6 +136,13 @@ export function CollectionContextMenu({
       kind: 'item',
       label: 'Export data',
       onSelect: () => setTransferDialog({ kind: 'export', connectionId, database, collection }),
+    },
+    {
+      kind: 'item',
+      label: 'Shard collection',
+      disabled: !sharding.available,
+      reason: sharding.available ? undefined : sharding.reason,
+      onSelect: () => setManagementDialog({ kind: 'shardCollection', ...target }),
     },
     {
       kind: 'item',

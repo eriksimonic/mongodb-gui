@@ -17,6 +17,7 @@ import { DocumentsPanel } from '../components/management/DocumentsPanel';
 import { GridFsPanel } from '../components/gridfs/GridFsPanel';
 import { IndexesPanel } from '../components/management/IndexesPanel';
 import { UsersRolesPanel } from '../components/security/UsersRolesPanel';
+import { ShardingPanel } from '../components/sharding/ShardingPanel';
 import { ValidationPanel } from '../components/management/ValidationPanel';
 import { ExplainPanel } from '../explain/ExplainPanel';
 import { ProfilerPanel } from '../profiler/ProfilerPanel';
@@ -303,6 +304,15 @@ export function IndexesDockPanel({ params }: IDockviewPanelProps<CollectionPanel
 export interface UsersPanelParams {
   readonly connectionId: string;
   readonly database: string;
+}
+
+/** Dock panel for the sharding overview of one connection. */
+export function ShardingDockPanel({ params }: IDockviewPanelProps<ConnectionPanelParams>) {
+  return (
+    <Box h="100%" style={{ overflow: 'auto' }}>
+      <ShardingPanel connectionId={params.connectionId} />
+    </Box>
+  );
 }
 
 /** Dock panel: users and custom roles of one database. */

@@ -24,6 +24,9 @@ export function parseShardKey(keyEjson: string): ShardKey {
     }
     key[field] = parsed;
   }
+  if (Object.values(key).filter((value) => value === 'hashed').length > 1) {
+    throw validationError('The shard key can contain at most one hashed field.');
+  }
   return key;
 }
 

@@ -10,6 +10,8 @@ export interface DestructiveDialogProps {
   readonly typedConfirmation?: string | undefined;
   /** Holds the confirm button, for example while a count is still loading. */
   readonly confirmDisabled?: boolean;
+  /** The confirm button colour. Defaults to red for actions that destroy data. */
+  readonly confirmColor?: string;
   readonly onConfirm: () => Promise<void>;
   readonly onClose: () => void;
 }
@@ -24,6 +26,7 @@ export function DestructiveDialog({
   confirmLabel,
   typedConfirmation,
   confirmDisabled = false,
+  confirmColor = 'red',
   onConfirm,
   onClose,
 }: DestructiveDialogProps) {
@@ -69,7 +72,12 @@ export function DestructiveDialog({
           <Button variant="default" onClick={onClose}>
             Cancel
           </Button>
-          <Button color="red" disabled={disabled} loading={busy} onClick={() => void confirm()}>
+          <Button
+            color={confirmColor}
+            disabled={disabled}
+            loading={busy}
+            onClick={() => void confirm()}
+          >
             {confirmLabel}
           </Button>
         </Group>

@@ -70,6 +70,7 @@ import {
   ProfilerDockPanel,
   ReplicationDockPanel,
   SchemaDockPanel,
+  ShardingDockPanel,
   UsersDockPanel,
   DiagnosticsDockPanel,
   DatabaseStatsDockPanel,
@@ -85,6 +86,7 @@ const PANEL_COMPONENTS = {
   profiler: ProfilerDockPanel,
   monitor: MonitorPanel,
   operations: OperationsPanelView,
+  sharding: ShardingDockPanel,
   replication: ReplicationDockPanel,
   indexes: IndexesDockPanel,
   validation: ValidationDockPanel,
@@ -211,6 +213,7 @@ const SUFFIX_BY_KIND: Readonly<Record<ConnectionPanelKind, string>> = {
   monitor: 'monitor',
   operations: 'operations',
   replication: 'replica set',
+  sharding: 'sharding',
 };
 
 /**
