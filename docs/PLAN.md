@@ -388,6 +388,72 @@ anything; UI halves follow their adapter merge.
   detail pane; resume token shown; stops on panel close and renderer reset.
   Delivered in P8-7a (adapter) and P8-7b (contract, router, dev mock, panel).
 
+### Phase 9: MongoDB in Docker and Podman
+
+Added on 2026-10-10 at Erik's request. The "Docker" node becomes "MongoDB in Docker", a
+management section for the containers that run MongoDB, not only a connect shortcut. The
+section works against the Docker Engine API and against Podman through its Docker-compatible
+socket. Every task has a `packages/docker` half (engine calls with Testcontainers tests) and a
+UI half (contract namespace `docker`, router wiring, mock, panel, tests, screenshot). Writes
+to a container ask for a typed confirmation when they lose data.
+
+- **P9-1 engine detection and Podman.** `defaultDockerSocket` also tries the Podman
+  sockets (`/run/podman/podman.sock` and `$XDG_RUNTIME_DIR/podman/podman.sock`). A
+  `DOCKER_HOST` of `tcp://` or `ssh://` is reported in the status, not used. The status
+  carries the engine kind (`docker` or `podman`), the version and the socket path, and
+  Settings gets a socket override. The tree node reads "MongoDB in Docker" or "MongoDB in
+  Podman", and its tooltip names the socket.
+- **P9-2 namespaces.** Containers group by namespace: the Compose project
+  (`com.docker.compose.project` label, service from `com.docker.compose.service`), the
+  Podman pod (`io.podman.pod.name` or the `Pod` field of inspect), and "Standalone" for
+  the rest. The tree shows one child per namespace with the running count over the total,
+  then the containers. A "Group by" entry on the node menu switches back to the flat list.
+  A namespace menu offers "Start all", "Stop all" and "Restart all" for its MongoDB
+  containers, with a summary of the affected containers before the action.
+- **P9-3 resource usage.** One `GET /containers/{id}/stats?stream=false` sample per
+  running container: CPU percent (delta of `cpu_stats` against `precpu_stats` over the
+  online CPUs), memory usage against the limit, network bytes in and out, block I/O. The
+  tree row shows CPU and memory as a compact meta ("12 % · 283 MiB / 512 MiB"). The
+  details panel gets a usage section with sparklines fed by a poll while the panel is
+  open (interval from the monitor setting, default 2 s, stopped on close and on renderer
+  reset). Memory at or above 85 percent of the limit shows an orange badge, because a
+  container near its limit is the usual cause of an OOM kill. The sampler in
+  `packages/docker` reuses the forwarder's streaming client.
+- **P9-4 lifecycle actions.** Container menu and details panel actions: Start, Stop (grace
+  seconds from a setting, default 10), Restart, Pause and Unpause, Kill (signal picker,
+  SIGTERM default), Remove (typed confirmation; "also remove volumes" off by default and
+  red; refused while the app holds a connection to the container unless "Disconnect
+  first" is ticked). Each verb gets a `packages/docker` function with a Testcontainers
+  test and reports the engine's error message. A container the app reaches through a
+  forwarder releases the forwarder before Stop or Remove.
+- **P9-5 inspect and logs.** The details panel grows tabs: "Overview" (what it shows
+  today), "Inspect" (the raw `docker inspect` JSON in the read-only JSON editor with the
+  search bar from Explain Raw; environment values redacted by the rule the details list
+  uses), "Mounts" (source, destination, mode, driver), "Ports" (private, public, host IP)
+  and "Logs" (`GET /containers/{id}/logs` with stdout and stderr demultiplexed from the
+  8-byte frame header, tail 500 by default, a "Follow" toggle that streams, a level filter
+  for MongoDB's JSON log lines reusing the diagnostics log filter, copy, and save to a
+  file). Logs stop on panel close and on renderer reset.
+- **P9-6 open in shell.** Two shells. "Open mongosh" runs `exec` with `mongosh` inside the
+  container, with the container's own credentials when they exist. "Open container shell"
+  runs `sh`, or `bash` when present. Both open a dock panel with an xterm.js terminal. The
+  main process creates the exec with `AttachStdin`, `AttachStdout`, `AttachStderr` and
+  `Tty`, starts it over the hijacked HTTP stream on the engine socket, and pipes bytes
+  both ways through `docker:terminal` events keyed by a session id, pausing the socket
+  when the renderer falls behind. Resize sends `POST /exec/{id}/resize`. Closing the panel
+  ends the exec; a renderer reset ends every session. xterm.js is a renderer dependency
+  loaded with the panel. Keystrokes never reach the log.
+- **P9-7 create a MongoDB container.** "New MongoDB container" on the node menu: image tag
+  picker (tags the engine already has plus a typed tag, pulled with a progress line),
+  name, published port with a free-port suggestion, root user and password (saved on the
+  connection, never logged), a named volume for `/data/db`, memory and CPU limits, and a
+  `--replSet` option that initiates a single-member set after start. Creation reuses
+  `createContainer`, `startContainer` and `pullImage`, then connects as the node does
+  today.
+
+Order: P9-1 first. P9-2, P9-3 and P9-5 then run in parallel. P9-4 follows P9-2. P9-6
+follows P9-5, because it shares the stream channel. P9-7 is last.
+
 Order: P0 then P1 strictly sequential at the package level (P1-1 first, then P1-2,
 P1-3 and P1-5 in parallel, then P1-4, then P1-6). P2 follows P1. After P2, phases 3 and 4
 run in parallel with phases 5 and 6.
