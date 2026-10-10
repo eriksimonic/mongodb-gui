@@ -10,7 +10,7 @@ close, resize and reorder them, and the layout is saved for each connection.
 
 Everything the app stores on disk (saved connections, query history, favourites,
 settings) is encrypted with a key derived from a master password you type at launch.
-See the security section of [docs/PLAN.md](docs/PLAN.md).
+See [docs/security.md](docs/security.md).
 
 The app follows the system theme or stays in light or dark, as set under Settings. The
 panel layout and the window size are saved, so the next launch opens where you left off.
@@ -194,7 +194,12 @@ GitHub until you turn the setting back on.
 
 ## Documentation
 
-The architecture, security model and task plan are in [docs/PLAN.md](docs/PLAN.md).
+- [User guide](docs/user-guide.md): every screen and workflow of the app.
+- [Security](docs/security.md): the threat model, key hierarchy and where data is stored.
+- [Troubleshooting](docs/troubleshooting.md): connection errors, Docker, updates, logs and bug reports.
+- [Keyboard shortcuts](docs/shortcuts.md): every shortcut the app registers.
+- [Architecture](docs/architecture.md): processes, packages, the RPC contract and the test layers.
+- [Contributing](CONTRIBUTING.md): setup, scripts, gates and coding standards.
 
 ## License
 
