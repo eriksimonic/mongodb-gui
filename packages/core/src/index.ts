@@ -78,3 +78,5 @@ export * from './shell/rpc-schemas';
 export * from './transfer/csv';
 export * from './transfer/infer';
 export * from './transfer/types';
+export * from './shell/collection-access';
+export * from './sql/index';

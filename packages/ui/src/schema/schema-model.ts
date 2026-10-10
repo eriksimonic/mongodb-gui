@@ -1,4 +1,4 @@
-import { formatMongoshSyntax, type SchemaField } from '@mongo-gui/core';
+import { collectionAccess, formatMongoshSyntax, type SchemaField } from '@mongo-gui/core';
 import { chartPalette, seriesColor, type ChartScheme } from '../monitor/palette';
 
 /** Sample sizes the panel offers. */
@@ -324,11 +324,12 @@ export function queryPath(path: string): string {
   return path.replaceAll('[]', '');
 }
 
-/** The mongosh expression for a collection, quoting names that are not identifiers. */
+/**
+ * The mongosh expression for a collection. Names that `db.<name>` does not reach, such as those
+ * with a dash, a leading underscore or a `Database` member name, go through `db.getCollection`.
+ */
 export function collectionExpression(collection: string): string {
-  return /^[A-Za-z_$][A-Za-z0-9_$]*$/.test(collection)
-    ? `db.${collection}`
-    : `db.getCollection(${JSON.stringify(collection)})`;
+  return collectionAccess(collection);
 }
 
 /** The query that lists the documents where a field is missing. */

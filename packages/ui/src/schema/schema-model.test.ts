@@ -277,7 +277,10 @@ describe('query and label helpers', () => {
   });
 
   it('quotes collection names that are not identifiers', () => {
-    expect(collectionExpression('app-logs')).toBe('db.getCollection("app-logs")');
+    expect(collectionExpression('app-logs')).toBe("db.getCollection('app-logs')");
+    expect(collectionExpression('_private')).toBe("db.getCollection('_private')");
+    expect(collectionExpression('stats')).toBe("db.getCollection('stats')");
+    expect(collectionExpression('orders')).toBe('db.orders');
   });
 
   it('describes numeric, date, length and array ranges in words', () => {
