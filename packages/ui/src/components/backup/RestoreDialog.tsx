@@ -344,14 +344,16 @@ export function RestoreDialogBody({
           {inspection?.path ?? 'Choose the backup to restore.'}
         </Text>
       </Group>
-      {inspection === undefined || effective === undefined ? null : (
+      {inspection === undefined || draft === undefined || effective === undefined ? null : (
         <>
           <RestoreSourceSummary inspection={inspection} />
           <Text fw={500} size="sm">
             Contents
           </Text>
+          {/* The tree gets the raw draft. Given `effective`, it would write the options the
+              form forces off back into the draft, and they would stay off. */}
           <RestoreContentsTree
-            draft={effective}
+            draft={draft}
             namespaces={inspection.namespaces}
             onChange={setDraft}
           />

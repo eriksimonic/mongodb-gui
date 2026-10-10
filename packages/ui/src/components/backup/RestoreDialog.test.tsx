@@ -156,6 +156,29 @@ describe('RestoreDialog', () => {
     );
   });
 
+  it('keeps Replay oplog on after a collection is unchecked and checked again', async () => {
+    const api = createMockUiApi({ preset: 'unlocked' });
+    await api.rpc.connections.connect({ id: localConnectionId });
+    const inspect = api.rpc.backup.inspect.bind(api.rpc.backup);
+    vi.spyOn(api.rpc.backup, 'inspect').mockImplementation(async (input) => ({
+      ...(await inspect(input)),
+      hasOplog: true,
+    }));
+    renderWithApp(
+      <RestoreDialogBody connectionId={localConnectionId} onClose={() => undefined} />,
+      { api },
+    );
+    await chooseArchive();
+    const replay = screen.getByLabelText('Replay oplog');
+    fireEvent.click(replay);
+    expect(replay).toBeChecked();
+    const box = within(screen.getByTestId('restore-contents')).getByLabelText('shop.orders');
+    fireEvent.click(box);
+    expect(screen.getByLabelText('Replay oplog')).not.toBeChecked();
+    fireEvent.click(box);
+    expect(screen.getByLabelText('Replay oplog')).toBeChecked();
+  });
+
   it('labels the footer button from the dry run checkbox', async () => {
     await renderDialog();
     await chooseArchive();
