@@ -153,6 +153,7 @@ and choose "Open Anyway". On Linux, no signature check applies. Run `chmod +x` o
 AppImage, or install the `.deb` with `apt install ./<file>.deb`.
 
 Downloads appear on the [Releases page](https://github.com/eriksimonic/mongodb-gui/releases).
+The changes in each version are listed in [CHANGELOG.md](CHANGELOG.md).
 
 ### Updates
 
