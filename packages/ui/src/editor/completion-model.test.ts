@@ -158,6 +158,26 @@ describe('operatorsFor', () => {
   });
 });
 
+describe('fieldCompletions ranking', () => {
+  it('lists shallow paths before deep ones, so a large map does not hide the top-level fields', () => {
+    const fields = [
+      ...Array.from({ length: 300 }, (_, index) => ({
+        path: `definitions.${1000 + index}.enumFlags`,
+        types: ['bool'],
+        presence: 1,
+      })),
+      { path: 'name', types: ['string'], presence: 1 },
+      { path: 'definitions', types: ['object'], presence: 1 },
+    ];
+
+    const labels = mergeCompletions('', [fieldCompletions(fields)], 200).map((item) => item.label);
+
+    expect(labels.slice(0, 2)).toEqual(['definitions', 'name']);
+    expect(labels[2]).toBe('definitions.1000.enumFlags');
+    expect(labels).toHaveLength(200);
+  });
+});
+
 describe('fieldCompletions in an object key', () => {
   it('quotes a dotted field name so the key is valid', () => {
     const [field] = fieldCompletions(
