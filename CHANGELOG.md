@@ -6,6 +6,10 @@ All notable changes to Mongo GUI are listed here, newest first.
 
 ### Added
 
+- `packages/core` translates a T-SQL subset to mongosh: SELECT with joins, grouping and paging,
+  UPDATE, DELETE, INSERT and TRUNCATE. Each statement becomes one mongosh statement, and a
+  construct outside the subset is refused with a message that points at it. The editor's SQL
+  mode, which runs the translated statements, follows in a later change.
 - "Generate data" on a collection inserts made-up documents from a seeded set of generators
   (identifiers, numbers, dates, names, emails, file paths and lorem text), with unique fields,
   a preview, progress and cancel. A unique field that its generator cannot fill is refused before

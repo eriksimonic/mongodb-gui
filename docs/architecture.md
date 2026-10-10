@@ -27,7 +27,7 @@ short grace period.
 
 | Package                  | Depends on          | May import                                | Purpose                                                                                                                                                                          |
 | ------------------------ | ------------------- | ----------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `packages/core`          | nothing             | `zod` only                                | Domain types, the RPC contract, the explain normaliser and pure helpers.                                                                                                         |
+| `packages/core`          | nothing             | `zod` only                                | Domain types, the RPC contract, the explain normaliser, the T-SQL to mongosh translator and pure helpers.                                                                        |
 | `packages/mongo-adapter` | core                | `mongodb`, `bson`                         | Everything that touches the driver: connect, catalogue, indexes, explain, monitor, profiler, security, sharding, replication, diagnostics, GridFS, change streams and transfers. |
 | `packages/shell-runtime` | core, mongo-adapter | `@mongosh/*`                              | Hosts the mongosh evaluator in the utility process. It also runs as a plain child process in tests.                                                                              |
 | `packages/storage`       | core                | `node:sqlite`, `node:crypto`              | The vault (key derivation and wrapping), the encrypted store and its repositories.                                                                                               |
@@ -39,6 +39,10 @@ The import rules are enforced in `eslint.config.js`. Each package has a `no-rest
 rule. For example, `core` may not import `electron`, `mongodb`, `bson`, `react` or a Node built-in.
 `tests/boundaries.test.ts` checks the packages against the boundary table in
 `tests/support/boundaries.ts`.
+
+The T-SQL translator lives in `packages/core/src/sql`. It takes SQL text and an optional field-type
+lookup, and it returns mongosh text without touching a database. [sql.md](sql.md) describes the
+supported subset and the refusals.
 
 ## The RPC contract
 
