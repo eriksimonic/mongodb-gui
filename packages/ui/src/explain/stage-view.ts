@@ -52,7 +52,7 @@ export interface MetricItem {
 export function stageMetricItems(stage: PlanStage, info: StageInfo): MetricItem[] {
   const items: MetricItem[] = [];
   for (const key of info.metrics) {
-    const item = metricItem(stage, key);
+    const item = metricItem(stage, key, info);
     if (item !== undefined) {
       items.push(item);
     }
@@ -60,7 +60,21 @@ export function stageMetricItems(stage: PlanStage, info: StageInfo): MetricItem[
   return items;
 }
 
-function metricItem(stage: PlanStage, key: StageMetric): MetricItem | undefined {
+/**
+ * Whether the stage reports its time as an estimate. Stages inside the plan carry only
+ * executionTimeMillisEstimate, and the top-level execution block carries executionTimeMillis.
+ */
+export function timeIsEstimate(stage: PlanStage): boolean {
+  const raw =
+    typeof stage.raw === 'object' && stage.raw !== null
+      ? (stage.raw as Record<string, unknown>)
+      : {};
+  return (
+    raw['executionTimeMillisEstimate'] !== undefined && raw['executionTimeMillis'] === undefined
+  );
+}
+
+function metricItem(stage: PlanStage, key: StageMetric, info: StageInfo): MetricItem | undefined {
   const build = (label: string, text: string, highlight = false): MetricItem => ({
     key,
     label,
@@ -83,13 +97,21 @@ function metricItem(stage: PlanStage, key: StageMetric): MetricItem | undefined 
     case 'executionTimeMs':
       return stage.executionTimeMs === undefined
         ? undefined
-        : build('Time', formatDuration(stage.executionTimeMs));
+        : build(
+            timeIsEstimate(stage) ? 'Time (est.)' : 'Time',
+            formatDuration(stage.executionTimeMs),
+          );
     case 'works':
       return stage.works === undefined ? undefined : build('Works', formatCount(stage.works));
+    // A sort reports the bytes it sorted, and a group reports its largest accumulator. Neither is
+    // the memory the stage holds, so the label names what the number is. Not a spill signal.
     case 'memUsageBytes':
       return stage.memUsageBytes === undefined
         ? undefined
-        : build('Memory', formatBytes(stage.memUsageBytes), stage.memUsageBytes > 0);
+        : build(
+            info.category === 'sort' ? 'Data sorted' : 'Memory',
+            formatBytes(stage.memUsageBytes),
+          );
     case 'memLimitBytes':
       return stage.memLimitBytes === undefined
         ? undefined
@@ -128,7 +150,8 @@ const SCAN_OR_FETCH: ReadonlySet<StageCategory> = new Set(['scan', 'fetch']);
  * above the warning threshold is marked high.
  */
 export function examinedRatio(stage: PlanStage, info: StageInfo): RatioView | undefined {
-  if (!SCAN_OR_FETCH.has(info.category)) {
+  // $cursor is the input of an aggregate, not a scan of its own, so it gets no ratio.
+  if (!SCAN_OR_FETCH.has(info.category) || stage.name === '$cursor') {
     return undefined;
   }
   const examined = stage.docsExamined;
@@ -193,22 +216,30 @@ export interface TextSpan {
   readonly length: number;
 }
 
-/** Every case-insensitive occurrence of the query in the text, in reading order. */
+/**
+ * Every case-insensitive occurrence of the query in the text, in reading order. Columns are
+ * UTF-16 offsets into the line, the same units the editor uses, so the match lands on the text.
+ */
 export function findTextMatches(text: string, query: string): TextSpan[] {
   if (query === '') {
     return [];
   }
-  const needle = query.toLowerCase();
+  const pattern = new RegExp(escapeRegExp(query), 'gi');
   const matches: TextSpan[] = [];
   text.split('\n').forEach((lineText, lineIndex) => {
-    const haystack = lineText.toLowerCase();
-    let from = haystack.indexOf(needle);
-    while (from !== -1) {
-      matches.push({ line: lineIndex + 1, column: from + 1, length: query.length });
-      from = haystack.indexOf(needle, from + needle.length);
+    for (const found of lineText.matchAll(pattern)) {
+      matches.push({
+        line: lineIndex + 1,
+        column: (found.index ?? 0) + 1,
+        length: found[0].length,
+      });
     }
   });
   return matches;
+}
+
+function escapeRegExp(text: string): string {
+  return text.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
 }
 
 /** The index of the next match, wrapping from the last to the first. */

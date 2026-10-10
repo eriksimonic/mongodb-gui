@@ -1,7 +1,13 @@
 // @vitest-environment jsdom
 import { fireEvent, screen, waitFor, within } from '@testing-library/react';
 import { describe, expect, it, vi } from 'vitest';
-import { appError, AppErrorException, normaliseExplain } from '@mongo-gui/core';
+import {
+  appError,
+  AppErrorException,
+  describeStage,
+  normaliseExplain,
+  type PlanWarning,
+} from '@mongo-gui/core';
 import { localConnectionId } from '../api/mock-fixtures';
 import { createMockUiApi, type MockUiApiOptions } from '../api/mock-rpc-client';
 import {
@@ -291,7 +297,10 @@ describe('ExplainPanel stage catalogue', () => {
         'Reads every document in the collection and applies the filter to each one.',
       ),
     ).toBeInTheDocument();
-    expect(await screen.findByText(/Add an index on the fields in the filter/)).toBeInTheDocument();
+    // The advice shows in the tooltip and in the COLLSCAN warning, so more than one match is expected.
+    expect(
+      (await screen.findAllByText(/Add an index on the fields in the filter/)).length,
+    ).toBeGreaterThan(0);
   });
 
   it('shows a neutral icon and the raw name for a stage the catalogue does not know', async () => {
@@ -427,3 +436,38 @@ function countStage(panel: ExplainPanelState): number {
   }
   return panel.outcome.result.rawEjson.toLowerCase().split('stage').length - 1;
 }
+
+describe('ExplainPanel spill highlight', () => {
+  it('does not highlight a sort that did not spill, even though it reports bytes sorted', async () => {
+    const api = await connectedApi();
+    renderPanel(api, panelFor(SORT_FIXTURE));
+    expect(document.querySelector('.mg-explain-metric-spill')).toBeNull();
+  });
+});
+
+describe('ExplainPanel warning advice', () => {
+  it('shows the catalogue advice for a warning the core left without advice', async () => {
+    const api = await connectedApi();
+    const panel = panelFor(SORT_FIXTURE);
+    if (panel.outcome.state !== 'ready') {
+      throw new Error('panel is not ready');
+    }
+    const tree = panel.outcome.result.tree;
+    const warnings = tree.warnings.map((warning) => {
+      const copy: Partial<PlanWarning> = { ...warning };
+      delete copy.advice;
+      return copy as PlanWarning;
+    });
+    const stripped: ExplainPanelState = {
+      ...panel,
+      outcome: {
+        ...panel.outcome,
+        result: { ...panel.outcome.result, tree: { ...tree, warnings } },
+      },
+    };
+    renderPanel(api, stripped);
+    const sortAdvice = describeStage('SORT').advice;
+    expect(sortAdvice).toBeDefined();
+    expect(document.querySelector('.mg-explain-warning-advice')?.textContent).toBe(sortAdvice);
+  });
+});

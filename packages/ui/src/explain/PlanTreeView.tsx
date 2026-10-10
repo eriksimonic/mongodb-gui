@@ -110,8 +110,12 @@ const CATEGORY_SLOT: Readonly<Partial<Record<StageCategory, number>>> = {
 
 const SHARD_ERROR = 'SHARD_ERROR';
 
+// Deeper stages keep the indent of the cap, so a deep plan stays on screen. The tooltip gives the
+// real depth.
+const MAX_INDENT_DEPTH = 24;
+
 function indent(depth: number): number {
-  return INDENT_BASE_PX + depth * INDENT_STEP_PX;
+  return INDENT_BASE_PX + Math.min(depth, MAX_INDENT_DEPTH) * INDENT_STEP_PX;
 }
 
 /**
@@ -424,10 +428,11 @@ function StageIcon({ info }: StageIconProps) {
   );
 }
 
-function StageTooltip({ info }: { readonly info: StageInfo }) {
+function StageTooltip({ info, depth }: { readonly info: StageInfo; readonly depth: number }) {
   return (
     <div className="mg-explain-tip">
       <div>{info.description}</div>
+      <div className="mg-explain-tip-depth">Depth {depth}</div>
       {info.advice === undefined ? null : (
         <div className="mg-explain-tip-advice">{info.advice}</div>
       )}
@@ -479,7 +484,7 @@ function StageRowBody({ row, metric, max, hot, onToggle }: StageRowBodyProps) {
           </button>
         )}
         <Tooltip
-          label={<StageTooltip info={info} />}
+          label={<StageTooltip info={info} depth={row.depth} />}
           multiline
           w={300}
           withArrow

@@ -47,6 +47,38 @@ describe('stageMetricItems', () => {
     expect(labels).toEqual(['Keys', 'Returned']);
   });
 
+  it('labels bytes sorted on a sort and never highlights them as a spill', () => {
+    const sort = stage('sort', { memUsageBytes: 2048, usedDisk: false, spills: 0 });
+    const items = stageMetricItems(sort, describeStage('sort'));
+    expect(items.find((item) => item.key === 'memUsageBytes')).toMatchObject({
+      label: 'Data sorted',
+      text: '2 KiB',
+      highlight: false,
+    });
+  });
+
+  it('labels the memory of a group as memory and never highlights it', () => {
+    const group = stage('group', { memUsageBytes: 4096 });
+    const items = stageMetricItems(group, describeStage('group'));
+    expect(items.find((item) => item.key === 'memUsageBytes')).toMatchObject({
+      label: 'Memory',
+      highlight: false,
+    });
+  });
+
+  it('labels a time from the estimate field as an estimate', () => {
+    const estimated = stage('FETCH', {
+      executionTimeMs: 3,
+      raw: { executionTimeMillisEstimate: 3 },
+    });
+    const measured = stage('FETCH', { executionTimeMs: 3, raw: { executionTimeMillis: 3 } });
+    const label = (node: PlanStage) =>
+      stageMetricItems(node, describeStage('FETCH')).find((item) => item.key === 'executionTimeMs')
+        ?.label;
+    expect(label(estimated)).toBe('Time (est.)');
+    expect(label(measured)).toBe('Time');
+  });
+
   it('highlights spill counters only when they are non-zero', () => {
     const sort = stage('sort', {
       memUsageBytes: 2048,
@@ -57,7 +89,7 @@ describe('stageMetricItems', () => {
     });
     const items = stageMetricItems(sort, describeStage('sort'));
     const highlighted = items.filter((item) => item.highlight).map((item) => item.label);
-    expect(highlighted).toEqual(['Memory', 'Used disk']);
+    expect(highlighted).toEqual(['Used disk']);
     expect(items.find((item) => item.label === 'Spills')).toMatchObject({
       text: '0',
       highlight: false,
@@ -84,6 +116,11 @@ describe('examinedRatio', () => {
   it('is not high at or below the threshold', () => {
     const fetch = stage('FETCH', { docsExamined: 20, nReturned: 10 });
     expect(examinedRatio(fetch, describeStage('FETCH'))).toMatchObject({ ratio: 2, high: false });
+  });
+
+  it('is not shown on a $cursor, which is the input of an aggregate and not a scan', () => {
+    const cursor = stage('$cursor', { docsExamined: 600, nReturned: 600 });
+    expect(examinedRatio(cursor, describeStage('$cursor'))).toBeUndefined();
   });
 
   it('is not shown on a stage outside scans and fetches', () => {
@@ -127,6 +164,19 @@ describe('findTextMatches', () => {
       { line: 2, column: 1, length: 5 },
       { line: 2, column: 11, length: 5 },
     ]);
+  });
+
+  it('keeps exact columns after characters whose lowercase form is longer', () => {
+    // The dotted capital I lowercases to two code units, so a lowercased copy shifts columns.
+    expect(findTextMatches('"İİx": 1', 'x')).toEqual([{ line: 1, column: 4, length: 1 }]);
+    expect(findTextMatches('"İİx": 1', 'İ')).toEqual([
+      { line: 1, column: 2, length: 1 },
+      { line: 1, column: 3, length: 1 },
+    ]);
+  });
+
+  it('matches a query that holds regular expression characters literally', () => {
+    expect(findTextMatches('a.b axb', 'a.b')).toEqual([{ line: 1, column: 1, length: 3 }]);
   });
 
   it('finds nothing for an empty query', () => {

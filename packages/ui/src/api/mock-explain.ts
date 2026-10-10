@@ -98,7 +98,10 @@ function shapeOfCommand(commandEjson: string): MockShape {
   };
 }
 
-/** The fixture case that stands in for a shape. Every case exists at every verbosity. */
+/**
+ * The fixture case that stands in for a shape. A case may not have every verbosity, so
+ * resultFor falls back to the nearest one the case has.
+ */
 function caseFor(shape: MockShape): string {
   if (shape.command === 'aggregate') {
     return shape.lookup ? 'lookup-pipeline' : 'aggregate-group';
@@ -119,8 +122,31 @@ function caseFor(shape: MockShape): string {
  * The explain result for one committed fixture, normalised as the router would. `fixture` is a
  * fixture directory and case, for example `8.0.17/collscan`.
  */
+// The verbosities a case can fall back to, nearest first. executionStats has the most detail.
+const FALLBACK_VERBOSITIES: readonly PlanVerbosity[] = [
+  'executionStats',
+  'allPlansExecution',
+  'queryPlanner',
+];
+
+/**
+ * The fixture for a case at a verbosity. When the case has no file at that verbosity (for
+ * example a $lookup with an inner pipeline is captured at executionStats only), the nearest
+ * verbosity the case has is used, so switching verbosity in the panel still shows a plan.
+ */
+function loaderFor(fixture: string, verbosity: PlanVerbosity) {
+  const order = [verbosity, ...FALLBACK_VERBOSITIES.filter((other) => other !== verbosity)];
+  for (const candidate of order) {
+    const load = FIXTURE_LOADERS[`${fixture}.${candidate}`];
+    if (load !== undefined) {
+      return load;
+    }
+  }
+  return undefined;
+}
+
 async function resultFor(fixture: string, verbosity: PlanVerbosity): Promise<ExplainResult> {
-  const load = FIXTURE_LOADERS[`${fixture}.${verbosity}`];
+  const load = loaderFor(fixture, verbosity);
   if (load === undefined) {
     throw fail('INTERNAL', 'Explain fixture not found', `${fixture} at ${verbosity}`);
   }

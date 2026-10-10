@@ -1516,6 +1516,15 @@ describe('committed fixture sub-trees and spill metrics', () => {
     expect(tree.warnings.map((warning) => warning.code)).toContain('GROUP_SPILLED');
   });
 
+  it('reads the hash join totals of an 8.0 unindexed lookup from its hash_lookup section', () => {
+    const tree = normaliseExplain(
+      FIXTURES['./fixtures/8.0.17/lookup-unindexed.executionStats.json'],
+    );
+    const join = flattenStages(tree.winning).find((stage) => stage.name === 'EQ_LOOKUP');
+    expect(join?.docsExamined).toBe(900);
+    expect(join?.keysExamined).toBe(600);
+  });
+
   it('marks the shard children of the hand-written sharded plan', () => {
     const tree = normaliseExplain(FIXTURES['./fixtures/sharded/find.executionStats.json']);
     expect(tree.winning.children.some((child) => child.label?.startsWith('shard ') === true)).toBe(

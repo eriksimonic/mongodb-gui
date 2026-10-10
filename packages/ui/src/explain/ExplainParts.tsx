@@ -2,6 +2,7 @@ import { Badge, Button, Code, Group, Stack, Text } from '@mantine/core';
 import { notifications } from '@mantine/notifications';
 import type { ReactNode } from 'react';
 import {
+  describeStage,
   explainInWords,
   suggestedIndexKeys,
   type PlanTree,
@@ -110,6 +111,9 @@ export function ExplainWarnings({ warnings, onSelect }: ExplainWarningsProps) {
       </Text>
       {sortWarnings(warnings).map((warning, index) => {
         const stageName = warning.stageName;
+        // The core fills the advice from the catalogue. The catalogue is the fallback when it did not.
+        const advice =
+          warning.advice ?? (stageName === undefined ? undefined : describeStage(stageName).advice);
         return (
           <button
             key={`${warning.code}-${index}`}
@@ -129,8 +133,8 @@ export function ExplainWarnings({ warnings, onSelect }: ExplainWarningsProps) {
             <Code>{warning.code}</Code>
             <span className="mg-explain-warning-message">
               {warning.message}
-              {warning.advice === undefined ? null : (
-                <span className="mg-explain-warning-advice">{warning.advice}</span>
+              {advice === undefined ? null : (
+                <span className="mg-explain-warning-advice">{advice}</span>
               )}
             </span>
             {stageName === undefined ? null : (
