@@ -1,17 +1,21 @@
 import { Box, Loader, Tooltip } from '@mantine/core';
 import type { ConnectionStatus } from '@mongo-gui/core';
 import { IconAlertCircle, IconPlugConnected, IconPlugConnectedX } from '@tabler/icons-react';
+import { connectionTopologyLabel } from './connection-status-label';
 
 export interface ConnectionStatusIconProps {
   readonly status: ConnectionStatus;
 }
 
-/** Status dot for a connection. The error state carries its message in a tooltip. */
+/**
+ * Status dot for a connection. The connected state names the server topology in its tooltip, and
+ * the error state carries its message.
+ */
 export function ConnectionStatusIcon({ status }: ConnectionStatusIconProps) {
   switch (status.state) {
     case 'connected':
       return (
-        <Tooltip label="Connected">
+        <Tooltip label={`Connected · ${connectionTopologyLabel(status)}`}>
           <Box component="span" c="green.5" display="inline-flex">
             <IconPlugConnected size={14} aria-label="Connected" />
           </Box>

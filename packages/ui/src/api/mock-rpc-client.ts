@@ -180,7 +180,7 @@ function initialState(preset: MockPreset): MockState {
     vault: 'unlocked',
     password: mockMasterPassword,
     connections: [...connections, fixtureDockerProfile()],
-    statuses: new Map([[DOCKER_PROFILE_ID, connectedStatus()]]),
+    statuses: new Map([[DOCKER_PROFILE_ID, connectedStatus('standalone', true)]]),
     history: fixtureHistory(),
     favourites: fixtureFavourites(),
     layout: new Map(),
@@ -252,12 +252,16 @@ function summarise(profile: ConnectionProfile): ConnectionProfileSummary {
   return { ...profile, uriRedacted: redactUri(profile.uri) };
 }
 
-function connectedStatus(topology: 'standalone' | 'sharded' = 'standalone'): ConnectionStatus {
+function connectedStatus(
+  topology: 'standalone' | 'sharded' = 'standalone',
+  directConnection = false,
+): ConnectionStatus {
   return {
     state: 'connected',
     serverVersion: SERVER_VERSION,
     topology,
     hosts: ['localhost:27017'],
+    ...(directConnection ? { directConnection: true } : {}),
   };
 }
 

@@ -13,6 +13,8 @@ import type { MouseEvent } from 'react';
 import { CollectionIcon } from './CollectionIcon';
 import { ConnectionStatusIcon } from './ConnectionStatusIcon';
 import { DockerContainerMeta } from './DockerContainerMeta';
+import { connectionTreeMeta } from './connection-status-label';
+import type { ConnectionStatus } from '@mongo-gui/core';
 import type { TreeRow as TreeRowModel } from './tree-model';
 import './tree.css';
 
@@ -86,7 +88,25 @@ export function TreeRow({
       </span>
       <span className="mg-tree-label">{row.label}</span>
       {row.container === undefined ? null : <DockerContainerMeta container={row.container} />}
+      {row.kind === 'connection' && row.status !== undefined ? (
+        <ConnectionMeta status={row.status} />
+      ) : null}
     </div>
+  );
+}
+
+/** The right side of a connection row: the set name and whether the connection is direct. */
+function ConnectionMeta({ status }: { readonly status: ConnectionStatus }) {
+  const text = connectionTreeMeta(status);
+  if (text === undefined) {
+    return null;
+  }
+  // Decorative, as the container meta is: the status icon's tooltip carries the same words, and
+  // the row name stays the connection name.
+  return (
+    <span className="mg-tree-meta" aria-hidden="true">
+      <span className="mg-tree-image">{text}</span>
+    </span>
   );
 }
 

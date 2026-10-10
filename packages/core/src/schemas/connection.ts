@@ -53,6 +53,8 @@ export const ConnectionStatusSchema = z.discriminatedUnion('state', [
     topology: ClusterTopologySchema,
     setName: z.string().optional(),
     hosts: z.array(z.string()),
+    /** True when the client talks to one host only, with `directConnection=true` in the URI. */
+    directConnection: z.boolean().optional(),
   }),
   z.object({ state: z.literal('error'), error: AppErrorSchema }),
 ]);
