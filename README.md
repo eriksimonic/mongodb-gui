@@ -58,9 +58,13 @@ inline edits in the tree, and a history and favourites list in the Output panel.
 | ------------------------------------------------------------------------------------------------ | ----------------------------------------------------------------------------- |
 | ![Connection tree with databases and collections expanded](docs/screenshots/connection-tree.png) | ![New connection dialog in form mode](docs/screenshots/connection-dialog.png) |
 
-| Indexes with the create index dialog                                             | Validation with a Monaco validator                                                | Documents                                                                                                         |
-| -------------------------------------------------------------------------------- | --------------------------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------- |
-| ![Indexes panel with the create index dialog open](docs/screenshots/indexes.png) | ![Validation panel with a JSON schema validator](docs/screenshots/validation.png) | ![Documents panel with the first documents of a collection and their row actions](docs/screenshots/documents.png) |
+| Tab menu                                                                           |
+| ---------------------------------------------------------------------------------- |
+| ![Tab menu of an editor tab with the close actions](docs/screenshots/tab-menu.png) |
+
+| Indexes with the edit index dialog                                                                  | Validation with a Monaco validator                                                | Documents                                                                                                         |
+| --------------------------------------------------------------------------------------------------- | --------------------------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------- |
+| ![Indexes panel with the edit index dialog open and the drop warning](docs/screenshots/indexes.png) | ![Validation panel with a JSON schema validator](docs/screenshots/validation.png) | ![Documents panel with the first documents of a collection and their row actions](docs/screenshots/documents.png) |
 
 | Profiler                                                                               | Top query shapes                                                        |
 | -------------------------------------------------------------------------------------- | ----------------------------------------------------------------------- |

@@ -203,6 +203,8 @@ the other tabs in the same group. "Close tabs to the left" and "Close tabs to th
 tabs on that side in the group, and their items are off when no tab lies on that side. "Close all
 tabs" closes every tab. The connections, welcome and output panels never close from this menu.
 
+![Tab menu of an editor tab with the close actions](screenshots/tab-menu.png)
+
 ## The editor
 
 Open an editor from a database. Choose "Open editor" from the database menu, or press Ctrl+N
@@ -254,7 +256,7 @@ The results pane shows the documents of the last run. Switch between three views
 - Tree view shows each document as an expandable tree. Each value has a type badge. "Collapse
   all" folds the tree. Each row has "Copy path" and "Copy value" buttons. Double-click the
   top-level row of a document, the one marked with its position such as "#1", to open the whole
-  document. Double-click a value to edit it.
+  document. Double-click a field name, or use its pencil button, to edit the value in place.
 - JSON view shows the result as read-only mongosh-style text.
 
 ![Tree view of a document with type badges](screenshots/editor-tree.png)
@@ -351,10 +353,10 @@ change whether the planner may use an index. Hiding an index keeps it in place.
 To change an index, click "Edit" on its row. The index builder opens with the current
 definition. MongoDB cannot change an index in place, so "Replace index" drops the index and then
 creates the new definition. If the create fails after the drop, the collection has no index with
-that name until you save a definition that works. The "_id_" index has no "Edit" action. Neither
+that name until you save a definition that works. The "Edit" action is disabled on the "_id_" index. Neither
 does an index whose keys the builder cannot show, such as a geoHaystack key.
 
-![Indexes panel with the create index dialog open](screenshots/indexes.png)
+![Indexes panel with the edit index dialog open and the drop warning](screenshots/indexes.png)
 
 ### Validation
 
