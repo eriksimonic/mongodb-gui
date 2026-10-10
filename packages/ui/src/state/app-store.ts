@@ -134,6 +134,12 @@ export type ManagementDialog =
     }
   | { readonly kind: 'dropDatabase'; readonly connectionId: string; readonly database: string }
   | {
+      readonly kind: 'shardCollection';
+      readonly connectionId: string;
+      readonly database: string;
+      readonly collection: string;
+    }
+  | {
       readonly kind: 'createIndex';
       readonly connectionId: string;
       readonly database: string;
@@ -1173,6 +1179,10 @@ export function createAppStore(api: UiApi, initial: Partial<AppData> = {}): AppS
             docker: { ...state.docker, containers: { state: 'ready', data: event.containers } },
           }));
           void get().refreshDockerStatus();
+          return;
+        }
+        // Change events belong to the change streams store.
+        if (event.type === 'changes:event' || event.type === 'changes:state') {
           return;
         }
         // Auto connect creates profiles without a call from the UI, so the list is refreshed here.

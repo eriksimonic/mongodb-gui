@@ -4,6 +4,7 @@ import { dirname, join, resolve } from 'node:path';
 import { randomUUID } from 'node:crypto';
 import {
   AppErrorException,
+  CHANGE_EVENT_BATCH_LIMIT,
   ConnectionProfileSummarySchema,
   DEFAULT_BATCH_SIZE,
   appError,
@@ -17,6 +18,11 @@ import {
   type AppError,
   type CallInput,
   type AppVersions,
+  type ChangeEvent,
+  type ChangeTarget,
+  type ChangeWatchOptions,
+  type ChangeWatchPushState,
+  type ChangeWatchState,
   type ConnectionProfile,
   type ConnectionProfileInput,
   type DialogResult,
@@ -50,6 +56,8 @@ import {
 } from '@mongo-gui/core';
 import {
   ConnectionManager,
+  openChangeWatch,
+  type ChangeWatch,
   explainableCommand,
   parseCommandEjson,
   runExplainCommand,
@@ -132,6 +140,20 @@ import {
   revokeRoles,
   updateRole,
   userManagementCapabilities,
+  addShardToZone,
+  clearBalancerWindow,
+  describeShardCollection,
+  enableSharding,
+  getShardDistribution,
+  getShardingOverview,
+  moveChunk,
+  removeShardFromZone,
+  removeShardStatus,
+  setBalancerWindow,
+  shardCollection,
+  startBalancer,
+  stopBalancer,
+  updateZoneKeyRange,
 } from '@mongo-gui/mongo-adapter';
 import {
   createDockerEngineClient,
@@ -252,6 +274,8 @@ export interface RouterDeps {
   readonly dialogs?: NativeDialogs;
   /** The transfer functions. Tests inject a fake. Defaults to the adapter. */
   readonly transferAdapter?: TransferAdapter;
+  /** Opens a change watch. Tests inject a fake watch. Defaults to the adapter. */
+  readonly openWatch?: typeof openChangeWatch;
 }
 
 /** The driver client type, named without importing the driver into the main process. */
@@ -282,6 +306,32 @@ interface ActiveTail {
   readonly connectionId: string;
   readonly database: string;
   readonly tail: ProfileTail;
+}
+
+/** A change watch held by the router. `flush` sends the batch that is waiting to go out. */
+interface ActiveChangeWatch {
+  readonly connectionId: string;
+  readonly watchId: string;
+  readonly watch: ChangeWatch;
+  readonly flush: () => void;
+  /** Sends a 'resuming' phase before the watch resumes and reports 'live' itself. */
+  resuming(): void;
+}
+
+/** A watch state with its error redacted, so no URI reaches the page. */
+function sanitizedWatchState(state: ChangeWatchState): ChangeWatchState {
+  const { error, ...rest } = state;
+  return error === undefined ? rest : { ...rest, error: sanitize(error) };
+}
+
+/** The state the renderer sees. Errors are redacted, so no URI reaches the page. */
+function pushStateOf(state: ChangeWatchState): ChangeWatchPushState {
+  return {
+    phase: state.phase,
+    eventsSeen: state.eventsSeen,
+    eventsDropped: state.eventsDropped,
+    ...(state.error === undefined ? {} : { error: sanitize(state.error) }),
+  };
 }
 
 export interface Router {
@@ -362,6 +412,8 @@ export function createRouter(deps: RouterDeps): Router {
   const tails = new Map<string, ActiveTail>();
   // Per-renderer cleanups. Tails register first; other services join the same registry.
   const rendererResets = new Set<() => void>();
+  // Change watches by connection, then by watch id. A watch ends with its connection or the page.
+  const changeWatches = new Map<string, Map<string, ActiveChangeWatch>>();
   // Plans belong to the page that made them. A reset drops them, so a reloaded page cannot apply one.
   rendererResets.add(() => {
     replicationPlans.clear();
@@ -381,6 +433,9 @@ export function createRouter(deps: RouterDeps): Router {
 
   rendererResets.add(() => {
     stopTails(() => true);
+  });
+  rendererResets.add(() => {
+    stopChangeWatches(() => true);
   });
 
   const startTail = (
@@ -412,6 +467,86 @@ export function createRouter(deps: RouterDeps): Router {
 
   const stopTail = (connectionId: string, database: string): void => {
     stopTails((active) => active.connectionId === connectionId && active.database === database);
+  };
+
+  /** Stops the watches that match, and forgets them. Each watch closes in the background. */
+  const stopChangeWatches = (matches: (active: ActiveChangeWatch) => boolean): void => {
+    for (const [connectionId, watches] of [...changeWatches]) {
+      for (const [watchId, active] of [...watches]) {
+        if (matches(active)) {
+          watches.delete(watchId);
+          active.flush();
+          void active.watch.close().catch(() => undefined);
+        }
+      }
+      if (watches.size === 0) {
+        changeWatches.delete(connectionId);
+      }
+    }
+  };
+
+  /** Opens a watch on the connection and returns its id. Events are batched into changes:event. */
+  const startChangeWatch = (
+    connectionId: string,
+    target: ChangeTarget,
+    options: ChangeWatchOptions,
+  ): string => {
+    const client = deps.connections.getClient(connectionId);
+    const watchId = randomUUID();
+    const pending: ChangeEvent[] = [];
+    let flushTimer: ReturnType<typeof setImmediate> | undefined;
+    const flush = (): void => {
+      if (flushTimer !== undefined) {
+        clearImmediate(flushTimer);
+        flushTimer = undefined;
+      }
+      if (pending.length > 0) {
+        const events = pending.splice(0, pending.length);
+        deps.onEvent({ type: 'changes:event', watchId, events });
+      }
+    };
+    const open = deps.openWatch ?? openChangeWatch;
+    const watch = open(client, target, options, {
+      onEvent(event) {
+        pending.push(event);
+        if (pending.length >= CHANGE_EVENT_BATCH_LIMIT) {
+          flush();
+        } else if (flushTimer === undefined) {
+          flushTimer = setImmediate(flush);
+        }
+      },
+      onState(state) {
+        flush();
+        deps.onEvent({ type: 'changes:state', watchId, state: pushStateOf(state) });
+      },
+    });
+    const active: ActiveChangeWatch = {
+      connectionId,
+      watchId,
+      watch,
+      flush,
+      resuming() {
+        deps.onEvent({
+          type: 'changes:state',
+          watchId,
+          state: { ...pushStateOf(watch.state()), phase: 'resuming' },
+        });
+      },
+    };
+    const watches = changeWatches.get(connectionId) ?? new Map<string, ActiveChangeWatch>();
+    watches.set(watchId, active);
+    changeWatches.set(connectionId, watches);
+    return watchId;
+  };
+
+  const changeWatchOf = (watchId: string): ActiveChangeWatch => {
+    for (const watches of changeWatches.values()) {
+      const active = watches.get(watchId);
+      if (active !== undefined) {
+        return active;
+      }
+    }
+    throw new AppErrorException(appError('NOT_FOUND', 'The change watch is not open.'));
   };
 
   const updatesService = (): UpdatesService => {
@@ -611,6 +746,82 @@ export function createRouter(deps: RouterDeps): Router {
         driverCall(() => run(deps.connections.getClient(connectionId), input)),
       );
     });
+  }
+
+  /**
+   * A sharding call that changes server settings but not the database or collection tree. It
+   * reports no catalog change.
+   */
+  function serverOp<C extends RpcCall>(
+    method: string,
+    call: C,
+    run: (client: ClientOf, input: CallInput<C>) => Promise<unknown>,
+  ): [string, Operation] {
+    return entry(method, call, (input) =>
+      driverCall(() =>
+        run(deps.connections.getClient((input as ConnectionScoped).connectionId), input),
+      ),
+    );
+  }
+
+  /**
+   * Sharding calls. Each one runs against the connection's mongos. The adapter validates the
+   * input and the server refuses what it must. Enabling sharding and sharding a collection
+   * report a catalog change, so the tree refreshes.
+   */
+  function shardingOperations(): [string, Operation][] {
+    const s = rpcContract.sharding;
+    return [
+      readOnly('sharding.overview', s.overview, (client) => getShardingOverview(client)),
+      readOnly('sharding.collectionDistribution', s.collectionDistribution, (client, input) =>
+        getShardDistribution(client, input.namespace),
+      ),
+      serverOp('sharding.setBalancer', s.setBalancer, (client, input) =>
+        input.enabled ? startBalancer(client) : stopBalancer(client),
+      ),
+      serverOp('sharding.setBalancerWindow', s.setBalancerWindow, (client, input) =>
+        setBalancerWindow(client, input),
+      ),
+      serverOp('sharding.clearBalancerWindow', s.clearBalancerWindow, (client) =>
+        clearBalancerWindow(client),
+      ),
+      managed(
+        'sharding.enableSharding',
+        s.enableSharding,
+        (client, input) => enableSharding(client, input),
+        (input) => ({ database: input.database }),
+      ),
+      entry('sharding.shardCollection', s.shardCollection, (input) =>
+        driverCall(async () => {
+          const client = deps.connections.getClient(input.connectionId);
+          const summary = await describeShardCollection(client, input);
+          if (!input.confirmed) {
+            return { applied: false, summary };
+          }
+          await shardCollection(client, input);
+          deps.onEvent({
+            type: 'catalog:changed',
+            connectionId: input.connectionId,
+            database: input.database,
+            collection: input.collection,
+          });
+          return { applied: true, summary };
+        }),
+      ),
+      serverOp('sharding.moveChunk', s.moveChunk, (client, input) => moveChunk(client, input)),
+      serverOp('sharding.addShardToZone', s.addShardToZone, (client, input) =>
+        addShardToZone(client, input),
+      ),
+      serverOp('sharding.removeShardFromZone', s.removeShardFromZone, (client, input) =>
+        removeShardFromZone(client, input),
+      ),
+      serverOp('sharding.updateZoneKeyRange', s.updateZoneKeyRange, (client, input) =>
+        updateZoneKeyRange(client, input),
+      ),
+      serverOp('sharding.removeShard', s.removeShard, (client, input) =>
+        removeShardStatus(client, input),
+      ),
+    ];
   }
 
   function securityOperations(): [string, Operation][] {
@@ -898,6 +1109,7 @@ export function createRouter(deps: RouterDeps): Router {
     entry('explain.runCommand', rpcContract.explain.runCommand, (input) => explainCommand(input)),
     ...managementOperations(),
     ...securityOperations(),
+    ...shardingOperations(),
     ...diagnosticsOperations(),
 
     entry('monitor.start', rpcContract.monitor.start, (input) =>
@@ -1041,6 +1253,33 @@ export function createRouter(deps: RouterDeps): Router {
         startTail(input.connectionId, input.database, input.pollMs, input.filter);
       }
     }),
+    entry('changes.start', rpcContract.changes.start, (input) =>
+      driverCall(async () => ({
+        watchId: startChangeWatch(input.connectionId, input.target, input.options),
+      })),
+    ),
+    entry('changes.pause', rpcContract.changes.pause, (input) => {
+      changeWatchOf(input.watchId).watch.pause();
+    }),
+    entry('changes.resume', rpcContract.changes.resume, (input) => {
+      const active = changeWatchOf(input.watchId);
+      // The watch reports 'live' from inside resume, once its buffered events are delivered.
+      active.resuming();
+      active.watch.resume();
+    }),
+    entry('changes.stop', rpcContract.changes.stop, async (input) => {
+      const active = changeWatchOf(input.watchId);
+      const watches = changeWatches.get(active.connectionId);
+      watches?.delete(input.watchId);
+      if (watches?.size === 0) {
+        changeWatches.delete(active.connectionId);
+      }
+      active.flush();
+      await active.watch.close();
+    }),
+    entry('changes.state', rpcContract.changes.state, (input) =>
+      sanitizedWatchState(changeWatchOf(input.watchId).watch.state()),
+    ),
     entry('docker.status', rpcContract.docker.status, () => docker().status()),
     entry('docker.list', rpcContract.docker.list, () => docker().list()),
     entry('docker.connect', rpcContract.docker.connect, (input) =>
@@ -1218,6 +1457,7 @@ export function createRouter(deps: RouterDeps): Router {
   deps.connections.onStatusChange((connectionId, status) => {
     if (status.state !== 'connected') {
       stopTails((active) => active.connectionId === connectionId);
+      stopChangeWatches((active) => active.connectionId === connectionId);
     }
     deps.onEvent({ type: 'connection:status', connectionId, status });
     // A transfer reads or writes through the client of its connection, so it ends with the connection.
@@ -1241,6 +1481,7 @@ export function createRouter(deps: RouterDeps): Router {
   });
   deps.lockEvents?.subscribe(() => {
     stopTails(() => true);
+    stopChangeWatches(() => true);
     monitor.stopAll();
     transfers.cancelAll();
     void deps.connections.disconnectAll();

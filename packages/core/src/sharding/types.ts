@@ -185,3 +185,40 @@ export type RemoveShardFromZoneInput = z.infer<typeof RemoveShardFromZoneInputSc
 export type UpdateZoneKeyRangeInput = z.infer<typeof UpdateZoneKeyRangeInputSchema>;
 export type RemoveShardInput = z.infer<typeof RemoveShardInputSchema>;
 export type RemoveShardStatus = z.infer<typeof RemoveShardStatusSchema>;
+
+/** One key field. 1 and -1 are ranged keys, "hashed" is a hashed key. */
+export const ShardKeyValueSchema = z.union([z.literal(1), z.literal(-1), z.literal('hashed')]);
+
+export const ShardKeySchema = z.record(z.string().min(1), ShardKeyValueSchema);
+
+export const ShardCollectionSummarySchema = z.object({
+  namespace: z.string().min(1),
+  key: ShardKeySchema,
+  keyText: z.string().min(1),
+  unique: z.boolean(),
+  presplitHashedZones: z.boolean(),
+  numInitialChunks: z.number().int().positive().optional(),
+  steps: z.array(z.string().min(1)),
+  /** Problems the server would hit that do not refuse the dry run, such as a missing supporting index. */
+  warnings: z.array(z.string().min(1)),
+});
+
+/** The dry run result always carries the summary. applied is true only after a confirmed call. */
+export const ShardCollectionOutputSchema = z.object({
+  applied: z.boolean(),
+  summary: ShardCollectionSummarySchema,
+});
+
+/** The contract input for shardCollection. The summary is built first, and the server runs only when confirmed is true. */
+export const ShardCollectionCallSchema = ShardCollectionInputSchema.extend({
+  confirmed: z.boolean(),
+});
+
+export const SetBalancerInputSchema = z.object({ enabled: z.boolean() });
+
+export type ShardKeyValue = z.infer<typeof ShardKeyValueSchema>;
+export type ShardKey = z.infer<typeof ShardKeySchema>;
+export type ShardCollectionSummary = z.infer<typeof ShardCollectionSummarySchema>;
+export type ShardCollectionOutput = z.infer<typeof ShardCollectionOutputSchema>;
+export type ShardCollectionCall = z.infer<typeof ShardCollectionCallSchema>;
+export type SetBalancerInput = z.infer<typeof SetBalancerInputSchema>;

@@ -19,7 +19,9 @@ import {
   type RemoveShardInput,
   type RemoveShardStatus,
   type ShardCollectionInput,
+  type ShardCollectionSummary,
   type ShardDistribution,
+  summarizeShardCollection,
   type UpdateZoneKeyRangeInput,
 } from '@mongo-gui/core';
 import {
@@ -71,10 +73,74 @@ export async function enableSharding(client: MongoClient, input: unknown): Promi
   }
 }
 
+// The dry run. It checks the input, describes the server's steps and reads the collection's
+// indexes. It writes nothing.
+export async function describeShardCollection(
+  client: MongoClient,
+  input: unknown,
+): Promise<ShardCollectionSummary> {
+  const parsed = parseInput<ShardCollectionInput>(ShardCollectionInputSchema, input);
+  refuseReservedDatabase(parsed.database, 'shard collections in');
+  const key = parseShardKey(parsed.keyEjson);
+  const summary = summarizeShardCollection({
+    database: parsed.database,
+    collection: parsed.collection,
+    key,
+    unique: parsed.unique,
+    presplitHashedZones: parsed.presplitHashedZones,
+    numInitialChunks: parsed.numInitialChunks,
+  });
+  const warnings = await supportingIndexWarnings(
+    client,
+    parsed.database,
+    parsed.collection,
+    summary,
+  );
+  return { ...summary, warnings };
+}
+
+// A non-empty collection needs an index that starts with the shard key before sharding. The
+// server refuses the command otherwise, so the dry run names the index to create.
+async function supportingIndexWarnings(
+  client: MongoClient,
+  database: string,
+  collection: string,
+  summary: ShardCollectionSummary,
+): Promise<string[]> {
+  try {
+    const target = client.db(database).collection(collection);
+    if ((await target.estimatedDocumentCount()) === 0) {
+      return [];
+    }
+    const fields = Object.keys(summary.key);
+    const indexes = await target.indexes();
+    const supported = indexes.some((index) => {
+      const names = Object.keys(index.key);
+      return names.length >= fields.length && fields.every((field, at) => names[at] === field);
+    });
+    if (supported) {
+      return [];
+    }
+    return [
+      `The collection holds documents, so MongoDB needs an index that starts with the shard key. Create it first: db.getCollection(${JSON.stringify(collection)}).createIndex(${summary.keyText})`,
+    ];
+  } catch (error) {
+    throw toAppException(error);
+  }
+}
+
 export async function shardCollection(client: MongoClient, input: unknown): Promise<void> {
   const parsed = parseInput<ShardCollectionInput>(ShardCollectionInputSchema, input);
   refuseReservedDatabase(parsed.database, 'shard collections in');
   const key = parseShardKey(parsed.keyEjson);
+  summarizeShardCollection({
+    database: parsed.database,
+    collection: parsed.collection,
+    key,
+    unique: parsed.unique,
+    presplitHashedZones: parsed.presplitHashedZones,
+    numInitialChunks: parsed.numInitialChunks,
+  });
   try {
     await client.db('admin').command({
       shardCollection: `${parsed.database}.${parsed.collection}`,
@@ -88,9 +154,11 @@ export async function shardCollection(client: MongoClient, input: unknown): Prom
   }
 }
 
-export async function startBalancer(client: MongoClient): Promise<void> {
+// Returns the balancer status after the start, so the panel shows the mode at once.
+export async function startBalancer(client: MongoClient): Promise<BalancerStatus> {
   try {
     await client.db('admin').command({ balancerStart: 1 });
+    return await readBalancerStatus(client);
   } catch (error) {
     throw toAppException(error);
   }

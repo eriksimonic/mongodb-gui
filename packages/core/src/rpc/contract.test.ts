@@ -5,10 +5,11 @@ const namespaces = Object.entries(rpcContract);
 const CONNECTION_ID = '3f2b8c1e-5d4a-4b7e-9c1f-2a6d8e0b7f10';
 
 describe('rpcContract', () => {
-  it('declares the namespaces required by P1-1, P2-2, P2-5 layout, the P3-1 explain runner, the P4-B management calls and the P6-2 profiler', () => {
+  it('declares the namespaces required by P1-1, P2-2, P2-5 layout, the P3-1 explain runner, the P4-B management calls, the P6-2 profiler and the P8-3 sharding calls', () => {
     expect(Object.keys(rpcContract).sort()).toEqual(
       [
         'app',
+        'changes',
         'collections',
         'connections',
         'databases',
@@ -26,12 +27,31 @@ describe('rpcContract', () => {
         'schema',
         'security',
         'settings',
+        'sharding',
         'transfer',
         'shell',
         'updates',
         'vault',
       ].sort(),
     );
+  });
+
+  it('checks change stream watch ids and refuses both resume options at once', () => {
+    const { changes } = rpcContract;
+    const watchId = '5c7d9e1f-2a3b-4c5d-8e9f-0a1b2c3d4e5f';
+    const target = { kind: 'collection', database: 'shop', collection: 'orders' };
+    expect(changes.pause.input.safeParse({ watchId }).success).toBe(true);
+    expect(changes.stop.input.safeParse({ watchId: 'watch' }).success).toBe(false);
+    expect(
+      changes.start.input.safeParse({
+        connectionId: CONNECTION_ID,
+        target,
+        options: { resumeAfterEjson: '{"_data":"1"}', startAtOperationTimeEjson: '{}' },
+      }).success,
+    ).toBe(false);
+    expect(
+      changes.start.input.safeParse({ connectionId: CONNECTION_ID, target, options: {} }).success,
+    ).toBe(true);
   });
 
   it('applies a replica set plan by id and version, and defaults the step-down to 60 seconds', () => {

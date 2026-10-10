@@ -2,6 +2,7 @@ export { getShardingOverview, isMongos } from './overview';
 export {
   addShardToZone,
   clearBalancerWindow,
+  describeShardCollection,
   enableSharding,
   getShardDistribution,
   moveChunk,

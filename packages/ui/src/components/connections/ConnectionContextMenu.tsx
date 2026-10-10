@@ -1,8 +1,10 @@
 import { Box, Menu, Text } from '@mantine/core';
 import { modals } from '@mantine/modals';
 import type { ConnectionProfileSummary, ConnectionStatus } from '@mongo-gui/core';
+import { useChangesOpener } from '../../changes/changes-opener';
 import { useAppStore } from '../../state/app-store-context';
 import { usePanelOpener } from '../../state/panel-opener';
+import { shardingAvailability } from '../../sharding/sharding-availability';
 import { runReported } from '../notify-error';
 
 /** The database that holds the server's users and roles. */
@@ -30,9 +32,11 @@ export function ConnectionContextMenu({
   const setManagementDialog = useAppStore((state) => state.setManagementDialog);
   const openPanel = usePanelOpener();
   const openEditor = useAppStore((state) => state.openEditor);
+  const changesOpener = useChangesOpener();
   const loadedDatabases = useAppStore((state) => state.databases[connection.id]);
   const canConnect = status.state === 'disconnected' || status.state === 'error';
   const canDisconnect = status.state === 'connected' || status.state === 'connecting';
+  const sharding = shardingAvailability(status);
   // A replica set member, or a node started with --replSet that has no configuration yet. The
   // second reads as 'unknown' topology, because the server reports no set name and no writable
   // primary.
@@ -92,6 +96,35 @@ export function ConnectionContextMenu({
           }}
         >
           Monitor
+        </Menu.Item>
+        <Menu.Item
+          disabled={status.state !== 'connected'}
+          onClick={() => {
+            onClose();
+            changesOpener?.open(connection.id, { kind: 'deployment' });
+          }}
+        >
+          Watch changes
+        </Menu.Item>
+        <Menu.Item
+          disabled={!sharding.available}
+          rightSection={
+            sharding.available ? undefined : (
+              <Text size="xs" c="dimmed">
+                {sharding.reason}
+              </Text>
+            )
+          }
+          onClick={() => {
+            onClose();
+            openPanel({
+              kind: 'sharding',
+              connectionId: connection.id,
+              connectionName: connection.name,
+            });
+          }}
+        >
+          Sharding
         </Menu.Item>
         <Menu.Item
           disabled={!canOpenReplicaSet}

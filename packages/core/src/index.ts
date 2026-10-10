@@ -2,6 +2,7 @@ import './zod-config';
 
 export const corePackageName = '@mongo-gui/core';
 
+export * from './changes/calls';
 export * from './changes/types';
 export * from './docker/types';
 export * from './domain/catalog';
@@ -65,6 +66,7 @@ export * from './updates/types';
 export * from './util/debounce';
 export * from './domain/window-bounds';
 export * from './sharding/types';
+export * from './sharding/summary';
 export * from './shell/protocol';
 export * from './shell/result-type';
 export * from './transfer/calls';

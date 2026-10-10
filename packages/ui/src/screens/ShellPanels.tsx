@@ -17,8 +17,11 @@ import { DocumentsPanel } from '../components/management/DocumentsPanel';
 import { GridFsPanel } from '../components/gridfs/GridFsPanel';
 import { IndexesPanel } from '../components/management/IndexesPanel';
 import { UsersRolesPanel } from '../components/security/UsersRolesPanel';
+import { ShardingPanel } from '../components/sharding/ShardingPanel';
 import { ValidationPanel } from '../components/management/ValidationPanel';
 import { ExplainPanel } from '../explain/ExplainPanel';
+import { ChangesPanel } from '../changes/ChangesPanel';
+import type { ChangeTarget } from '@mongo-gui/core';
 import { ProfilerPanel } from '../profiler/ProfilerPanel';
 import { ReplicationPanel } from '../replication/ReplicationPanel';
 import { EditorView } from '../components/editor/EditorView';
@@ -63,6 +66,26 @@ export function ExplainDockPanel({ params }: IDockviewPanelProps<ExplainPanelPar
 /** A profiler panel of one database. Closing the tab drops its state and stops its tail. */
 export function ProfilerDockPanel({ params }: IDockviewPanelProps<ProfilerPanelParams>) {
   return <ProfilerPanel connectionId={params.connectionId} database={params.database} />;
+}
+
+/** Params of a change stream panel. The panel id keys its state in the store. */
+export interface ChangesPanelParams {
+  readonly panelId: string;
+  readonly connectionId: string;
+  readonly target: ChangeTarget;
+}
+
+/** A change stream panel of a deployment, database or collection. Closing it stops the watch. */
+export function ChangesDockPanel({ params }: IDockviewPanelProps<ChangesPanelParams>) {
+  return (
+    <Box h="100%" style={{ overflow: 'hidden' }}>
+      <ChangesPanel
+        panelId={params.panelId}
+        connectionId={params.connectionId}
+        target={params.target}
+      />
+    </Box>
+  );
 }
 
 /** Params of a replica set panel. The shell sets the connection when it opens the panel. */
@@ -303,6 +326,15 @@ export function IndexesDockPanel({ params }: IDockviewPanelProps<CollectionPanel
 export interface UsersPanelParams {
   readonly connectionId: string;
   readonly database: string;
+}
+
+/** Dock panel for the sharding overview of one connection. */
+export function ShardingDockPanel({ params }: IDockviewPanelProps<ConnectionPanelParams>) {
+  return (
+    <Box h="100%" style={{ overflow: 'auto' }}>
+      <ShardingPanel connectionId={params.connectionId} />
+    </Box>
+  );
 }
 
 /** Dock panel: users and custom roles of one database. */
