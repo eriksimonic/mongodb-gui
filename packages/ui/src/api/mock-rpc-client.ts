@@ -77,6 +77,8 @@ import { createMockGridFs, MOCK_FOLDER_PATH } from './mock-gridfs';
 import { createShardingCalls, fixtureCluster, type MockCluster } from './mock-sharding';
 import { createMockReplication } from './mock-replication';
 import { createMockExplain } from './mock-explain';
+import { createMockBackup } from './mock-backup';
+import { createMockTools, type MockToolsMode } from './mock-tools';
 import type { UiApi } from './ui-api';
 
 export type MockPreset = 'fresh' | 'unlocked';
@@ -115,6 +117,8 @@ export interface MockUiApiOptions {
   readonly sharding?: 'cluster' | 'standalone';
   /** The local connection is a standalone started with --replSet and not yet initiated. */
   readonly replSetUninitiated?: boolean;
+  /** Which MongoDB Database Tools the mock has installed. Defaults to `ok`. */
+  readonly tools?: MockToolsMode;
 }
 
 const DEFAULT_UPDATE_STATE: UpdateState = { phase: 'idle', current: '0.1.0', canInstall: true };
@@ -674,46 +678,50 @@ export function createMockUiApi(options: MockUiApiOptions = {}): UiApi {
     replication.setMode(localConnectionId, 'uninitiated');
   }
 
+  const tools = createMockTools(emit, options.tools ?? 'ok');
+  const backup = createMockBackup({ emit, picks, catalogOf, statusOf });
+
   const rpc: RpcClient = {
     backup: {
-      describeServer: method(rpcContract.backup.describeServer, latencyMs, () => {
-        throw fail('INTERNAL', 'Backup and restore are not available in the mock yet.');
+      describeServer: method(rpcContract.backup.describeServer, latencyMs, (input) => {
+        requireUnlocked();
+        requireConnected(input.connectionId);
+        return backup.describeServer(input.connectionId, input.scope);
       }),
-      start: method(rpcContract.backup.start, latencyMs, () => {
-        throw fail('INTERNAL', 'Backup and restore are not available in the mock yet.');
+      start: method(rpcContract.backup.start, latencyMs, (input) => {
+        requireUnlocked();
+        requireConnected(input.connectionId);
+        return { jobId: backup.start(input) };
       }),
-      inspect: method(rpcContract.backup.inspect, latencyMs, () => {
-        throw fail('INTERNAL', 'Backup and restore are not available in the mock yet.');
+      inspect: method(rpcContract.backup.inspect, latencyMs, ({ path }) => {
+        requireUnlocked();
+        return backup.inspect(path);
       }),
-      startRestore: method(rpcContract.backup.startRestore, latencyMs, () => {
-        throw fail('INTERNAL', 'Backup and restore are not available in the mock yet.');
+      startRestore: method(rpcContract.backup.startRestore, latencyMs, (input) => {
+        requireUnlocked();
+        requireConnected(input.connectionId);
+        return { jobId: backup.startRestore(input) };
       }),
-      cancel: method(rpcContract.backup.cancel, latencyMs, () => {
-        throw fail('INTERNAL', 'Backup and restore are not available in the mock yet.');
+      cancel: method(rpcContract.backup.cancel, latencyMs, ({ jobId }) => {
+        requireUnlocked();
+        backup.cancel(jobId);
       }),
     },
     tools: {
-      list: method(rpcContract.tools.list, latencyMs, () => ({
-        platform: { os: 'linux' as const, arch: 'x64' as const },
-        bundledSupported: true,
-        installs: [],
-        preference: 'auto' as const,
+      list: method(rpcContract.tools.list, latencyMs, () =>
+        tools.list(state.vault === 'unlocked' ? state.settings.mongoToolsVersion : 'auto'),
+      ),
+      available: method(rpcContract.tools.available, latencyMs, () => tools.available()),
+      download: method(rpcContract.tools.download, latencyMs, ({ version }) => ({
+        downloadId: tools.download(version),
       })),
-      available: method(rpcContract.tools.available, latencyMs, () => {
-        throw fail('INTERNAL', 'Tool downloads are not available in the mock yet.');
+      cancelDownload: method(rpcContract.tools.cancelDownload, latencyMs, ({ downloadId }) => {
+        tools.cancelDownload(downloadId);
       }),
-      download: method(rpcContract.tools.download, latencyMs, () => {
-        throw fail('INTERNAL', 'Tool downloads are not available in the mock yet.');
+      remove: method(rpcContract.tools.remove, latencyMs, ({ id }) => {
+        tools.remove(id);
       }),
-      cancelDownload: method(rpcContract.tools.cancelDownload, latencyMs, () => {
-        throw fail('INTERNAL', 'Tool downloads are not available in the mock yet.');
-      }),
-      remove: method(rpcContract.tools.remove, latencyMs, () => {
-        throw fail('INTERNAL', 'Tool downloads are not available in the mock yet.');
-      }),
-      licence: method(rpcContract.tools.licence, latencyMs, () => {
-        throw fail('INTERNAL', 'Tool downloads are not available in the mock yet.');
-      }),
+      licence: method(rpcContract.tools.licence, latencyMs, ({ id }) => tools.licence(id)),
     },
     updates: {
       state: method(rpcContract.updates.state, latencyMs, () => currentUpdate()),
@@ -774,7 +782,7 @@ export function createMockUiApi(options: MockUiApiOptions = {}): UiApi {
         return { path };
       }),
       showItemInFolder: method(rpcContract.app.showItemInFolder, latencyMs, ({ path }) => {
-        if (!transfers.wroteFile(path)) {
+        if (!transfers.wroteFile(path) && !backup.wroteFile(path)) {
           throw fail('VALIDATION', 'Only a file exported in this session can be shown.');
         }
       }),

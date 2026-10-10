@@ -13,6 +13,8 @@ export interface MockPicks {
   requireOpened(path: string): void;
   useOpened(path: string): void;
   requireDownloadTarget(path: string): void;
+  requireFolder(path: string): void;
+  requireOpenedOrFolder(path: string): void;
   requireSaved(path: string): void;
   consumeSaved(path: string): void;
 }
@@ -60,6 +62,18 @@ export function createMockPicks(): MockPicks {
     },
     consumeSaved(path) {
       savePaths.delete(path);
+    },
+    requireFolder(path) {
+      refuseDotDot(path);
+      if (!folders.has(path)) {
+        throw fail('VALIDATION', PICK_TARGET_MESSAGE);
+      }
+    },
+    requireOpenedOrFolder(path) {
+      refuseDotDot(path);
+      if (!openedFiles.has(path) && !folders.has(path)) {
+        throw fail('VALIDATION', PICK_FILE_MESSAGE);
+      }
     },
     requireDownloadTarget(path) {
       refuseDotDot(path);

@@ -23,6 +23,12 @@ const sharding =
 // ?replset=member makes the local connection a three-member set. ?replset=uninitiated makes it a
 // standalone started with --replSet that has no configuration yet.
 const replsetParam = new URLSearchParams(window.location.search).get('replset');
+// ?tools=missing, mismatch or broken picks the MongoDB Database Tools the mock has. Default is ok.
+const toolsParam = new URLSearchParams(window.location.search).get('tools');
+const tools =
+  toolsParam === 'missing' || toolsParam === 'mismatch' || toolsParam === 'broken'
+    ? toolsParam
+    : 'ok';
 const api = createMockUiApi({
   preset,
   latencyMs: 120,
@@ -30,6 +36,7 @@ const api = createMockUiApi({
   replication: replsetParam === 'member',
   replSetUninitiated: replsetParam === 'uninitiated',
   sharding,
+  tools,
 });
 
 createRoot(container).render(
