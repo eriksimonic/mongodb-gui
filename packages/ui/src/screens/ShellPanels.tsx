@@ -39,6 +39,8 @@ import { ValidationPanel } from '../components/management/ValidationPanel';
 import { ExplainPanel } from '../explain/ExplainPanel';
 import { ChangesPanel } from '../changes/ChangesPanel';
 import type { ChangeTarget } from '@mongo-gui/core';
+import { useUiApi } from '../api/ui-api';
+import { createCompletionSource } from '../editor/completion-source';
 import { ProfilerPanel } from '../profiler/ProfilerPanel';
 import { ReplicationPanel } from '../replication/ReplicationPanel';
 import { EditorView } from '../components/editor/EditorView';
@@ -49,10 +51,12 @@ export { OutputPanel } from '../components/editor/OutputPanel';
 import { SchemaPanel } from '../schema/SchemaPanel';
 import { MonitorDashboard } from '../monitor/MonitorDashboard';
 import { OperationsPanel } from '../monitor/OperationsPanel';
-import { useAppStore } from '../state/app-store-context';
+import { useAppStore, useAppStoreApi } from '../state/app-store-context';
+import type { EditorTab } from '../state/editors';
 import { runReported } from '../components/notify-error';
 import { idleLockHint, recentConnections } from './welcome-model';
 import { isFixedPanel, panelsToClose, type TabCloseMode } from './tab-close';
+import { convertEntries } from './tab-convert';
 
 /** The params every collection panel gets from the dock. */
 export interface CollectionPanelParams {
@@ -166,6 +170,7 @@ export function FixedTab(props: IDockviewPanelHeaderProps) {
 /**
  * Tab for every other panel. The right-click menu closes this tab, the others in its group, the
  * tabs to one side, or all tabs. Each close goes through `removePanel`, as the close button does.
+ * A SQL editor tab also offers to convert its text to mongosh.
  */
 export function ClosableTab(props: IDockviewPanelHeaderProps) {
   const [position, setPosition] = useState<{ readonly x: number; readonly y: number } | undefined>(
@@ -173,6 +178,30 @@ export function ClosableTab(props: IDockviewPanelHeaderProps) {
   );
   const dock = props.containerApi;
   const panelId = props.api.id;
+  const { rpc } = useUiApi();
+  const store = useAppStoreApi();
+  // An editor panel carries its tab's id, so the tab is found by the panel id.
+  const editorTab = useAppStore((state) => state.editors.tabs[panelId]);
+
+  function convertToMongosh(tab: EditorTab): void {
+    const source = createCompletionSource({
+      rpc,
+      connectionId: tab.connectionId,
+      database: () => store.getState().editors.tabs[tab.id]?.database ?? tab.database,
+      isBusy: () => store.getState().editors.runtime[tab.connectionId] === 'busy',
+    });
+    void store.getState().convertEditorToMongosh(tab.id, source);
+  }
+
+  const entries =
+    position === undefined
+      ? []
+      : [
+          ...tabMenuEntries(dock, panelId),
+          ...(editorTab?.language === 'sql'
+            ? convertEntries(editorTab, () => convertToMongosh(editorTab))
+            : []),
+        ];
   return (
     <div
       style={{ display: 'contents' }}
@@ -186,11 +215,7 @@ export function ClosableTab(props: IDockviewPanelHeaderProps) {
         // The tab strip is a containing block for fixed elements and clips them, so the menu's
         // anchor goes to the body, where `position: fixed` matches the pointer.
         <Portal>
-          <TreeMenu
-            entries={tabMenuEntries(dock, panelId)}
-            position={position}
-            onClose={() => setPosition(undefined)}
-          />
+          <TreeMenu entries={entries} position={position} onClose={() => setPosition(undefined)} />
         </Portal>
       )}
     </div>

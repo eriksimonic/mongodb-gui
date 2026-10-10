@@ -1,6 +1,8 @@
 import {
   appError,
+  EditorLanguageSchema,
   type AppError,
+  type EditorLanguage,
   type ShellEvaluation,
   type ShellResultType,
   type ShellRuntimeState,
@@ -61,6 +63,8 @@ export interface EditorTab {
   readonly savedText: string;
   readonly batchSize: BatchSize;
   readonly view: ResultView;
+  /** Whether the text is mongosh or SQL. SQL is translated before it runs. */
+  readonly language: EditorLanguage;
   readonly running: RunState | undefined;
   readonly result: ResultSet | undefined;
   readonly error: AppError | undefined;
@@ -111,6 +115,7 @@ export const SavedTabSchema = z.object({
   text: z.string().max(200_000),
   batchSize: z.union([z.literal(20), z.literal(50), z.literal(100), z.literal(500)]),
   view: z.enum(['table', 'tree', 'json']),
+  language: EditorLanguageSchema.default('mongosh'),
 });
 
 export const SavedTabsSchema = z.object({
@@ -147,6 +152,8 @@ export interface OpenTabInput {
   readonly text?: string;
   readonly batchSize?: BatchSize;
   readonly view?: ResultView;
+  /** Defaults to mongosh. */
+  readonly language?: EditorLanguage;
 }
 
 /** Adds a tab and makes it active. An existing tab with the same id is left as it is. */
@@ -163,6 +170,7 @@ export function openTab(state: EditorsState, input: OpenTabInput): EditorsState 
     savedText: text,
     batchSize: input.batchSize ?? DEFAULT_BATCH_SIZE,
     view: input.view ?? 'table',
+    language: input.language ?? 'mongosh',
     running: undefined,
     result: undefined,
     error: undefined,
@@ -227,6 +235,15 @@ export function setTabBatchSize(
 
 export function setTabView(state: EditorsState, id: string, view: ResultView): EditorsState {
   return updateTab(state, id, (tab) => ({ ...tab, view }));
+}
+
+/** Switches the tab between mongosh and SQL. The text and the result stay as they are. */
+export function setTabLanguage(
+  state: EditorsState,
+  id: string,
+  language: EditorLanguage,
+): EditorsState {
+  return updateTab(state, id, (tab) => (tab.language === language ? tab : { ...tab, language }));
 }
 
 /** Marks the text as saved, which clears the unsaved indicator. */
@@ -416,6 +433,7 @@ export function savedTabsOf(state: EditorsState, connectionId: string): SavedTab
     text: tab.text,
     batchSize: tab.batchSize,
     view: tab.view,
+    language: tab.language,
   }));
   const active = state.activeId !== undefined && tabs.some((tab) => tab.id === state.activeId);
   return active ? { tabs, activeId: state.activeId } : { tabs };
@@ -442,6 +460,7 @@ export function restoreTabs(
       text: tab.text,
       batchSize: tab.batchSize,
       view: tab.view,
+      language: tab.language,
     });
   }
   const activeId = saved.activeId;

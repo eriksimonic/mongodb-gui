@@ -1,3 +1,4 @@
+import type { EditorLanguage } from '@mongo-gui/core';
 import { Box, Loader } from '@mantine/core';
 import { lazy, Suspense } from 'react';
 import type { CompletionSource } from './completion-source';
@@ -14,6 +15,8 @@ export interface MongoshEditorProps {
   /** Names the tab. The insert events of the Output and history panels reach the tab by this id. */
   readonly tabId: string;
   readonly label: string;
+  /** Picks the Monaco language and the completion provider. A change gives the tab a new model. */
+  readonly language: EditorLanguage;
   readonly value: string;
   readonly source: CompletionSource | undefined;
   readonly onChange: (value: string) => void;

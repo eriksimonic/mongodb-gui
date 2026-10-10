@@ -247,7 +247,8 @@ async function provideCompletions(
   };
 }
 
-function toSuggestion(
+/** The Monaco item for an editor completion. The SQL provider uses the same mapping. */
+export function toSuggestion(
   monaco: typeof Monaco,
   item: EditorCompletion,
   range: Monaco.IRange,
@@ -289,6 +290,6 @@ function kindOf(
   }
 }
 
-function delay(ms: number): Promise<void> {
+export function delay(ms: number): Promise<void> {
   return new Promise((resolve) => setTimeout(resolve, ms));
 }

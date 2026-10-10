@@ -12,6 +12,7 @@ quotes are the text on the buttons, menus and fields.
 - [The editor](#the-editor)
 - [Results](#results)
 - [Explain](#explain)
+- [SQL mode](#sql-mode)
 - [Collection management](#collection-management)
 - [Monitoring](#monitoring)
 - [Profiler](#profiler)
@@ -232,7 +233,8 @@ with a database selected. Each editor tab belongs to one connection and one data
 toolbar shows the database. Change it in the "Database" select.
 
 Type mongosh statements into the editor. The editor offers completion for collection names,
-field names and operators as you type. It also shows signature help for operators.
+field names and operators as you type. It also shows signature help for operators. To write
+T-SQL instead, switch the tab to SQL mode. See [SQL mode](#sql-mode).
 
 To run statements:
 
@@ -246,7 +248,7 @@ To run statements:
 Other toolbar controls:
 
 - "Batch size" sets how many documents each page holds. The choices are 20, 50, 100 and 500.
-- "Format" reformats the text.
+- "Format" reformats the text. In SQL mode it formats the SQL.
 - "Save as favourite" saves the statement with a name and a folder.
 - "Refresh databases" reloads the database list. "Refresh field names" reloads the fields that
   completion uses. The app samples documents to find the fields.
@@ -344,6 +346,62 @@ on a rejected plan to see it next to the winning plan.
 
 The "Raw" tab shows the explain document as canonical EJSON. Use "Search raw output" with
 "Next match" and "Previous match" to find text. "Copy" copies the document.
+
+## SQL mode
+
+Each editor tab has a query language, Mongo or SQL. In SQL mode the editor takes T-SQL. The app
+translates each statement into one mongosh statement and runs that statement through the same
+path as a mongosh statement. The Output panel prints the mongosh before the run, so you can read
+what the database receives.
+
+To change the language of a tab, use the "Query language" control after the "Database" select.
+Choose "Mongo" or "SQL". The choice is kept for the tab, and it becomes the default for new
+editor tabs. The translator is one-way. Nothing turns mongosh back into SQL.
+
+![Editor in SQL mode with a join translated to mongosh in the Output panel](screenshots/sql-mode.png)
+
+To run SQL:
+
+1. Put the cursor on a statement and press Ctrl+Enter, or click "Run". The app runs the statement
+   under the cursor. If you select text first, the app runs the selection.
+2. Press Ctrl+Shift+Enter, or click "Run all", to run the whole text. A statement ends at a `;`
+   or at a `GO` on a line of its own.
+3. Read the mongosh line that the Output panel prints before the result.
+
+A statement that the translator refuses, or that does not parse, is not run. The editor
+underlines the clause that caused the error, and the tab shows the message. Fix the text and run
+again.
+
+UPDATE and DELETE without a WHERE clause, and TRUNCATE TABLE, change every document of a
+collection. Before one of these runs, the app asks for confirmation and names the collection.
+Click "Cancel" to leave the statement unrun.
+
+"Format" rewrites SQL text in SQL mode. Keywords become upper case, and each clause starts a line.
+
+The History and Favourites lists mark each SQL entry with a "SQL" badge. Re-running a SQL entry,
+or inserting it into the editor, keeps its language. "Save as favourite" stores the language of
+the tab with the statement.
+
+To turn a SQL tab into mongosh, right-click the tab and choose "Convert to mongosh". The text
+becomes the mongosh of all its statements, and the tab switches to Mongo. The item is disabled
+when a statement does not translate. Its tooltip shows the message.
+
+Completion works in SQL mode too:
+
+- After `FROM`, `JOIN`, `UPDATE` or `INTO`, completion lists collection names.
+- After an alias and a dot, such as `o.`, completion lists the fields of that table. A nested
+  path such as `o.address.` lists the fields inside `address`.
+- Without a qualifier, completion lists the columns of the tables in the statement, the aliases,
+  and the SQL keywords once you type two letters.
+
+Field names come from the sample that the app takes of the collection. Use "Refresh field names"
+after the documents change.
+
+The translator maps a table to a collection and a column to a field. A `dbo.` prefix is dropped.
+A join becomes a `$lookup`, and GROUP BY becomes a `$group`. A LIKE pattern ignores case. A find
+leaves out `_id` unless the column list names it. Some results differ from SQL Server, for
+example integer division and the default text order. The supported statements and functions, the
+refused constructs and the differences from SQL Server are listed in [docs/sql.md](sql.md).
 
 ## Collection management
 

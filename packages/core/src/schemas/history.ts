@@ -1,4 +1,5 @@
 import { z } from 'zod';
+import { EditorLanguageSchema } from '../domain/editor-language';
 import { AppErrorSchema } from './errors';
 
 export const HistoryEntrySchema = z.object({
@@ -10,6 +11,7 @@ export const HistoryEntrySchema = z.object({
   durationMs: z.number().nonnegative(),
   resultCount: z.number().int().nonnegative().optional(),
   error: AppErrorSchema.optional(),
+  language: EditorLanguageSchema.optional(),
 });
 
 /** A history row before the store assigns its id. */
@@ -22,6 +24,7 @@ export const FavouriteSchema = z.object({
   code: z.string(),
   connectionId: z.uuid().optional(),
   database: z.string().optional(),
+  language: EditorLanguageSchema.optional(),
   createdAt: z.iso.datetime(),
 });
 

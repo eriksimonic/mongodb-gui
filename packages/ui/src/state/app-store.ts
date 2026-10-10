@@ -495,6 +495,7 @@ export function createAppStore(api: UiApi, initial: Partial<AppData> = {}): AppS
       rpc,
       get: () => get(),
       update: (update) => set((state) => ({ editors: update(state.editors) })),
+      saveSettings: (patch) => get().updateSettings(patch),
     });
     function clearSession(): void {
       set(SESSION_RESET);

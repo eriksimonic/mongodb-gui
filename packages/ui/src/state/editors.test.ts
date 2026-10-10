@@ -21,6 +21,7 @@ import {
   setTabBatchSize,
   setTabDatabase,
   setTabError,
+  setTabLanguage,
   setTabText,
   setTabView,
   findTab,
@@ -53,9 +54,24 @@ describe('openTab and closeTab', () => {
       savedText: 'db.orders.find()',
       batchSize: 50,
       view: 'table',
+      language: 'mongosh',
       running: undefined,
       result: undefined,
     });
+  });
+
+  it('opens a tab in the language it is given', () => {
+    const state = openTab(EMPTY_EDITORS, {
+      id: 'a',
+      connectionId: CONNECTION,
+      database: 'shop',
+      language: 'sql',
+    });
+    expect(state.tabs.a?.language).toBe('sql');
+  });
+
+  it('opens a tab as mongosh when no language is given', () => {
+    expect(withTab('a').tabs.a?.language).toBe('mongosh');
   });
 
   it('focuses an existing tab instead of adding a second one', () => {
@@ -123,6 +139,31 @@ describe('tab settings and saved text', () => {
       batchSize: 500,
       view: 'json',
     });
+  });
+
+  it('changes the language and keeps the text and result', () => {
+    let state = withTab('a', 'db.orders.find()');
+    state = setTabLanguage(state, 'a', 'sql');
+    expect(state.tabs.a).toMatchObject({ language: 'sql', text: 'db.orders.find()' });
+    state = setTabLanguage(state, 'a', 'mongosh');
+    expect(state.tabs.a?.language).toBe('mongosh');
+  });
+
+  it('keeps the same tab object when the language does not change', () => {
+    const state = withTab('a');
+    expect(setTabLanguage(state, 'a', 'mongosh').tabs.a).toBe(state.tabs.a);
+  });
+
+  it('ignores a language change for an unknown tab', () => {
+    const state = withTab('a');
+    expect(setTabLanguage(state, 'missing', 'sql')).toBe(state);
+  });
+
+  it('keeps the language of a tab through text and view changes', () => {
+    let state = setTabLanguage(withTab('a'), 'a', 'sql');
+    state = setTabText(state, 'a', 'SELECT 1');
+    state = setTabView(state, 'a', 'json');
+    expect(state.tabs.a?.language).toBe('sql');
   });
 
   it('is unsaved until the text is saved', () => {
@@ -378,8 +419,29 @@ describe('saving and restoring tabs', () => {
     });
     state = openTab(state, { id: 'b', connectionId: OTHER, database: 'billing' });
     expect(savedTabsOf(state, CONNECTION)).toEqual({
-      tabs: [{ id: 'a', database: 'shop', text: 'db.a.find()', batchSize: 50, view: 'tree' }],
+      tabs: [
+        {
+          id: 'a',
+          database: 'shop',
+          text: 'db.a.find()',
+          batchSize: 50,
+          view: 'tree',
+          language: 'mongosh',
+        },
+      ],
     });
+  });
+
+  it('saves the language of each tab', () => {
+    let state = openTab(EMPTY_EDITORS, {
+      id: 'a',
+      connectionId: CONNECTION,
+      database: 'shop',
+      language: 'sql',
+    });
+    state = addTab(state, 'b');
+    const saved = savedTabsOf(state, CONNECTION).tabs;
+    expect(saved.map((tab) => tab.language)).toEqual(['sql', 'mongosh']);
   });
 
   it('drops the active id when it is not one of the saved tabs', () => {
@@ -401,6 +463,39 @@ describe('saving and restoring tabs', () => {
     expect(state.tabs.a?.text).toBe('open already');
     expect(state.tabs.b).toMatchObject({ database: 'billing', batchSize: 20, savedText: '' });
     expect(state.activeId).toBe('b');
+  });
+
+  it('restores the saved language of a tab', () => {
+    const saved = SavedTabsSchema.parse({
+      tabs: [
+        {
+          id: 'a',
+          database: 'shop',
+          text: 'SELECT 1',
+          batchSize: 50,
+          view: 'table',
+          language: 'sql',
+        },
+      ],
+    });
+    const state = restoreTabs(EMPTY_EDITORS, CONNECTION, saved);
+    expect(state.tabs.a?.language).toBe('sql');
+  });
+
+  it('restores a tab saved before the language existed as mongosh', () => {
+    const saved = SavedTabsSchema.parse({
+      tabs: [{ id: 'a', database: 'shop', text: 'db.a.find()', batchSize: 50, view: 'table' }],
+    });
+    expect(saved.tabs[0]?.language).toBe('mongosh');
+    expect(restoreTabs(EMPTY_EDITORS, CONNECTION, saved).tabs.a?.language).toBe('mongosh');
+  });
+
+  it('rejects a saved language that is not offered', () => {
+    expect(
+      SavedTabsSchema.safeParse({
+        tabs: [{ id: 'a', database: 'x', text: '', batchSize: 50, view: 'table', language: 'js' }],
+      }).success,
+    ).toBe(false);
   });
 
   it('rejects a saved batch size that is not offered', () => {

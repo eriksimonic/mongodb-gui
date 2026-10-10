@@ -16,7 +16,17 @@ export interface CompletionSource {
    * no items when the signal aborts or the backend fails, so the static list still shows.
    */
   complete(code: string, offset: number, signal: AbortSignal): Promise<EditorCompletion[]>;
-  /** Drops the cached field samples. The next completion samples again. */
+  /**
+   * The sampled fields of a collection of the tab's database, from the same cache `complete`
+   * uses. Resolves to no fields when the sample fails, and samples again on the next call.
+   */
+  fieldsOf(collection: string): Promise<SchemaField[]>;
+  /**
+   * The collection names of the tab's database, cached per database. Resolves to no names when
+   * the listing fails, and lists again on the next call.
+   */
+  collections(): Promise<string[]>;
+  /** Drops the cached field samples and collection names. The next completion asks again. */
   refreshFields(): void;
 }
 
@@ -60,7 +70,33 @@ export function createCompletionSource(options: CompletionSourceOptions): Comple
     return pending;
   }
 
+  const collectionNames = new Map<string, Promise<string[]>>();
+
+  function collectionsOf(database: string): Promise<string[]> {
+    const cached = collectionNames.get(database);
+    if (cached !== undefined) {
+      return cached;
+    }
+    const pending = options.rpc.collections
+      .list({ connectionId: options.connectionId, database })
+      .then((collections) => collections.map((collection) => collection.name))
+      .catch((): string[] => {
+        collectionNames.delete(database);
+        return [];
+      });
+    collectionNames.set(database, pending);
+    return pending;
+  }
+
   return {
+    fieldsOf(collection) {
+      return sampleOf(options.database(), collection);
+    },
+
+    collections() {
+      return collectionsOf(options.database());
+    },
+
     async complete(code, offset, signal) {
       if (signal.aborted || options.isBusy()) {
         return [];
@@ -95,6 +131,7 @@ export function createCompletionSource(options: CompletionSourceOptions): Comple
 
     refreshFields() {
       samples.clear();
+      collectionNames.clear();
     },
   };
 }

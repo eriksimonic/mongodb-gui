@@ -7,6 +7,7 @@ export * from './changes/types';
 export * from './docker/types';
 export * from './domain/catalog';
 export * from './domain/connection';
+export * from './domain/editor-language';
 export * from './domain/errors';
 export * from './domain/history';
 export * from './domain/settings';

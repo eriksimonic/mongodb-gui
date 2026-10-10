@@ -1,4 +1,14 @@
-import { Badge, Button, Group, Select, Stack, Text, Tooltip } from '@mantine/core';
+import {
+  Badge,
+  Button,
+  Group,
+  SegmentedControl,
+  Select,
+  Stack,
+  Text,
+  Tooltip,
+} from '@mantine/core';
+import { modals } from '@mantine/modals';
 import {
   IconBookmark,
   IconChecklist,
@@ -7,13 +17,21 @@ import {
   IconRefresh,
   IconWand,
 } from '@tabler/icons-react';
-import type { ShellRuntimeState } from '@mongo-gui/core';
+import { appError, type EditorLanguage, type ShellRuntimeState } from '@mongo-gui/core';
 import { useEffect, useMemo, useRef, useState, type KeyboardEvent, type PointerEvent } from 'react';
 import { useUiApi } from '../../api/ui-api';
 import { MongoshEditor, type RunRequest } from '../../editor/MongoshEditor';
 import { createCompletionSource } from '../../editor/completion-source';
 import { formatMongoshCode } from '../../editor/format';
-import { runTargetFor } from '../../editor/statements';
+import { runTargetFor, type RunTarget } from '../../editor/statements';
+import { formatSql } from '../../editor/sql-format';
+import {
+  prepareSqlRun,
+  unsafeWriteQuestion,
+  type SqlSampler,
+  type UnsafeWrite,
+} from '../../editor/sql-run';
+import { sqlRunTargetFor } from '../../editor/sql-statements';
 import { ResultsPane, type EditTarget } from '../../results/ResultsPane';
 import type { TreeEdit } from '../../results/TreeView';
 import { useAppStore, useAppStoreApi } from '../../state/app-store-context';
@@ -26,6 +44,14 @@ const MIN_EDITOR_SHARE = 0.15;
 const MAX_EDITOR_SHARE = 0.8;
 const DEFAULT_EDITOR_SHARE = 0.3;
 const SHARE_STEP = 0.05;
+
+/** Stands in for the completion source while the tab has none. The run then has no type hints. */
+const NO_SAMPLER: SqlSampler = { fieldsOf: () => Promise.resolve([]) };
+
+const LANGUAGE_OPTIONS: readonly { readonly value: EditorLanguage; readonly label: string }[] = [
+  { value: 'mongosh', label: 'Mongo' },
+  { value: 'sql', label: 'SQL' },
+];
 
 const RUNTIME_COLORS: Readonly<Record<ShellRuntimeState, string>> = {
   stopped: 'gray',
@@ -47,9 +73,38 @@ export interface EditorViewProps {
   readonly tabId: string;
 }
 
+/** The offset of the run target in the editor text, so a SQL error span can be placed. */
+function offsetOf(request: RunRequest, target: RunTarget): number {
+  if (target.source === 'statement') {
+    return target.start;
+  }
+  if (target.source === 'selection' && request.selection !== undefined) {
+    const raw = request.code.slice(request.selection.start, request.selection.end);
+    return request.selection.start + (raw.length - raw.trimStart().length);
+  }
+  return 0;
+}
+
+/** Asks before writes that touch every document of their collection. Resolves to the answer. */
+function confirmUnsafeWrites(writes: readonly UnsafeWrite[]): Promise<boolean> {
+  return new Promise((resolve) => {
+    modals.openConfirmModal({
+      title: 'Run a write without WHERE',
+      centered: true,
+      children: <Text size="sm">{unsafeWriteQuestion(writes)}</Text>,
+      labels: { confirm: 'Run', cancel: 'Cancel' },
+      confirmProps: { color: 'red' },
+      onConfirm: () => resolve(true),
+      onCancel: () => resolve(false),
+      onClose: () => resolve(false),
+    });
+  });
+}
+
 /**
- * One editor tab: a toolbar, the mongosh editor, and the results of its last run. Run sends the
- * selection, or the statement under the cursor. Run all sends the whole text.
+ * One editor tab: a toolbar, the mongosh or SQL editor, and the results of its last run. Run sends
+ * the selection, or the statement under the cursor. Run all sends the whole text. A SQL tab
+ * translates the text first and runs the mongosh, which the Output panel shows.
  */
 export function EditorView({ tabId }: EditorViewProps) {
   const { rpc } = useUiApi();
@@ -115,32 +170,86 @@ export function EditorView({ tabId }: EditorViewProps) {
           collection: current.result.collection,
         };
 
+  const isSql = current.language === 'sql';
+
+  /**
+   * Translates SQL for a run. A failure underlines the clause and shows the message on the tab.
+   * A write without WHERE asks first. Resolves to the mongosh, or undefined when nothing runs.
+   */
+  async function translateForRun(sql: string, offset: number): Promise<string | undefined> {
+    const plan = await prepareSqlRun(sql, source ?? NO_SAMPLER);
+    if (!plan.ok) {
+      editorUiEvents.emit({
+        type: 'editor:markers',
+        tabId,
+        markers: [
+          { start: offset + plan.span.start, end: offset + plan.span.end, message: plan.message },
+        ],
+      });
+      api.setEditorError(tabId, appError('VALIDATION', plan.message));
+      api.reportLine('error', plan.message, tabId);
+      return undefined;
+    }
+    if (plan.unsafe && !(await confirmUnsafeWrites(plan.unsafeWrites))) {
+      return undefined;
+    }
+    return plan.mongosh;
+  }
+
+  async function runSql(sql: string, offset: number): Promise<void> {
+    const mongosh = await translateForRun(sql, offset);
+    if (mongosh !== undefined) {
+      await api.runEditor(tabId, mongosh, { sql });
+    }
+  }
+
+  function targetOf(request: RunRequest): RunTarget {
+    return isSql
+      ? sqlRunTargetFor(request.code, request.cursor, request.selection)
+      : runTargetFor(request.code, request.cursor, request.selection);
+  }
+
   function run(request: RunRequest) {
-    const target = runTargetFor(request.code, request.cursor, request.selection);
-    if (target.source !== 'empty') {
+    const target = targetOf(request);
+    if (target.source === 'empty') {
+      return;
+    }
+    if (isSql) {
+      void runSql(target.text, offsetOf(request, target));
+    } else {
       void api.runEditor(tabId, target.text);
     }
   }
 
   function runAll(code: string) {
-    if (code.trim() !== '') {
+    if (code.trim() === '') {
+      return;
+    }
+    if (isSql) {
+      void runSql(code, 0);
+    } else {
       void api.runEditor(tabId, code);
     }
   }
 
   function explain(request: RunRequest) {
-    const target = runTargetFor(request.code, request.cursor, request.selection);
-    if (target.source !== 'empty') {
-      void api.openExplain({
-        connectionId: current.connectionId,
-        database: current.database,
-        code: target.text,
-      });
+    const target = targetOf(request);
+    if (target.source === 'empty') {
+      return;
     }
+    const open = (code: string) =>
+      api.openExplain({ connectionId: current.connectionId, database: current.database, code });
+    if (!isSql) {
+      void open(target.text);
+      return;
+    }
+    void translateForRun(target.text, offsetOf(request, target)).then((mongosh) =>
+      mongosh === undefined ? undefined : open(mongosh),
+    );
   }
 
   function format() {
-    api.setEditorText(tabId, formatMongoshCode(current.text));
+    api.setEditorText(tabId, isSql ? formatSql(current.text) : formatMongoshCode(current.text));
   }
 
   function resizeWithKeys(event: KeyboardEvent<HTMLDivElement>) {
@@ -176,7 +285,7 @@ export function EditorView({ tabId }: EditorViewProps) {
       <Group
         className="mg-editor-toolbar"
         gap="xs"
-        wrap="nowrap"
+        wrap="wrap"
         px={8}
         py={6}
         style={{ borderBottom: '1px solid var(--mantine-color-dark-4)' }}
@@ -195,8 +304,8 @@ export function EditorView({ tabId }: EditorViewProps) {
             }}
           />
         </Tooltip>
-        <Text size="sm" fw={600} truncate="end" maw={200}>
-          {connectionName ?? 'Connection'} · {current.database}
+        <Text size="sm" fw={600} truncate="end" maw={140}>
+          {connectionName ?? 'Connection'}
         </Text>
         <Select
           size="xs"
@@ -204,10 +313,22 @@ export function EditorView({ tabId }: EditorViewProps) {
           data={databaseOptions}
           value={current.database}
           allowDeselect={false}
-          w={160}
+          w={140}
           onChange={(value) => {
             if (value !== null) {
               api.setEditorDatabase(tabId, value);
+            }
+          }}
+        />
+        <SegmentedControl
+          size="xs"
+          aria-label="Query language"
+          data={LANGUAGE_OPTIONS.map((option) => ({ ...option }))}
+          value={current.language}
+          onChange={(value) => {
+            const language = LANGUAGE_OPTIONS.find((option) => option.value === value)?.value;
+            if (language !== undefined && language !== current.language) {
+              void api.setEditorLanguage(tabId, language);
             }
           }}
         />
@@ -255,7 +376,7 @@ export function EditorView({ tabId }: EditorViewProps) {
           data={BATCH_SIZES.map((size) => ({ value: String(size), label: `${size} per batch` }))}
           value={String(current.batchSize)}
           allowDeselect={false}
-          w={130}
+          w={120}
           onChange={(value) => {
             const size = BATCH_SIZES.find((item) => String(item) === value);
             if (size !== undefined) {
@@ -266,14 +387,16 @@ export function EditorView({ tabId }: EditorViewProps) {
         <Button size="xs" variant="default" leftSection={<IconWand size={13} />} onClick={format}>
           Format
         </Button>
-        <Button
-          size="xs"
-          variant="default"
-          leftSection={<IconBookmark size={13} />}
-          onClick={() => setSaveOpen(true)}
-        >
-          Save as favourite
-        </Button>
+        <Tooltip label="Save as favourite" withArrow>
+          <Button
+            size="xs"
+            variant="default"
+            aria-label="Save as favourite"
+            onClick={() => setSaveOpen(true)}
+          >
+            <IconBookmark size={14} />
+          </Button>
+        </Tooltip>
         <Tooltip label="Reload the collection names of this connection" withArrow>
           <Button
             size="xs"
@@ -309,6 +432,7 @@ export function EditorView({ tabId }: EditorViewProps) {
         <div style={{ height: `${share * 100}%`, minHeight: 80, padding: '6px 8px 0' }}>
           <MongoshEditor
             tabId={tabId}
+            language={current.language}
             label={`Query for ${current.database}`}
             value={current.text}
             source={source}
@@ -376,6 +500,7 @@ export function EditorView({ tabId }: EditorViewProps) {
           code={current.text}
           connectionId={current.connectionId}
           database={current.database}
+          language={current.language}
           tabId={tabId}
           onClose={() => setSaveOpen(false)}
         />

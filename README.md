@@ -20,6 +20,7 @@ panel layout and the window size are saved, so the next launch opens where you l
 - Connections and vault keep saved connections, history and settings in one encrypted store, and connect by URI or form.
 - Docker discovery finds MongoDB containers on the local machine and connects to them.
 - The shell runs mongosh statements with completion, multi-statement scripts and print output.
+- SQL mode runs a T-SQL subset against collections. Each statement is translated to mongosh, which the Output panel shows before the run.
 - Results open as a grid, an expandable tree with inline edits, or read-only JSON.
 - Explain shows the plan of find, aggregate, count, distinct, update and delete as a stage tree with warnings.
 - Collection management covers databases, collections, indexes, JSON schema validators and documents.
@@ -38,7 +39,8 @@ panel layout and the window size are saved, so the next launch opens where you l
 
 ## Screenshots
 
-The screenshots show the app as of the 0.1.0 release.
+The screenshots show the app as of the 0.1.0 release, except the SQL mode screenshot, which shows
+the next release.
 
 ![Query editor with the documents of a find shown as a grid](docs/screenshots/editor-table.png)
 
@@ -74,6 +76,10 @@ inline edits in the tree, and a history and favourites list in the Output panel.
 | Explain of an aggregate with a $lookup sub-tree open                                                         |
 | ------------------------------------------------------------------------------------------------------------ |
 | ![Explain panel with the summary, the plan tree and the $lookup sub-tree open](docs/screenshots/explain.png) |
+
+| SQL mode with a join translated to mongosh in the Output panel                                             |
+| ---------------------------------------------------------------------------------------------------------- |
+| ![Editor in SQL mode with a join translated to mongosh in the Output panel](docs/screenshots/sql-mode.png) |
 
 | Docker node in the connection tree                                                | Credentials for a protected container                                                             |
 | --------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------- |
@@ -201,6 +207,7 @@ GitHub until you turn the setting back on.
 ## Documentation
 
 - [User guide](docs/user-guide.md): every screen and workflow of the app.
+- [SQL translation](docs/sql.md): the T-SQL subset that SQL mode runs, its functions and the constructs it refuses.
 - [Security](docs/security.md): the threat model, key hierarchy and where data is stored.
 - [Troubleshooting](docs/troubleshooting.md): connection errors, Docker, updates, logs and bug reports.
 - [Keyboard shortcuts](docs/shortcuts.md): every shortcut the app registers.

@@ -13,7 +13,12 @@ describe('defaultSettings', () => {
       dockerAutoConnect: false,
       checkForUpdates: true,
       treeDensity: 'compact',
+      editorLanguage: 'mongosh',
     });
+  });
+
+  it('defaults the editor language to mongosh', () => {
+    expect(defaultSettings.editorLanguage).toBe('mongosh');
   });
 
   it('passes its own schema', () => {

@@ -1,4 +1,5 @@
 import { z } from 'zod';
+import { EditorLanguageSchema } from '../domain/editor-language';
 
 export const SettingsSchema = z.object({
   theme: z.enum(['dark', 'light', 'system']),
@@ -13,6 +14,7 @@ export const SettingsSchema = z.object({
   dockerAutoConnect: z.boolean(),
   checkForUpdates: z.boolean(),
   treeDensity: z.enum(['compact', 'comfortable']),
+  editorLanguage: EditorLanguageSchema,
 });
 
 export const SettingsPatchSchema = SettingsSchema.partial();

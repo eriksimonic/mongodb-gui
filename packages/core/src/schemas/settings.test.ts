@@ -24,11 +24,41 @@ describe('SettingsSchema', () => {
       false,
     );
   });
+
+  it('defaults the editor language to mongosh', () => {
+    expect(defaultSettings.editorLanguage).toBe('mongosh');
+  });
+
+  it('accepts the mongosh and sql editor languages', () => {
+    const language = (editorLanguage: string) =>
+      SettingsSchema.safeParse({ ...defaultSettings, editorLanguage }).success;
+    expect(language('mongosh')).toBe(true);
+    expect(language('sql')).toBe(true);
+  });
+
+  it('rejects an unknown editor language', () => {
+    expect(SettingsSchema.safeParse({ ...defaultSettings, editorLanguage: 'tsql' }).success).toBe(
+      false,
+    );
+  });
+
+  it('rejects settings that omit the editor language', () => {
+    const withoutLanguage = { ...defaultSettings, editorLanguage: undefined };
+    expect(SettingsSchema.safeParse(withoutLanguage).success).toBe(false);
+  });
 });
 
 describe('SettingsPatchSchema', () => {
   it('accepts a partial patch', () => {
     expect(SettingsPatchSchema.safeParse({ theme: 'light' }).success).toBe(true);
+  });
+
+  it('accepts a patch that changes only the editor language', () => {
+    expect(SettingsPatchSchema.parse({ editorLanguage: 'sql' })).toEqual({ editorLanguage: 'sql' });
+  });
+
+  it('rejects a patch with an unknown editor language', () => {
+    expect(SettingsPatchSchema.safeParse({ editorLanguage: 'xml' }).success).toBe(false);
   });
 
   it('rejects a patch with an invalid value', () => {

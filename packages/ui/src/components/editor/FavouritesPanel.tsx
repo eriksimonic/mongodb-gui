@@ -1,4 +1,4 @@
-import { ActionIcon, Stack, Text, Tooltip } from '@mantine/core';
+import { ActionIcon, Badge, Group, Stack, Text, Tooltip } from '@mantine/core';
 import { useVirtualizer } from '@tanstack/react-virtual';
 import { IconPlayerPlay, IconTrash } from '@tabler/icons-react';
 import type { Favourite } from '@mongo-gui/core';
@@ -165,6 +165,7 @@ export function FavouritesPanel() {
                       connectionId: favourite.connectionId ?? '',
                       database: favourite.database ?? '',
                       code: favourite.code,
+                      language: favourite.language ?? 'mongosh',
                     })
                   }
                   disabled={
@@ -181,9 +182,16 @@ export function FavouritesPanel() {
                     padding: 0,
                   }}
                 >
-                  <Text size="sm" fw={500} truncate="end">
-                    {favourite.name}
-                  </Text>
+                  <Group gap={6} wrap="nowrap" miw={0}>
+                    <Text size="sm" fw={500} truncate="end">
+                      {favourite.name}
+                    </Text>
+                    {favourite.language === 'sql' ? (
+                      <Badge tt="none" size="xs" variant="light" aria-label="SQL statement">
+                        SQL
+                      </Badge>
+                    ) : null}
+                  </Group>
                   <Text size="xs" c="dimmed" ff="monospace" truncate="end">
                     {firstLine(favourite.code)}
                   </Text>
@@ -203,6 +211,7 @@ export function FavouritesPanel() {
                             connectionId: favourite.connectionId ?? '',
                             database: favourite.database ?? '',
                             code: favourite.code,
+                            language: favourite.language ?? 'mongosh',
                           })
                           .catch((failure: unknown) => notifyError(failure))
                       }

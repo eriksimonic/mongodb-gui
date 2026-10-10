@@ -245,6 +245,7 @@ function mergeSettings(current: Settings, patch: SettingsPatch): Settings {
     dockerAutoConnect: patch.dockerAutoConnect ?? current.dockerAutoConnect,
     checkForUpdates: patch.checkForUpdates ?? current.checkForUpdates,
     treeDensity: patch.treeDensity ?? current.treeDensity,
+    editorLanguage: patch.editorLanguage ?? current.editorLanguage,
   };
 }
 

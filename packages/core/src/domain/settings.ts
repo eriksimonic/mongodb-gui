@@ -13,4 +13,5 @@ export const defaultSettings: Settings = {
   dockerAutoConnect: false,
   checkForUpdates: true,
   treeDensity: 'compact',
+  editorLanguage: 'mongosh',
 };

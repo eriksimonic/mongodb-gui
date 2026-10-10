@@ -94,9 +94,12 @@ export function HistoryPanel() {
     connections.find((item) => item.id === id)?.name ?? 'Unknown connection';
 
   function insert(entry: HistoryEntry) {
-    store
-      .getState()
-      .insertCode({ connectionId: entry.connectionId, database: entry.database, code: entry.code });
+    store.getState().insertCode({
+      connectionId: entry.connectionId,
+      database: entry.database,
+      code: entry.code,
+      language: entry.language ?? 'mongosh',
+    });
   }
 
   function rerun(entry: HistoryEntry) {
@@ -106,6 +109,7 @@ export function HistoryPanel() {
         connectionId: entry.connectionId,
         database: entry.database,
         code: entry.code,
+        language: entry.language ?? 'mongosh',
       })
       .catch((failure: unknown) => notifyError(failure));
   }
@@ -208,6 +212,11 @@ export function HistoryPanel() {
                       : ` · ${countOf(entry.resultCount, 'document')}`}
                   </Text>
                 </button>
+                {entry.language === 'sql' ? (
+                  <Badge tt="none" size="xs" variant="light" aria-label="SQL statement">
+                    SQL
+                  </Badge>
+                ) : null}
                 {entry.error === undefined ? null : (
                   <Badge tt="none" size="xs" color="red" variant="light">
                     Error
@@ -242,6 +251,7 @@ export function HistoryPanel() {
           code={saving.code}
           connectionId={saving.connectionId}
           database={saving.database}
+          language={saving.language ?? 'mongosh'}
           onClose={() => setSaving(undefined)}
         />
       )}

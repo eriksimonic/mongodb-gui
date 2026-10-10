@@ -1,4 +1,5 @@
 import { Alert, Button, Group, Modal, Stack, Text, TextInput } from '@mantine/core';
+import type { EditorLanguage } from '@mongo-gui/core';
 import { useState } from 'react';
 import { errorText } from '../notify-error';
 import { useAppStoreApi } from '../../state/app-store-context';
@@ -7,6 +8,8 @@ export interface SaveFavouriteDialogProps {
   readonly code: string;
   readonly connectionId: string;
   readonly database: string;
+  /** The language the code is written in. Undefined means mongosh. */
+  readonly language?: EditorLanguage | undefined;
   /** The tab the code came from. Saving marks it saved. */
   readonly tabId?: string | undefined;
   readonly onClose: () => void;
@@ -17,6 +20,7 @@ export function SaveFavouriteDialog({
   code,
   connectionId,
   database,
+  language,
   tabId,
   onClose,
 }: SaveFavouriteDialogProps) {
@@ -41,6 +45,7 @@ export function SaveFavouriteDialog({
         code,
         connectionId,
         database,
+        language,
         tabId,
       });
       onClose();

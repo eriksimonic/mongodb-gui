@@ -2,15 +2,19 @@ import { useComputedColorScheme } from '@mantine/core';
 import Editor, { type OnMount } from '@monaco-editor/react';
 import { useEffect, useRef } from 'react';
 import type * as Monaco from 'monaco-editor/editor/editor.api';
-import { editorUiEvents, insertionText } from './editor-events';
+import { editorUiEvents, insertionText, markerRanges } from './editor-events';
 import {
   clearCompletionSource,
   MONGOSH_LANGUAGE,
   registerMongoshLanguage,
   setCompletionSource,
 } from './mongosh-language';
+import { registerSqlLanguage, SQL_LANGUAGE } from './sql-language';
 import type { CompletionSource } from './completion-source';
 import type { MongoshEditorProps, RunRequest } from './MongoshEditor';
+
+/** The owner of the error markers the run flow sets, so clearing them leaves other owners alone. */
+const MARKER_OWNER = 'sql';
 
 /**
  * The Monaco editor for one tab. Loaded lazily by MongoshEditor, so Monaco is not evaluated until
@@ -53,6 +57,7 @@ const COMMAND_ACTIONS = {
 export function MongoshMonaco({
   tabId,
   label,
+  language,
   value,
   source,
   onChange,
@@ -62,11 +67,11 @@ export function MongoshMonaco({
 }: MongoshEditorProps) {
   const scheme = useComputedColorScheme('dark');
   // Handlers read the latest props, because Monaco keeps the callbacks it got on mount.
-  const latest = useRef({ onRun, onRunAll, onExplain, source });
+  const latest = useRef({ onRun, onRunAll, onExplain, source, value });
   const modelUri = useRef<string | undefined>(undefined);
   useEffect(() => {
-    latest.current = { onRun, onRunAll, onExplain, source };
-  }, [onRun, onRunAll, onExplain, source]);
+    latest.current = { onRun, onRunAll, onExplain, source, value };
+  }, [onRun, onRunAll, onExplain, source, value]);
 
   // Keeps the editor's completion source in the registry. The registry reads the ref on each call.
   useEffect(() => {
@@ -79,16 +84,32 @@ export function MongoshMonaco({
 
   const handleMount: OnMount = (editor, monaco) => {
     registerMongoshLanguage(monaco);
-    const model = editor.getModel();
-    if (model !== null) {
+    registerSqlLanguage(monaco);
+    const relay: CompletionSource = {
+      complete: (code, offset, signal) =>
+        latest.current.source?.complete(code, offset, signal) ?? Promise.resolve([]),
+      fieldsOf: (collection) => latest.current.source?.fieldsOf(collection) ?? Promise.resolve([]),
+      collections: () => latest.current.source?.collections() ?? Promise.resolve([]),
+      refreshFields: () => latest.current.source?.refreshFields(),
+    };
+    // A language change gives the editor a new model under a new path. The relay follows the
+    // model, and a model reused from an earlier flip takes the tab's current text.
+    const attach = (model: Monaco.editor.ITextModel | null): void => {
+      if (modelUri.current !== undefined) {
+        clearCompletionSource(modelUri.current);
+        modelUri.current = undefined;
+      }
+      if (model === null) {
+        return;
+      }
       modelUri.current = model.uri.toString();
-      const relay: CompletionSource = {
-        complete: (code, offset, signal) =>
-          latest.current.source?.complete(code, offset, signal) ?? Promise.resolve([]),
-        refreshFields: () => latest.current.source?.refreshFields(),
-      };
-      setCompletionSource(model.uri.toString(), relay);
-    }
+      setCompletionSource(modelUri.current, relay);
+      if (model.getValue() !== latest.current.value) {
+        model.setValue(latest.current.value);
+      }
+    };
+    attach(editor.getModel());
+    editor.onDidChangeModel(() => attach(editor.getModel()));
     const runAt = (
       request: (value: string, cursor: number, selection: RunRequest['selection']) => void,
     ) => {
@@ -139,6 +160,25 @@ export function MongoshMonaco({
         editor.trigger('toolbar', COMMAND_ACTIONS[event.command], null);
         return;
       }
+      if (event.type === 'editor:markers') {
+        const model = editor.getModel();
+        if (model === null) {
+          return;
+        }
+        monaco.editor.setModelMarkers(
+          model,
+          MARKER_OWNER,
+          markerRanges(model.getValue(), event.markers).map((range) => ({
+            ...range,
+            severity: monaco.MarkerSeverity.Error,
+          })),
+        );
+        const clear = model.onDidChangeContent(() => {
+          monaco.editor.setModelMarkers(model, MARKER_OWNER, []);
+          clear.dispose();
+        });
+        return;
+      }
       if (event.type !== 'editor:insert') {
         return;
       }
@@ -157,9 +197,9 @@ export function MongoshMonaco({
 
   return (
     <Editor
-      path={`inmemory://mongo-gui/${tabId}.mongosh`}
+      path={`inmemory://mongo-gui/${tabId}.${language === 'sql' ? 'sql' : 'mongosh'}`}
       height="100%"
-      language={MONGOSH_LANGUAGE}
+      language={language === 'sql' ? SQL_LANGUAGE : MONGOSH_LANGUAGE}
       theme={scheme === 'dark' ? 'vs-dark' : 'vs'}
       value={value}
       onChange={(next) => onChange(next ?? '')}

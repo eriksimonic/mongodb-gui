@@ -3,12 +3,17 @@ import {
   appError,
   newId,
   toAppError,
+  translateSqlStatement,
   type AppError,
+  type EditorLanguage,
   type RpcClient,
+  type Settings,
+  type SettingsPatch,
   type ShellEvaluation,
   type ShellRuntimeState,
 } from '@mongo-gui/core';
 import { editorUiEvents } from '../editor/editor-events';
+import { prepareSqlRun, type SqlSampler } from '../editor/sql-run';
 import {
   isPlainObject,
   parseCursorBatch,
@@ -42,13 +47,14 @@ import {
   setTabBatchSize,
   setTabDatabase,
   setTabError,
+  setTabLanguage,
   setTabText,
   setTabView,
   type BatchSize,
   type EditorsState,
   type ResultView,
 } from './editors';
-import { collectionQueryStatement } from './collection-query';
+import { collectionQueryStatement, collectionSelectStatement } from './collection-query';
 
 /** Batch size of "Load all". Each call reads this many documents, up to LOAD_ALL_LIMIT in all. */
 const LOAD_ALL_BATCH = 500;
@@ -58,8 +64,14 @@ const NEXT_BATCH_LIMIT = 1000;
 /** What the editor actions need from the store. */
 export interface EditorStoreAccess {
   readonly rpc: RpcClient;
-  readonly get: () => { readonly editors: EditorsState };
+  readonly get: () => {
+    readonly editors: EditorsState;
+    /** The saved settings. Undefined while the vault is locked. */
+    readonly settings: Settings | undefined;
+  };
   readonly update: (update: (editors: EditorsState) => EditorsState) => void;
+  /** Saves a settings patch, and the store keeps the settings it returns. */
+  readonly saveSettings: (patch: SettingsPatch) => Promise<unknown>;
 }
 
 export interface OpenEditorInput {
@@ -67,6 +79,8 @@ export interface OpenEditorInput {
   readonly database: string;
   /** Opens a second tab even when one is open for the same database. */
   readonly newTab?: boolean | undefined;
+  /** The language of a new tab. Defaults to the language in the saved settings. */
+  readonly language?: EditorLanguage | undefined;
 }
 
 export interface SaveFavouriteInput extends CodeTarget {
@@ -97,6 +111,8 @@ export interface CodeTarget {
   readonly connectionId: string;
   readonly database: string;
   readonly code: string;
+  /** The language of the code. Undefined means mongosh. */
+  readonly language?: EditorLanguage | undefined;
 }
 
 type PageOutcome =
@@ -129,6 +145,11 @@ export function createEditorActions(access: EditorStoreAccess) {
     );
   }
 
+  /** The language in the saved settings. Mongosh until the settings load. */
+  function defaultLanguage(): EditorLanguage {
+    return access.get().settings?.editorLanguage ?? 'mongosh';
+  }
+
   function openEditor(input: OpenEditorInput): string {
     const existing =
       input.newTab === true
@@ -139,16 +160,34 @@ export function createEditorActions(access: EditorStoreAccess) {
       return existing.id;
     }
     const id = newId();
+    const language = input.language ?? defaultLanguage();
     update((state) =>
-      openTab(state, { id, connectionId: input.connectionId, database: input.database }),
+      openTab(state, {
+        id,
+        connectionId: input.connectionId,
+        database: input.database,
+        language,
+      }),
     );
     return id;
   }
 
-  async function runEditor(id: string, text: string): Promise<void> {
+  /**
+   * Runs the mongosh text of a tab. A SQL run passes the original SQL as `options.sql`, which prints
+   * the mongosh first and records the SQL in history. Without it the run is recorded as mongosh.
+   */
+  async function runEditor(
+    id: string,
+    text: string,
+    options?: { readonly sql?: string | undefined },
+  ): Promise<void> {
     const tab = access.get().editors.tabs[id];
     if (tab === undefined || tab.running !== undefined || text.trim() === '') {
       return;
+    }
+    const sql = options?.sql;
+    if (sql !== undefined) {
+      reportLine('info', text, id);
     }
     const requestId = newId();
     const startedAt = Date.now();
@@ -173,7 +212,8 @@ export function createEditorActions(access: EditorStoreAccess) {
     await recordHistory({
       connectionId: tab.connectionId,
       database: tab.database,
-      code: text,
+      code: sql ?? text,
+      language: sql === undefined ? 'mongosh' : 'sql',
       startedAt,
       durationMs: evaluation.elapsedMs,
       resultCount:
@@ -186,6 +226,7 @@ export function createEditorActions(access: EditorStoreAccess) {
     readonly connectionId: string;
     readonly database: string;
     readonly code: string;
+    readonly language: EditorLanguage;
     readonly startedAt: number;
     readonly durationMs: number;
     readonly resultCount: number | undefined;
@@ -196,6 +237,7 @@ export function createEditorActions(access: EditorStoreAccess) {
         connectionId: input.connectionId,
         database: input.database,
         code: input.code,
+        language: input.language,
         startedAt: new Date(input.startedAt).toISOString(),
         durationMs: input.durationMs,
         ...(input.resultCount === undefined ? {} : { resultCount: input.resultCount }),
@@ -311,7 +353,11 @@ export function createEditorActions(access: EditorStoreAccess) {
     }
   }
 
-  async function rerunStatement(target: CodeTarget): Promise<void> {
+  /**
+   * Puts code into a tab of its language and returns the tab's id. An empty active tab on the same
+   * connection takes the code, with its database and language switched. Otherwise a new tab opens.
+   */
+  function placeCode(target: CodeTarget, language: EditorLanguage): string {
     const state = access.get().editors;
     const active = state.activeId === undefined ? undefined : state.tabs[state.activeId];
     let id: string;
@@ -322,14 +368,28 @@ export function createEditorActions(access: EditorStoreAccess) {
     ) {
       id = active.id;
       update((current) => setTabDatabase(current, id, target.database));
+      update((current) => setTabLanguage(current, id, language));
     } else {
       id = openEditor({
         connectionId: target.connectionId,
         database: target.database,
         newTab: true,
+        language,
       });
     }
     update((current) => setTabText(current, id, target.code));
+    return id;
+  }
+
+  async function rerunStatement(target: CodeTarget): Promise<void> {
+    const language = target.language ?? 'mongosh';
+    const id = placeCode(target, language);
+    if (language === 'sql') {
+      // The tab's Run button translates SQL. Running it from here would skip the field types the
+      // translation reads, and the confirmation for a write without WHERE.
+      reportLine('info', 'The SQL is in its tab. Press Run to translate and run it.', id);
+      return;
+    }
     await runEditor(id, target.code);
   }
 
@@ -453,7 +513,10 @@ export function createEditorActions(access: EditorStoreAccess) {
       update((state) => patchDocument(state, tabId, index, () => parsed));
     },
 
-    /** Saves code as a favourite. A tab named in the input is marked saved. */
+    /**
+     * Saves code as a favourite, with the language it was written in. A tab named in the input is
+     * marked saved.
+     */
     async saveFavourite(input: SaveFavouriteInput): Promise<void> {
       const folder = input.folder?.trim() ?? '';
       await rpc.favourites.save({
@@ -461,6 +524,7 @@ export function createEditorActions(access: EditorStoreAccess) {
         code: input.code,
         connectionId: input.connectionId,
         database: input.database,
+        ...(input.language === undefined ? {} : { language: input.language }),
         ...(folder === '' ? {} : { folder }),
       });
       update((state) => {
@@ -471,20 +535,23 @@ export function createEditorActions(access: EditorStoreAccess) {
 
     /**
      * Runs the code from history or favourites. It goes into a new tab, so the text of the current
-     * tab stays. An empty current tab on the same connection takes the code instead.
+     * tab stays. An empty current tab on the same connection takes the code instead. Mongosh runs
+     * at once. SQL waits in its tab, so the user runs it from the tab's Run button.
      */
     rerunStatement,
 
     /**
-     * Opens a query tab for a collection and runs `find({})` on it. The tab rules are those of
-     * `rerunStatement`.
-     */
-    /**
-     * Opens the documents of a collection. A tab that already holds this exact query on the same
+     * Opens the documents of a collection and runs the query. The query is `find({})` in a mongosh
+     * tab, or `SELECT * FROM name;` in a SQL tab when the saved default language is SQL. The tab
+     * rules are those of `rerunStatement`. A tab that already holds this exact query on the same
      * connection and database comes to the front instead of a second one opening.
      */
-    openCollectionQuery(target: CollectionTarget): Promise<void> {
-      const code = collectionQueryStatement(target.collection);
+    async openCollectionQuery(target: CollectionTarget): Promise<void> {
+      const language = defaultLanguage();
+      const code =
+        language === 'sql'
+          ? collectionSelectStatement(target.collection)
+          : collectionQueryStatement(target.collection);
       const state = access.get().editors;
       const existing = state.order.find((id) => {
         const tab = state.tabs[id];
@@ -492,14 +559,50 @@ export function createEditorActions(access: EditorStoreAccess) {
           tab !== undefined &&
           tab.connectionId === target.connectionId &&
           tab.database === target.database &&
+          tab.language === language &&
           tab.text.trim() === code
         );
       });
       if (existing !== undefined) {
         update((current) => setActiveTab(current, existing));
-        return Promise.resolve();
+        return;
       }
-      return rerunStatement({ connectionId: target.connectionId, database: target.database, code });
+      const codeTarget = { connectionId: target.connectionId, database: target.database, code };
+      if (language !== 'sql') {
+        await rerunStatement(codeTarget);
+        return;
+      }
+      // A select of a whole collection needs no field types, so it runs without a sample.
+      const id = placeCode(codeTarget, 'sql');
+      const result = translateSqlStatement(code);
+      if (!result.ok) {
+        update((current) => setTabError(current, id, appError('VALIDATION', result.error.message)));
+        return;
+      }
+      await runEditor(id, result.translation.mongosh, { sql: code });
+    },
+
+    /**
+     * Replaces the SQL of a tab with its mongosh translation and switches the tab to mongosh. The
+     * saved default language stays. A text that does not translate leaves the tab as it is and
+     * shows the error on the tab.
+     */
+    async convertEditorToMongosh(id: string, sampler: SqlSampler): Promise<void> {
+      const tab = access.get().editors.tabs[id];
+      if (tab === undefined || tab.language !== 'sql') {
+        return;
+      }
+      const plan = await prepareSqlRun(tab.text, sampler);
+      if (!plan.ok) {
+        update((current) => setTabError(current, id, appError('VALIDATION', plan.message)));
+        return;
+      }
+      update((current) => setTabText(setTabLanguage(current, id, 'mongosh'), id, plan.mongosh));
+    },
+
+    /** Shows an error on a tab, or clears it. The run flow uses it for a SQL that does not translate. */
+    setEditorError(id: string, error: AppError | undefined): void {
+      update((state) => setTabError(state, id, error));
     },
 
     /**
@@ -507,14 +610,46 @@ export function createEditorActions(access: EditorStoreAccess) {
      * for the database opens with the code as its text.
      */
     insertCode(target: CodeTarget): void {
+      const language = target.language ?? 'mongosh';
       const state = access.get().editors;
       const active = state.activeId === undefined ? undefined : state.tabs[state.activeId];
       if (active !== undefined && active.connectionId === target.connectionId) {
-        editorUiEvents.emit({ type: 'editor:insert', tabId: active.id, text: target.code });
+        if (target.language === undefined || active.language === target.language) {
+          editorUiEvents.emit({ type: 'editor:insert', tabId: active.id, text: target.code });
+          return;
+        }
+        // SQL never goes into a mongosh tab, or the reverse, so the code gets a tab of its own.
+        const id = openEditor({
+          connectionId: target.connectionId,
+          database: target.database,
+          newTab: true,
+          language,
+        });
+        update((current) => setTabText(current, id, target.code));
         return;
       }
-      const id = openEditor({ connectionId: target.connectionId, database: target.database });
+      const id = openEditor({
+        connectionId: target.connectionId,
+        database: target.database,
+        language,
+      });
       update((current) => setTabText(current, id, target.code));
+    },
+
+    /**
+     * Switches a tab between mongosh and SQL and saves the choice as the default for new tabs. The
+     * text and the result stay. A failed settings save keeps the tab switched and shows an error line.
+     */
+    async setEditorLanguage(id: string, language: EditorLanguage): Promise<void> {
+      update((state) => setTabLanguage(state, id, language));
+      if (access.get().settings?.editorLanguage === language) {
+        return;
+      }
+      try {
+        await access.saveSettings({ editorLanguage: language });
+      } catch (failure) {
+        reportLine('error', `The default language was not saved. ${toAppError(failure).message}`);
+      }
     },
 
     restoreEditors,
