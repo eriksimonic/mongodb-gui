@@ -26,6 +26,13 @@ const EXPORT_STEPS = 5;
 const EXPORT_STEP_MS = 400;
 const EXPORT_DEFAULT_ROWS = 120;
 const EXPORT_MAX_ROWS = 300;
+const GRIDFS_STEPS = 10;
+const GRIDFS_STEP_MS = 150;
+/** The byte total of every mock GridFS job, so a job takes about 1.5 seconds. */
+export const GRIDFS_JOB_BYTES = 5 * 1024 * 1024;
+const GRIDFS_BYTES = GRIDFS_JOB_BYTES;
+
+export type GridFsTransferKind = 'gridfs-upload' | 'gridfs-download';
 
 /**
  * The preview the mock returns for any file. It is a small orders file with one column that
@@ -104,6 +111,17 @@ export function mockImportPreview(): ImportPreview {
 export interface MockTransfers {
   startImport(connectionId: string, request: ImportRequest): string;
   startExport(connectionId: string, request: ExportRequest): string;
+  /**
+   * A GridFS upload or download. `onDone` runs once the job finishes without a cancel, so the mock
+   * can add the uploaded file or mark the download as written.
+   */
+  startGridFs(
+    kind: GridFsTransferKind,
+    database: string,
+    bucket: string,
+    path: string,
+    onDone?: () => void,
+  ): string;
   cancel(transferId: string): void;
   status(transferId: string): TransferProgress | undefined;
   list(): TransferSummary[];
@@ -195,6 +213,42 @@ export function createMockTransfers(
     entry.timer = setTimeout(tick, IMPORT_STEP_MS);
   }
 
+  // A GridFS job moves the whole file in steps. Its progress reaches the window like a real one.
+  function runGridFs(transferId: string, entry: MockEntry, onDone: (() => void) | undefined): void {
+    let step = 0;
+    const tick = () => {
+      step += 1;
+      if (step < GRIDFS_STEPS) {
+        entry.latest = snapshot(
+          {
+            bytesRead: Math.round((GRIDFS_BYTES * step) / GRIDFS_STEPS),
+            bytesTotal: GRIDFS_BYTES,
+            elapsedMs: step * GRIDFS_STEP_MS,
+          },
+          entry.latest,
+        );
+        send(transferId, entry);
+        entry.timer = setTimeout(tick, GRIDFS_STEP_MS);
+        return;
+      }
+      finish(
+        transferId,
+        entry,
+        snapshot(
+          {
+            bytesRead: GRIDFS_BYTES,
+            bytesTotal: GRIDFS_BYTES,
+            elapsedMs: GRIDFS_STEPS * GRIDFS_STEP_MS,
+            done: true,
+          },
+          entry.latest,
+        ),
+      );
+      onDone?.();
+    };
+    entry.timer = setTimeout(tick, GRIDFS_STEP_MS);
+  }
+
   function runExport(transferId: string, entry: MockEntry, limit: number | undefined): void {
     const total = Math.min(
       EXPORT_MAX_ROWS,
@@ -234,6 +288,7 @@ export function createMockTransfers(
     collection: string,
     path: string,
     limit?: number,
+    onDone?: () => void,
   ): string {
     const transferId = newId();
     const entry: MockEntry = {
@@ -257,8 +312,10 @@ export function createMockTransfers(
     entries.set(transferId, entry);
     if (kind === 'import') {
       runImport(transferId, entry);
-    } else {
+    } else if (kind === 'export') {
       runExport(transferId, entry, limit);
+    } else {
+      runGridFs(transferId, entry, onDone);
     }
     return transferId;
   }
@@ -275,6 +332,9 @@ export function createMockTransfers(
         request.path,
         request.options.limit,
       );
+    },
+    startGridFs(kind, database, bucket, path, onDone) {
+      return start(kind, database, bucket, path, undefined, onDone);
     },
     cancel(transferId) {
       const entry = entries.get(transferId);

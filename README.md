@@ -64,6 +64,10 @@ release.
 | ----------------------------------------------------------------------------- | --------------------------------------------------------------------------------- |
 | ![Import wizard at the preview and mapping step](docs/screenshots/import.png) | ![Export dialog with a filter and the NDJSON format](docs/screenshots/export.png) |
 
+| GridFS file list with an upload in progress                                                                            |
+| ---------------------------------------------------------------------------------------------------------------------- |
+| ![GridFS panel with the files of a bucket, the metadata badges and an upload in progress](docs/screenshots/gridfs.png) |
+
 ## Prerequisites
 
 - Node.js 24 (see `.nvmrc`)

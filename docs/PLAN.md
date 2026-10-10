@@ -379,6 +379,8 @@ anything; UI halves follow their adapter merge.
   session or all sessions of a user, with confirmation.
 - **P8-6 GridFS browser.** List buckets per database, list files with metadata, upload
   (streaming from a chosen file), download to a chosen path, delete, rename.
+  Delivered in P8-6a (adapter) and P8-6b (contract, transfers, dev mock, tree and panel).
+  Filename search matches a substring, not a prefix. A metadata edit replaces the whole object.
 - **P8-7 change streams watcher.** Watch a collection, database or deployment with an
   optional pipeline and full-document option; live event list with pause, filter and a
   detail pane; resume token shown; stops on panel close and renderer reset.

@@ -14,6 +14,9 @@ import {
   type DatabaseInfo,
   type DockerMongoContainerSummary,
   type DockerStatus,
+  type GridFsBucket,
+  type GridFsStartDownloadCall,
+  type GridFsStartUploadCall,
   type PanelSpec,
   type RpcEvent,
   type Settings,
@@ -158,6 +161,19 @@ export interface PanelRequest {
   readonly collection: string;
 }
 
+/**
+ * The bucket dialogs of the tree. A new bucket takes its name here and then asks for the first
+ * file. A drop asks for the typed bucket name.
+ */
+export type GridFsDialogState =
+  | { readonly kind: 'newBucket'; readonly connectionId: string; readonly database: string }
+  | {
+      readonly kind: 'dropBucket';
+      readonly connectionId: string;
+      readonly database: string;
+      readonly bucket: string;
+    };
+
 /** The Docker node of the tree. `status` is undefined until the first read. */
 export interface DockerView {
   readonly status: DockerStatus | undefined;
@@ -187,6 +203,11 @@ export interface AppData {
   readonly validationField: ValidationFieldRequest | undefined;
   /** Counts catalog:changed events. Panels reload when it moves. */
   readonly catalogRevision: number;
+  /** GridFS buckets per database, keyed by `catalogKey`. Loaded when the GridFS node opens. */
+  readonly gridfsBuckets: Readonly<Record<string, Loadable<readonly GridFsBucket[]>>>;
+  readonly gridfsDialog: GridFsDialogState | undefined;
+  /** Counts finished GridFS jobs and changes. GridFS panels reload their files when it moves. */
+  readonly gridfsRevision: number;
   readonly settingsOpen: boolean;
   readonly shortcutsOpen: boolean;
   /** The saved settings, read after unlock. Undefined while the vault is locked. */
@@ -259,6 +280,20 @@ export interface AppActions extends ExplainActions {
   clearValidationField(): void;
   /** Drops the cached collections of one database. The open tree nodes reload them. */
   refreshDatabase(connectionId: string, database: string): void;
+  /** Loads the buckets of a database. A list that is loading or ready is kept. */
+  loadGridFsBuckets(connectionId: string, database: string): Promise<void>;
+  /** Reloads the buckets of a database and tells the open GridFS panels to reload their files. */
+  refreshGridFs(connectionId: string, database: string): Promise<void>;
+  setGridFsDialog(dialog: GridFsDialogState | undefined): void;
+  /** Starts an upload of a file the user chose and records it. Resolves with the transfer id. */
+  startGridFsUpload(input: GridFsStartUploadCall): Promise<string>;
+  startGridFsDownload(input: GridFsStartDownloadCall): Promise<string>;
+  /** Shows the open dialog for one file and starts its upload. Resolves undefined on cancel. */
+  uploadGridFsFile(
+    connectionId: string,
+    database: string,
+    bucket: string,
+  ): Promise<string | undefined>;
   loadDocker(): Promise<void>;
   refreshDockerStatus(): Promise<void>;
   /** Turns the 10 second container poll on or off in the main process. */
@@ -315,6 +350,8 @@ const SESSION_RESET: Pick<
   | 'settings'
   | 'transfers'
   | 'transferDialog'
+  | 'gridfsBuckets'
+  | 'gridfsDialog'
   | 'explainPanels'
   | 'explainFocus'
 > = {
@@ -336,6 +373,8 @@ const SESSION_RESET: Pick<
   settings: undefined,
   transfers: {},
   transferDialog: { kind: 'closed' },
+  gridfsBuckets: {},
+  gridfsDialog: undefined,
   explainPanels: {},
   explainFocus: undefined,
 };
@@ -346,6 +385,7 @@ const NO_UPDATE_STATE: UpdateState = { phase: 'idle', current: '', canInstall: f
 const INITIAL_DATA: AppData = {
   vault: 'loading',
   catalogRevision: 0,
+  gridfsRevision: 0,
   ...SESSION_RESET,
   shortcutsOpen: false,
   lockReason: undefined,
@@ -830,6 +870,83 @@ export function createAppStore(api: UiApi, initial: Partial<AppData> = {}): AppS
         }));
       },
 
+      async loadGridFsBuckets(connectionId, database) {
+        const key = catalogKey(connectionId, database);
+        const current = get().gridfsBuckets[key];
+        if (current?.state === 'loading' || current?.state === 'ready') {
+          return;
+        }
+        set((state) => ({
+          gridfsBuckets: { ...state.gridfsBuckets, [key]: { state: 'loading' } },
+        }));
+        try {
+          const data = await rpc.gridfs.listBuckets({ connectionId, database });
+          set((state) => ({
+            gridfsBuckets: { ...state.gridfsBuckets, [key]: { state: 'ready', data } },
+          }));
+        } catch (error) {
+          set((state) => ({
+            gridfsBuckets: {
+              ...state.gridfsBuckets,
+              [key]: { state: 'error', error: toAppError(error) },
+            },
+          }));
+        }
+      },
+
+      async refreshGridFs(connectionId, database) {
+        const key = catalogKey(connectionId, database);
+        set((state) => ({
+          gridfsBuckets: Object.fromEntries(
+            Object.entries(state.gridfsBuckets).filter(([bucketKey]) => bucketKey !== key),
+          ),
+          gridfsRevision: state.gridfsRevision + 1,
+        }));
+        await get().loadGridFsBuckets(connectionId, database);
+      },
+
+      setGridFsDialog(dialog) {
+        set({ gridfsDialog: dialog });
+      },
+
+      async startGridFsUpload(input) {
+        const { transferId } = await rpc.gridfs.startUpload(input);
+        set((state) => ({
+          transfers: registerTransfer(state.transfers, {
+            transferId,
+            kind: 'gridfs-upload',
+            connectionId: input.connectionId,
+            database: input.database,
+            collection: input.bucket,
+            path: input.path,
+          }),
+        }));
+        return transferId;
+      },
+
+      async startGridFsDownload(input) {
+        const { transferId } = await rpc.gridfs.startDownload(input);
+        set((state) => ({
+          transfers: registerTransfer(state.transfers, {
+            transferId,
+            kind: 'gridfs-download',
+            connectionId: input.connectionId,
+            database: input.database,
+            collection: input.bucket,
+            path: input.path,
+          }),
+        }));
+        return transferId;
+      },
+
+      async uploadGridFsFile(connectionId, database, bucket) {
+        const picked = await rpc.app.showOpenDialog({ title: `Upload to ${bucket}`, filters: [] });
+        if (picked.path === undefined) {
+          return undefined;
+        }
+        return get().startGridFsUpload({ connectionId, database, bucket, path: picked.path });
+      },
+
       async loadDocker() {
         try {
           const status = await rpc.docker.status();
@@ -986,7 +1103,7 @@ export function createAppStore(api: UiApi, initial: Partial<AppData> = {}): AppS
 
       async refreshTransfers() {
         const list = await rpc.transfer.list();
-        set({ transfers: transfersFromList(list) });
+        set((state) => ({ transfers: transfersFromList(list, state.transfers) }));
       },
 
       applyEvent(event) {
@@ -1009,6 +1126,14 @@ export function createAppStore(api: UiApi, initial: Partial<AppData> = {}): AppS
             set((state) => ({
               transfers: applyTransferProgress(state.transfers, event),
             }));
+            // A finished GridFS job changed a bucket: its counts and its files are reloaded.
+            const view = get().transfers[event.transferId];
+            if (event.kind.startsWith('gridfs-') && event.progress.done) {
+              set((state) => ({ gridfsRevision: state.gridfsRevision + 1 }));
+              if (view?.connectionId !== undefined) {
+                void get().refreshGridFs(view.connectionId, view.database);
+              }
+            }
           }
           return;
         }
@@ -1049,6 +1174,13 @@ export function createAppStore(api: UiApi, initial: Partial<AppData> = {}): AppS
         if (event.status.state !== 'connected') {
           bumpMonitorGeneration(event.connectionId);
           set((state) => withoutConnectionCatalog(state, event.connectionId));
+          set((state) => ({
+            gridfsBuckets: Object.fromEntries(
+              Object.entries(state.gridfsBuckets).filter(
+                ([key]) => !key.startsWith(`${event.connectionId}/`),
+              ),
+            ),
+          }));
           // The server stops the sampler on disconnect. The view keeps its samples and loses config.
           if (get().monitors[event.connectionId] !== undefined) {
             updateMonitor(event.connectionId, applyStopped);

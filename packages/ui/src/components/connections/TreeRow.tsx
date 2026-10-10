@@ -4,6 +4,8 @@ import {
   IconChevronDown,
   IconChevronRight,
   IconDatabase,
+  IconFiles,
+  IconFolder,
   IconGauge,
   IconListDetails,
 } from '@tabler/icons-react';
@@ -97,6 +99,12 @@ function RowIcon({ row }: { readonly row: TreeRowModel }) {
   }
   if (row.kind === 'profiler') {
     return <IconGauge size={14} aria-hidden="true" />;
+  }
+  if (row.kind === 'gridfs') {
+    return <IconFiles size={14} aria-hidden="true" />;
+  }
+  if (row.kind === 'gridfs-bucket') {
+    return <IconFolder size={14} aria-hidden="true" />;
   }
   if (row.kind === 'docker' || row.kind === 'container') {
     return <IconBrandDocker size={14} />;

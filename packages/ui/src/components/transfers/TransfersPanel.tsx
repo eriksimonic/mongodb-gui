@@ -41,14 +41,26 @@ function barColor(progress: TransferProgress): string {
   return progress.error === undefined ? 'blue' : 'red';
 }
 
-function TransferLine({ view }: { view: TransferView }) {
+/** The name of a transfer as the list shows it. GridFS jobs name their file and bucket. */
+function transferLabel(view: TransferView): string {
+  if (view.kind === 'import') {
+    return `Import into ${view.database}.${view.collection}`;
+  }
+  if (view.kind === 'export') {
+    return `Export ${view.database}.${view.collection}`;
+  }
+  const name = view.path.split(/[\\/]/).pop() ?? view.path;
+  return view.kind === 'gridfs-upload'
+    ? `Upload ${name} to ${view.database} · ${view.collection}`
+    : `Download ${name} from ${view.database} · ${view.collection}`;
+}
+
+/** One transfer with its progress bar and a cancel button while it runs. Also used by GridFS. */
+export function TransferLine({ view }: { view: TransferView }) {
   const cancelTransfer = useAppStore((state) => state.cancelTransfer);
   const progress = view.progress;
   const fraction = transferFraction(progress);
-  const label =
-    view.kind === 'import'
-      ? `Import into ${view.database}.${view.collection}`
-      : `Export ${view.database}.${view.collection}`;
+  const label = transferLabel(view);
   return (
     <Stack gap={4} data-testid={`transfer-${view.transferId}`}>
       <Group justify="space-between" wrap="nowrap">

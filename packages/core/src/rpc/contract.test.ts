@@ -15,6 +15,7 @@ describe('rpcContract', () => {
         'docker',
         'explain',
         'favourites',
+        'gridfs',
         'history',
         'layout',
         'management',

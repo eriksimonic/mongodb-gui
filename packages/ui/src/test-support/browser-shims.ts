@@ -18,7 +18,7 @@ if (typeof globalThis.ResizeObserver === 'undefined') {
 // The virtualised tables read rows against their scroll element's height. jsdom reports zero, so
 // their scrollers report a fixed viewport. Every other element keeps the jsdom answer.
 const VIRTUAL_VIEWPORT_PX = 800;
-const VIRTUAL_SCROLLERS = ['mg-profiler-scroll', 'mg-schema-scroll'];
+const VIRTUAL_SCROLLERS = ['mg-profiler-scroll', 'mg-schema-scroll', 'mg-gridfs-scroll'];
 const originalRect = Element.prototype.getBoundingClientRect;
 Element.prototype.getBoundingClientRect = function getBoundingClientRect(): DOMRect {
   if (VIRTUAL_SCROLLERS.some((name) => this.classList.contains(name))) {

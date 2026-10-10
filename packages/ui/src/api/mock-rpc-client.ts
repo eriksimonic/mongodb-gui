@@ -59,6 +59,7 @@ import {
   mockSavePath,
 } from './mock-transfer';
 import { createMockProfiler } from './mock-profiler';
+import { createMockGridFs, MOCK_FOLDER_PATH } from './mock-gridfs';
 import { createMockExplain } from './mock-explain';
 import type { UiApi } from './ui-api';
 
@@ -444,6 +445,13 @@ export function createMockUiApi(options: MockUiApiOptions = {}): UiApi {
     now: () => Date.now(),
   });
 
+  const gridfs = createMockGridFs({
+    latencyMs,
+    guard,
+    startTransfer: (kind, database, bucket, path, onDone) =>
+      transfers.startGridFs(kind, database, bucket, path, onDone),
+  });
+
   function wrapCall<I extends z.ZodType, O extends z.ZodType>(
     definition: RpcCall<I, O>,
     run: (input: z.output<I>) => z.output<O> | Promise<z.output<O>>,
@@ -499,8 +507,8 @@ export function createMockUiApi(options: MockUiApiOptions = {}): UiApi {
     app: {
       openExternal: method(rpcContract.app.openExternal, latencyMs, () => undefined),
       versions: method(rpcContract.app.versions, latencyMs, () => ({ ...MOCK_VERSIONS })),
-      showOpenDialog: method(rpcContract.app.showOpenDialog, latencyMs, () => ({
-        path: MOCK_DIALOG_PATH,
+      showOpenDialog: method(rpcContract.app.showOpenDialog, latencyMs, ({ directory }) => ({
+        path: directory === true ? MOCK_FOLDER_PATH : MOCK_DIALOG_PATH,
       })),
       showSaveDialog: method(rpcContract.app.showSaveDialog, latencyMs, ({ filters }) => ({
         path: mockSavePath(filters[0]?.extensions[0] ?? 'csv'),
@@ -755,6 +763,7 @@ export function createMockUiApi(options: MockUiApiOptions = {}): UiApi {
       }),
     },
     management,
+    gridfs,
     settings: {
       get: method(rpcContract.settings.get, latencyMs, () => {
         requireUnlocked();

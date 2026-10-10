@@ -20,6 +20,7 @@ export * from './explain/rpc-schemas';
 export * from './explain/stage-catalog';
 export * from './explain/plan-tree';
 export * from './explain/warnings';
+export * from './gridfs/calls';
 export * from './gridfs/types';
 export * from './management/types';
 export * from './ids';

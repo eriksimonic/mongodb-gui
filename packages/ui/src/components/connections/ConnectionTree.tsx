@@ -5,8 +5,15 @@ import type { ConnectionProfileSummary, ConnectionStatus } from '@mongo-gui/core
 import type { Selection } from '../../state/app-store';
 import { useAppStore } from '../../state/app-store-context';
 import { usePanelOpener } from '../../state/panel-opener';
-import { catalogKey, connectionNodeId, databaseNodeId } from '../../state/node-ids';
+import {
+  GRIDFS_NODE_PREFIX,
+  catalogKey,
+  connectionNodeId,
+  databaseNodeId,
+} from '../../state/node-ids';
 import { useProfilerOpener } from '../../profiler/profiler-opener';
+import { useGridFsOpener } from '../gridfs/gridfs-opener';
+import { GridFsBucketContextMenu } from '../gridfs/GridFsBucketContextMenu';
 import { runReported } from '../notify-error';
 import { ConnectionContextMenu } from './ConnectionContextMenu';
 import { DockerContainerContextMenu } from './DockerContainerContextMenu';
@@ -32,6 +39,12 @@ type MenuTarget =
   | { readonly kind: 'container'; readonly containerId: string }
   | { readonly kind: 'docker' }
   | { readonly kind: 'database'; readonly connectionId: string; readonly database: string }
+  | {
+      readonly kind: 'gridfsBucket';
+      readonly connectionId: string;
+      readonly database: string;
+      readonly bucket: string;
+    }
   | {
       readonly kind: 'collection';
       readonly connectionId: string;
@@ -104,6 +117,15 @@ function menuTargetFor(
             database: row.database,
             collection: row.collection,
           };
+    case 'gridfs-bucket':
+      return row.database === undefined || row.bucket === undefined
+        ? undefined
+        : {
+            kind: 'gridfsBucket',
+            connectionId: row.connectionId,
+            database: row.database,
+            bucket: row.bucket,
+          };
     default:
       return undefined;
   }
@@ -129,6 +151,9 @@ export function ConnectionTree() {
   const connect = useAppStore((state) => state.connect);
   const loadDatabases = useAppStore((state) => state.loadDatabases);
   const loadCollections = useAppStore((state) => state.loadCollections);
+  const gridfsBuckets = useAppStore((state) => state.gridfsBuckets);
+  const loadGridFsBuckets = useAppStore((state) => state.loadGridFsBuckets);
+  const gridfsOpener = useGridFsOpener();
   const select = useAppStore((state) => state.select);
   const loadDocker = useAppStore((state) => state.loadDocker);
   const watchDocker = useAppStore((state) => state.watchDocker);
@@ -161,8 +186,9 @@ export function ConnectionTree() {
             databases,
             collections,
             docker: { status: docker.status, containers: docker.containers },
+            gridfs: gridfsBuckets,
           }),
-    [list, statuses, expanded, databases, collections, docker],
+    [list, statuses, expanded, databases, collections, docker, gridfsBuckets],
   );
 
   useEffect(() => {
@@ -191,6 +217,22 @@ export function ConnectionTree() {
       }
     }
   }, [list, statuses, expanded, databases, collections, loadDatabases, loadCollections]);
+
+  // An open GridFS node loads the buckets of its database, once per connected database.
+  useEffect(() => {
+    for (const [key, open] of Object.entries(expanded)) {
+      if (!open || !key.startsWith(GRIDFS_NODE_PREFIX)) {
+        continue;
+      }
+      const catalog = key.slice(GRIDFS_NODE_PREFIX.length);
+      const separator = catalog.indexOf('/');
+      const connectionId = catalog.slice(0, separator);
+      if (statuses[connectionId]?.state !== 'connected' || gridfsBuckets[catalog] !== undefined) {
+        continue;
+      }
+      void loadGridFsBuckets(connectionId, catalog.slice(separator + 1));
+    }
+  }, [expanded, statuses, gridfsBuckets, loadGridFsBuckets]);
 
   if (connections.state === 'loading') {
     return <Loader size="xs" aria-label="Loading connections" />;
@@ -260,6 +302,13 @@ export function ConnectionTree() {
     });
   }
 
+  /** A bucket opens its file panel in the centre group. */
+  function openGridFsBucket(row: TreeRowModel) {
+    if (row.database !== undefined && row.bucket !== undefined) {
+      gridfsOpener?.open(row.connectionId, row.database, row.bucket);
+    }
+  }
+
   /** The profiler of a database opens its panel in the centre group. */
   function openProfiler(row: TreeRowModel) {
     if (row.database !== undefined) {
@@ -278,6 +327,10 @@ export function ConnectionTree() {
       return;
     }
     selectRow(row);
+    if (row.kind === 'gridfs-bucket') {
+      openGridFsBucket(row);
+      return;
+    }
     if (row.kind === 'profiler') {
       openProfiler(row);
       return;
@@ -415,6 +468,17 @@ export function ConnectionTree() {
         />
       );
     }
+    if (target.kind === 'gridfsBucket') {
+      return (
+        <GridFsBucketContextMenu
+          connectionId={target.connectionId}
+          database={target.database}
+          bucket={target.bucket}
+          position={position}
+          onClose={closeMenu}
+        />
+      );
+    }
     if (target.kind === 'collection') {
       return (
         <CollectionContextMenu
@@ -499,6 +563,8 @@ export function ConnectionTree() {
               onDoubleClick={() => {
                 if (row.kind === 'profiler') {
                   openProfiler(row);
+                } else if (row.kind === 'gridfs-bucket') {
+                  openGridFsBucket(row);
                 } else if (row.kind !== 'connection') {
                   openToolRow(row);
                 } else if (canConnect(statuses[row.connectionId])) {

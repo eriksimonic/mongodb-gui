@@ -30,6 +30,7 @@ export {
   getFile,
   listFiles,
   renameFile,
+  setFileMetadata,
   uploadFile,
 } from './gridfs/files';
 export { importFile, previewImport } from './transfer/import';

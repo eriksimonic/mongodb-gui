@@ -12,6 +12,7 @@ export const AppErrorCodeSchema = z.enum([
   'COMMAND_FAILED',
   'VALIDATION',
   'NOT_FOUND',
+  'ALREADY_EXISTS',
   'CANCELLED',
   'INTERNAL',
 ]);

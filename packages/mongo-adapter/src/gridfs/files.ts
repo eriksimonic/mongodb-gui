@@ -21,6 +21,7 @@ import {
   GridFsFileRefSchema,
   GridFsListInputSchema,
   GridFsRenameInputSchema,
+  GridFsSetMetadataInputSchema,
   GridFsUploadInputSchema,
   type GridFsFile,
   type GridFsListFilter,
@@ -415,6 +416,23 @@ export async function renameFile(client: MongoClient, request: unknown): Promise
       throw notFoundError();
     }
     return toGridFsFile({ ...doc, filename: input.filename });
+  } catch (error) {
+    throw new AppErrorException(toGridFsFailure(error));
+  }
+}
+
+// Replaces the metadata of a file with the object the user typed. The upload's content type lives
+// in metadata, so the caller sends the whole object, not a patch. Returns the file after the change.
+export async function setFileMetadata(client: MongoClient, request: unknown): Promise<GridFsFile> {
+  try {
+    const input = parseInput(GridFsSetMetadataInputSchema, request);
+    refuseReservedDatabase(input.database, 'edit files in');
+    const id = parseFileId(input.idEjson);
+    const metadata = parseEjsonDocument(input.metadataEjson, 'The metadata');
+    const files = filesCollection(client, input.database, input.bucket);
+    const doc = await requireFile(files, id);
+    await files.updateOne(idQuery(id), { $set: { metadata } });
+    return toGridFsFile({ ...doc, metadata });
   } catch (error) {
     throw new AppErrorException(toGridFsFailure(error));
   }

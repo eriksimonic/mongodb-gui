@@ -51,24 +51,31 @@ import {
   databaseStats,
   deleteByFilter,
   deleteDocuments,
+  deleteFiles,
+  dropBucket,
   dropCollection,
   estimatedDocumentCount,
   dropDatabase,
   dropIndex,
   findDocumentById,
+  getFile,
   getValidation,
   insertDocument,
   getProfilingLevel,
+  listBuckets,
   listCollections,
   listDatabases,
+  listFiles,
   listIndexBuilds,
   listIndexes,
   listProfileEntries,
   mapDriverError,
   previewImport,
   renameCollection,
+  renameFile,
   replaceDocument,
   sampleDocuments,
+  setFileMetadata,
   setIndexHidden,
   setValidation,
   updateDocumentFields,
@@ -569,6 +576,9 @@ export function createRouter(deps: RouterDeps): Router {
 
   // Paths the user picked in a save dialog this session. An export may replace only these.
   const savePaths = new Set<string>();
+  // Folders the user picked in a folder dialog this session. A download may replace a file inside
+  // one of them, because the user confirmed that file in the dialog.
+  const folderPicks = new Set<string>();
 
   const dialogs = (): NativeDialogs => {
     if (deps.dialogs === undefined) {
@@ -865,6 +875,46 @@ export function createRouter(deps: RouterDeps): Router {
       transfers.status(input.transferId),
     ),
     entry('transfer.list', rpcContract.transfer.list, () => transfers.list()),
+
+    entry('gridfs.listBuckets', rpcContract.gridfs.listBuckets, (input) =>
+      driverCall(() => listBuckets(deps.connections.getClient(input.connectionId), input)),
+    ),
+    entry('gridfs.listFiles', rpcContract.gridfs.listFiles, (input) =>
+      driverCall(() => listFiles(deps.connections.getClient(input.connectionId), input)),
+    ),
+    entry('gridfs.getFile', rpcContract.gridfs.getFile, (input) =>
+      driverCall(() => getFile(deps.connections.getClient(input.connectionId), input)),
+    ),
+    entry('gridfs.startUpload', rpcContract.gridfs.startUpload, (input) => {
+      const { connectionId, ...request } = input;
+      requireConnectionProfile(connectionId);
+      return { transferId: transfers.startGridFsUpload(connectionId, request) };
+    }),
+    entry('gridfs.startDownload', rpcContract.gridfs.startDownload, (input) => {
+      const { connectionId, ...request } = input;
+      requireConnectionProfile(connectionId);
+      if (request.overwrite === true) {
+        refuseUnpickedOverwrite(request.path, savePaths, folderPicks);
+      } else {
+        // Checked before the transfer starts, so the caller gets the refusal as the call's error.
+        refuseExistingFile(request.path);
+      }
+      return { transferId: transfers.startGridFsDownload(connectionId, request) };
+    }),
+    entry('gridfs.deleteFiles', rpcContract.gridfs.deleteFiles, (input) =>
+      driverCall(() => deleteFiles(deps.connections.getClient(input.connectionId), input)),
+    ),
+    entry('gridfs.renameFile', rpcContract.gridfs.renameFile, (input) =>
+      driverCall(() => renameFile(deps.connections.getClient(input.connectionId), input)),
+    ),
+    entry('gridfs.setMetadata', rpcContract.gridfs.setMetadata, (input) =>
+      driverCall(() => setFileMetadata(deps.connections.getClient(input.connectionId), input)),
+    ),
+    entry('gridfs.dropBucket', rpcContract.gridfs.dropBucket, (input) =>
+      driverCall(() =>
+        dropBucket(deps.connections.getClient(input.connectionId), input.database, input.bucket),
+      ),
+    ),
     entry('updates.state', rpcContract.updates.state, () => updatesService().state()),
     entry('updates.check', rpcContract.updates.check, () => updatesService().check()),
     entry('updates.download', rpcContract.updates.download, () => updatesService().download()),
@@ -882,9 +932,13 @@ export function createRouter(deps: RouterDeps): Router {
       await deps.openExternal(new URL(input.url).href);
     }),
     entry('app.versions', rpcContract.app.versions, () => appVersions()),
-    entry('app.showOpenDialog', rpcContract.app.showOpenDialog, (input) =>
-      dialogs().showOpenDialog(input),
-    ),
+    entry('app.showOpenDialog', rpcContract.app.showOpenDialog, async (input) => {
+      const picked = await dialogs().showOpenDialog(input);
+      if (input.directory === true && picked.path !== undefined) {
+        folderPicks.add(picked.path);
+      }
+      return picked;
+    }),
     entry('app.showSaveDialog', rpcContract.app.showSaveDialog, async (input) => {
       const picked = await dialogs().showSaveDialog(input);
       if (picked.path !== undefined) {
@@ -1377,6 +1431,32 @@ function refuseUnpickedFile(path: string, picked: ReadonlySet<string>): void {
   if (existsSync(path) && !picked.has(path)) {
     throw new AppErrorException(
       appError('VALIDATION', 'The file exists. Choose it with Save as to replace it.'),
+    );
+  }
+}
+
+/**
+ * A download with overwrite replaces only a file the user chose this session: one picked in a save
+ * dialog, or one inside a folder picked in a folder dialog.
+ */
+function refuseUnpickedOverwrite(
+  path: string,
+  savedFiles: ReadonlySet<string>,
+  pickedFolders: ReadonlySet<string>,
+): void {
+  if (!existsSync(path) || savedFiles.has(path) || pickedFolders.has(dirname(path))) {
+    return;
+  }
+  throw new AppErrorException(
+    appError('VALIDATION', 'The file exists. Choose it in a dialog to replace it.'),
+  );
+}
+
+/** A download without overwrite refuses an existing file, so the renderer can offer a replace. */
+function refuseExistingFile(path: string): void {
+  if (existsSync(path)) {
+    throw new AppErrorException(
+      appError('ALREADY_EXISTS', 'The file exists. Replace it to overwrite.'),
     );
   }
 }

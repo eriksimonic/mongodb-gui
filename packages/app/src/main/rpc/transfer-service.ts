@@ -3,26 +3,38 @@ import {
   appError,
   newId,
   type ExportRequest,
+  type GridFsDownloadInput,
+  type GridFsUploadInput,
   type ImportRequest,
   type RpcEvent,
   type TransferKind,
   type TransferProgress,
   type TransferSummary,
 } from '@mongo-gui/core';
-import { exportCollection, importFile } from '@mongo-gui/mongo-adapter';
+import { downloadFile, exportCollection, importFile, uploadFile } from '@mongo-gui/mongo-adapter';
 
-/** The two adapter transfers, typed from the adapter so the service cannot drift from them. */
+/** The adapter transfers, typed from the adapter so the service cannot drift from them. */
 export type ImportFn = typeof importFile;
 export type ExportFn = typeof exportCollection;
+export type UploadFn = typeof uploadFile;
+export type DownloadFn = typeof downloadFile;
 export type TransferClient = Parameters<ImportFn>[0];
-export type TransferHooks = Parameters<ImportFn>[2];
+export type TransferHooks = NonNullable<Parameters<ImportFn>[2]>;
 
 export interface TransferAdapter {
   readonly importFile: ImportFn;
   readonly exportCollection: ExportFn;
+  /** GridFS upload and download. Omitted fakes fall back to the adapter functions. */
+  readonly uploadFile?: UploadFn;
+  readonly downloadFile?: DownloadFn;
 }
 
-export const defaultTransferAdapter: TransferAdapter = { importFile, exportCollection };
+export const defaultTransferAdapter: TransferAdapter = {
+  importFile,
+  exportCollection,
+  uploadFile,
+  downloadFile,
+};
 
 /** At most this many progress events per transfer each second. The final event is never throttled. */
 export const PROGRESS_EVENTS_PER_SECOND = 4;
@@ -42,6 +54,10 @@ export interface TransferServiceOptions {
 export interface TransferService {
   startImport(connectionId: string, request: ImportRequest): string;
   startExport(connectionId: string, request: ExportRequest): string;
+  /** A GridFS upload. The bucket is the transfer's collection in the summary. */
+  startGridFsUpload(connectionId: string, request: GridFsUploadInput): string;
+  /** A GridFS download. The bucket is the transfer's collection in the summary. */
+  startGridFsDownload(connectionId: string, request: GridFsDownloadInput): string;
   cancel(transferId: string): void;
   status(transferId: string): TransferProgress;
   list(): TransferSummary[];
@@ -198,16 +214,43 @@ export function createTransferService(options: TransferServiceOptions): Transfer
       (progress) => {
         finish(entry, progress);
       },
-      () => {
-        // The raw text can carry document values, so it is not sent to the window.
+      (error: unknown) => {
+        // An AppError from the adapter is curated for the window. Anything else may carry document
+        // values or driver text, so it is replaced by a fixed message.
         finish(entry, {
           ...EMPTY_PROGRESS,
           done: true,
-          error: appError('INTERNAL', 'The transfer failed'),
+          error:
+            error instanceof AppErrorException
+              ? error.error
+              : appError('INTERNAL', 'The transfer failed'),
         });
       },
     );
     return transferId;
+  }
+
+  /**
+   * Runs a GridFS transfer. The adapter reports progress through the hooks and resolves with the
+   * file, so the last progress it reported is the result of the transfer.
+   */
+  function startGridFs(
+    kind: TransferKind,
+    connectionId: string,
+    target: { database: string; collection: string; path: string },
+    run: (client: TransferClient, hooks: TransferHooks) => Promise<unknown>,
+  ): string {
+    return start(kind, connectionId, target, async (client, hooks) => {
+      let last: TransferProgress | undefined;
+      await run(client, {
+        ...(hooks.signal === undefined ? {} : { signal: hooks.signal }),
+        onProgress: (progress) => {
+          last = progress;
+          hooks.onProgress?.(progress);
+        },
+      });
+      return { ...(last ?? EMPTY_PROGRESS), done: true };
+    });
   }
 
   function find(transferId: string): Entry {
@@ -233,6 +276,24 @@ export function createTransferService(options: TransferServiceOptions): Transfer
     startExport(connectionId, request) {
       return start('export', connectionId, request, (client, hooks) =>
         adapter.exportCollection(client, request, hooks),
+      );
+    },
+    startGridFsUpload(connectionId, request) {
+      const upload = adapter.uploadFile ?? uploadFile;
+      return startGridFs(
+        'gridfs-upload',
+        connectionId,
+        { database: request.database, collection: request.bucket, path: request.path },
+        (client, hooks) => upload(client, request, hooks),
+      );
+    },
+    startGridFsDownload(connectionId, request) {
+      const download = adapter.downloadFile ?? downloadFile;
+      return startGridFs(
+        'gridfs-download',
+        connectionId,
+        { database: request.database, collection: request.bucket, path: request.path },
+        (client, hooks) => download(client, request, hooks),
       );
     },
     cancel(transferId) {

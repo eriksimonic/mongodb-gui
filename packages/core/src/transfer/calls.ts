@@ -7,7 +7,7 @@ import {
   TransferProgressSchema,
 } from './types';
 
-export const TransferKindSchema = z.enum(['import', 'export']);
+export const TransferKindSchema = z.enum(['import', 'export', 'gridfs-upload', 'gridfs-download']);
 
 export const TransferIdSchema = z.uuid();
 
@@ -52,12 +52,17 @@ export const DialogFilterSchema = z.object({
     .max(20),
 });
 
-export const OpenDialogInputSchema = z.object({
+const DialogBaseSchema = z.object({
   title: z.string().min(1).max(200),
   filters: z.array(DialogFilterSchema).max(20),
 });
 
-export const SaveDialogInputSchema = OpenDialogInputSchema.extend({
+// A directory dialog picks a folder. The main process then ignores the filters.
+export const OpenDialogInputSchema = DialogBaseSchema.extend({
+  directory: z.boolean().optional(),
+});
+
+export const SaveDialogInputSchema = DialogBaseSchema.extend({
   defaultPath: z.string().min(1).max(4096).optional(),
 });
 
