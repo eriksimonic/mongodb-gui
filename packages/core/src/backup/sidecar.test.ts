@@ -1,4 +1,5 @@
 import { describe, expect, it } from 'vitest';
+import { dumpArgs } from './dump-args';
 import { DumpOptionsSchema } from './options';
 import { BackupSidecarSchema, parseSidecar, type BackupSidecar } from './sidecar';
 
@@ -86,5 +87,28 @@ describe('parseSidecar', () => {
     const bad = { ...fixture(), durationMs: -1 };
     const parsed = parseSidecar(bad);
     expect('problem' in parsed && parsed.problem).toContain('durationMs');
+  });
+});
+
+describe('BackupSidecarSchema args', () => {
+  it('accepts the longest argv the dump options allow', () => {
+    const options = DumpOptionsSchema.parse({
+      output: 'archive',
+      readPreference: 'secondary',
+      excludeCollections: Array.from({ length: 1000 }, (_, i) => `c${i}`),
+      excludeCollectionsWithPrefix: Array.from({ length: 100 }, (_, i) => `p${i}_`),
+      oplog: true,
+      dumpDbUsersAndRoles: true,
+      viewsAsCollections: true,
+      forceTableScan: true,
+      compressors: ['zstd', 'snappy', 'zlib'],
+    });
+    const args = dumpArgs({
+      configPath: '/tmp/c.yaml',
+      scope: { kind: 'database', database: 'shop' },
+      options,
+    }).filter((arg) => !arg.startsWith('--config='));
+    expect(args.length).toBeGreaterThan(1100);
+    expect(() => BackupSidecarSchema.parse({ ...fixture(), options, args })).not.toThrow();
   });
 });

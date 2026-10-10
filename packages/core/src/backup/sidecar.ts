@@ -51,7 +51,8 @@ export const BackupSidecarSchema = z
     options: DumpOptionsSchema,
     readPreferenceUsed: ReadPreferenceModeSchema,
     // argv without --config. A several-database dump records the argv of the first database.
-    args: z.array(z.string().max(70_000)).max(200),
+    // Room for one entry per excluded collection (1000) and prefix (100) plus the fixed flags.
+    args: z.array(z.string().max(70_000)).max(1500),
     output: z.discriminatedUnion('kind', [
       z.object({
         kind: z.literal('archive'),
