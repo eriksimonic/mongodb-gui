@@ -1,4 +1,4 @@
-import { Box, Group, Paper, Stack, Text } from '@mantine/core';
+import { Box, Group, Paper, Stack, Text, useComputedColorScheme } from '@mantine/core';
 import {
   formatCount,
   formatPercent,
@@ -19,6 +19,7 @@ export interface SchemaSummaryViewProps {
 /** Stat tiles, the top-level type bars and the colour legend used by every type bar. */
 export function SchemaSummaryView({ totals, topTypes, legend }: SchemaSummaryViewProps) {
   const largest = topTypes[0]?.count ?? 0;
+  const scheme = useComputedColorScheme('dark');
   return (
     <Group align="stretch" gap="sm" wrap="nowrap" style={{ minHeight: 0 }}>
       <Stack gap="xs" w={240} style={{ flex: '0 0 240px' }}>
@@ -53,7 +54,7 @@ export function SchemaSummaryView({ totals, topTypes, legend }: SchemaSummaryVie
                     style={{
                       height: 10,
                       width: `${largest === 0 ? 0 : Math.max(2, (item.count / largest) * 100)}%`,
-                      background: typeColor(typeBucket(item.type)),
+                      background: typeColor(typeBucket(item.type), scheme),
                       borderRadius: 2,
                     }}
                   />
@@ -71,7 +72,12 @@ export function SchemaSummaryView({ totals, topTypes, legend }: SchemaSummaryVie
               <Group key={bucket} gap={4} wrap="nowrap">
                 <Box
                   aria-hidden="true"
-                  style={{ width: 10, height: 10, borderRadius: 2, background: typeColor(bucket) }}
+                  style={{
+                    width: 10,
+                    height: 10,
+                    borderRadius: 2,
+                    background: typeColor(bucket, scheme),
+                  }}
                 />
                 <Text size="xs" c="dimmed">
                   {bucket}

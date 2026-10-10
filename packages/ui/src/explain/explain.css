@@ -1,4 +1,4 @@
-/* Explain panel. Colours are Mantine tokens so the panel follows the app theme. */
+/* Explain panel. Colours come from the --mg-* theme tokens, so the panel follows the light and dark themes. */
 
 .mg-explain {
   min-height: 100%;
@@ -9,9 +9,9 @@
   display: block;
   width: 100%;
   padding: 4px 8px;
-  border: 1px solid var(--mantine-color-dark-4);
+  border: 1px solid var(--mg-border);
   border-radius: var(--mantine-radius-sm);
-  background: var(--mantine-color-dark-7);
+  background: var(--mg-surface-0);
   color: inherit;
   text-align: left;
   cursor: pointer;
@@ -39,7 +39,7 @@
   justify-content: space-between;
   gap: 8px;
   padding: 6px 8px;
-  border: 1px solid var(--mantine-color-dark-4);
+  border: 1px solid var(--mg-border);
   border-radius: var(--mantine-radius-sm);
 }
 
@@ -72,7 +72,7 @@
   gap: 6px;
   width: 100%;
   padding: 4px 8px;
-  border: 1px solid var(--mantine-color-dark-4);
+  border: 1px solid var(--mg-border);
   border-left-width: 3px;
   border-radius: var(--mantine-radius-sm);
   background: transparent;
@@ -98,7 +98,7 @@
 }
 
 .mg-explain-warning:not(:disabled):hover {
-  background: var(--mantine-color-dark-6);
+  background: var(--mg-surface-1);
 }
 
 .mg-explain-warning-message {
@@ -124,7 +124,7 @@
   margin: 0;
   padding: 0;
   list-style: none;
-  border: 1px solid var(--mantine-color-dark-4);
+  border: 1px solid var(--mg-border);
   border-radius: var(--mantine-radius-sm);
 }
 
@@ -132,7 +132,7 @@
   padding-top: 4px;
   padding-right: 8px;
   padding-bottom: 4px;
-  border-bottom: 1px solid var(--mantine-color-dark-5);
+  border-bottom: 1px solid var(--mg-surface-2);
   cursor: pointer;
 }
 
@@ -146,7 +146,7 @@
 }
 
 .mg-explain-row[aria-selected='true'] {
-  background: var(--mantine-color-dark-6);
+  background: var(--mg-surface-1);
 }
 
 .mg-explain-hot {
@@ -202,7 +202,7 @@
   height: 6px;
   overflow: hidden;
   border-radius: 3px;
-  background: var(--mantine-color-dark-5);
+  background: var(--mg-surface-2);
 }
 
 .mg-explain-bar-fill {

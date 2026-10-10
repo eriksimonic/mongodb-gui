@@ -1,6 +1,6 @@
 import { createTheme } from '@mantine/core';
 
-/** Dark first. Compact controls and spacing so the tree and dialogs fit a small window. */
+/** Shared by both colour schemes. Compact controls and spacing so the tree and dialogs fit a small window. */
 export const appTheme = createTheme({
   primaryColor: 'blue',
   defaultRadius: 'sm',

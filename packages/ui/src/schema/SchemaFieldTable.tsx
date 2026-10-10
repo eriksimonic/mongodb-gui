@@ -7,6 +7,7 @@ import {
   Tooltip,
   UnstyledButton,
   VisuallyHidden,
+  useComputedColorScheme,
 } from '@mantine/core';
 import { notifications } from '@mantine/notifications';
 import {
@@ -83,7 +84,7 @@ export function SchemaFieldTable({ rows, sort, target, onSort, onToggle }: Schem
         flex: 1,
         minHeight: 0,
         overflow: 'auto',
-        border: '1px solid var(--mantine-color-dark-4)',
+        border: '1px solid var(--mg-border)',
         borderRadius: 4,
       }}
     >
@@ -101,8 +102,8 @@ export function SchemaFieldTable({ rows, sort, target, onSort, onToggle }: Schem
             position: 'sticky',
             top: 0,
             zIndex: 1,
-            background: 'var(--mantine-color-dark-6)',
-            borderBottom: '1px solid var(--mantine-color-dark-4)',
+            background: 'var(--mg-surface-1)',
+            borderBottom: '1px solid var(--mg-border)',
             height: 32,
           }}
         >
@@ -277,6 +278,7 @@ function FieldRow({ row, rowIndex, target, onToggle, style }: FieldRowProps) {
 
 /** Stacked bar of the BSON types, with the types named as chips. */
 function TypeCell({ field }: { readonly field: SchemaField }) {
+  const scheme = useComputedColorScheme('dark');
   const segments = typeSegments(field);
   const shares = typeShares(field);
   const total = shares.reduce((sum, [, count]) => sum + count, 0);
@@ -296,7 +298,7 @@ function TypeCell({ field }: { readonly field: SchemaField }) {
             title={`${segment.types.join(', ')}: ${formatPercent(segment.share)}`}
             style={{
               flex: `${segment.share} 0 0`,
-              background: typeColor(segment.bucket),
+              background: typeColor(segment.bucket, scheme),
               borderRadius: 2,
             }}
           />
@@ -322,7 +324,7 @@ function PresenceBar({ presence }: { readonly presence: number }) {
         style={{
           height: 8,
           width: '100%',
-          background: 'var(--mantine-color-dark-5)',
+          background: 'var(--mg-surface-2)',
           borderRadius: 2,
         }}
       >

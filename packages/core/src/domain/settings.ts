@@ -12,4 +12,5 @@ export const defaultSettings: Settings = {
   sampleSize: 100,
   dockerAutoConnect: false,
   checkForUpdates: true,
+  treeDensity: 'compact',
 };

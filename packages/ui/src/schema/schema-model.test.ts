@@ -1,6 +1,6 @@
 import type { SchemaField } from '@mongo-gui/core';
 import { describe, expect, it } from 'vitest';
-import { CHART_INK, CHART_COLORS } from '../monitor/palette';
+import { chartPalette } from '../monitor/palette';
 import {
   buildRows,
   collectionExpression,
@@ -223,14 +223,14 @@ describe('topLevelTypeTotals', () => {
 
 describe('type colours', () => {
   it('gives each slot type its palette colour in fixed order', () => {
-    expect(typeColor(typeBucket('String'))).toBe(CHART_COLORS[0]);
-    expect(typeColor(typeBucket('Date'))).toBe(CHART_COLORS[4]);
+    expect(typeColor(typeBucket('String'), 'dark')).toBe(chartPalette('dark').colors[0]);
+    expect(typeColor(typeBucket('Date'), 'dark')).toBe(chartPalette('dark').colors[4]);
   });
 
   it('folds types without a slot into one neutral Other bucket', () => {
     expect(typeBucket('Null')).toBe('Other');
     expect(typeBucket('Long')).toBe('Other');
-    expect(typeColor('Other')).toBe(CHART_INK.muted);
+    expect(typeColor('Other', 'dark')).toBe(chartPalette('dark').ink.muted);
   });
 
   it('builds a stacked bar whose shares add up, merging Other types', () => {

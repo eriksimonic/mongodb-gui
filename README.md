@@ -12,6 +12,9 @@ Everything the app stores on disk (saved connections, query history, favourites,
 settings) is encrypted with a key derived from a master password you type at launch.
 See the security section of [docs/PLAN.md](docs/PLAN.md).
 
+The app follows the system theme or stays in light or dark, as set under Settings. The
+panel layout and the window size are saved, so the next launch opens where you left off.
+
 ## Screenshots
 
 Current state of the app. The set grows as screens land and gets a final refresh at
@@ -37,12 +40,17 @@ release.
 | ---------------------------------------------------------------------------------------------- |
 | ![Explain panel with the summary, the warning and the plan tree](docs/screenshots/explain.png) |
 
-| Docker node in the connection tree                                                    |
-| ------------------------------------------------------------------------------------- |
-| ![Docker node listing local MongoDB containers](docs/screenshots/docker-tree.png)     |
+| Docker node in the connection tree                                                |
+| --------------------------------------------------------------------------------- |
+| ![Docker node listing local MongoDB containers](docs/screenshots/docker-tree.png) |
+
 | Monitor dashboard                                                                     | Running operations                                                                         |
 | ------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------ |
 | ![Live monitoring dashboard with stat tiles and charts](docs/screenshots/monitor.png) | ![Running operations with filters and a long aggregation](docs/screenshots/operations.png) |
+
+| Shell in the light theme                                                                                 | Settings                                                            |
+| -------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------- |
+| ![Shell in the light theme with the tree expanded and a monitor panel](docs/screenshots/shell-light.png) | ![Settings screen with its sections](docs/screenshots/settings.png) |
 
 | Schema analysis of a sampled collection                                                                                         |
 | ------------------------------------------------------------------------------------------------------------------------------- |

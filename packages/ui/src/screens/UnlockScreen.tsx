@@ -10,6 +10,8 @@ const WRONG_PASSWORD = 'Wrong master password. Try again.';
 
 export function UnlockScreen() {
   const unlock = useAppStore((state) => state.unlock);
+  const lockReason = useAppStore((state) => state.lockReason);
+  const idleLockMinutes = useAppStore((state) => state.idleLockMinutes);
   const [password, setPassword] = useState('');
   const [busy, setBusy] = useState(false);
   const [wrongPassword, setWrongPassword] = useState(false);
@@ -43,6 +45,11 @@ export function UnlockScreen() {
             aria-invalid={wrongPassword}
             autoFocus
           />
+          {lockReason === 'idle' ? (
+            <Text size="sm" c="dimmed" role="status">
+              {`Locked after ${idleLockMinutes} ${idleLockMinutes === 1 ? 'minute' : 'minutes'} without activity`}
+            </Text>
+          ) : null}
           {wrongPassword ? <Text size="xs">{WRONG_PASSWORD}</Text> : null}
           {failure === undefined ? null : (
             <Alert color="red" variant="light">

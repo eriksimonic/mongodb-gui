@@ -1,5 +1,5 @@
 import { formatMongoshSyntax, type SchemaField } from '@mongo-gui/core';
-import { CHART_INK, seriesColor } from '../monitor/palette';
+import { chartPalette, seriesColor, type ChartScheme } from '../monitor/palette';
 
 /** Sample sizes the panel offers. */
 export const SAMPLE_SIZES = [100, 500, 1000, 5000] as const;
@@ -260,9 +260,9 @@ export function typeBucket(type: string): string {
   return (TYPE_SLOTS as readonly string[]).includes(type) ? type : OTHER_TYPE;
 }
 
-export function typeColor(bucket: string): string {
+export function typeColor(bucket: string, scheme: ChartScheme): string {
   const index = (TYPE_SLOTS as readonly string[]).indexOf(bucket);
-  return index === -1 ? CHART_INK.muted : seriesColor(index);
+  return index === -1 ? chartPalette(scheme).ink.muted : seriesColor(index, scheme);
 }
 
 /**

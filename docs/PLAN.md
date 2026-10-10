@@ -340,7 +340,9 @@ issues.
   "Restart to update". Where it does not (deb, unsigned macOS) it shows a notice with
   the version, release notes and a download link. A setting turns checks off.
 - **P7-4 polish.** Light theme, settings screen, keyboard shortcut reference, idle
-  lock, crash recovery of editor contents.
+  lock, crash recovery of editor contents. Crash recovery of editor text is not built here.
+  It lives in P2-3's tab persistence: tab text is saved through the layout namespace, so an
+  unsaved editor survives a crash through that path.
 
 ### Phase 8: server administration
 

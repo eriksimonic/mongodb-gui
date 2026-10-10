@@ -15,6 +15,8 @@ import {
   IndexInfoSchema,
 } from '../schemas/catalog';
 import { SettingsPatchSchema, SettingsSchema } from '../schemas/settings';
+import { AppVersionsSchema } from '../schemas/app';
+import { LayoutGetOutputSchema, LayoutKeySchema, LayoutSetInputSchema } from '../schemas/layout';
 import {
   MonitorConfigOutputSchema,
   MonitorKillInputSchema,
@@ -103,7 +105,6 @@ import {
   ExplainRunInputSchema,
 } from '../explain/rpc-schemas';
 import { defineCall, type RpcContract } from './define';
-import { LAYOUT_VALUE_LIMIT_BYTES, layoutValueBytes } from '../monitor/dashboard-layout';
 
 const idParam = z.object({ id: z.uuid() });
 const connectionParam = z.object({ connectionId: z.uuid() });
@@ -163,17 +164,6 @@ const externalUrl = z
   .string()
   .max(MAX_LINK_LENGTH)
   .refine(isProjectLink, 'The link must point to a page of the project on GitHub.');
-
-/** Layout keys name one saved setting, such as `layout:dashboard:<connection id>`. */
-const layoutKey = z.string().min(1).max(200);
-// Layout values have no core schema. The contract checks only their size. The UI checks each
-// stored layout with DashboardLayoutSchema (through readStoredLayout) when it reads one back.
-const layoutValue = z
-  .unknown()
-  .refine(
-    (value) => value !== undefined && layoutValueBytes(value) <= LAYOUT_VALUE_LIMIT_BYTES,
-    'The layout value must be a JSON value under 256 KB.',
-  );
 
 export const rpcContract = {
   vault: {
@@ -349,16 +339,18 @@ export const rpcContract = {
     install: defineCall(z.void(), z.void()),
     dismiss: defineCall(z.object({ version: z.string().min(1).max(64) }), UpdateStateSchema),
   },
+  layout: {
+    /** Returns the stored value, or null when nothing is saved under the key. */
+    get: defineCall(z.object({ key: LayoutKeySchema }), LayoutGetOutputSchema),
+    set: defineCall(LayoutSetInputSchema, z.void()),
+  },
   app: {
     openExternal: defineCall(z.object({ url: externalUrl }), z.void()),
+    versions: defineCall(z.void(), AppVersionsSchema),
     /** Shows the native open dialog. The renderer gets only the path the user picked. */
     showOpenDialog: defineCall(OpenDialogInputSchema, DialogResultSchema),
     showSaveDialog: defineCall(SaveDialogInputSchema, DialogResultSchema),
     /** Reveals a file this session exported. Other paths are refused by the router. */
     showItemInFolder: defineCall(ShowItemInFolderInputSchema, z.void()),
-  },
-  layout: {
-    get: defineCall(z.object({ key: layoutKey }), z.object({ value: z.unknown().nullable() })),
-    set: defineCall(z.object({ key: layoutKey, value: layoutValue }), z.void()),
   },
 } satisfies RpcContract;

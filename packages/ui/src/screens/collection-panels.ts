@@ -28,6 +28,39 @@ export function isStalePanel(
   );
 }
 
+const COLLECTION_PANEL_KINDS: readonly PanelRequest['panel'][] = [
+  'indexes',
+  'validation',
+  'documents',
+  'schema',
+];
+
+function isCollectionPanelKind(component: string): component is PanelRequest['panel'] {
+  return (COLLECTION_PANEL_KINDS as readonly string[]).includes(component);
+}
+
+/**
+ * The request a restored dock panel stands for. Undefined for panels that are not collection
+ * panels, or whose params lack a connection, database or collection name.
+ */
+export function restoredCollectionRequest(
+  component: string,
+  params: unknown,
+): PanelRequest | undefined {
+  if (!isCollectionPanelKind(component) || typeof params !== 'object' || params === null) {
+    return undefined;
+  }
+  const { connectionId, database, collection } = params as Record<string, unknown>;
+  if (
+    typeof connectionId !== 'string' ||
+    typeof database !== 'string' ||
+    typeof collection !== 'string'
+  ) {
+    return undefined;
+  }
+  return { panel: component, connectionId, database, collection };
+}
+
 /** The ids of the open collection panels that show a database or collection that is gone. */
 export function stalePanelIds(
   open: ReadonlyMap<string, PanelRequest>,

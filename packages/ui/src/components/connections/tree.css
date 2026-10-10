@@ -1,9 +1,13 @@
-/* Connection tree. Rows are 28 px tall. Labels start at depth * 16 px + 42 px, which the message lines reuse. */
+/* Connection tree. Rows are 28 px tall, or 32 px in comfortable density. Labels start at depth * 16 px + 42 px, which the message lines reuse. */
 
 .mg-tree {
   font-size: 12.5px;
   line-height: 1.3;
-  color: var(--mantine-color-gray-3);
+  color: var(--mg-text);
+}
+
+.mg-tree[data-density='comfortable'] .mg-tree-item {
+  height: 32px;
 }
 
 .mg-tree-item {
@@ -19,12 +23,12 @@
 }
 
 .mg-tree-item:hover {
-  background: var(--mantine-color-dark-6);
+  background: var(--mg-surface-1);
 }
 
 .mg-tree-item[aria-selected='true'] {
-  background: var(--mantine-color-dark-4);
-  color: var(--mantine-color-white);
+  background: var(--mg-border);
+  color: var(--mg-selected-text);
 }
 
 .mg-tree-item:focus-visible {
@@ -40,7 +44,7 @@
   width: 14px;
   height: 14px;
   margin-right: 4px;
-  color: var(--mantine-color-dark-1);
+  color: var(--mg-text);
 }
 
 .mg-tree-icon {
@@ -65,7 +69,7 @@
   align-items: center;
   gap: 6px;
   margin-left: 6px;
-  color: var(--mantine-color-dark-1);
+  color: var(--mg-text);
   font-size: 11px;
 }
 
@@ -80,7 +84,7 @@
   width: 7px;
   height: 7px;
   border-radius: 50%;
-  background: var(--mantine-color-dark-2);
+  background: var(--mg-text-muted);
 }
 
 .mg-tree-state[data-state='running'] {
@@ -111,5 +115,5 @@
 }
 
 .mg-tree-message[data-tone='red'] {
-  color: var(--mantine-color-red-4);
+  color: var(--mantine-color-error);
 }

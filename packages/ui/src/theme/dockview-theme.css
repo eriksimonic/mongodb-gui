@@ -1,35 +1,35 @@
 /*
- * Dockview colours taken from the Mantine dark palette, so panels, tab bars, separators and the
- * toolbar share one set of tokens. The class comes from the theme passed to DockviewReact
- * (see screens/ShellScreen.tsx), which replaces dockview's navy default.
+ * Dockview colours. Every value reads a surface or ink token from tokens.css, so the panels,
+ * tab bars, separators and the toolbar follow the light and dark schemes together.
+ * The class comes from the theme passed to DockviewReact (see screens/ShellScreen.tsx), which
+ * replaces dockview's navy default.
  */
 
 /* .dv-shell is the element dockview gives the abyss theme class to. The variables must be set there too. */
 .mg-dockview,
 .dv-shell {
-  color-scheme: dark;
-  --dv-group-view-background-color: var(--mantine-color-dark-7);
-  --dv-tabs-and-actions-container-background-color: var(--mantine-color-dark-6);
+  --dv-group-view-background-color: var(--mg-surface-0);
+  --dv-tabs-and-actions-container-background-color: var(--mg-surface-1);
   --dv-tabs-and-actions-container-height: 28px;
   --dv-tabs-and-actions-container-font-size: 12px;
-  --dv-activegroup-visiblepanel-tab-background-color: var(--mantine-color-dark-7);
-  --dv-activegroup-hiddenpanel-tab-background-color: var(--mantine-color-dark-5);
-  --dv-inactivegroup-visiblepanel-tab-background-color: var(--mantine-color-dark-6);
-  --dv-inactivegroup-hiddenpanel-tab-background-color: var(--mantine-color-dark-6);
-  --dv-activegroup-visiblepanel-tab-color: var(--mantine-color-gray-0);
-  --dv-activegroup-hiddenpanel-tab-color: var(--mantine-color-dark-1);
-  --dv-inactivegroup-visiblepanel-tab-color: var(--mantine-color-dark-2);
-  --dv-inactivegroup-hiddenpanel-tab-color: var(--mantine-color-dark-2);
-  --dv-tab-divider-color: var(--mantine-color-dark-4);
-  --dv-separator-border: var(--mantine-color-dark-4);
-  --dv-paneview-header-border-color: var(--mantine-color-dark-4);
-  --dv-icon-hover-background-color: var(--mantine-color-dark-5);
-  --dv-active-sash-color: var(--mantine-color-blue-6);
-  --dv-sash-color: var(--mantine-color-dark-5);
-  --dv-drag-over-background-color: var(--mantine-color-dark-4);
-  --dv-edge-dock-indicator-color: var(--mantine-color-blue-6);
-  --dv-context-menu-background-color: var(--mantine-color-dark-6);
-  --dv-context-menu-color: var(--mantine-color-gray-0);
-  --dv-floating-titlebar-background-color: var(--mantine-color-dark-6);
+  --dv-activegroup-visiblepanel-tab-background-color: var(--mg-surface-0);
+  --dv-activegroup-hiddenpanel-tab-background-color: var(--mg-surface-2);
+  --dv-inactivegroup-visiblepanel-tab-background-color: var(--mg-surface-1);
+  --dv-inactivegroup-hiddenpanel-tab-background-color: var(--mg-surface-1);
+  --dv-activegroup-visiblepanel-tab-color: var(--mg-text-strong);
+  --dv-activegroup-hiddenpanel-tab-color: var(--mg-text);
+  --dv-inactivegroup-visiblepanel-tab-color: var(--mg-text-muted);
+  --dv-inactivegroup-hiddenpanel-tab-color: var(--mg-text-muted);
+  --dv-tab-divider-color: var(--mg-border);
+  --dv-separator-border: var(--mg-border);
+  --dv-paneview-header-border-color: var(--mg-border);
+  --dv-icon-hover-background-color: var(--mg-surface-2);
+  --dv-active-sash-color: var(--mg-accent);
+  --dv-sash-color: var(--mg-surface-2);
+  --dv-drag-over-background-color: var(--mg-border);
+  --dv-edge-dock-indicator-color: var(--mg-accent);
+  --dv-context-menu-background-color: var(--mg-surface-1);
+  --dv-context-menu-color: var(--mg-text-strong);
+  --dv-floating-titlebar-background-color: var(--mg-surface-1);
   --dv-border-radius: 0;
 }

@@ -42,8 +42,9 @@ describe('chartSeries', () => {
     const [only] = chartSeries(
       [{ key: third.id, label: third.label, unit: third.unit, values: [1] }],
       panel,
+      'dark',
     );
-    expect(only?.color).toBe(seriesColor(2));
+    expect(only?.color).toBe(seriesColor(2, 'dark'));
   });
 
   it('gives each member lag line the colour of the lag series', () => {
@@ -54,7 +55,8 @@ describe('chartSeries', () => {
     const [member] = chartSeries(
       [{ key: 'repl-lag@node-b', label: 'node-b', unit: 'seconds', values: [1] }],
       panel,
+      'dark',
     );
-    expect(member?.color).toBe(seriesColor(0));
+    expect(member?.color).toBe(seriesColor(0, 'dark'));
   });
 });

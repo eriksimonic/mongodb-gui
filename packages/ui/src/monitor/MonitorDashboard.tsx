@@ -2,6 +2,7 @@ import {
   Alert,
   Button,
   Group,
+  useComputedColorScheme,
   Modal,
   Paper,
   SegmentedControl,
@@ -480,7 +481,11 @@ function PanelChartBody({
   tall,
   yUnit,
 }: PanelChartBodyProps) {
-  const series = useMemo(() => chartSeries(panelLines(timeline, spec), spec), [timeline, spec]);
+  const scheme = useComputedColorScheme('dark');
+  const series = useMemo(
+    () => chartSeries(panelLines(timeline, spec), spec, scheme),
+    [timeline, spec, scheme],
+  );
   return (
     <ChartBody
       label={`${spec.title}, ${unitCaption(yUnit)}`}

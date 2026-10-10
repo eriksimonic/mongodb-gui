@@ -18,7 +18,8 @@ describe('App', () => {
   it('shows the shell when the vault is unlocked', async () => {
     renderApp({ mock: { preset: 'unlocked' } });
     expect(await screen.findByRole('button', { name: 'Lock' })).toBeInTheDocument();
-    expect(await screen.findByText('Local dev')).toBeInTheDocument();
+    // The connection name shows in the tree and in the Welcome panel's recent list.
+    expect((await screen.findAllByText('Local dev')).length).toBeGreaterThan(0);
   });
 
   it('returns to the unlock screen when the vault locks', async () => {
