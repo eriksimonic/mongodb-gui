@@ -24,6 +24,7 @@ quotes are the text on the buttons, menus and fields.
 - [Diagnostics](#diagnostics)
 - [GridFS](#gridfs)
 - [Change streams](#change-streams)
+- [Backup and restore](#backup-and-restore)
 - [Settings and appearance](#settings-and-appearance)
 - [Updates](#updates)
 
@@ -795,6 +796,161 @@ connection menu. The menu on a connection watches the whole deployment.
 
 Closing the panel stops the stream.
 
+## Backup and restore
+
+Backup and restore run `mongodump` and `mongorestore` from MongoDB Database Tools. Linux x64 and
+Windows x64 builds include the tools. On other platforms, download a version first, as described
+in [Managing tools versions](#managing-tools-versions). The app runs a backup or a restore only
+while the connection is connected.
+
+### Make a backup
+
+Open the backup dialog from the connection menu with "Back up…", from the database menu with
+"Back up database…", or from the collection menu with "Back up collection…". The dialog title
+names the target.
+
+1. Choose "What": "Whole server", "Database" or "Collection". The menu you used sets the default.
+2. Pick the databases. From the connection menu, pick one database or several in "Database". Pick
+   none to back up the whole server. For a database, pick collections to leave out in "Exclude
+   collections", or type prefixes in "Exclude prefixes". For a collection, type a filter in
+   "Query" as extended JSON.
+3. Click "Choose folder…" and pick the folder for the output. The app writes the backup and its
+   description file into this folder.
+4. Check "Name". The default combines the connection name, the database or "all", the collection
+   if there is one, and the time. "Output" shows the files the backup writes.
+5. Choose "Format". "Single archive file" writes one file, and "Folder of BSON files" writes one
+   file per collection. "Compress with gzip" is on by default.
+6. Read the findings, then click "Start backup". The button stays disabled while a finding blocks
+   the backup.
+
+Several databases need the "Folder of BSON files" format. The app runs one `mongodump` per
+database, one after another, into the same folder. The progress view names the current database
+and its position, such as "database 2 of 3".
+
+The "Advanced options" section sets "Read preference", "Point-in-time (oplog)", "Users and roles",
+"Views as collections", "Force table scan", "Parallel collections" (1 to 16, default 4) and
+"Network compression". "Point-in-time (oplog)" needs a replica set, and "Users and roles" applies
+to a database other than admin.
+
+The progress view shows the phase, the document and namespace counts, the bytes, the elapsed time
+and a log. Click "Cancel" to stop. A cancelled backup removes its partial output and writes no
+description file. Closing the window or reloading the app also ends a running backup. The dialog
+cannot close while a backup runs. When the backup finishes, click "Show in folder" to open the
+output.
+
+### The description file
+
+A backup writes a JSON description file after the dump succeeds. The file sits in one of two
+places:
+
+- For an archive, the file sits beside the archive, with `.json` added to the name. For example,
+  `shop-20261010-184200.archive.gz.json`.
+- For a folder, the file is `mongo-gui-backup.json` inside the folder. It covers every database in
+  the folder.
+
+The file records the connection name and hosts, the server version and feature compatibility
+version, the tools version and whether the tools were bundled or downloaded, the options used, the
+collections with their document counts, a checksum of the output and the warnings the run
+reported. It never records the user name, the password or another secret from the connection URI.
+
+Restore reads this file. A backup without a description file still restores, but the app cannot
+check the server version, topology or options, and it shows a warning.
+
+### Restore a backup
+
+Open the restore dialog from the connection menu with "Restore…", or from the database menu with
+"Restore into database…". The dialog title names the connection.
+
+1. Click "Choose archive…" for an archive file, or "Choose folder…" for a folder. The app reads the
+   file and its description file.
+2. Read the summary. It shows the source connection, the server version, the backup date and
+   duration, the tools version and the options the backup used. Without a description file, a
+   yellow notice says so.
+3. Check the contents tree. Every database and collection starts checked. Clear a box to skip it.
+4. Set "Restore as" for each checked database. It starts as the source name. An "exists" badge
+   shows when the target database already exists. Collections merge into an existing database,
+   unless "Drop collections before restoring" is on.
+5. Set the options. "Drop collections before restoring" removes each collection before it is
+   restored. "Dry run" shows the plan without writing. "Replay oplog" appears only for a dump with
+   an oplog, and it is unavailable when you rename or filter databases. "Restore users and roles"
+   appears only for a dump that holds them. "Preserve UUIDs" needs "Drop collections before
+   restoring". "Verify checksum" appears when the description file holds a checksum.
+6. Choose the "Tools version". It starts with the version the backup used, when that version is
+   installed.
+7. Read the findings, then click "Restore", or "Run dry run" when "Dry run" is on.
+
+A folder with several databases restores like a whole-server folder. The rename applies to each
+database separately.
+
+Restores cannot be rolled back. Collections that a restore has already written stay in the
+target when you cancel or when a restore fails. The result shows the restored and failed counts
+and the target databases. A dry run shows a table of each source database and its target name.
+
+### What the findings mean
+
+The dialogs check the source, the target server, the tools version and the description file, and
+they list each problem as a finding. Findings use four colors:
+
+| Color  | Severity | What it means                                                                                    |
+| ------ | -------- | ------------------------------------------------------------------------------------------------ |
+| Red    | Block    | The action cannot start. A block either has no override or asks you to type the connection name. |
+| Orange | Strong   | The action can start after you tick "I understand" for that finding.                             |
+| Yellow | Warning  | The action can start. Read the warning first.                                                    |
+| Blue   | Info     | A note with no action needed.                                                                    |
+
+Some findings have examples you can check against your own setup:
+
+- Red: the server is older than 4.2, which the tools cannot connect to. A time series backup from
+  a 9.0 or newer server needs tools 100.16.0 or newer. A restore into a server with a different
+  major and minor version asks you to type the connection name to restore anyway, unless both
+  servers report the same feature compatibility version.
+- Orange: the dump holds encrypted collections, which `mongodump` does not support. A restore
+  whose tools major and minor version differ from the dump's needs a tick on "I understand". A
+  restore into a sharded server with "Preserve UUIDs" or "Replay oplog" on needs one too.
+- Yellow: the tools predate support for the server version. A backup of a sharded cluster asks you
+  to stop the balancer and DDL changes, or the dump may be inconsistent. A restore with "Drop
+  collections before restoring" on the `admin` database replaces every user on the target. A
+  description file from a newer version of the app cannot be read, so the app falls back to the
+  archive header.
+- Blue: the tools have the same major and minor version as the dump, but a different patch version.
+
+Each finding with an action shows a button. "Use" switches the tools version to an installed
+version. "Download" opens the download dialog for that version.
+
+### Managing tools versions
+
+Open Settings and go to "MongoDB tools". The section lists each installed version in its own row,
+with its source ("Bundled" or "Downloaded"), its target platform, its size and its health. A
+broken version shows its error in red.
+
+- Choose "Default" on a row to make that version the default. "Default version" also offers
+  "Automatic (bundled, else newest)", which the app uses when you have not picked a version.
+- "Remove" deletes a downloaded version. A version that a running job uses cannot be removed. The
+  bundled version cannot be removed.
+- "Licence" shows the Apache License 2.0 and the third-party notices of the tools.
+- "Download another version…" opens the download dialog. Pick a version from the list. Installed
+  versions appear disabled. Click "Download" to fetch the archive from MongoDB's download site.
+  The app checks the archive against the sha256 that MongoDB publishes before it installs the
+  version. Click "Cancel" to stop a download. The app removes the partial files.
+
+A downloaded version must match the feed checksum. The app downloads only from MongoDB's own
+download hosts, over HTTPS. The download uses the system proxy settings.
+
+On Linux, a version that cannot load a shared library shows the library name and the package to
+install. The package is `libgssapi-krb5-2` on Debian and Ubuntu, and `krb5-libs` on Fedora and RHEL.
+
+macOS and Linux arm64 builds include no tools. Download a version there before you back up or
+restore.
+
+### TLS connections
+
+The app passes the TLS settings of a connection (the CA file, the client certificate and the
+invalid certificate option) to the tools inside the connection URI. The test suite has no TLS
+server, so this path has less test coverage than the rest. Test a backup and a restore on a TLS
+connection before you rely on them. If a TLS connection fails with an error about a TLS option,
+report the error and the tools version through the steps in
+[troubleshooting.md](troubleshooting.md).
+
 ## Settings and appearance
 
 Open Settings with the "Settings" button in the toolbar, or with Ctrl+, on Windows and Linux, or
@@ -818,6 +974,8 @@ Cmd+, on macOS. The screen has these sections:
   "Import as copies" adds a number to the name, "Skip connections whose name exists" leaves the
   existing connection alone, and "Replace the existing connection" overwrites it. Click "Import".
   The result line gives the counts, and the connection tree reloads.
+- MongoDB tools. The installed tools versions, the default version and the downloads. See
+  [Managing tools versions](#managing-tools-versions).
 - About. The version, the project page and the licence.
 
 The layout of panels and the window size are saved. The next launch opens where you left off.

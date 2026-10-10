@@ -489,6 +489,89 @@ Order: P9-0, then P9-1. P9-2 and P9-3 follow P9-1 and run in parallel with P9-4.
 P9-6 and P9-7 follow P9-4 and run in parallel. P9-8 follows P9-7. P9-9 and P9-10 follow
 P9-4. P9-11 is last.
 
+### Phase 10: backup and restore with MongoDB Database Tools
+
+Added on 2026-10-10. The app runs `mongodump` and `mongorestore` from MongoDB Database Tools.
+Linux x64 and Windows x64 builds bundle one pinned tools version (100.19.1). Users download
+other versions from MongoDB's official feed into the app's data folder. Every backup writes a
+JSON description file that records the source, the options and the tools binary. A restore
+reads that file, compares it with the target server and the chosen tools version, and warns or
+blocks. The decisions are these:
+
+- Option schemas, argument builders, the tools URI, the sidecar schema, the compatibility rules
+  and the output parsers live in `packages/core`. They import only zod and other core modules.
+  Process spawning, temp files, hashing, dump reads, the feed download and archive extraction
+  live in the app's main process. BSON reads live in `mongo-adapter`, the only package that
+  imports `bson` and `mongodb`.
+- Credentials never reach the command line. The main process writes a YAML file that holds
+  only the full URI into a private temp directory, passes `--config`, and deletes the directory
+  when the run ends. Startup deletes leftover temp directories.
+- The tools URI carries every connection setting, including TLS, read preference and connect
+  timeout. The tools get no `--host`, `--tls*` or `--readPreference` flags.
+- A backup or restore needs a connected connection. A connection drop cancels the job.
+- The app has no SSH tunnel today, so the endpoint lookup is one function,
+  `resolveToolsEndpoint`. A future tunnel changes that function only.
+- In archive mode, `mongodump` writes to stdout. The main process hashes the stream and writes
+  it to a `.partial` file, then renames the file on success. Restores from an archive pipe the
+  file into `mongorestore` on stdin.
+- The description file sits beside the archive as `<archive>.json`, or in the folder as
+  `mongo-gui-backup.json`. It is written only after a successful dump. `mongorestore` skips it
+  as an unknown file.
+- A backup of several databases runs one `mongodump` per database into one folder. The folder
+  format is required for that. One description file covers the whole folder.
+- The renderer names a tools version, such as `100.19.1`. Main resolves it to a bundled or
+  downloaded install. The renderer never sends a binary path or a download URL.
+- Feed downloads use Electron's `net.fetch`, so the system proxy applies. They must come from
+  MongoDB's download hosts. The feed's sha256 is checked before extraction.
+- Extraction is pure JavaScript at runtime, with a small tar.gz reader and a small zip reader.
+  The build-time fetch script uses the system `tar` instead.
+- Only `mongodump` and `mongorestore` are kept from each archive, with the licence files.
+- Jobs follow the generate precedent. `start` returns a job id, progress events arrive at most
+  four times a second, and `cancel` ends the job. Jobs stop on renderer reset, vault lock,
+  connection drop, app dispose and window reload. A v1 job list does not exist.
+- Settings hold one new field, `mongoToolsVersion`, with `auto` as the default. The tools
+  registry lives on disk, outside the encrypted store.
+- A block either takes a typed confirmation or cannot be overridden. A strong warning needs a
+  checkbox. Main computes the findings again at start and refuses an unconfirmed block.
+- No new error codes are added. A missing binary is `NOT_FOUND`, a failed run is
+  `COMMAND_FAILED`, and a cancel is `CANCELLED`.
+- SSH tunnels, a TLS test container and bundled tools for other platforms are out of scope.
+  TLS connections carry a risk note in the docs.
+
+Tasks, by id:
+
+- P10-1 Core backup and tools schemas, findings schema and the settings field.
+- P10-2 Version parsing and compatibility rules.
+- P10-3 Tools URI, config YAML, option problems and argument builders.
+- P10-4 Log line parser, `--version` parser, feed parser and naming helpers.
+- P10-5 Export the new core modules.
+- P10-6 Packaging: tools pin, fetch script, electron-builder and CI cache and checks.
+- P10-7 Pure-JS tar.gz and zip readers and tools archive extraction.
+- P10-8 RPC contract, events, router stubs and a minimal UI mock.
+- P10-9 mongo-adapter: backup server info and archive prelude reader.
+- P10-10 Tools paths, environment, version probe and registry.
+- P10-11 Feed client and tools download service.
+- P10-12 Tool process runner and temp config lifecycle.
+- P10-13 Backup inspection, file hashing and description file writer.
+- P10-14 Backup job service (dump and restore) with progress tracker.
+- P10-15 Router and app wiring for backup and tools.
+- P10-16 Integration test with real tools against Testcontainers.
+- P10-17 UI mock RPC for backup and tools, with the `?tools=` switch.
+- P10-18 UI models for the backup and restore dialogs.
+- P10-19 Tools UI: version select, download modal, licence modal and settings section.
+- P10-20 Backup dialog store, job hook, progress view, host and menu entries.
+- P10-21 Backup dialog.
+- P10-22 Restore dialog with source summary, contents tree and rename.
+- P10-23 Docs: README, CHANGELOG, PLAN phase 10 and the user guide.
+- P10-24 Screenshots for backup, restore and the tools settings.
+- P10-25 Gates: check, format and integration.
+
+Order: wave 1 runs P10-1, P10-6 and P10-7 in parallel. Wave 2 runs P10-2, P10-3 and P10-4.
+Wave 3 runs P10-5 alone. Wave 4 runs P10-8, P10-9 and P10-10. Wave 5 runs P10-11, P10-12 and
+P10-13. Wave 6 runs P10-14, P10-17 and P10-18. Wave 7 runs P10-15, P10-19 and P10-20. Wave 8
+runs P10-16, P10-21 and P10-22. Wave 9 runs P10-23. Wave 10 runs P10-24, then P10-25. Tasks
+within a wave run in parallel.
+
 Order: P0 then P1 strictly sequential at the package level (P1-1 first, then P1-2,
 P1-3 and P1-5 in parallel, then P1-4, then P1-6). P2 follows P1. After P2, phases 3 and 4
 run in parallel with phases 5 and 6.
