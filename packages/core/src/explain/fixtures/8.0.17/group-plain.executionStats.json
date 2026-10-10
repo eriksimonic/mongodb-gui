@@ -1,0 +1,396 @@
+{
+  "explainVersion": "2",
+  "stages": [
+    {
+      "$cursor": {
+        "queryPlanner": {
+          "namespace": "explain_capture.places",
+          "parsedQuery": {
+            "cuisine": {
+              "$eq": "thai"
+            }
+          },
+          "indexFilterSet": false,
+          "queryHash": "EF3E68ED",
+          "planCacheShapeHash": "EF3E68ED",
+          "planCacheKey": "7987BBCF",
+          "optimizationTimeMillis": {
+            "$numberInt": "0"
+          },
+          "maxIndexedOrSolutionsReached": false,
+          "maxIndexedAndSolutionsReached": false,
+          "maxScansToExplodeReached": false,
+          "prunedSimilarIndexes": false,
+          "winningPlan": {
+            "isCached": false,
+            "queryPlan": {
+              "stage": "GROUP",
+              "planNodeId": {
+                "$numberInt": "3"
+              },
+              "inputStage": {
+                "stage": "PROJECTION_COVERED",
+                "planNodeId": {
+                  "$numberInt": "2"
+                },
+                "transformBy": {
+                  "rating": true,
+                  "_id": false
+                },
+                "inputStage": {
+                  "stage": "IXSCAN",
+                  "planNodeId": {
+                    "$numberInt": "1"
+                  },
+                  "keyPattern": {
+                    "cuisine": {
+                      "$numberInt": "1"
+                    },
+                    "rating": {
+                      "$numberInt": "-1"
+                    }
+                  },
+                  "indexName": "cuisine_1_rating_-1",
+                  "isMultiKey": false,
+                  "multiKeyPaths": {
+                    "cuisine": [],
+                    "rating": []
+                  },
+                  "isUnique": false,
+                  "isSparse": false,
+                  "isPartial": false,
+                  "indexVersion": {
+                    "$numberInt": "2"
+                  },
+                  "direction": "forward",
+                  "indexBounds": {
+                    "cuisine": [
+                      "[\"thai\", \"thai\"]"
+                    ],
+                    "rating": [
+                      "[MaxKey, MinKey]"
+                    ]
+                  }
+                }
+              }
+            },
+            "slotBasedPlan": {
+              "slots": "$$RESULT=s7 env: {  }",
+              "stages": "[3] project [s7 = newObj(\"_id\", s4, \"n\", s6)] \n[3] project [s6 = (convert ( s5, int32) ?: s5)] \n[3] group [s4] [s5 = count()] spillSlots[s3] mergingExprs[sum(s3)] \n[3] project [s4 = (s1 ?: null)] \n[1] ixseek KS(3C74686169000F0104) KS(3C7468616900F5FE04) none s2 none none [s1 = 1] @\"31ef4f9d-d75d-4f63-9850-ee1eb4e2e89e\" @\"cuisine_1_rating_-1\" true "
+            }
+          },
+          "rejectedPlans": []
+        },
+        "executionStats": {
+          "executionSuccess": true,
+          "nReturned": {
+            "$numberInt": "1"
+          },
+          "executionTimeMillis": {
+            "$numberInt": "0"
+          },
+          "totalKeysExamined": {
+            "$numberInt": "600"
+          },
+          "totalDocsExamined": {
+            "$numberInt": "0"
+          },
+          "executionStages": {
+            "stage": "project",
+            "planNodeId": {
+              "$numberInt": "3"
+            },
+            "nReturned": {
+              "$numberInt": "1"
+            },
+            "executionTimeMillisEstimate": {
+              "$numberInt": "0"
+            },
+            "opens": {
+              "$numberInt": "1"
+            },
+            "closes": {
+              "$numberInt": "1"
+            },
+            "saveState": {
+              "$numberInt": "1"
+            },
+            "restoreState": {
+              "$numberInt": "1"
+            },
+            "isEOF": {
+              "$numberInt": "1"
+            },
+            "projections": {
+              "7": "newObj(\"_id\", s4, \"n\", s6) "
+            },
+            "inputStage": {
+              "stage": "project",
+              "planNodeId": {
+                "$numberInt": "3"
+              },
+              "nReturned": {
+                "$numberInt": "1"
+              },
+              "executionTimeMillisEstimate": {
+                "$numberInt": "0"
+              },
+              "opens": {
+                "$numberInt": "1"
+              },
+              "closes": {
+                "$numberInt": "1"
+              },
+              "saveState": {
+                "$numberInt": "1"
+              },
+              "restoreState": {
+                "$numberInt": "1"
+              },
+              "isEOF": {
+                "$numberInt": "1"
+              },
+              "projections": {
+                "6": "(convert ( s5, int32) ?: s5) "
+              },
+              "inputStage": {
+                "stage": "group",
+                "planNodeId": {
+                  "$numberInt": "3"
+                },
+                "nReturned": {
+                  "$numberInt": "1"
+                },
+                "executionTimeMillisEstimate": {
+                  "$numberInt": "0"
+                },
+                "opens": {
+                  "$numberInt": "1"
+                },
+                "closes": {
+                  "$numberInt": "1"
+                },
+                "saveState": {
+                  "$numberInt": "1"
+                },
+                "restoreState": {
+                  "$numberInt": "1"
+                },
+                "isEOF": {
+                  "$numberInt": "1"
+                },
+                "groupBySlots": [
+                  {
+                    "$numberLong": "4"
+                  }
+                ],
+                "expressions": {
+                  "5": "count() ",
+                  "initExprs": {
+                    "5": null
+                  }
+                },
+                "mergingExprs": {
+                  "3": "sum(s3) "
+                },
+                "usedDisk": false,
+                "spills": {
+                  "$numberInt": "0"
+                },
+                "spilledBytes": {
+                  "$numberInt": "0"
+                },
+                "spilledRecords": {
+                  "$numberInt": "0"
+                },
+                "spilledDataStorageSize": {
+                  "$numberInt": "0"
+                },
+                "inputStage": {
+                  "stage": "project",
+                  "planNodeId": {
+                    "$numberInt": "3"
+                  },
+                  "nReturned": {
+                    "$numberInt": "600"
+                  },
+                  "executionTimeMillisEstimate": {
+                    "$numberInt": "0"
+                  },
+                  "opens": {
+                    "$numberInt": "1"
+                  },
+                  "closes": {
+                    "$numberInt": "1"
+                  },
+                  "saveState": {
+                    "$numberInt": "1"
+                  },
+                  "restoreState": {
+                    "$numberInt": "1"
+                  },
+                  "isEOF": {
+                    "$numberInt": "1"
+                  },
+                  "projections": {
+                    "4": "(s1 ?: null) "
+                  },
+                  "inputStage": {
+                    "stage": "ixseek",
+                    "planNodeId": {
+                      "$numberInt": "1"
+                    },
+                    "nReturned": {
+                      "$numberInt": "600"
+                    },
+                    "executionTimeMillisEstimate": {
+                      "$numberInt": "0"
+                    },
+                    "opens": {
+                      "$numberInt": "1"
+                    },
+                    "closes": {
+                      "$numberInt": "1"
+                    },
+                    "saveState": {
+                      "$numberInt": "1"
+                    },
+                    "restoreState": {
+                      "$numberInt": "1"
+                    },
+                    "isEOF": {
+                      "$numberInt": "1"
+                    },
+                    "indexName": "cuisine_1_rating_-1",
+                    "keysExamined": {
+                      "$numberInt": "600"
+                    },
+                    "seeks": {
+                      "$numberInt": "1"
+                    },
+                    "numReads": {
+                      "$numberInt": "601"
+                    },
+                    "recordIdSlot": {
+                      "$numberInt": "2"
+                    },
+                    "outputSlots": [
+                      {
+                        "$numberLong": "1"
+                      }
+                    ],
+                    "indexKeysToInclude": "00000000000000000000000000000010",
+                    "seekKeyLow": "KS(3C74686169000F0104) ",
+                    "seekKeyHigh": "KS(3C7468616900F5FE04) "
+                  }
+                }
+              }
+            }
+          }
+        }
+      },
+      "nReturned": {
+        "$numberLong": "1"
+      },
+      "executionTimeMillisEstimate": {
+        "$numberLong": "0"
+      }
+    },
+    {
+      "$sort": {
+        "sortKey": {
+          "n": {
+            "$numberInt": "-1"
+          }
+        }
+      },
+      "totalDataSizeSortedBytesEstimate": {
+        "$numberLong": "253"
+      },
+      "usedDisk": false,
+      "spills": {
+        "$numberLong": "0"
+      },
+      "spilledDataStorageSize": {
+        "$numberLong": "0"
+      },
+      "nReturned": {
+        "$numberLong": "1"
+      },
+      "executionTimeMillisEstimate": {
+        "$numberLong": "0"
+      }
+    }
+  ],
+  "queryShapeHash": "95672F4A7B1996482FBBC761C9236110FAE0B74A18AB405E6EEF1B247E9E0722",
+  "serverInfo": {
+    "host": "488f3bea497e",
+    "port": {
+      "$numberInt": "27017"
+    },
+    "version": "8.0.17",
+    "gitVersion": "b20e43625b72f4bb43cc15107f80ac966ae13b6d"
+  },
+  "serverParameters": {
+    "internalQueryFacetBufferSizeBytes": {
+      "$numberInt": "104857600"
+    },
+    "internalQueryFacetMaxOutputDocSizeBytes": {
+      "$numberInt": "104857600"
+    },
+    "internalLookupStageIntermediateDocumentMaxSizeBytes": {
+      "$numberInt": "104857600"
+    },
+    "internalDocumentSourceGroupMaxMemoryBytes": {
+      "$numberInt": "104857600"
+    },
+    "internalQueryMaxBlockingSortMemoryUsageBytes": {
+      "$numberInt": "104857600"
+    },
+    "internalQueryProhibitBlockingMergeOnMongoS": {
+      "$numberInt": "0"
+    },
+    "internalQueryMaxAddToSetBytes": {
+      "$numberInt": "104857600"
+    },
+    "internalDocumentSourceSetWindowFieldsMaxMemoryBytes": {
+      "$numberInt": "104857600"
+    },
+    "internalQueryFrameworkControl": "trySbeRestricted",
+    "internalQueryPlannerIgnoreIndexWithCollationForRegex": {
+      "$numberInt": "1"
+    }
+  },
+  "command": {
+    "aggregate": "places",
+    "pipeline": [
+      {
+        "$match": {
+          "cuisine": "thai"
+        }
+      },
+      {
+        "$group": {
+          "_id": "$rating",
+          "n": {
+            "$sum": {
+              "$numberInt": "1"
+            }
+          }
+        }
+      },
+      {
+        "$sort": {
+          "n": {
+            "$numberInt": "-1"
+          }
+        }
+      }
+    ],
+    "cursor": {},
+    "$db": "explain_capture"
+  },
+  "ok": {
+    "$numberDouble": "1.0"
+  }
+}

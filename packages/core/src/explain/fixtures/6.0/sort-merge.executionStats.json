@@ -1,0 +1,390 @@
+{
+  "explainVersion": "1",
+  "queryPlanner": {
+    "namespace": "explain_capture.places",
+    "indexFilterSet": false,
+    "parsedQuery": {
+      "cuisine": {
+        "$in": [
+          "pizza",
+          "thai"
+        ]
+      }
+    },
+    "queryHash": "EF51DDDB",
+    "planCacheKey": "B18EA8EA",
+    "maxIndexedOrSolutionsReached": false,
+    "maxIndexedAndSolutionsReached": false,
+    "maxScansToExplodeReached": false,
+    "winningPlan": {
+      "stage": "FETCH",
+      "inputStage": {
+        "stage": "SORT_MERGE",
+        "sortPattern": {
+          "rating": {
+            "$numberInt": "-1"
+          }
+        },
+        "inputStages": [
+          {
+            "stage": "IXSCAN",
+            "keyPattern": {
+              "cuisine": {
+                "$numberInt": "1"
+              },
+              "rating": {
+                "$numberInt": "-1"
+              }
+            },
+            "indexName": "cuisine_1_rating_-1",
+            "isMultiKey": false,
+            "multiKeyPaths": {
+              "cuisine": [],
+              "rating": []
+            },
+            "isUnique": false,
+            "isSparse": false,
+            "isPartial": false,
+            "indexVersion": {
+              "$numberInt": "2"
+            },
+            "direction": "forward",
+            "indexBounds": {
+              "cuisine": [
+                "[\"pizza\", \"pizza\"]"
+              ],
+              "rating": [
+                "[MaxKey, MinKey]"
+              ]
+            }
+          },
+          {
+            "stage": "IXSCAN",
+            "keyPattern": {
+              "cuisine": {
+                "$numberInt": "1"
+              },
+              "rating": {
+                "$numberInt": "-1"
+              }
+            },
+            "indexName": "cuisine_1_rating_-1",
+            "isMultiKey": false,
+            "multiKeyPaths": {
+              "cuisine": [],
+              "rating": []
+            },
+            "isUnique": false,
+            "isSparse": false,
+            "isPartial": false,
+            "indexVersion": {
+              "$numberInt": "2"
+            },
+            "direction": "forward",
+            "indexBounds": {
+              "cuisine": [
+                "[\"thai\", \"thai\"]"
+              ],
+              "rating": [
+                "[MaxKey, MinKey]"
+              ]
+            }
+          }
+        ]
+      }
+    },
+    "rejectedPlans": []
+  },
+  "executionStats": {
+    "executionSuccess": true,
+    "nReturned": {
+      "$numberInt": "1200"
+    },
+    "executionTimeMillis": {
+      "$numberInt": "1"
+    },
+    "totalKeysExamined": {
+      "$numberInt": "1200"
+    },
+    "totalDocsExamined": {
+      "$numberInt": "1200"
+    },
+    "executionStages": {
+      "stage": "FETCH",
+      "nReturned": {
+        "$numberInt": "1200"
+      },
+      "executionTimeMillisEstimate": {
+        "$numberInt": "0"
+      },
+      "works": {
+        "$numberInt": "2403"
+      },
+      "advanced": {
+        "$numberInt": "1200"
+      },
+      "needTime": {
+        "$numberInt": "1202"
+      },
+      "needYield": {
+        "$numberInt": "0"
+      },
+      "saveState": {
+        "$numberInt": "2"
+      },
+      "restoreState": {
+        "$numberInt": "2"
+      },
+      "isEOF": {
+        "$numberInt": "1"
+      },
+      "docsExamined": {
+        "$numberInt": "1200"
+      },
+      "alreadyHasObj": {
+        "$numberInt": "0"
+      },
+      "inputStage": {
+        "stage": "SORT_MERGE",
+        "nReturned": {
+          "$numberInt": "1200"
+        },
+        "executionTimeMillisEstimate": {
+          "$numberInt": "0"
+        },
+        "works": {
+          "$numberInt": "2402"
+        },
+        "advanced": {
+          "$numberInt": "1200"
+        },
+        "needTime": {
+          "$numberInt": "1202"
+        },
+        "needYield": {
+          "$numberInt": "0"
+        },
+        "saveState": {
+          "$numberInt": "2"
+        },
+        "restoreState": {
+          "$numberInt": "2"
+        },
+        "isEOF": {
+          "$numberInt": "1"
+        },
+        "sortPattern": {
+          "rating": {
+            "$numberInt": "-1"
+          }
+        },
+        "dupsTested": {
+          "$numberInt": "1200"
+        },
+        "dupsDropped": {
+          "$numberInt": "0"
+        },
+        "inputStages": [
+          {
+            "stage": "IXSCAN",
+            "nReturned": {
+              "$numberInt": "600"
+            },
+            "executionTimeMillisEstimate": {
+              "$numberInt": "0"
+            },
+            "works": {
+              "$numberInt": "601"
+            },
+            "advanced": {
+              "$numberInt": "600"
+            },
+            "needTime": {
+              "$numberInt": "0"
+            },
+            "needYield": {
+              "$numberInt": "0"
+            },
+            "saveState": {
+              "$numberInt": "2"
+            },
+            "restoreState": {
+              "$numberInt": "2"
+            },
+            "isEOF": {
+              "$numberInt": "1"
+            },
+            "keyPattern": {
+              "cuisine": {
+                "$numberInt": "1"
+              },
+              "rating": {
+                "$numberInt": "-1"
+              }
+            },
+            "indexName": "cuisine_1_rating_-1",
+            "isMultiKey": false,
+            "multiKeyPaths": {
+              "cuisine": [],
+              "rating": []
+            },
+            "isUnique": false,
+            "isSparse": false,
+            "isPartial": false,
+            "indexVersion": {
+              "$numberInt": "2"
+            },
+            "direction": "forward",
+            "indexBounds": {
+              "cuisine": [
+                "[\"pizza\", \"pizza\"]"
+              ],
+              "rating": [
+                "[MaxKey, MinKey]"
+              ]
+            },
+            "keysExamined": {
+              "$numberInt": "600"
+            },
+            "seeks": {
+              "$numberInt": "1"
+            },
+            "dupsTested": {
+              "$numberInt": "0"
+            },
+            "dupsDropped": {
+              "$numberInt": "0"
+            }
+          },
+          {
+            "stage": "IXSCAN",
+            "nReturned": {
+              "$numberInt": "600"
+            },
+            "executionTimeMillisEstimate": {
+              "$numberInt": "0"
+            },
+            "works": {
+              "$numberInt": "601"
+            },
+            "advanced": {
+              "$numberInt": "600"
+            },
+            "needTime": {
+              "$numberInt": "0"
+            },
+            "needYield": {
+              "$numberInt": "0"
+            },
+            "saveState": {
+              "$numberInt": "2"
+            },
+            "restoreState": {
+              "$numberInt": "2"
+            },
+            "isEOF": {
+              "$numberInt": "1"
+            },
+            "keyPattern": {
+              "cuisine": {
+                "$numberInt": "1"
+              },
+              "rating": {
+                "$numberInt": "-1"
+              }
+            },
+            "indexName": "cuisine_1_rating_-1",
+            "isMultiKey": false,
+            "multiKeyPaths": {
+              "cuisine": [],
+              "rating": []
+            },
+            "isUnique": false,
+            "isSparse": false,
+            "isPartial": false,
+            "indexVersion": {
+              "$numberInt": "2"
+            },
+            "direction": "forward",
+            "indexBounds": {
+              "cuisine": [
+                "[\"thai\", \"thai\"]"
+              ],
+              "rating": [
+                "[MaxKey, MinKey]"
+              ]
+            },
+            "keysExamined": {
+              "$numberInt": "600"
+            },
+            "seeks": {
+              "$numberInt": "1"
+            },
+            "dupsTested": {
+              "$numberInt": "0"
+            },
+            "dupsDropped": {
+              "$numberInt": "0"
+            }
+          }
+        ]
+      }
+    }
+  },
+  "command": {
+    "find": "places",
+    "filter": {
+      "$or": [
+        {
+          "cuisine": "thai"
+        },
+        {
+          "cuisine": "pizza"
+        }
+      ]
+    },
+    "sort": {
+      "rating": {
+        "$numberInt": "-1"
+      }
+    },
+    "$db": "explain_capture"
+  },
+  "serverInfo": {
+    "host": "5366f353288c",
+    "port": {
+      "$numberInt": "27017"
+    },
+    "version": "6.0.28",
+    "gitVersion": "ef888a6df901622004aeb4b7362e007b8c4299da"
+  },
+  "serverParameters": {
+    "internalQueryFacetBufferSizeBytes": {
+      "$numberInt": "104857600"
+    },
+    "internalQueryFacetMaxOutputDocSizeBytes": {
+      "$numberInt": "104857600"
+    },
+    "internalLookupStageIntermediateDocumentMaxSizeBytes": {
+      "$numberInt": "104857600"
+    },
+    "internalDocumentSourceGroupMaxMemoryBytes": {
+      "$numberInt": "104857600"
+    },
+    "internalQueryMaxBlockingSortMemoryUsageBytes": {
+      "$numberInt": "104857600"
+    },
+    "internalQueryProhibitBlockingMergeOnMongoS": {
+      "$numberInt": "0"
+    },
+    "internalQueryMaxAddToSetBytes": {
+      "$numberInt": "104857600"
+    },
+    "internalDocumentSourceSetWindowFieldsMaxMemoryBytes": {
+      "$numberInt": "104857600"
+    }
+  },
+  "ok": {
+    "$numberDouble": "1.0"
+  }
+}

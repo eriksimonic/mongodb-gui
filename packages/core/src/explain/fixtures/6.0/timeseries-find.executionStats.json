@@ -1,0 +1,234 @@
+{
+  "explainVersion": "1",
+  "stages": [
+    {
+      "$cursor": {
+        "queryPlanner": {
+          "namespace": "explain_capture.system.buckets.readings",
+          "indexFilterSet": false,
+          "parsedQuery": {
+            "meta.sensor": {
+              "$eq": "s1"
+            }
+          },
+          "queryHash": "6019E0B6",
+          "planCacheKey": "6019E0B6",
+          "maxIndexedOrSolutionsReached": false,
+          "maxIndexedAndSolutionsReached": false,
+          "maxScansToExplodeReached": false,
+          "winningPlan": {
+            "stage": "COLLSCAN",
+            "filter": {
+              "meta.sensor": {
+                "$eq": "s1"
+              }
+            },
+            "direction": "backward"
+          },
+          "rejectedPlans": []
+        },
+        "executionStats": {
+          "executionSuccess": true,
+          "nReturned": {
+            "$numberInt": "1"
+          },
+          "executionTimeMillis": {
+            "$numberInt": "0"
+          },
+          "totalKeysExamined": {
+            "$numberInt": "0"
+          },
+          "totalDocsExamined": {
+            "$numberInt": "2"
+          },
+          "executionStages": {
+            "stage": "COLLSCAN",
+            "filter": {
+              "meta.sensor": {
+                "$eq": "s1"
+              }
+            },
+            "nReturned": {
+              "$numberInt": "1"
+            },
+            "executionTimeMillisEstimate": {
+              "$numberInt": "0"
+            },
+            "works": {
+              "$numberInt": "3"
+            },
+            "advanced": {
+              "$numberInt": "1"
+            },
+            "needTime": {
+              "$numberInt": "1"
+            },
+            "needYield": {
+              "$numberInt": "0"
+            },
+            "saveState": {
+              "$numberInt": "1"
+            },
+            "restoreState": {
+              "$numberInt": "1"
+            },
+            "isEOF": {
+              "$numberInt": "1"
+            },
+            "direction": "backward",
+            "docsExamined": {
+              "$numberInt": "2"
+            }
+          }
+        }
+      },
+      "nReturned": {
+        "$numberLong": "1"
+      },
+      "executionTimeMillisEstimate": {
+        "$numberLong": "0"
+      }
+    },
+    {
+      "$match": {
+        "$expr": {
+          "$lte": [
+            {
+              "$subtract": [
+                "$control.max.t",
+                "$control.min.t"
+              ]
+            },
+            {
+              "$const": {
+                "$numberLong": "86400000"
+              }
+            }
+          ]
+        }
+      },
+      "nReturned": {
+        "$numberLong": "1"
+      },
+      "executionTimeMillisEstimate": {
+        "$numberLong": "0"
+      }
+    },
+    {
+      "$_internalUnpackBucket": {
+        "exclude": [],
+        "timeField": "t",
+        "metaField": "meta",
+        "bucketMaxSpanSeconds": {
+          "$numberInt": "86400"
+        },
+        "assumeNoMixedSchemaData": true,
+        "includeMinTimeAsMetadata": true
+      },
+      "nReturned": {
+        "$numberLong": "250"
+      },
+      "executionTimeMillisEstimate": {
+        "$numberLong": "0"
+      }
+    },
+    {
+      "$_internalBoundedSort": {
+        "sortKey": {
+          "t": {
+            "$numberInt": "-1"
+          }
+        },
+        "bound": {
+          "base": "min",
+          "offsetSeconds": {
+            "$numberLong": "86400"
+          }
+        },
+        "limit": {
+          "$numberLong": "0"
+        }
+      },
+      "totalDataSizeSortedBytesEstimate": {
+        "$numberLong": "200000"
+      },
+      "usedDisk": false,
+      "spills": {
+        "$numberLong": "0"
+      },
+      "nReturned": {
+        "$numberLong": "250"
+      },
+      "executionTimeMillisEstimate": {
+        "$numberLong": "0"
+      }
+    }
+  ],
+  "serverInfo": {
+    "host": "5366f353288c",
+    "port": {
+      "$numberInt": "27017"
+    },
+    "version": "6.0.28",
+    "gitVersion": "ef888a6df901622004aeb4b7362e007b8c4299da"
+  },
+  "serverParameters": {
+    "internalQueryFacetBufferSizeBytes": {
+      "$numberInt": "104857600"
+    },
+    "internalQueryFacetMaxOutputDocSizeBytes": {
+      "$numberInt": "104857600"
+    },
+    "internalLookupStageIntermediateDocumentMaxSizeBytes": {
+      "$numberInt": "104857600"
+    },
+    "internalDocumentSourceGroupMaxMemoryBytes": {
+      "$numberInt": "104857600"
+    },
+    "internalQueryMaxBlockingSortMemoryUsageBytes": {
+      "$numberInt": "104857600"
+    },
+    "internalQueryProhibitBlockingMergeOnMongoS": {
+      "$numberInt": "0"
+    },
+    "internalQueryMaxAddToSetBytes": {
+      "$numberInt": "104857600"
+    },
+    "internalDocumentSourceSetWindowFieldsMaxMemoryBytes": {
+      "$numberInt": "104857600"
+    }
+  },
+  "command": {
+    "aggregate": "system.buckets.readings",
+    "pipeline": [
+      {
+        "$_internalUnpackBucket": {
+          "timeField": "t",
+          "metaField": "meta",
+          "bucketMaxSpanSeconds": {
+            "$numberInt": "86400"
+          },
+          "assumeNoMixedSchemaData": true,
+          "usesExtendedRange": false
+        }
+      },
+      {
+        "$match": {
+          "meta.sensor": "s1"
+        }
+      },
+      {
+        "$sort": {
+          "t": {
+            "$numberInt": "-1"
+          }
+        }
+      }
+    ],
+    "cursor": {},
+    "collation": {}
+  },
+  "ok": {
+    "$numberDouble": "1.0"
+  }
+}

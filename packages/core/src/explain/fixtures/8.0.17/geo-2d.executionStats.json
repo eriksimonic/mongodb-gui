@@ -1,0 +1,3638 @@
+{
+  "explainVersion": "1",
+  "queryPlanner": {
+    "namespace": "explain_capture.places",
+    "parsedQuery": {
+      "pos": {
+        "$near": [
+          {
+            "$numberDouble": "16.37"
+          },
+          {
+            "$numberDouble": "48.2"
+          }
+        ]
+      }
+    },
+    "indexFilterSet": false,
+    "queryHash": "A4EF78F8",
+    "planCacheShapeHash": "A4EF78F8",
+    "planCacheKey": "93DD43BA",
+    "optimizationTimeMillis": {
+      "$numberInt": "0"
+    },
+    "maxIndexedOrSolutionsReached": false,
+    "maxIndexedAndSolutionsReached": false,
+    "maxScansToExplodeReached": false,
+    "prunedSimilarIndexes": false,
+    "winningPlan": {
+      "isCached": false,
+      "stage": "GEO_NEAR_2D",
+      "keyPattern": {
+        "pos": "2d"
+      },
+      "indexName": "pos_2d",
+      "indexVersion": {
+        "$numberInt": "2"
+      },
+      "inputStages": [
+        {
+          "stage": "FETCH",
+          "filter": {
+            "$TwoDPtInAnnulusExpression": true
+          },
+          "inputStage": {
+            "stage": "IXSCAN",
+            "keyPattern": {
+              "pos": "2d"
+            },
+            "indexName": "pos_2d",
+            "isMultiKey": false,
+            "isUnique": false,
+            "isSparse": false,
+            "isPartial": false,
+            "indexVersion": {
+              "$numberInt": "2"
+            },
+            "direction": "forward",
+            "indexBounds": {
+              "pos": [
+                "[BinData(128, C48E87D000000000), BinData(128, C48E87DFFFFFFFFF)]",
+                "[BinData(128, C48E87EC00000000), BinData(128, C48E87EFFFFFFFFF)]",
+                "[BinData(128, C48E87F000000000), BinData(128, C48E87FFFFFFFFFF)]",
+                "[BinData(128, C48E8D4000000000), BinData(128, C48E8D7FFFFFFFFF)]",
+                "[BinData(128, C48E8DC000000000), BinData(128, C48E8DFFFFFFFFFF)]",
+                "[BinData(128, C48E928000000000), BinData(128, C48E92BFFFFFFFFF)]",
+                "[BinData(128, C48E92C000000000), BinData(128, C48E92FFFFFFFFFF)]",
+                "[BinData(128, C48E93A000000000), BinData(128, C48E93AFFFFFFFFF)]",
+                "[BinData(128, C48E980000000000), BinData(128, C48E98FFFFFFFFFF)]",
+                "[BinData(128, C48E990000000000), BinData(128, C48E990FFFFFFFFF)]",
+                "[BinData(128, C48E992000000000), BinData(128, C48E992FFFFFFFFF)]",
+                "[BinData(128, C48E998000000000), BinData(128, C48E998FFFFFFFFF)]",
+                "[BinData(128, C48E9A1000000000), BinData(128, C48E9A1FFFFFFFFF)]"
+              ]
+            }
+          }
+        },
+        {
+          "stage": "FETCH",
+          "filter": {
+            "$TwoDPtInAnnulusExpression": true
+          },
+          "inputStage": {
+            "stage": "IXSCAN",
+            "keyPattern": {
+              "pos": "2d"
+            },
+            "indexName": "pos_2d",
+            "isMultiKey": false,
+            "isUnique": false,
+            "isSparse": false,
+            "isPartial": false,
+            "indexVersion": {
+              "$numberInt": "2"
+            },
+            "direction": "forward",
+            "indexBounds": {
+              "pos": [
+                "[BinData(128, C48E840000000000), BinData(128, C48E84FFFFFFFFFF)]",
+                "[BinData(128, C48E850000000000), BinData(128, C48E85FFFFFFFFFF)]",
+                "[BinData(128, C48E860000000000), BinData(128, C48E86FFFFFFFFFF)]",
+                "[BinData(128, C48E870000000000), BinData(128, C48E873FFFFFFFFF)]",
+                "[BinData(128, C48E874000000000), BinData(128, C48E877FFFFFFFFF)]",
+                "[BinData(128, C48E878000000000), BinData(128, C48E87BFFFFFFFFF)]",
+                "[BinData(128, C48E87C000000000), BinData(128, C48E87CFFFFFFFFF)]",
+                "[BinData(128, C48E87E000000000), BinData(128, C48E87E3FFFFFFFF)]",
+                "[BinData(128, C48E87E400000000), BinData(128, C48E87E7FFFFFFFF)]",
+                "[BinData(128, C48E87E800000000), BinData(128, C48E87EBFFFFFFFF)]",
+                "[BinData(128, C48E8C0000000000), BinData(128, C48E8CFFFFFFFFFF)]",
+                "[BinData(128, C48E8D0000000000), BinData(128, C48E8D3FFFFFFFFF)]",
+                "[BinData(128, C48E8D8000000000), BinData(128, C48E8DBFFFFFFFFF)]",
+                "[BinData(128, C48E8E0000000000), BinData(128, C48E8EFFFFFFFFFF)]",
+                "[BinData(128, C48E8F0000000000), BinData(128, C48E8FFFFFFFFFFF)]",
+                "[BinData(128, C48E900000000000), BinData(128, C48E90FFFFFFFFFF)]",
+                "[BinData(128, C48E910000000000), BinData(128, C48E91FFFFFFFFFF)]",
+                "[BinData(128, C48E920000000000), BinData(128, C48E923FFFFFFFFF)]",
+                "[BinData(128, C48E924000000000), BinData(128, C48E927FFFFFFFFF)]",
+                "[BinData(128, C48E930000000000), BinData(128, C48E933FFFFFFFFF)]",
+                "[BinData(128, C48E934000000000), BinData(128, C48E937FFFFFFFFF)]",
+                "[BinData(128, C48E938000000000), BinData(128, C48E938FFFFFFFFF)]",
+                "[BinData(128, C48E939000000000), BinData(128, C48E939FFFFFFFFF)]",
+                "[BinData(128, C48E93B000000000), BinData(128, C48E93BFFFFFFFFF)]",
+                "[BinData(128, C48E93C000000000), BinData(128, C48E93FFFFFFFFFF)]",
+                "[BinData(128, C48E948000000000), BinData(128, C48E94BFFFFFFFFF)]",
+                "[BinData(128, C48E960000000000), BinData(128, C48E96FFFFFFFFFF)]",
+                "[BinData(128, C48E991000000000), BinData(128, C48E991FFFFFFFFF)]",
+                "[BinData(128, C48E993000000000), BinData(128, C48E993FFFFFFFFF)]",
+                "[BinData(128, C48E994000000000), BinData(128, C48E997FFFFFFFFF)]",
+                "[BinData(128, C48E999000000000), BinData(128, C48E999FFFFFFFFF)]",
+                "[BinData(128, C48E99A000000000), BinData(128, C48E99AFFFFFFFFF)]",
+                "[BinData(128, C48E99B000000000), BinData(128, C48E99BFFFFFFFFF)]",
+                "[BinData(128, C48E99C000000000), BinData(128, C48E99FFFFFFFFFF)]",
+                "[BinData(128, C48E9A0000000000), BinData(128, C48E9A0FFFFFFFFF)]",
+                "[BinData(128, C48E9A2000000000), BinData(128, C48E9A2FFFFFFFFF)]",
+                "[BinData(128, C48E9A3000000000), BinData(128, C48E9A3FFFFFFFFF)]",
+                "[BinData(128, C48E9A4000000000), BinData(128, C48E9A7FFFFFFFFF)]",
+                "[BinData(128, C48E9A8000000000), BinData(128, C48E9ABFFFFFFFFF)]",
+                "[BinData(128, C48E9AC000000000), BinData(128, C48E9AFFFFFFFFFF)]",
+                "[BinData(128, C48E9B0000000000), BinData(128, C48E9BFFFFFFFFFF)]",
+                "[BinData(128, C48E9C0000000000), BinData(128, C48E9CFFFFFFFFFF)]",
+                "[BinData(128, C48E9E0000000000), BinData(128, C48E9EFFFFFFFFFF)]",
+                "[BinData(128, C48EA45550000000), BinData(128, C48EA4555FFFFFFF)]",
+                "[BinData(128, C48EA50000000000), BinData(128, C48EA5FFFFFFFFFF)]",
+                "[BinData(128, C48EB00000000000), BinData(128, C48EB0FFFFFFFFFF)]",
+                "[BinData(128, C48EB10000000000), BinData(128, C48EB1FFFFFFFFFF)]"
+              ]
+            }
+          }
+        },
+        {
+          "stage": "FETCH",
+          "filter": {
+            "$TwoDPtInAnnulusExpression": true
+          },
+          "inputStage": {
+            "stage": "IXSCAN",
+            "keyPattern": {
+              "pos": "2d"
+            },
+            "indexName": "pos_2d",
+            "isMultiKey": false,
+            "isUnique": false,
+            "isSparse": false,
+            "isPartial": false,
+            "indexVersion": {
+              "$numberInt": "2"
+            },
+            "direction": "forward",
+            "indexBounds": {
+              "pos": [
+                "[BinData(128, C48E2C0000000000), BinData(128, C48E2FFFFFFFFFFF)]",
+                "[BinData(128, C48E3A0000000000), BinData(128, C48E3AFFFFFFFFFF)]",
+                "[BinData(128, C48E3B0000000000), BinData(128, C48E3BFFFFFFFFFF)]",
+                "[BinData(128, C48E3E8000000000), BinData(128, C48E3EBFFFFFFFFF)]",
+                "[BinData(128, C48E800000000000), BinData(128, C48E83FFFFFFFFFF)]",
+                "[BinData(128, C48E880000000000), BinData(128, C48E8BFFFFFFFFFF)]",
+                "[BinData(128, C48E940000000000), BinData(128, C48E943FFFFFFFFF)]",
+                "[BinData(128, C48E944000000000), BinData(128, C48E947FFFFFFFFF)]",
+                "[BinData(128, C48E94C000000000), BinData(128, C48E94FFFFFFFFFF)]",
+                "[BinData(128, C48E950000000000), BinData(128, C48E95FFFFFFFFFF)]",
+                "[BinData(128, C48E970000000000), BinData(128, C48E97FFFFFFFFFF)]",
+                "[BinData(128, C48E9D0000000000), BinData(128, C48E9DFFFFFFFFFF)]",
+                "[BinData(128, C48E9F0000000000), BinData(128, C48E9FFFFFFFFFFF)]",
+                "[BinData(128, C48EA15500000000), BinData(128, C48EA155FFFFFFFF)]",
+                "[BinData(128, C48EA40000000000), BinData(128, C48EA43FFFFFFFFF)]",
+                "[BinData(128, C48EA44000000000), BinData(128, C48EA44FFFFFFFFF)]",
+                "[BinData(128, C48EA45000000000), BinData(128, C48EA453FFFFFFFF)]",
+                "[BinData(128, C48EA45400000000), BinData(128, C48EA454FFFFFFFF)]",
+                "[BinData(128, C48EA45500000000), BinData(128, C48EA4553FFFFFFF)]",
+                "[BinData(128, C48EA45540000000), BinData(128, C48EA4554FFFFFFF)]",
+                "[BinData(128, C48EA45560000000), BinData(128, C48EA4556FFFFFFF)]",
+                "[BinData(128, C48EA45570000000), BinData(128, C48EA4557FFFFFFF)]",
+                "[BinData(128, C48EA45580000000), BinData(128, C48EA455BFFFFFFF)]",
+                "[BinData(128, C48EA455C0000000), BinData(128, C48EA455FFFFFFFF)]",
+                "[BinData(128, C48EA45600000000), BinData(128, C48EA456FFFFFFFF)]",
+                "[BinData(128, C48EA45700000000), BinData(128, C48EA457FFFFFFFF)]",
+                "[BinData(128, C48EA45800000000), BinData(128, C48EA45BFFFFFFFF)]",
+                "[BinData(128, C48EA45C00000000), BinData(128, C48EA45FFFFFFFFF)]",
+                "[BinData(128, C48EA46000000000), BinData(128, C48EA46FFFFFFFFF)]",
+                "[BinData(128, C48EA47000000000), BinData(128, C48EA47FFFFFFFFF)]",
+                "[BinData(128, C48EA48000000000), BinData(128, C48EA4BFFFFFFFFF)]",
+                "[BinData(128, C48EA4C000000000), BinData(128, C48EA4FFFFFFFFFF)]",
+                "[BinData(128, C48EA60000000000), BinData(128, C48EA6FFFFFFFFFF)]",
+                "[BinData(128, C48EA70000000000), BinData(128, C48EA7FFFFFFFFFF)]",
+                "[BinData(128, C48EB20000000000), BinData(128, C48EB2FFFFFFFFFF)]",
+                "[BinData(128, C48EB30000000000), BinData(128, C48EB3FFFFFFFFFF)]",
+                "[BinData(128, C48EB40000000000), BinData(128, C48EB4FFFFFFFFFF)]"
+              ]
+            }
+          }
+        },
+        {
+          "stage": "FETCH",
+          "filter": {
+            "$TwoDPtInAnnulusExpression": true
+          },
+          "inputStage": {
+            "stage": "IXSCAN",
+            "keyPattern": {
+              "pos": "2d"
+            },
+            "indexName": "pos_2d",
+            "isMultiKey": false,
+            "isUnique": false,
+            "isSparse": false,
+            "isPartial": false,
+            "indexVersion": {
+              "$numberInt": "2"
+            },
+            "direction": "forward",
+            "indexBounds": {
+              "pos": [
+                "[BinData(128, C48E2BFC00000000), BinData(128, C48E2BFFFFFFFFFF)]",
+                "[BinData(128, C48E380000000000), BinData(128, C48E38FFFFFFFFFF)]",
+                "[BinData(128, C48E390000000000), BinData(128, C48E39FFFFFFFFFF)]",
+                "[BinData(128, C48E3E0000000000), BinData(128, C48E3E3FFFFFFFFF)]",
+                "[BinData(128, C48E3E4000000000), BinData(128, C48E3E7FFFFFFFFF)]",
+                "[BinData(128, C48E3EC000000000), BinData(128, C48E3EFFFFFFFFFF)]",
+                "[BinData(128, C48EA14000000000), BinData(128, C48EA14FFFFFFFFF)]",
+                "[BinData(128, C48EA15000000000), BinData(128, C48EA153FFFFFFFF)]",
+                "[BinData(128, C48EA15400000000), BinData(128, C48EA154FFFFFFFF)]",
+                "[BinData(128, C48EA15600000000), BinData(128, C48EA156FFFFFFFF)]",
+                "[BinData(128, C48EA15700000000), BinData(128, C48EA157FFFFFFFF)]",
+                "[BinData(128, C48EA15800000000), BinData(128, C48EA15BFFFFFFFF)]",
+                "[BinData(128, C48EA15C00000000), BinData(128, C48EA15FFFFFFFFF)]",
+                "[BinData(128, C48EA16000000000), BinData(128, C48EA16FFFFFFFFF)]",
+                "[BinData(128, C48EA17000000000), BinData(128, C48EA17FFFFFFFFF)]",
+                "[BinData(128, C48EA1D400000000), BinData(128, C48EA1D7FFFFFFFF)]",
+                "[BinData(128, C48EB50000000000), BinData(128, C48EB5FFFFFFFFFF)]",
+                "[BinData(128, C48EB60000000000), BinData(128, C48EB6FFFFFFFFFF)]",
+                "[BinData(128, C48EB70000000000), BinData(128, C48EB7FFFFFFFFFF)]"
+              ]
+            }
+          }
+        },
+        {
+          "stage": "FETCH",
+          "filter": {
+            "$TwoDPtInAnnulusExpression": true
+          },
+          "inputStage": {
+            "stage": "IXSCAN",
+            "keyPattern": {
+              "pos": "2d"
+            },
+            "indexName": "pos_2d",
+            "isMultiKey": false,
+            "isUnique": false,
+            "isSparse": false,
+            "isPartial": false,
+            "indexVersion": {
+              "$numberInt": "2"
+            },
+            "direction": "forward",
+            "indexBounds": {
+              "pos": [
+                "[BinData(128, C48E280000000000), BinData(128, C48E28FFFFFFFFFF)]",
+                "[BinData(128, C48E290000000000), BinData(128, C48E29FFFFFFFFFF)]",
+                "[BinData(128, C48E2A0000000000), BinData(128, C48E2AFFFFFFFFFF)]",
+                "[BinData(128, C48E2B0000000000), BinData(128, C48E2B3FFFFFFFFF)]",
+                "[BinData(128, C48E2B4000000000), BinData(128, C48E2B7FFFFFFFFF)]",
+                "[BinData(128, C48E2B8000000000), BinData(128, C48E2BBFFFFFFFFF)]",
+                "[BinData(128, C48E2BC000000000), BinData(128, C48E2BCFFFFFFFFF)]",
+                "[BinData(128, C48E2BD000000000), BinData(128, C48E2BDFFFFFFFFF)]",
+                "[BinData(128, C48E2BE000000000), BinData(128, C48E2BEFFFFFFFFF)]",
+                "[BinData(128, C48E2BF000000000), BinData(128, C48E2BF3FFFFFFFF)]",
+                "[BinData(128, C48E2BF400000000), BinData(128, C48E2BF7FFFFFFFF)]",
+                "[BinData(128, C48E2BF800000000), BinData(128, C48E2BFBFFFFFFFF)]",
+                "[BinData(128, C48E3C0000000000), BinData(128, C48E3CFFFFFFFFFF)]",
+                "[BinData(128, C48E3D0000000000), BinData(128, C48E3DFFFFFFFFFF)]",
+                "[BinData(128, C48E3F0000000000), BinData(128, C48E3FFFFFFFFFFF)]",
+                "[BinData(128, C48EA00000000000), BinData(128, C48EA0FFFFFFFFFF)]",
+                "[BinData(128, C48EA10000000000), BinData(128, C48EA13FFFFFFFFF)]",
+                "[BinData(128, C48EA18000000000), BinData(128, C48EA1BFFFFFFFFF)]",
+                "[BinData(128, C48EA1C000000000), BinData(128, C48EA1CFFFFFFFFF)]",
+                "[BinData(128, C48EA1D000000000), BinData(128, C48EA1D3FFFFFFFF)]",
+                "[BinData(128, C48EA1D800000000), BinData(128, C48EA1DBFFFFFFFF)]",
+                "[BinData(128, C48EA1DC00000000), BinData(128, C48EA1DFFFFFFFFF)]",
+                "[BinData(128, C48EA1E000000000), BinData(128, C48EA1EFFFFFFFFF)]",
+                "[BinData(128, C48EA1F000000000), BinData(128, C48EA1FFFFFFFFFF)]",
+                "[BinData(128, C48EA20000000000), BinData(128, C48EA2FFFFFFFFFF)]",
+                "[BinData(128, C48EA30000000000), BinData(128, C48EA3FFFFFFFFFF)]",
+                "[BinData(128, C48EAC4000000000), BinData(128, C48EAC7FFFFFFFFF)]",
+                "[BinData(128, C48EAD0000000000), BinData(128, C48EADFFFFFFFFFF)]",
+                "[BinData(128, C48EB80000000000), BinData(128, C48EBBFFFFFFFFFF)]",
+                "[BinData(128, C48EBC0000000000), BinData(128, C48EBFFFFFFFFFFF)]",
+                "[BinData(128, C48EC00000000000), BinData(128, C48EC3FFFFFFFFFF)]",
+                "[BinData(128, C48EC80000000000), BinData(128, C48ECBFFFFFFFFFF)]",
+                "[BinData(128, C48EE00000000000), BinData(128, C48EE03FFFFFFFFF)]"
+              ]
+            }
+          }
+        },
+        {
+          "stage": "FETCH",
+          "filter": {
+            "$TwoDPtInAnnulusExpression": true
+          },
+          "inputStage": {
+            "stage": "IXSCAN",
+            "keyPattern": {
+              "pos": "2d"
+            },
+            "indexName": "pos_2d",
+            "isMultiKey": false,
+            "isUnique": false,
+            "isSparse": false,
+            "isPartial": false,
+            "indexVersion": {
+              "$numberInt": "2"
+            },
+            "direction": "forward",
+            "indexBounds": {
+              "pos": [
+                "[BinData(128, C48BD40000000000), BinData(128, C48BD7FFFFFFFFFF)]",
+                "[BinData(128, C48BDC0000000000), BinData(128, C48BDFFFFFFFFFFF)]",
+                "[BinData(128, C48BF54000000000), BinData(128, C48BF57FFFFFFFFF)]",
+                "[BinData(128, C48E240000000000), BinData(128, C48E27FFFFFFFFFF)]",
+                "[BinData(128, C48E300000000000), BinData(128, C48E33FFFFFFFFFF)]",
+                "[BinData(128, C48E340000000000), BinData(128, C48E37FFFFFFFFFF)]",
+                "[BinData(128, C48E680000000000), BinData(128, C48E6BFFFFFFFFFF)]",
+                "[BinData(128, C48EA80000000000), BinData(128, C48EABFFFFFFFFFF)]",
+                "[BinData(128, C48EAC0000000000), BinData(128, C48EAC3FFFFFFFFF)]",
+                "[BinData(128, C48EAC8000000000), BinData(128, C48EACBFFFFFFFFF)]",
+                "[BinData(128, C48EACC000000000), BinData(128, C48EACFFFFFFFFFF)]",
+                "[BinData(128, C48EAE0000000000), BinData(128, C48EAEFFFFFFFFFF)]",
+                "[BinData(128, C48EAF0000000000), BinData(128, C48EAFFFFFFFFFFF)]",
+                "[BinData(128, C48EE04000000000), BinData(128, C48EE07FFFFFFFFF)]",
+                "[BinData(128, C48EE08000000000), BinData(128, C48EE0BFFFFFFFFF)]",
+                "[BinData(128, C48EE0C000000000), BinData(128, C48EE0FFFFFFFFFF)]",
+                "[BinData(128, C48EE10000000000), BinData(128, C48EE1FFFFFFFFFF)]",
+                "[BinData(128, C48EE20000000000), BinData(128, C48EE2FFFFFFFFFF)]",
+                "[BinData(128, C48EE30000000000), BinData(128, C48EE3FFFFFFFFFF)]"
+              ]
+            }
+          }
+        },
+        {
+          "stage": "FETCH",
+          "filter": {
+            "$TwoDPtInAnnulusExpression": true
+          },
+          "inputStage": {
+            "stage": "IXSCAN",
+            "keyPattern": {
+              "pos": "2d"
+            },
+            "indexName": "pos_2d",
+            "isMultiKey": false,
+            "isUnique": false,
+            "isSparse": false,
+            "isPartial": false,
+            "indexVersion": {
+              "$numberInt": "2"
+            },
+            "direction": "forward",
+            "indexBounds": {
+              "pos": [
+                "[BinData(128, C48B700000000000), BinData(128, C48B7FFFFFFFFFFF)]",
+                "[BinData(128, C48BD00000000000), BinData(128, C48BD3FFFFFFFFFF)]",
+                "[BinData(128, C48BD80000000000), BinData(128, C48BDBFFFFFFFFFF)]",
+                "[BinData(128, C48BF00000000000), BinData(128, C48BF3FFFFFFFFFF)]",
+                "[BinData(128, C48BF40000000000), BinData(128, C48BF4FFFFFFFFFF)]",
+                "[BinData(128, C48BF50000000000), BinData(128, C48BF53FFFFFFFFF)]",
+                "[BinData(128, C48BF58000000000), BinData(128, C48BF5BFFFFFFFFF)]",
+                "[BinData(128, C48BF5C000000000), BinData(128, C48BF5FFFFFFFFFF)]",
+                "[BinData(128, C48BF60000000000), BinData(128, C48BF6FFFFFFFFFF)]",
+                "[BinData(128, C48BF70000000000), BinData(128, C48BF7FFFFFFFFFF)]",
+                "[BinData(128, C48BF80000000000), BinData(128, C48BFBFFFFFFFFFF)]",
+                "[BinData(128, C48BFC0000000000), BinData(128, C48BFFFFFFFFFFFF)]",
+                "[BinData(128, C48E0F0000000000), BinData(128, C48E0FFFFFFFFFFF)]",
+                "[BinData(128, C48E180000000000), BinData(128, C48E1BFFFFFFFFFF)]",
+                "[BinData(128, C48E200000000000), BinData(128, C48E23FFFFFFFFFF)]",
+                "[BinData(128, C48E600000000000), BinData(128, C48E63FFFFFFFFFF)]",
+                "[BinData(128, C48E640000000000), BinData(128, C48E67FFFFFFFFFF)]",
+                "[BinData(128, C48E6C0000000000), BinData(128, C48E6FFFFFFFFFFF)]",
+                "[BinData(128, C48EC40000000000), BinData(128, C48EC7FFFFFFFFFF)]",
+                "[BinData(128, C48ECC0000000000), BinData(128, C48ECFFFFFFFFFFF)]",
+                "[BinData(128, C48EE40000000000), BinData(128, C48EE7FFFFFFFFFF)]",
+                "[BinData(128, C48EE80000000000), BinData(128, C48EEBFFFFFFFFFF)]",
+                "[BinData(128, C48EEC0000000000), BinData(128, C48EEFFFFFFFFFFF)]",
+                "[BinData(128, C4A4000000000000), BinData(128, C4A40FFFFFFFFFFF)]",
+                "[BinData(128, C4A4100000000000), BinData(128, C4A413FFFFFFFFFF)]",
+                "[BinData(128, C4A4140000000000), BinData(128, C4A417FFFFFFFFFF)]"
+              ]
+            }
+          }
+        },
+        {
+          "stage": "FETCH",
+          "filter": {
+            "$TwoDPtInAnnulusExpression": true
+          },
+          "inputStage": {
+            "stage": "IXSCAN",
+            "keyPattern": {
+              "pos": "2d"
+            },
+            "indexName": "pos_2d",
+            "isMultiKey": false,
+            "isUnique": false,
+            "isSparse": false,
+            "isPartial": false,
+            "indexVersion": {
+              "$numberInt": "2"
+            },
+            "direction": "forward",
+            "indexBounds": {
+              "pos": [
+                "[BinData(128, C48B500000000000), BinData(128, C48B5FFFFFFFFFFF)]",
+                "[BinData(128, C48B6C0000000000), BinData(128, C48B6FFFFFFFFFFF)]",
+                "[BinData(128, C48BC00000000000), BinData(128, C48BCFFFFFFFFFFF)]",
+                "[BinData(128, C48BE00000000000), BinData(128, C48BEFFFFFFFFFFF)]",
+                "[BinData(128, C48E000000000000), BinData(128, C48E03FFFFFFFFFF)]",
+                "[BinData(128, C48E040000000000), BinData(128, C48E07FFFFFFFFFF)]",
+                "[BinData(128, C48E080000000000), BinData(128, C48E0BFFFFFFFFFF)]",
+                "[BinData(128, C48E0C0000000000), BinData(128, C48E0CFFFFFFFFFF)]",
+                "[BinData(128, C48E0D0000000000), BinData(128, C48E0DFFFFFFFFFF)]",
+                "[BinData(128, C48E0E0000000000), BinData(128, C48E0EFFFFFFFFFF)]",
+                "[BinData(128, C48E100000000000), BinData(128, C48E13FFFFFFFFFF)]",
+                "[BinData(128, C48E140000000000), BinData(128, C48E17FFFFFFFFFF)]",
+                "[BinData(128, C48E1C0000000000), BinData(128, C48E1FFFFFFFFFFF)]",
+                "[BinData(128, C48E400000000000), BinData(128, C48E4FFFFFFFFFFF)]",
+                "[BinData(128, C48E700000000000), BinData(128, C48E73FFFFFFFFFF)]",
+                "[BinData(128, C48E780000000000), BinData(128, C48E7BFFFFFFFFFF)]",
+                "[BinData(128, C48ED00000000000), BinData(128, C48EDFFFFFFFFFFF)]",
+                "[BinData(128, C48EF00000000000), BinData(128, C48EFFFFFFFFFFFF)]",
+                "[BinData(128, C4A1500000000000), BinData(128, C4A15FFFFFFFFFFF)]",
+                "[BinData(128, C4A4180000000000), BinData(128, C4A41BFFFFFFFFFF)]",
+                "[BinData(128, C4A41C0000000000), BinData(128, C4A41FFFFFFFFFFF)]",
+                "[BinData(128, C4A4400000000000), BinData(128, C4A44FFFFFFFFFFF)]"
+              ]
+            }
+          }
+        },
+        {
+          "stage": "FETCH",
+          "filter": {
+            "$TwoDPtInAnnulusExpression": true
+          },
+          "inputStage": {
+            "stage": "IXSCAN",
+            "keyPattern": {
+              "pos": "2d"
+            },
+            "indexName": "pos_2d",
+            "isMultiKey": false,
+            "isUnique": false,
+            "isSparse": false,
+            "isPartial": false,
+            "indexVersion": {
+              "$numberInt": "2"
+            },
+            "direction": "forward",
+            "indexBounds": {
+              "pos": [
+                "[BinData(128, C489C00000000000), BinData(128, C489FFFFFFFFFFFF)]",
+                "[BinData(128, C48B000000000000), BinData(128, C48B3FFFFFFFFFFF)]",
+                "[BinData(128, C48B400000000000), BinData(128, C48B4FFFFFFFFFFF)]",
+                "[BinData(128, C48B600000000000), BinData(128, C48B63FFFFFFFFFF)]",
+                "[BinData(128, C48B640000000000), BinData(128, C48B67FFFFFFFFFF)]",
+                "[BinData(128, C48B680000000000), BinData(128, C48B6BFFFFFFFFFF)]",
+                "[BinData(128, C48B800000000000), BinData(128, C48BBFFFFFFFFFFF)]",
+                "[BinData(128, C48C800000000000), BinData(128, C48CBFFFFFFFFFFF)]",
+                "[BinData(128, C48CC00000000000), BinData(128, C48CFFFFFFFFFFFF)]",
+                "[BinData(128, C48E500000000000), BinData(128, C48E5FFFFFFFFFFF)]",
+                "[BinData(128, C48E740000000000), BinData(128, C48E77FFFFFFFFFF)]",
+                "[BinData(128, C48E7C0000000000), BinData(128, C48E7FFFFFFFFFFF)]",
+                "[BinData(128, C48F000000000000), BinData(128, C48F3FFFFFFFFFFF)]",
+                "[BinData(128, C48F800000000000), BinData(128, C48F8FFFFFFFFFFF)]",
+                "[BinData(128, C48FA00000000000), BinData(128, C48FAFFFFFFFFFFF)]",
+                "[BinData(128, C4A1100000000000), BinData(128, C4A11FFFFFFFFFFF)]",
+                "[BinData(128, C4A1400000000000), BinData(128, C4A14FFFFFFFFFFF)]",
+                "[BinData(128, C4A1600000000000), BinData(128, C4A16FFFFFFFFFFF)]",
+                "[BinData(128, C4A1700000000000), BinData(128, C4A17FFFFFFFFFFF)]",
+                "[BinData(128, C4A1D00000000000), BinData(128, C4A1DFFFFFFFFFFF)]",
+                "[BinData(128, C4A4200000000000), BinData(128, C4A42FFFFFFFFFFF)]",
+                "[BinData(128, C4A4300000000000), BinData(128, C4A43FFFFFFFFFFF)]",
+                "[BinData(128, C4A4500000000000), BinData(128, C4A45FFFFFFFFFFF)]",
+                "[BinData(128, C4A4600000000000), BinData(128, C4A46FFFFFFFFFFF)]",
+                "[BinData(128, C4A4700000000000), BinData(128, C4A47FFFFFFFFFFF)]",
+                "[BinData(128, C4A4800000000000), BinData(128, C4A4BFFFFFFFFFFF)]",
+                "[BinData(128, C4A4C00000000000), BinData(128, C4A4FFFFFFFFFFFF)]",
+                "[BinData(128, C4A5000000000000), BinData(128, C4A50FFFFFFFFFFF)]",
+                "[BinData(128, C4A5200000000000), BinData(128, C4A5203FFFFFFFFF)]"
+              ]
+            }
+          }
+        },
+        {
+          "stage": "FETCH",
+          "filter": {
+            "$TwoDPtInAnnulusExpression": true
+          },
+          "inputStage": {
+            "stage": "IXSCAN",
+            "keyPattern": {
+              "pos": "2d"
+            },
+            "indexName": "pos_2d",
+            "isMultiKey": false,
+            "isUnique": false,
+            "isSparse": false,
+            "isPartial": false,
+            "indexVersion": {
+              "$numberInt": "2"
+            },
+            "direction": "forward",
+            "indexBounds": {
+              "pos": [
+                "[BinData(128, C483F00000000000), BinData(128, C483FFFFFFFFFFFF)]",
+                "[BinData(128, C486800000000000), BinData(128, C486BFFFFFFFFFFF)]",
+                "[BinData(128, C486C00000000000), BinData(128, C486FFFFFFFFFFFF)]",
+                "[BinData(128, C488C00000000000), BinData(128, C488FFFFFFFFFFFF)]",
+                "[BinData(128, C489000000000000), BinData(128, C4893FFFFFFFFFFF)]",
+                "[BinData(128, C489400000000000), BinData(128, C4897FFFFFFFFFFF)]",
+                "[BinData(128, C489800000000000), BinData(128, C489BFFFFFFFFFFF)]",
+                "[BinData(128, C48A000000000000), BinData(128, C48AFFFFFFFFFFFF)]",
+                "[BinData(128, C48C000000000000), BinData(128, C48C3FFFFFFFFFFF)]",
+                "[BinData(128, C48C400000000000), BinData(128, C48C7FFFFFFFFFFF)]",
+                "[BinData(128, C48D000000000000), BinData(128, C48DFFFFFFFFFFFF)]",
+                "[BinData(128, C48F400000000000), BinData(128, C48F7FFFFFFFFFFF)]",
+                "[BinData(128, C48F900000000000), BinData(128, C48F9FFFFFFFFFFF)]",
+                "[BinData(128, C48FB00000000000), BinData(128, C48FBFFFFFFFFFFF)]",
+                "[BinData(128, C48FC00000000000), BinData(128, C48FFFFFFFFFFFFF)]",
+                "[BinData(128, C4A0400000000000), BinData(128, C4A07FFFFFFFFFFF)]",
+                "[BinData(128, C4A0C00000000000), BinData(128, C4A0FFFFFFFFFFFF)]",
+                "[BinData(128, C4A1000000000000), BinData(128, C4A10FFFFFFFFFFF)]",
+                "[BinData(128, C4A1200000000000), BinData(128, C4A12FFFFFFFFFFF)]",
+                "[BinData(128, C4A1300000000000), BinData(128, C4A13FFFFFFFFFFF)]",
+                "[BinData(128, C4A1800000000000), BinData(128, C4A1BFFFFFFFFFFF)]",
+                "[BinData(128, C4A1C00000000000), BinData(128, C4A1CFFFFFFFFFFF)]",
+                "[BinData(128, C4A1E00000000000), BinData(128, C4A1EFFFFFFFFFFF)]",
+                "[BinData(128, C4A1F00000000000), BinData(128, C4A1FFFFFFFFFFFF)]",
+                "[BinData(128, C4A3000000000000), BinData(128, C4A3FFFFFFFFFFFF)]",
+                "[BinData(128, C4A5100000000000), BinData(128, C4A51FFFFFFFFFFF)]",
+                "[BinData(128, C4A5204000000000), BinData(128, C4A5207FFFFFFFFF)]",
+                "[BinData(128, C4A5208000000000), BinData(128, C4A520BFFFFFFFFF)]",
+                "[BinData(128, C4A520C000000000), BinData(128, C4A520FFFFFFFFFF)]",
+                "[BinData(128, C4A5210000000000), BinData(128, C4A521FFFFFFFFFF)]",
+                "[BinData(128, C4A5220000000000), BinData(128, C4A522FFFFFFFFFF)]",
+                "[BinData(128, C4A5230000000000), BinData(128, C4A523FFFFFFFFFF)]",
+                "[BinData(128, C4A5240000000000), BinData(128, C4A527FFFFFFFFFF)]",
+                "[BinData(128, C4A5280000000000), BinData(128, C4A52BFFFFFFFFFF)]",
+                "[BinData(128, C4A52C0000000000), BinData(128, C4A52FFFFFFFFFFF)]",
+                "[BinData(128, C4A5300000000000), BinData(128, C4A53FFFFFFFFFFF)]",
+                "[BinData(128, C4A5400000000000), BinData(128, C4A57FFFFFFFFFFF)]",
+                "[BinData(128, C4A5800000000000), BinData(128, C4A5BFFFFFFFFFFF)]",
+                "[BinData(128, C4A5C00000000000), BinData(128, C4A5FFFFFFFFFFFF)]",
+                "[BinData(128, C4A6000000000000), BinData(128, C4A6FFFFFFFFFFFF)]",
+                "[BinData(128, C4A7000000000000), BinData(128, C4A7FFFFFFFFFFFF)]"
+              ]
+            }
+          }
+        },
+        {
+          "stage": "FETCH",
+          "filter": {
+            "$TwoDPtInAnnulusExpression": true
+          },
+          "inputStage": {
+            "stage": "IXSCAN",
+            "keyPattern": {
+              "pos": "2d"
+            },
+            "indexName": "pos_2d",
+            "isMultiKey": false,
+            "isUnique": false,
+            "isSparse": false,
+            "isPartial": false,
+            "indexVersion": {
+              "$numberInt": "2"
+            },
+            "direction": "forward",
+            "indexBounds": {
+              "pos": [
+                "[BinData(128, C1D7000000000000), BinData(128, C1D7FFFFFFFFFFFF)]",
+                "[BinData(128, C1DD000000000000), BinData(128, C1DDFFFFFFFFFFFF)]",
+                "[BinData(128, C1DF000000000000), BinData(128, C1DFFFFFFFFFFFFF)]",
+                "[BinData(128, C1F4000000000000), BinData(128, C1F7FFFFFFFFFFFF)]",
+                "[BinData(128, C480000000000000), BinData(128, C480FFFFFFFFFFFF)]",
+                "[BinData(128, C481000000000000), BinData(128, C481FFFFFFFFFFFF)]",
+                "[BinData(128, C482000000000000), BinData(128, C482FFFFFFFFFFFF)]",
+                "[BinData(128, C483000000000000), BinData(128, C4833FFFFFFFFFFF)]",
+                "[BinData(128, C483400000000000), BinData(128, C4837FFFFFFFFFFF)]",
+                "[BinData(128, C483800000000000), BinData(128, C483BFFFFFFFFFFF)]",
+                "[BinData(128, C483C00000000000), BinData(128, C483CFFFFFFFFFFF)]",
+                "[BinData(128, C483D00000000000), BinData(128, C483DFFFFFFFFFFF)]",
+                "[BinData(128, C483E00000000000), BinData(128, C483EFFFFFFFFFFF)]",
+                "[BinData(128, C484000000000000), BinData(128, C484FFFFFFFFFFFF)]",
+                "[BinData(128, C485000000000000), BinData(128, C485FFFFFFFFFFFF)]",
+                "[BinData(128, C486000000000000), BinData(128, C4863FFFFFFFFFFF)]",
+                "[BinData(128, C486400000000000), BinData(128, C4867FFFFFFFFFFF)]",
+                "[BinData(128, C487000000000000), BinData(128, C487FFFFFFFFFFFF)]",
+                "[BinData(128, C488000000000000), BinData(128, C4883FFFFFFFFFFF)]",
+                "[BinData(128, C488400000000000), BinData(128, C4887FFFFFFFFFFF)]",
+                "[BinData(128, C488800000000000), BinData(128, C488BFFFFFFFFFFF)]",
+                "[BinData(128, C490000000000000), BinData(128, C493FFFFFFFFFFFF)]",
+                "[BinData(128, C498000000000000), BinData(128, C49BFFFFFFFFFFFF)]",
+                "[BinData(128, C4A0000000000000), BinData(128, C4A03FFFFFFFFFFF)]",
+                "[BinData(128, C4A0800000000000), BinData(128, C4A0BFFFFFFFFFFF)]",
+                "[BinData(128, C4A2000000000000), BinData(128, C4A2FFFFFFFFFFFF)]",
+                "[BinData(128, C4A8000000000000), BinData(128, C4ABFFFFFFFFFFFF)]",
+                "[BinData(128, C4AC000000000000), BinData(128, C4AFFFFFFFFFFFFF)]",
+                "[BinData(128, C4B0000000000000), BinData(128, C4B3FFFFFFFFFFFF)]",
+                "[BinData(128, C4B8000000000000), BinData(128, C4B83FFFFFFFFFFF)]"
+              ]
+            }
+          }
+        },
+        {
+          "stage": "FETCH",
+          "filter": {
+            "$TwoDPtInAnnulusExpression": true
+          },
+          "inputStage": {
+            "stage": "IXSCAN",
+            "keyPattern": {
+              "pos": "2d"
+            },
+            "indexName": "pos_2d",
+            "isMultiKey": false,
+            "isUnique": false,
+            "isSparse": false,
+            "isPartial": false,
+            "indexVersion": {
+              "$numberInt": "2"
+            },
+            "direction": "forward",
+            "indexBounds": {
+              "pos": [
+                "[BinData(128, C170000000000000), BinData(128, C17FFFFFFFFFFFFF)]",
+                "[BinData(128, C1D0000000000000), BinData(128, C1D3FFFFFFFFFFFF)]",
+                "[BinData(128, C1D4000000000000), BinData(128, C1D4FFFFFFFFFFFF)]",
+                "[BinData(128, C1D5000000000000), BinData(128, C1D5FFFFFFFFFFFF)]",
+                "[BinData(128, C1D6000000000000), BinData(128, C1D6FFFFFFFFFFFF)]",
+                "[BinData(128, C1D8000000000000), BinData(128, C1DBFFFFFFFFFFFF)]",
+                "[BinData(128, C1DC000000000000), BinData(128, C1DCFFFFFFFFFFFF)]",
+                "[BinData(128, C1DE000000000000), BinData(128, C1DEFFFFFFFFFFFF)]",
+                "[BinData(128, C1F0000000000000), BinData(128, C1F3FFFFFFFFFFFF)]",
+                "[BinData(128, C1F8000000000000), BinData(128, C1FBFFFFFFFFFFFF)]",
+                "[BinData(128, C1FC000000000000), BinData(128, C1FFFFFFFFFFFFFF)]",
+                "[BinData(128, C351500000000000), BinData(128, C3515FFFFFFFFFFF)]",
+                "[BinData(128, C354000000000000), BinData(128, C357FFFFFFFFFFFF)]",
+                "[BinData(128, C420000000000000), BinData(128, C42FFFFFFFFFFFFF)]",
+                "[BinData(128, C430000000000000), BinData(128, C43FFFFFFFFFFFFF)]",
+                "[BinData(128, C494000000000000), BinData(128, C497FFFFFFFFFFFF)]",
+                "[BinData(128, C49C000000000000), BinData(128, C49FFFFFFFFFFFFF)]",
+                "[BinData(128, C4B4000000000000), BinData(128, C4B7FFFFFFFFFFFF)]",
+                "[BinData(128, C4B8400000000000), BinData(128, C4B87FFFFFFFFFFF)]",
+                "[BinData(128, C4B8800000000000), BinData(128, C4B8BFFFFFFFFFFF)]",
+                "[BinData(128, C4B8C00000000000), BinData(128, C4B8FFFFFFFFFFFF)]",
+                "[BinData(128, C4B9000000000000), BinData(128, C4B9FFFFFFFFFFFF)]",
+                "[BinData(128, C4BA000000000000), BinData(128, C4BAFFFFFFFFFFFF)]",
+                "[BinData(128, C4BB000000000000), BinData(128, C4BBFFFFFFFFFFFF)]",
+                "[BinData(128, C4BC000000000000), BinData(128, C4BFFFFFFFFFFFFF)]",
+                "[BinData(128, C4C0000000000000), BinData(128, C4CFFFFFFFFFFFFF)]",
+                "[BinData(128, C4E0000000000000), BinData(128, C4EFFFFFFFFFFFFF)]",
+                "[BinData(128, C600000000000000), BinData(128, C603FFFFFFFFFFFF)]",
+                "[BinData(128, C604000000000000), BinData(128, C607FFFFFFFFFFFF)]",
+                "[BinData(128, C610000000000000), BinData(128, C61FFFFFFFFFFFFF)]"
+              ]
+            }
+          }
+        },
+        {
+          "stage": "FETCH",
+          "filter": {
+            "$TwoDPtInAnnulusExpression": true
+          },
+          "inputStage": {
+            "stage": "IXSCAN",
+            "keyPattern": {
+              "pos": "2d"
+            },
+            "indexName": "pos_2d",
+            "isMultiKey": false,
+            "isUnique": false,
+            "isSparse": false,
+            "isPartial": false,
+            "indexVersion": {
+              "$numberInt": "2"
+            },
+            "direction": "forward",
+            "indexBounds": {
+              "pos": [
+                "[BinData(128, 6BFC000000000000), BinData(128, 6BFFFFFFFFFFFFFF)]",
+                "[BinData(128, 6EA0000000000000), BinData(128, 6EAFFFFFFFFFFFFF)]",
+                "[BinData(128, 6EB8000000000000), BinData(128, 6EBBFFFFFFFFFFFF)]",
+                "[BinData(128, C130000000000000), BinData(128, C13FFFFFFFFFFFFF)]",
+                "[BinData(128, C140000000000000), BinData(128, C14FFFFFFFFFFFFF)]",
+                "[BinData(128, C150000000000000), BinData(128, C15FFFFFFFFFFFFF)]",
+                "[BinData(128, C160000000000000), BinData(128, C16FFFFFFFFFFFFF)]",
+                "[BinData(128, C190000000000000), BinData(128, C19FFFFFFFFFFFFF)]",
+                "[BinData(128, C1B0000000000000), BinData(128, C1BFFFFFFFFFFFFF)]",
+                "[BinData(128, C1C0000000000000), BinData(128, C1CFFFFFFFFFFFFF)]",
+                "[BinData(128, C1E0000000000000), BinData(128, C1EFFFFFFFFFFFFF)]",
+                "[BinData(128, C310000000000000), BinData(128, C31FFFFFFFFFFFFF)]",
+                "[BinData(128, C340000000000000), BinData(128, C34FFFFFFFFFFFFF)]",
+                "[BinData(128, C350000000000000), BinData(128, C350FFFFFFFFFFFF)]",
+                "[BinData(128, C351000000000000), BinData(128, C3513FFFFFFFFFFF)]",
+                "[BinData(128, C351400000000000), BinData(128, C3514FFFFFFFFFFF)]",
+                "[BinData(128, C351600000000000), BinData(128, C3516FFFFFFFFFFF)]",
+                "[BinData(128, C351700000000000), BinData(128, C3517FFFFFFFFFFF)]",
+                "[BinData(128, C351800000000000), BinData(128, C351BFFFFFFFFFFF)]",
+                "[BinData(128, C351C00000000000), BinData(128, C351FFFFFFFFFFFF)]",
+                "[BinData(128, C352000000000000), BinData(128, C352FFFFFFFFFFFF)]",
+                "[BinData(128, C353000000000000), BinData(128, C353FFFFFFFFFFFF)]",
+                "[BinData(128, C358000000000000), BinData(128, C35BFFFFFFFFFFFF)]",
+                "[BinData(128, C35C000000000000), BinData(128, C35FFFFFFFFFFFFF)]",
+                "[BinData(128, C360000000000000), BinData(128, C36FFFFFFFFFFFFF)]",
+                "[BinData(128, C370000000000000), BinData(128, C37FFFFFFFFFFFFF)]",
+                "[BinData(128, C400000000000000), BinData(128, C40FFFFFFFFFFFFF)]",
+                "[BinData(128, C410000000000000), BinData(128, C41FFFFFFFFFFFFF)]",
+                "[BinData(128, C440000000000000), BinData(128, C47FFFFFFFFFFFFF)]",
+                "[BinData(128, C4D0000000000000), BinData(128, C4DFFFFFFFFFFFFF)]",
+                "[BinData(128, C4F0000000000000), BinData(128, C4FFFFFFFFFFFFFF)]",
+                "[BinData(128, C608000000000000), BinData(128, C60BFFFFFFFFFFFF)]",
+                "[BinData(128, C60C000000000000), BinData(128, C60FFFFFFFFFFFFF)]",
+                "[BinData(128, C620000000000000), BinData(128, C62FFFFFFFFFFFFF)]",
+                "[BinData(128, C630000000000000), BinData(128, C63FFFFFFFFFFFFF)]",
+                "[BinData(128, C640000000000000), BinData(128, C67FFFFFFFFFFFFF)]"
+              ]
+            }
+          }
+        },
+        {
+          "stage": "FETCH",
+          "filter": {
+            "$TwoDPtInAnnulusExpression": true
+          },
+          "inputStage": {
+            "stage": "IXSCAN",
+            "keyPattern": {
+              "pos": "2d"
+            },
+            "indexName": "pos_2d",
+            "isMultiKey": false,
+            "isUnique": false,
+            "isSparse": false,
+            "isPartial": false,
+            "indexVersion": {
+              "$numberInt": "2"
+            },
+            "direction": "forward",
+            "indexBounds": {
+              "pos": [
+                "[BinData(128, 6AC0000000000000), BinData(128, 6AFFFFFFFFFFFFFF)]",
+                "[BinData(128, 6B00000000000000), BinData(128, 6B3FFFFFFFFFFFFF)]",
+                "[BinData(128, 6B40000000000000), BinData(128, 6B7FFFFFFFFFFFFF)]",
+                "[BinData(128, 6B80000000000000), BinData(128, 6BBFFFFFFFFFFFFF)]",
+                "[BinData(128, 6BC0000000000000), BinData(128, 6BCFFFFFFFFFFFFF)]",
+                "[BinData(128, 6BD0000000000000), BinData(128, 6BDFFFFFFFFFFFFF)]",
+                "[BinData(128, 6BE0000000000000), BinData(128, 6BEFFFFFFFFFFFFF)]",
+                "[BinData(128, 6BF0000000000000), BinData(128, 6BF3FFFFFFFFFFFF)]",
+                "[BinData(128, 6BF4000000000000), BinData(128, 6BF7FFFFFFFFFFFF)]",
+                "[BinData(128, 6BF8000000000000), BinData(128, 6BFBFFFFFFFFFFFF)]",
+                "[BinData(128, 6E00000000000000), BinData(128, 6E3FFFFFFFFFFFFF)]",
+                "[BinData(128, 6E40000000000000), BinData(128, 6E7FFFFFFFFFFFFF)]",
+                "[BinData(128, 6E80000000000000), BinData(128, 6E8FFFFFFFFFFFFF)]",
+                "[BinData(128, 6E90000000000000), BinData(128, 6E9FFFFFFFFFFFFF)]",
+                "[BinData(128, 6EB0000000000000), BinData(128, 6EB3FFFFFFFFFFFF)]",
+                "[BinData(128, 6EB4000000000000), BinData(128, 6EB7FFFFFFFFFFFF)]",
+                "[BinData(128, 6EBC000000000000), BinData(128, 6EBFFFFFFFFFFFFF)]",
+                "[BinData(128, 6EC0000000000000), BinData(128, 6EFFFFFFFFFFFFFF)]",
+                "[BinData(128, 6F2A800000000000), BinData(128, 6F2ABFFFFFFFFFFF)]",
+                "[BinData(128, 6F80000000000000), BinData(128, 6FBFFFFFFFFFFFFF)]",
+                "[BinData(128, C000000000000000), BinData(128, C0FFFFFFFFFFFFFF)]",
+                "[BinData(128, C100000000000000), BinData(128, C10FFFFFFFFFFFFF)]",
+                "[BinData(128, C110000000000000), BinData(128, C11FFFFFFFFFFFFF)]",
+                "[BinData(128, C120000000000000), BinData(128, C12FFFFFFFFFFFFF)]",
+                "[BinData(128, C180000000000000), BinData(128, C18FFFFFFFFFFFFF)]",
+                "[BinData(128, C1A0000000000000), BinData(128, C1AFFFFFFFFFFFFF)]",
+                "[BinData(128, C200000000000000), BinData(128, C2FFFFFFFFFFFFFF)]",
+                "[BinData(128, C300000000000000), BinData(128, C30FFFFFFFFFFFFF)]",
+                "[BinData(128, C320000000000000), BinData(128, C32FFFFFFFFFFFFF)]",
+                "[BinData(128, C330000000000000), BinData(128, C33FFFFFFFFFFFFF)]",
+                "[BinData(128, C380000000000000), BinData(128, C3BFFFFFFFFFFFFF)]",
+                "[BinData(128, C3C0000000000000), BinData(128, C3FFFFFFFFFFFFFF)]",
+                "[BinData(128, C500000000000000), BinData(128, C5FFFFFFFFFFFFFF)]",
+                "[BinData(128, C680000000000000), BinData(128, C6BFFFFFFFFFFFFF)]",
+                "[BinData(128, C6C0000000000000), BinData(128, C6FFFFFFFFFFFFFF)]",
+                "[BinData(128, C700000000000000), BinData(128, C7FFFFFFFFFFFFFF)]",
+                "[BinData(128, C910000000000000), BinData(128, C91FFFFFFFFFFFFF)]",
+                "[BinData(128, C940000000000000), BinData(128, C97FFFFFFFFFFFFF)]",
+                "[BinData(128, CC00000000000000), BinData(128, CCFFFFFFFFFFFFFF)]"
+              ]
+            }
+          }
+        },
+        {
+          "stage": "FETCH",
+          "filter": {
+            "$TwoDPtInAnnulusExpression": true
+          },
+          "inputStage": {
+            "stage": "IXSCAN",
+            "keyPattern": {
+              "pos": "2d"
+            },
+            "indexName": "pos_2d",
+            "isMultiKey": false,
+            "isUnique": false,
+            "isSparse": false,
+            "isPartial": false,
+            "indexVersion": {
+              "$numberInt": "2"
+            },
+            "direction": "forward",
+            "indexBounds": {
+              "pos": [
+                "[BinData(128, 3DC0000000000000), BinData(128, 3DFFFFFFFFFFFFFF)]",
+                "[BinData(128, 3F00000000000000), BinData(128, 3FFFFFFFFFFFFFFF)]",
+                "[BinData(128, 6000000000000000), BinData(128, 63FFFFFFFFFFFFFF)]",
+                "[BinData(128, 6400000000000000), BinData(128, 67FFFFFFFFFFFFFF)]",
+                "[BinData(128, 6800000000000000), BinData(128, 68FFFFFFFFFFFFFF)]",
+                "[BinData(128, 6900000000000000), BinData(128, 69FFFFFFFFFFFFFF)]",
+                "[BinData(128, 6A00000000000000), BinData(128, 6A3FFFFFFFFFFFFF)]",
+                "[BinData(128, 6A40000000000000), BinData(128, 6A7FFFFFFFFFFFFF)]",
+                "[BinData(128, 6A80000000000000), BinData(128, 6ABFFFFFFFFFFFFF)]",
+                "[BinData(128, 6C00000000000000), BinData(128, 6CFFFFFFFFFFFFFF)]",
+                "[BinData(128, 6D00000000000000), BinData(128, 6DFFFFFFFFFFFFFF)]",
+                "[BinData(128, 6F00000000000000), BinData(128, 6F0FFFFFFFFFFFFF)]",
+                "[BinData(128, 6F10000000000000), BinData(128, 6F1FFFFFFFFFFFFF)]",
+                "[BinData(128, 6F20000000000000), BinData(128, 6F23FFFFFFFFFFFF)]",
+                "[BinData(128, 6F24000000000000), BinData(128, 6F27FFFFFFFFFFFF)]",
+                "[BinData(128, 6F28000000000000), BinData(128, 6F28FFFFFFFFFFFF)]",
+                "[BinData(128, 6F29000000000000), BinData(128, 6F29FFFFFFFFFFFF)]",
+                "[BinData(128, 6F2A000000000000), BinData(128, 6F2A3FFFFFFFFFFF)]",
+                "[BinData(128, 6F2A400000000000), BinData(128, 6F2A7FFFFFFFFFFF)]",
+                "[BinData(128, 6F2AC00000000000), BinData(128, 6F2AFFFFFFFFFFFF)]",
+                "[BinData(128, 6F2B000000000000), BinData(128, 6F2BFFFFFFFFFFFF)]",
+                "[BinData(128, 6F2C000000000000), BinData(128, 6F2FFFFFFFFFFFFF)]",
+                "[BinData(128, 6F30000000000000), BinData(128, 6F3FFFFFFFFFFFFF)]",
+                "[BinData(128, 6F40000000000000), BinData(128, 6F7FFFFFFFFFFFFF)]",
+                "[BinData(128, 6FC0000000000000), BinData(128, 6FFFFFFFFFFFFFFF)]",
+                "[BinData(128, 7800000000000000), BinData(128, 7BFFFFFFFFFFFFFF)]",
+                "[BinData(128, 9500000000000000), BinData(128, 95FFFFFFFFFFFFFF)]",
+                "[BinData(128, 9700000000000000), BinData(128, 97FFFFFFFFFFFFFF)]",
+                "[BinData(128, 9D00000000000000), BinData(128, 9DFFFFFFFFFFFFFF)]",
+                "[BinData(128, C800000000000000), BinData(128, C8FFFFFFFFFFFFFF)]",
+                "[BinData(128, C900000000000000), BinData(128, C90FFFFFFFFFFFFF)]",
+                "[BinData(128, C920000000000000), BinData(128, C92FFFFFFFFFFFFF)]",
+                "[BinData(128, C930000000000000), BinData(128, C93FFFFFFFFFFFFF)]",
+                "[BinData(128, C980000000000000), BinData(128, C9BFFFFFFFFFFFFF)]",
+                "[BinData(128, C9C0000000000000), BinData(128, C9FFFFFFFFFFFFFF)]",
+                "[BinData(128, CA00000000000000), BinData(128, CAFFFFFFFFFFFFFF)]",
+                "[BinData(128, CB00000000000000), BinData(128, CBFFFFFFFFFFFFFF)]",
+                "[BinData(128, CD00000000000000), BinData(128, CDFFFFFFFFFFFFFF)]",
+                "[BinData(128, CE00000000000000), BinData(128, CEFFFFFFFFFFFFFF)]",
+                "[BinData(128, CF00000000000000), BinData(128, CFFFFFFFFFFFFFFF)]",
+                "[BinData(128, D000000000000000), BinData(128, D3FFFFFFFFFFFFFF)]",
+                "[BinData(128, D800000000000000), BinData(128, DBFFFFFFFFFFFFFF)]"
+              ]
+            }
+          }
+        },
+        {
+          "stage": "FETCH",
+          "filter": {
+            "$TwoDPtInAnnulusExpression": true
+          },
+          "inputStage": {
+            "stage": "IXSCAN",
+            "keyPattern": {
+              "pos": "2d"
+            },
+            "indexName": "pos_2d",
+            "isMultiKey": false,
+            "isUnique": false,
+            "isSparse": false,
+            "isPartial": false,
+            "indexVersion": {
+              "$numberInt": "2"
+            },
+            "direction": "forward",
+            "indexBounds": {
+              "pos": [
+                "[BinData(128, 1C00000000000000), BinData(128, 1FFFFFFFFFFFFFFF)]",
+                "[BinData(128, 3000000000000000), BinData(128, 33FFFFFFFFFFFFFF)]",
+                "[BinData(128, 3400000000000000), BinData(128, 37FFFFFFFFFFFFFF)]",
+                "[BinData(128, 3800000000000000), BinData(128, 3BFFFFFFFFFFFFFF)]",
+                "[BinData(128, 3C00000000000000), BinData(128, 3CFFFFFFFFFFFFFF)]",
+                "[BinData(128, 3D00000000000000), BinData(128, 3D3FFFFFFFFFFFFF)]",
+                "[BinData(128, 3D40000000000000), BinData(128, 3D7FFFFFFFFFFFFF)]",
+                "[BinData(128, 3D80000000000000), BinData(128, 3DBFFFFFFFFFFFFF)]",
+                "[BinData(128, 3E00000000000000), BinData(128, 3EFFFFFFFFFFFFFF)]",
+                "[BinData(128, 4800000000000000), BinData(128, 4BFFFFFFFFFFFFFF)]",
+                "[BinData(128, 4C00000000000000), BinData(128, 4FFFFFFFFFFFFFFF)]",
+                "[BinData(128, 5800000000000000), BinData(128, 5BFFFFFFFFFFFFFF)]",
+                "[BinData(128, 7000000000000000), BinData(128, 73FFFFFFFFFFFFFF)]",
+                "[BinData(128, 7400000000000000), BinData(128, 77FFFFFFFFFFFFFF)]",
+                "[BinData(128, 7C00000000000000), BinData(128, 7FFFFFFFFFFFFFFF)]",
+                "[BinData(128, 9000000000000000), BinData(128, 93FFFFFFFFFFFFFF)]",
+                "[BinData(128, 9400000000000000), BinData(128, 94FFFFFFFFFFFFFF)]",
+                "[BinData(128, 9600000000000000), BinData(128, 96FFFFFFFFFFFFFF)]",
+                "[BinData(128, 9800000000000000), BinData(128, 9BFFFFFFFFFFFFFF)]",
+                "[BinData(128, 9C00000000000000), BinData(128, 9CFFFFFFFFFFFFFF)]",
+                "[BinData(128, 9E00000000000000), BinData(128, 9EFFFFFFFFFFFFFF)]",
+                "[BinData(128, 9F00000000000000), BinData(128, 9FFFFFFFFFFFFFFF)]",
+                "[BinData(128, B000000000000000), BinData(128, B3FFFFFFFFFFFFFF)]",
+                "[BinData(128, B400000000000000), BinData(128, B7FFFFFFFFFFFFFF)]",
+                "[BinData(128, BD00000000000000), BinData(128, BDFFFFFFFFFFFFFF)]",
+                "[BinData(128, D400000000000000), BinData(128, D7FFFFFFFFFFFFFF)]",
+                "[BinData(128, DC00000000000000), BinData(128, DFFFFFFFFFFFFFFF)]",
+                "[BinData(128, E000000000000000), BinData(128, EFFFFFFFFFFFFFFF)]",
+                "[BinData(128, F000000000000000), BinData(128, FFFFFFFFFFFFFFFF)]"
+              ]
+            }
+          }
+        },
+        {
+          "stage": "FETCH",
+          "filter": {
+            "$TwoDPtInAnnulusExpression": true
+          },
+          "inputStage": {
+            "stage": "IXSCAN",
+            "keyPattern": {
+              "pos": "2d"
+            },
+            "indexName": "pos_2d",
+            "isMultiKey": false,
+            "isUnique": false,
+            "isSparse": false,
+            "isPartial": false,
+            "indexVersion": {
+              "$numberInt": "2"
+            },
+            "direction": "forward",
+            "indexBounds": {
+              "pos": [
+                "[BinData(128, 0000000000000000), BinData(128, 0FFFFFFFFFFFFFFF)]",
+                "[BinData(128, 1000000000000000), BinData(128, 13FFFFFFFFFFFFFF)]",
+                "[BinData(128, 1400000000000000), BinData(128, 17FFFFFFFFFFFFFF)]",
+                "[BinData(128, 1800000000000000), BinData(128, 1BFFFFFFFFFFFFFF)]",
+                "[BinData(128, 2000000000000000), BinData(128, 2FFFFFFFFFFFFFFF)]",
+                "[BinData(128, 4000000000000000), BinData(128, 43FFFFFFFFFFFFFF)]",
+                "[BinData(128, 4400000000000000), BinData(128, 47FFFFFFFFFFFFFF)]",
+                "[BinData(128, 5000000000000000), BinData(128, 53FFFFFFFFFFFFFF)]",
+                "[BinData(128, 5400000000000000), BinData(128, 57FFFFFFFFFFFFFF)]",
+                "[BinData(128, 5C00000000000000), BinData(128, 5FFFFFFFFFFFFFFF)]",
+                "[BinData(128, 8000000000000000), BinData(128, 8FFFFFFFFFFFFFFF)]",
+                "[BinData(128, A000000000000000), BinData(128, AFFFFFFFFFFFFFFF)]",
+                "[BinData(128, B800000000000000), BinData(128, BBFFFFFFFFFFFFFF)]",
+                "[BinData(128, BC00000000000000), BinData(128, BCFFFFFFFFFFFFFF)]",
+                "[BinData(128, BE00000000000000), BinData(128, BEFFFFFFFFFFFFFF)]",
+                "[BinData(128, BF00000000000000), BinData(128, BFFFFFFFFFFFFFFF)]"
+              ]
+            }
+          }
+        },
+        {
+          "stage": "FETCH",
+          "filter": {
+            "$TwoDPtInAnnulusExpression": true
+          },
+          "inputStage": {
+            "stage": "IXSCAN",
+            "keyPattern": {
+              "pos": "2d"
+            },
+            "indexName": "pos_2d",
+            "isMultiKey": false,
+            "isUnique": false,
+            "isSparse": false,
+            "isPartial": false,
+            "indexVersion": {
+              "$numberInt": "2"
+            },
+            "direction": "forward",
+            "indexBounds": {
+              "pos": []
+            }
+          }
+        }
+      ]
+    },
+    "rejectedPlans": []
+  },
+  "executionStats": {
+    "executionSuccess": true,
+    "nReturned": {
+      "$numberInt": "3000"
+    },
+    "executionTimeMillis": {
+      "$numberInt": "5"
+    },
+    "totalKeysExamined": {
+      "$numberInt": "3046"
+    },
+    "totalDocsExamined": {
+      "$numberInt": "3000"
+    },
+    "executionStages": {
+      "isCached": false,
+      "stage": "GEO_NEAR_2D",
+      "nReturned": {
+        "$numberInt": "3000"
+      },
+      "executionTimeMillisEstimate": {
+        "$numberInt": "5"
+      },
+      "works": {
+        "$numberInt": "6096"
+      },
+      "advanced": {
+        "$numberInt": "3000"
+      },
+      "needTime": {
+        "$numberInt": "3095"
+      },
+      "needYield": {
+        "$numberInt": "0"
+      },
+      "saveState": {
+        "$numberInt": "0"
+      },
+      "restoreState": {
+        "$numberInt": "0"
+      },
+      "isEOF": {
+        "$numberInt": "1"
+      },
+      "keyPattern": {
+        "pos": "2d"
+      },
+      "indexName": "pos_2d",
+      "indexVersion": {
+        "$numberInt": "2"
+      },
+      "searchIntervals": [
+        {
+          "minDistance": {
+            "$numberDouble": "0.0"
+          },
+          "maxDistance": {
+            "$numberDouble": "0.06591796875"
+          },
+          "maxInclusive": false,
+          "nBuffered": {
+            "$numberInt": "270"
+          },
+          "nReturned": {
+            "$numberInt": "210"
+          }
+        },
+        {
+          "minDistance": {
+            "$numberDouble": "0.06591796875"
+          },
+          "maxDistance": {
+            "$numberDouble": "0.19775390625"
+          },
+          "maxInclusive": false,
+          "nBuffered": {
+            "$numberInt": "2055"
+          },
+          "nReturned": {
+            "$numberInt": "1650"
+          }
+        },
+        {
+          "minDistance": {
+            "$numberDouble": "0.19775390625"
+          },
+          "maxDistance": {
+            "$numberDouble": "0.263671875"
+          },
+          "maxInclusive": false,
+          "nBuffered": {
+            "$numberInt": "585"
+          },
+          "nReturned": {
+            "$numberInt": "630"
+          }
+        },
+        {
+          "minDistance": {
+            "$numberDouble": "0.263671875"
+          },
+          "maxDistance": {
+            "$numberDouble": "0.296630859375"
+          },
+          "maxInclusive": false,
+          "nBuffered": {
+            "$numberInt": "90"
+          },
+          "nReturned": {
+            "$numberInt": "180"
+          }
+        },
+        {
+          "minDistance": {
+            "$numberDouble": "0.296630859375"
+          },
+          "maxDistance": {
+            "$numberDouble": "0.362548828125"
+          },
+          "maxInclusive": false,
+          "nBuffered": {
+            "$numberInt": "0"
+          },
+          "nReturned": {
+            "$numberInt": "315"
+          }
+        },
+        {
+          "minDistance": {
+            "$numberDouble": "0.362548828125"
+          },
+          "maxDistance": {
+            "$numberDouble": "0.428466796875"
+          },
+          "maxInclusive": false,
+          "nBuffered": {
+            "$numberInt": "0"
+          },
+          "nReturned": {
+            "$numberInt": "15"
+          }
+        },
+        {
+          "minDistance": {
+            "$numberDouble": "0.428466796875"
+          },
+          "maxDistance": {
+            "$numberDouble": "0.560302734375"
+          },
+          "maxInclusive": false,
+          "nBuffered": {
+            "$numberInt": "0"
+          },
+          "nReturned": {
+            "$numberInt": "0"
+          }
+        },
+        {
+          "minDistance": {
+            "$numberDouble": "0.560302734375"
+          },
+          "maxDistance": {
+            "$numberDouble": "0.823974609375"
+          },
+          "maxInclusive": false,
+          "nBuffered": {
+            "$numberInt": "0"
+          },
+          "nReturned": {
+            "$numberInt": "0"
+          }
+        },
+        {
+          "minDistance": {
+            "$numberDouble": "0.823974609375"
+          },
+          "maxDistance": {
+            "$numberDouble": "1.351318359375"
+          },
+          "maxInclusive": false,
+          "nBuffered": {
+            "$numberInt": "0"
+          },
+          "nReturned": {
+            "$numberInt": "0"
+          }
+        },
+        {
+          "minDistance": {
+            "$numberDouble": "1.351318359375"
+          },
+          "maxDistance": {
+            "$numberDouble": "2.406005859375"
+          },
+          "maxInclusive": false,
+          "nBuffered": {
+            "$numberInt": "0"
+          },
+          "nReturned": {
+            "$numberInt": "0"
+          }
+        },
+        {
+          "minDistance": {
+            "$numberDouble": "2.406005859375"
+          },
+          "maxDistance": {
+            "$numberDouble": "4.515380859375"
+          },
+          "maxInclusive": false,
+          "nBuffered": {
+            "$numberInt": "0"
+          },
+          "nReturned": {
+            "$numberInt": "0"
+          }
+        },
+        {
+          "minDistance": {
+            "$numberDouble": "4.515380859375"
+          },
+          "maxDistance": {
+            "$numberDouble": "8.734130859375"
+          },
+          "maxInclusive": false,
+          "nBuffered": {
+            "$numberInt": "0"
+          },
+          "nReturned": {
+            "$numberInt": "0"
+          }
+        },
+        {
+          "minDistance": {
+            "$numberDouble": "8.734130859375"
+          },
+          "maxDistance": {
+            "$numberDouble": "17.171630859375"
+          },
+          "maxInclusive": false,
+          "nBuffered": {
+            "$numberInt": "0"
+          },
+          "nReturned": {
+            "$numberInt": "0"
+          }
+        },
+        {
+          "minDistance": {
+            "$numberDouble": "17.171630859375"
+          },
+          "maxDistance": {
+            "$numberDouble": "34.046630859375"
+          },
+          "maxInclusive": false,
+          "nBuffered": {
+            "$numberInt": "0"
+          },
+          "nReturned": {
+            "$numberInt": "0"
+          }
+        },
+        {
+          "minDistance": {
+            "$numberDouble": "34.046630859375"
+          },
+          "maxDistance": {
+            "$numberDouble": "67.796630859375"
+          },
+          "maxInclusive": false,
+          "nBuffered": {
+            "$numberInt": "0"
+          },
+          "nReturned": {
+            "$numberInt": "0"
+          }
+        },
+        {
+          "minDistance": {
+            "$numberDouble": "67.796630859375"
+          },
+          "maxDistance": {
+            "$numberDouble": "135.296630859375"
+          },
+          "maxInclusive": false,
+          "nBuffered": {
+            "$numberInt": "0"
+          },
+          "nReturned": {
+            "$numberInt": "0"
+          }
+        },
+        {
+          "minDistance": {
+            "$numberDouble": "135.296630859375"
+          },
+          "maxDistance": {
+            "$numberDouble": "270.296630859375"
+          },
+          "maxInclusive": false,
+          "nBuffered": {
+            "$numberInt": "0"
+          },
+          "nReturned": {
+            "$numberInt": "0"
+          }
+        },
+        {
+          "minDistance": {
+            "$numberDouble": "270.296630859375"
+          },
+          "maxDistance": {
+            "$numberDouble": "540.0000000000001"
+          },
+          "maxInclusive": true,
+          "nBuffered": {
+            "$numberInt": "0"
+          },
+          "nReturned": {
+            "$numberInt": "0"
+          }
+        }
+      ],
+      "inputStages": [
+        {
+          "stage": "FETCH",
+          "filter": {
+            "$TwoDPtInAnnulusExpression": true
+          },
+          "nReturned": {
+            "$numberInt": "270"
+          },
+          "executionTimeMillisEstimate": {
+            "$numberInt": "0"
+          },
+          "works": {
+            "$numberInt": "279"
+          },
+          "advanced": {
+            "$numberInt": "270"
+          },
+          "needTime": {
+            "$numberInt": "8"
+          },
+          "needYield": {
+            "$numberInt": "0"
+          },
+          "saveState": {
+            "$numberInt": "0"
+          },
+          "restoreState": {
+            "$numberInt": "0"
+          },
+          "isEOF": {
+            "$numberInt": "1"
+          },
+          "docsExamined": {
+            "$numberInt": "270"
+          },
+          "alreadyHasObj": {
+            "$numberInt": "0"
+          },
+          "inputStage": {
+            "stage": "IXSCAN",
+            "nReturned": {
+              "$numberInt": "270"
+            },
+            "executionTimeMillisEstimate": {
+              "$numberInt": "0"
+            },
+            "works": {
+              "$numberInt": "279"
+            },
+            "advanced": {
+              "$numberInt": "270"
+            },
+            "needTime": {
+              "$numberInt": "8"
+            },
+            "needYield": {
+              "$numberInt": "0"
+            },
+            "saveState": {
+              "$numberInt": "0"
+            },
+            "restoreState": {
+              "$numberInt": "0"
+            },
+            "isEOF": {
+              "$numberInt": "1"
+            },
+            "keyPattern": {
+              "pos": "2d"
+            },
+            "indexName": "pos_2d",
+            "isMultiKey": false,
+            "isUnique": false,
+            "isSparse": false,
+            "isPartial": false,
+            "indexVersion": {
+              "$numberInt": "2"
+            },
+            "direction": "forward",
+            "indexBounds": {
+              "pos": [
+                "[BinData(128, C48E87D000000000), BinData(128, C48E87DFFFFFFFFF)]",
+                "[BinData(128, C48E87EC00000000), BinData(128, C48E87EFFFFFFFFF)]",
+                "[BinData(128, C48E87F000000000), BinData(128, C48E87FFFFFFFFFF)]",
+                "[BinData(128, C48E8D4000000000), BinData(128, C48E8D7FFFFFFFFF)]",
+                "[BinData(128, C48E8DC000000000), BinData(128, C48E8DFFFFFFFFFF)]",
+                "[BinData(128, C48E928000000000), BinData(128, C48E92BFFFFFFFFF)]",
+                "[BinData(128, C48E92C000000000), BinData(128, C48E92FFFFFFFFFF)]",
+                "[BinData(128, C48E93A000000000), BinData(128, C48E93AFFFFFFFFF)]",
+                "[BinData(128, C48E980000000000), BinData(128, C48E98FFFFFFFFFF)]",
+                "[BinData(128, C48E990000000000), BinData(128, C48E990FFFFFFFFF)]",
+                "[BinData(128, C48E992000000000), BinData(128, C48E992FFFFFFFFF)]",
+                "[BinData(128, C48E998000000000), BinData(128, C48E998FFFFFFFFF)]",
+                "[BinData(128, C48E9A1000000000), BinData(128, C48E9A1FFFFFFFFF)]"
+              ]
+            },
+            "keysExamined": {
+              "$numberInt": "279"
+            },
+            "seeks": {
+              "$numberInt": "9"
+            },
+            "dupsTested": {
+              "$numberInt": "0"
+            },
+            "dupsDropped": {
+              "$numberInt": "0"
+            }
+          }
+        },
+        {
+          "stage": "FETCH",
+          "filter": {
+            "$TwoDPtInAnnulusExpression": true
+          },
+          "nReturned": {
+            "$numberInt": "2055"
+          },
+          "executionTimeMillisEstimate": {
+            "$numberInt": "0"
+          },
+          "works": {
+            "$numberInt": "2065"
+          },
+          "advanced": {
+            "$numberInt": "2055"
+          },
+          "needTime": {
+            "$numberInt": "9"
+          },
+          "needYield": {
+            "$numberInt": "0"
+          },
+          "saveState": {
+            "$numberInt": "0"
+          },
+          "restoreState": {
+            "$numberInt": "0"
+          },
+          "isEOF": {
+            "$numberInt": "1"
+          },
+          "docsExamined": {
+            "$numberInt": "2055"
+          },
+          "alreadyHasObj": {
+            "$numberInt": "0"
+          },
+          "inputStage": {
+            "stage": "IXSCAN",
+            "nReturned": {
+              "$numberInt": "2055"
+            },
+            "executionTimeMillisEstimate": {
+              "$numberInt": "0"
+            },
+            "works": {
+              "$numberInt": "2065"
+            },
+            "advanced": {
+              "$numberInt": "2055"
+            },
+            "needTime": {
+              "$numberInt": "9"
+            },
+            "needYield": {
+              "$numberInt": "0"
+            },
+            "saveState": {
+              "$numberInt": "0"
+            },
+            "restoreState": {
+              "$numberInt": "0"
+            },
+            "isEOF": {
+              "$numberInt": "1"
+            },
+            "keyPattern": {
+              "pos": "2d"
+            },
+            "indexName": "pos_2d",
+            "isMultiKey": false,
+            "isUnique": false,
+            "isSparse": false,
+            "isPartial": false,
+            "indexVersion": {
+              "$numberInt": "2"
+            },
+            "direction": "forward",
+            "indexBounds": {
+              "pos": [
+                "[BinData(128, C48E840000000000), BinData(128, C48E84FFFFFFFFFF)]",
+                "[BinData(128, C48E850000000000), BinData(128, C48E85FFFFFFFFFF)]",
+                "[BinData(128, C48E860000000000), BinData(128, C48E86FFFFFFFFFF)]",
+                "[BinData(128, C48E870000000000), BinData(128, C48E873FFFFFFFFF)]",
+                "[BinData(128, C48E874000000000), BinData(128, C48E877FFFFFFFFF)]",
+                "[BinData(128, C48E878000000000), BinData(128, C48E87BFFFFFFFFF)]",
+                "[BinData(128, C48E87C000000000), BinData(128, C48E87CFFFFFFFFF)]",
+                "[BinData(128, C48E87E000000000), BinData(128, C48E87E3FFFFFFFF)]",
+                "[BinData(128, C48E87E400000000), BinData(128, C48E87E7FFFFFFFF)]",
+                "[BinData(128, C48E87E800000000), BinData(128, C48E87EBFFFFFFFF)]",
+                "[BinData(128, C48E8C0000000000), BinData(128, C48E8CFFFFFFFFFF)]",
+                "[BinData(128, C48E8D0000000000), BinData(128, C48E8D3FFFFFFFFF)]",
+                "[BinData(128, C48E8D8000000000), BinData(128, C48E8DBFFFFFFFFF)]",
+                "[BinData(128, C48E8E0000000000), BinData(128, C48E8EFFFFFFFFFF)]",
+                "[BinData(128, C48E8F0000000000), BinData(128, C48E8FFFFFFFFFFF)]",
+                "[BinData(128, C48E900000000000), BinData(128, C48E90FFFFFFFFFF)]",
+                "[BinData(128, C48E910000000000), BinData(128, C48E91FFFFFFFFFF)]",
+                "[BinData(128, C48E920000000000), BinData(128, C48E923FFFFFFFFF)]",
+                "[BinData(128, C48E924000000000), BinData(128, C48E927FFFFFFFFF)]",
+                "[BinData(128, C48E930000000000), BinData(128, C48E933FFFFFFFFF)]",
+                "[BinData(128, C48E934000000000), BinData(128, C48E937FFFFFFFFF)]",
+                "[BinData(128, C48E938000000000), BinData(128, C48E938FFFFFFFFF)]",
+                "[BinData(128, C48E939000000000), BinData(128, C48E939FFFFFFFFF)]",
+                "[BinData(128, C48E93B000000000), BinData(128, C48E93BFFFFFFFFF)]",
+                "[BinData(128, C48E93C000000000), BinData(128, C48E93FFFFFFFFFF)]",
+                "[BinData(128, C48E948000000000), BinData(128, C48E94BFFFFFFFFF)]",
+                "[BinData(128, C48E960000000000), BinData(128, C48E96FFFFFFFFFF)]",
+                "[BinData(128, C48E991000000000), BinData(128, C48E991FFFFFFFFF)]",
+                "[BinData(128, C48E993000000000), BinData(128, C48E993FFFFFFFFF)]",
+                "[BinData(128, C48E994000000000), BinData(128, C48E997FFFFFFFFF)]",
+                "[BinData(128, C48E999000000000), BinData(128, C48E999FFFFFFFFF)]",
+                "[BinData(128, C48E99A000000000), BinData(128, C48E99AFFFFFFFFF)]",
+                "[BinData(128, C48E99B000000000), BinData(128, C48E99BFFFFFFFFF)]",
+                "[BinData(128, C48E99C000000000), BinData(128, C48E99FFFFFFFFFF)]",
+                "[BinData(128, C48E9A0000000000), BinData(128, C48E9A0FFFFFFFFF)]",
+                "[BinData(128, C48E9A2000000000), BinData(128, C48E9A2FFFFFFFFF)]",
+                "[BinData(128, C48E9A3000000000), BinData(128, C48E9A3FFFFFFFFF)]",
+                "[BinData(128, C48E9A4000000000), BinData(128, C48E9A7FFFFFFFFF)]",
+                "[BinData(128, C48E9A8000000000), BinData(128, C48E9ABFFFFFFFFF)]",
+                "[BinData(128, C48E9AC000000000), BinData(128, C48E9AFFFFFFFFFF)]",
+                "[BinData(128, C48E9B0000000000), BinData(128, C48E9BFFFFFFFFFF)]",
+                "[BinData(128, C48E9C0000000000), BinData(128, C48E9CFFFFFFFFFF)]",
+                "[BinData(128, C48E9E0000000000), BinData(128, C48E9EFFFFFFFFFF)]",
+                "[BinData(128, C48EA45550000000), BinData(128, C48EA4555FFFFFFF)]",
+                "[BinData(128, C48EA50000000000), BinData(128, C48EA5FFFFFFFFFF)]",
+                "[BinData(128, C48EB00000000000), BinData(128, C48EB0FFFFFFFFFF)]",
+                "[BinData(128, C48EB10000000000), BinData(128, C48EB1FFFFFFFFFF)]"
+              ]
+            },
+            "keysExamined": {
+              "$numberInt": "2065"
+            },
+            "seeks": {
+              "$numberInt": "10"
+            },
+            "dupsTested": {
+              "$numberInt": "0"
+            },
+            "dupsDropped": {
+              "$numberInt": "0"
+            }
+          }
+        },
+        {
+          "stage": "FETCH",
+          "filter": {
+            "$TwoDPtInAnnulusExpression": true
+          },
+          "nReturned": {
+            "$numberInt": "585"
+          },
+          "executionTimeMillisEstimate": {
+            "$numberInt": "0"
+          },
+          "works": {
+            "$numberInt": "594"
+          },
+          "advanced": {
+            "$numberInt": "585"
+          },
+          "needTime": {
+            "$numberInt": "8"
+          },
+          "needYield": {
+            "$numberInt": "0"
+          },
+          "saveState": {
+            "$numberInt": "0"
+          },
+          "restoreState": {
+            "$numberInt": "0"
+          },
+          "isEOF": {
+            "$numberInt": "1"
+          },
+          "docsExamined": {
+            "$numberInt": "585"
+          },
+          "alreadyHasObj": {
+            "$numberInt": "0"
+          },
+          "inputStage": {
+            "stage": "IXSCAN",
+            "nReturned": {
+              "$numberInt": "585"
+            },
+            "executionTimeMillisEstimate": {
+              "$numberInt": "0"
+            },
+            "works": {
+              "$numberInt": "594"
+            },
+            "advanced": {
+              "$numberInt": "585"
+            },
+            "needTime": {
+              "$numberInt": "8"
+            },
+            "needYield": {
+              "$numberInt": "0"
+            },
+            "saveState": {
+              "$numberInt": "0"
+            },
+            "restoreState": {
+              "$numberInt": "0"
+            },
+            "isEOF": {
+              "$numberInt": "1"
+            },
+            "keyPattern": {
+              "pos": "2d"
+            },
+            "indexName": "pos_2d",
+            "isMultiKey": false,
+            "isUnique": false,
+            "isSparse": false,
+            "isPartial": false,
+            "indexVersion": {
+              "$numberInt": "2"
+            },
+            "direction": "forward",
+            "indexBounds": {
+              "pos": [
+                "[BinData(128, C48E2C0000000000), BinData(128, C48E2FFFFFFFFFFF)]",
+                "[BinData(128, C48E3A0000000000), BinData(128, C48E3AFFFFFFFFFF)]",
+                "[BinData(128, C48E3B0000000000), BinData(128, C48E3BFFFFFFFFFF)]",
+                "[BinData(128, C48E3E8000000000), BinData(128, C48E3EBFFFFFFFFF)]",
+                "[BinData(128, C48E800000000000), BinData(128, C48E83FFFFFFFFFF)]",
+                "[BinData(128, C48E880000000000), BinData(128, C48E8BFFFFFFFFFF)]",
+                "[BinData(128, C48E940000000000), BinData(128, C48E943FFFFFFFFF)]",
+                "[BinData(128, C48E944000000000), BinData(128, C48E947FFFFFFFFF)]",
+                "[BinData(128, C48E94C000000000), BinData(128, C48E94FFFFFFFFFF)]",
+                "[BinData(128, C48E950000000000), BinData(128, C48E95FFFFFFFFFF)]",
+                "[BinData(128, C48E970000000000), BinData(128, C48E97FFFFFFFFFF)]",
+                "[BinData(128, C48E9D0000000000), BinData(128, C48E9DFFFFFFFFFF)]",
+                "[BinData(128, C48E9F0000000000), BinData(128, C48E9FFFFFFFFFFF)]",
+                "[BinData(128, C48EA15500000000), BinData(128, C48EA155FFFFFFFF)]",
+                "[BinData(128, C48EA40000000000), BinData(128, C48EA43FFFFFFFFF)]",
+                "[BinData(128, C48EA44000000000), BinData(128, C48EA44FFFFFFFFF)]",
+                "[BinData(128, C48EA45000000000), BinData(128, C48EA453FFFFFFFF)]",
+                "[BinData(128, C48EA45400000000), BinData(128, C48EA454FFFFFFFF)]",
+                "[BinData(128, C48EA45500000000), BinData(128, C48EA4553FFFFFFF)]",
+                "[BinData(128, C48EA45540000000), BinData(128, C48EA4554FFFFFFF)]",
+                "[BinData(128, C48EA45560000000), BinData(128, C48EA4556FFFFFFF)]",
+                "[BinData(128, C48EA45570000000), BinData(128, C48EA4557FFFFFFF)]",
+                "[BinData(128, C48EA45580000000), BinData(128, C48EA455BFFFFFFF)]",
+                "[BinData(128, C48EA455C0000000), BinData(128, C48EA455FFFFFFFF)]",
+                "[BinData(128, C48EA45600000000), BinData(128, C48EA456FFFFFFFF)]",
+                "[BinData(128, C48EA45700000000), BinData(128, C48EA457FFFFFFFF)]",
+                "[BinData(128, C48EA45800000000), BinData(128, C48EA45BFFFFFFFF)]",
+                "[BinData(128, C48EA45C00000000), BinData(128, C48EA45FFFFFFFFF)]",
+                "[BinData(128, C48EA46000000000), BinData(128, C48EA46FFFFFFFFF)]",
+                "[BinData(128, C48EA47000000000), BinData(128, C48EA47FFFFFFFFF)]",
+                "[BinData(128, C48EA48000000000), BinData(128, C48EA4BFFFFFFFFF)]",
+                "[BinData(128, C48EA4C000000000), BinData(128, C48EA4FFFFFFFFFF)]",
+                "[BinData(128, C48EA60000000000), BinData(128, C48EA6FFFFFFFFFF)]",
+                "[BinData(128, C48EA70000000000), BinData(128, C48EA7FFFFFFFFFF)]",
+                "[BinData(128, C48EB20000000000), BinData(128, C48EB2FFFFFFFFFF)]",
+                "[BinData(128, C48EB30000000000), BinData(128, C48EB3FFFFFFFFFF)]",
+                "[BinData(128, C48EB40000000000), BinData(128, C48EB4FFFFFFFFFF)]"
+              ]
+            },
+            "keysExamined": {
+              "$numberInt": "594"
+            },
+            "seeks": {
+              "$numberInt": "9"
+            },
+            "dupsTested": {
+              "$numberInt": "0"
+            },
+            "dupsDropped": {
+              "$numberInt": "0"
+            }
+          }
+        },
+        {
+          "stage": "FETCH",
+          "filter": {
+            "$TwoDPtInAnnulusExpression": true
+          },
+          "nReturned": {
+            "$numberInt": "90"
+          },
+          "executionTimeMillisEstimate": {
+            "$numberInt": "0"
+          },
+          "works": {
+            "$numberInt": "93"
+          },
+          "advanced": {
+            "$numberInt": "90"
+          },
+          "needTime": {
+            "$numberInt": "2"
+          },
+          "needYield": {
+            "$numberInt": "0"
+          },
+          "saveState": {
+            "$numberInt": "0"
+          },
+          "restoreState": {
+            "$numberInt": "0"
+          },
+          "isEOF": {
+            "$numberInt": "1"
+          },
+          "docsExamined": {
+            "$numberInt": "90"
+          },
+          "alreadyHasObj": {
+            "$numberInt": "0"
+          },
+          "inputStage": {
+            "stage": "IXSCAN",
+            "nReturned": {
+              "$numberInt": "90"
+            },
+            "executionTimeMillisEstimate": {
+              "$numberInt": "0"
+            },
+            "works": {
+              "$numberInt": "93"
+            },
+            "advanced": {
+              "$numberInt": "90"
+            },
+            "needTime": {
+              "$numberInt": "2"
+            },
+            "needYield": {
+              "$numberInt": "0"
+            },
+            "saveState": {
+              "$numberInt": "0"
+            },
+            "restoreState": {
+              "$numberInt": "0"
+            },
+            "isEOF": {
+              "$numberInt": "1"
+            },
+            "keyPattern": {
+              "pos": "2d"
+            },
+            "indexName": "pos_2d",
+            "isMultiKey": false,
+            "isUnique": false,
+            "isSparse": false,
+            "isPartial": false,
+            "indexVersion": {
+              "$numberInt": "2"
+            },
+            "direction": "forward",
+            "indexBounds": {
+              "pos": [
+                "[BinData(128, C48E2BFC00000000), BinData(128, C48E2BFFFFFFFFFF)]",
+                "[BinData(128, C48E380000000000), BinData(128, C48E38FFFFFFFFFF)]",
+                "[BinData(128, C48E390000000000), BinData(128, C48E39FFFFFFFFFF)]",
+                "[BinData(128, C48E3E0000000000), BinData(128, C48E3E3FFFFFFFFF)]",
+                "[BinData(128, C48E3E4000000000), BinData(128, C48E3E7FFFFFFFFF)]",
+                "[BinData(128, C48E3EC000000000), BinData(128, C48E3EFFFFFFFFFF)]",
+                "[BinData(128, C48EA14000000000), BinData(128, C48EA14FFFFFFFFF)]",
+                "[BinData(128, C48EA15000000000), BinData(128, C48EA153FFFFFFFF)]",
+                "[BinData(128, C48EA15400000000), BinData(128, C48EA154FFFFFFFF)]",
+                "[BinData(128, C48EA15600000000), BinData(128, C48EA156FFFFFFFF)]",
+                "[BinData(128, C48EA15700000000), BinData(128, C48EA157FFFFFFFF)]",
+                "[BinData(128, C48EA15800000000), BinData(128, C48EA15BFFFFFFFF)]",
+                "[BinData(128, C48EA15C00000000), BinData(128, C48EA15FFFFFFFFF)]",
+                "[BinData(128, C48EA16000000000), BinData(128, C48EA16FFFFFFFFF)]",
+                "[BinData(128, C48EA17000000000), BinData(128, C48EA17FFFFFFFFF)]",
+                "[BinData(128, C48EA1D400000000), BinData(128, C48EA1D7FFFFFFFF)]",
+                "[BinData(128, C48EB50000000000), BinData(128, C48EB5FFFFFFFFFF)]",
+                "[BinData(128, C48EB60000000000), BinData(128, C48EB6FFFFFFFFFF)]",
+                "[BinData(128, C48EB70000000000), BinData(128, C48EB7FFFFFFFFFF)]"
+              ]
+            },
+            "keysExamined": {
+              "$numberInt": "92"
+            },
+            "seeks": {
+              "$numberInt": "3"
+            },
+            "dupsTested": {
+              "$numberInt": "0"
+            },
+            "dupsDropped": {
+              "$numberInt": "0"
+            }
+          }
+        },
+        {
+          "stage": "FETCH",
+          "filter": {
+            "$TwoDPtInAnnulusExpression": true
+          },
+          "nReturned": {
+            "$numberInt": "0"
+          },
+          "executionTimeMillisEstimate": {
+            "$numberInt": "0"
+          },
+          "works": {
+            "$numberInt": "4"
+          },
+          "advanced": {
+            "$numberInt": "0"
+          },
+          "needTime": {
+            "$numberInt": "3"
+          },
+          "needYield": {
+            "$numberInt": "0"
+          },
+          "saveState": {
+            "$numberInt": "0"
+          },
+          "restoreState": {
+            "$numberInt": "0"
+          },
+          "isEOF": {
+            "$numberInt": "1"
+          },
+          "docsExamined": {
+            "$numberInt": "0"
+          },
+          "alreadyHasObj": {
+            "$numberInt": "0"
+          },
+          "inputStage": {
+            "stage": "IXSCAN",
+            "nReturned": {
+              "$numberInt": "0"
+            },
+            "executionTimeMillisEstimate": {
+              "$numberInt": "0"
+            },
+            "works": {
+              "$numberInt": "4"
+            },
+            "advanced": {
+              "$numberInt": "0"
+            },
+            "needTime": {
+              "$numberInt": "3"
+            },
+            "needYield": {
+              "$numberInt": "0"
+            },
+            "saveState": {
+              "$numberInt": "0"
+            },
+            "restoreState": {
+              "$numberInt": "0"
+            },
+            "isEOF": {
+              "$numberInt": "1"
+            },
+            "keyPattern": {
+              "pos": "2d"
+            },
+            "indexName": "pos_2d",
+            "isMultiKey": false,
+            "isUnique": false,
+            "isSparse": false,
+            "isPartial": false,
+            "indexVersion": {
+              "$numberInt": "2"
+            },
+            "direction": "forward",
+            "indexBounds": {
+              "pos": [
+                "[BinData(128, C48E280000000000), BinData(128, C48E28FFFFFFFFFF)]",
+                "[BinData(128, C48E290000000000), BinData(128, C48E29FFFFFFFFFF)]",
+                "[BinData(128, C48E2A0000000000), BinData(128, C48E2AFFFFFFFFFF)]",
+                "[BinData(128, C48E2B0000000000), BinData(128, C48E2B3FFFFFFFFF)]",
+                "[BinData(128, C48E2B4000000000), BinData(128, C48E2B7FFFFFFFFF)]",
+                "[BinData(128, C48E2B8000000000), BinData(128, C48E2BBFFFFFFFFF)]",
+                "[BinData(128, C48E2BC000000000), BinData(128, C48E2BCFFFFFFFFF)]",
+                "[BinData(128, C48E2BD000000000), BinData(128, C48E2BDFFFFFFFFF)]",
+                "[BinData(128, C48E2BE000000000), BinData(128, C48E2BEFFFFFFFFF)]",
+                "[BinData(128, C48E2BF000000000), BinData(128, C48E2BF3FFFFFFFF)]",
+                "[BinData(128, C48E2BF400000000), BinData(128, C48E2BF7FFFFFFFF)]",
+                "[BinData(128, C48E2BF800000000), BinData(128, C48E2BFBFFFFFFFF)]",
+                "[BinData(128, C48E3C0000000000), BinData(128, C48E3CFFFFFFFFFF)]",
+                "[BinData(128, C48E3D0000000000), BinData(128, C48E3DFFFFFFFFFF)]",
+                "[BinData(128, C48E3F0000000000), BinData(128, C48E3FFFFFFFFFFF)]",
+                "[BinData(128, C48EA00000000000), BinData(128, C48EA0FFFFFFFFFF)]",
+                "[BinData(128, C48EA10000000000), BinData(128, C48EA13FFFFFFFFF)]",
+                "[BinData(128, C48EA18000000000), BinData(128, C48EA1BFFFFFFFFF)]",
+                "[BinData(128, C48EA1C000000000), BinData(128, C48EA1CFFFFFFFFF)]",
+                "[BinData(128, C48EA1D000000000), BinData(128, C48EA1D3FFFFFFFF)]",
+                "[BinData(128, C48EA1D800000000), BinData(128, C48EA1DBFFFFFFFF)]",
+                "[BinData(128, C48EA1DC00000000), BinData(128, C48EA1DFFFFFFFFF)]",
+                "[BinData(128, C48EA1E000000000), BinData(128, C48EA1EFFFFFFFFF)]",
+                "[BinData(128, C48EA1F000000000), BinData(128, C48EA1FFFFFFFFFF)]",
+                "[BinData(128, C48EA20000000000), BinData(128, C48EA2FFFFFFFFFF)]",
+                "[BinData(128, C48EA30000000000), BinData(128, C48EA3FFFFFFFFFF)]",
+                "[BinData(128, C48EAC4000000000), BinData(128, C48EAC7FFFFFFFFF)]",
+                "[BinData(128, C48EAD0000000000), BinData(128, C48EADFFFFFFFFFF)]",
+                "[BinData(128, C48EB80000000000), BinData(128, C48EBBFFFFFFFFFF)]",
+                "[BinData(128, C48EBC0000000000), BinData(128, C48EBFFFFFFFFFFF)]",
+                "[BinData(128, C48EC00000000000), BinData(128, C48EC3FFFFFFFFFF)]",
+                "[BinData(128, C48EC80000000000), BinData(128, C48ECBFFFFFFFFFF)]",
+                "[BinData(128, C48EE00000000000), BinData(128, C48EE03FFFFFFFFF)]"
+              ]
+            },
+            "keysExamined": {
+              "$numberInt": "3"
+            },
+            "seeks": {
+              "$numberInt": "4"
+            },
+            "dupsTested": {
+              "$numberInt": "0"
+            },
+            "dupsDropped": {
+              "$numberInt": "0"
+            }
+          }
+        },
+        {
+          "stage": "FETCH",
+          "filter": {
+            "$TwoDPtInAnnulusExpression": true
+          },
+          "nReturned": {
+            "$numberInt": "0"
+          },
+          "executionTimeMillisEstimate": {
+            "$numberInt": "0"
+          },
+          "works": {
+            "$numberInt": "3"
+          },
+          "advanced": {
+            "$numberInt": "0"
+          },
+          "needTime": {
+            "$numberInt": "2"
+          },
+          "needYield": {
+            "$numberInt": "0"
+          },
+          "saveState": {
+            "$numberInt": "0"
+          },
+          "restoreState": {
+            "$numberInt": "0"
+          },
+          "isEOF": {
+            "$numberInt": "1"
+          },
+          "docsExamined": {
+            "$numberInt": "0"
+          },
+          "alreadyHasObj": {
+            "$numberInt": "0"
+          },
+          "inputStage": {
+            "stage": "IXSCAN",
+            "nReturned": {
+              "$numberInt": "0"
+            },
+            "executionTimeMillisEstimate": {
+              "$numberInt": "0"
+            },
+            "works": {
+              "$numberInt": "3"
+            },
+            "advanced": {
+              "$numberInt": "0"
+            },
+            "needTime": {
+              "$numberInt": "2"
+            },
+            "needYield": {
+              "$numberInt": "0"
+            },
+            "saveState": {
+              "$numberInt": "0"
+            },
+            "restoreState": {
+              "$numberInt": "0"
+            },
+            "isEOF": {
+              "$numberInt": "1"
+            },
+            "keyPattern": {
+              "pos": "2d"
+            },
+            "indexName": "pos_2d",
+            "isMultiKey": false,
+            "isUnique": false,
+            "isSparse": false,
+            "isPartial": false,
+            "indexVersion": {
+              "$numberInt": "2"
+            },
+            "direction": "forward",
+            "indexBounds": {
+              "pos": [
+                "[BinData(128, C48BD40000000000), BinData(128, C48BD7FFFFFFFFFF)]",
+                "[BinData(128, C48BDC0000000000), BinData(128, C48BDFFFFFFFFFFF)]",
+                "[BinData(128, C48BF54000000000), BinData(128, C48BF57FFFFFFFFF)]",
+                "[BinData(128, C48E240000000000), BinData(128, C48E27FFFFFFFFFF)]",
+                "[BinData(128, C48E300000000000), BinData(128, C48E33FFFFFFFFFF)]",
+                "[BinData(128, C48E340000000000), BinData(128, C48E37FFFFFFFFFF)]",
+                "[BinData(128, C48E680000000000), BinData(128, C48E6BFFFFFFFFFF)]",
+                "[BinData(128, C48EA80000000000), BinData(128, C48EABFFFFFFFFFF)]",
+                "[BinData(128, C48EAC0000000000), BinData(128, C48EAC3FFFFFFFFF)]",
+                "[BinData(128, C48EAC8000000000), BinData(128, C48EACBFFFFFFFFF)]",
+                "[BinData(128, C48EACC000000000), BinData(128, C48EACFFFFFFFFFF)]",
+                "[BinData(128, C48EAE0000000000), BinData(128, C48EAEFFFFFFFFFF)]",
+                "[BinData(128, C48EAF0000000000), BinData(128, C48EAFFFFFFFFFFF)]",
+                "[BinData(128, C48EE04000000000), BinData(128, C48EE07FFFFFFFFF)]",
+                "[BinData(128, C48EE08000000000), BinData(128, C48EE0BFFFFFFFFF)]",
+                "[BinData(128, C48EE0C000000000), BinData(128, C48EE0FFFFFFFFFF)]",
+                "[BinData(128, C48EE10000000000), BinData(128, C48EE1FFFFFFFFFF)]",
+                "[BinData(128, C48EE20000000000), BinData(128, C48EE2FFFFFFFFFF)]",
+                "[BinData(128, C48EE30000000000), BinData(128, C48EE3FFFFFFFFFF)]"
+              ]
+            },
+            "keysExamined": {
+              "$numberInt": "2"
+            },
+            "seeks": {
+              "$numberInt": "3"
+            },
+            "dupsTested": {
+              "$numberInt": "0"
+            },
+            "dupsDropped": {
+              "$numberInt": "0"
+            }
+          }
+        },
+        {
+          "stage": "FETCH",
+          "filter": {
+            "$TwoDPtInAnnulusExpression": true
+          },
+          "nReturned": {
+            "$numberInt": "0"
+          },
+          "executionTimeMillisEstimate": {
+            "$numberInt": "0"
+          },
+          "works": {
+            "$numberInt": "2"
+          },
+          "advanced": {
+            "$numberInt": "0"
+          },
+          "needTime": {
+            "$numberInt": "1"
+          },
+          "needYield": {
+            "$numberInt": "0"
+          },
+          "saveState": {
+            "$numberInt": "0"
+          },
+          "restoreState": {
+            "$numberInt": "0"
+          },
+          "isEOF": {
+            "$numberInt": "1"
+          },
+          "docsExamined": {
+            "$numberInt": "0"
+          },
+          "alreadyHasObj": {
+            "$numberInt": "0"
+          },
+          "inputStage": {
+            "stage": "IXSCAN",
+            "nReturned": {
+              "$numberInt": "0"
+            },
+            "executionTimeMillisEstimate": {
+              "$numberInt": "0"
+            },
+            "works": {
+              "$numberInt": "2"
+            },
+            "advanced": {
+              "$numberInt": "0"
+            },
+            "needTime": {
+              "$numberInt": "1"
+            },
+            "needYield": {
+              "$numberInt": "0"
+            },
+            "saveState": {
+              "$numberInt": "0"
+            },
+            "restoreState": {
+              "$numberInt": "0"
+            },
+            "isEOF": {
+              "$numberInt": "1"
+            },
+            "keyPattern": {
+              "pos": "2d"
+            },
+            "indexName": "pos_2d",
+            "isMultiKey": false,
+            "isUnique": false,
+            "isSparse": false,
+            "isPartial": false,
+            "indexVersion": {
+              "$numberInt": "2"
+            },
+            "direction": "forward",
+            "indexBounds": {
+              "pos": [
+                "[BinData(128, C48B700000000000), BinData(128, C48B7FFFFFFFFFFF)]",
+                "[BinData(128, C48BD00000000000), BinData(128, C48BD3FFFFFFFFFF)]",
+                "[BinData(128, C48BD80000000000), BinData(128, C48BDBFFFFFFFFFF)]",
+                "[BinData(128, C48BF00000000000), BinData(128, C48BF3FFFFFFFFFF)]",
+                "[BinData(128, C48BF40000000000), BinData(128, C48BF4FFFFFFFFFF)]",
+                "[BinData(128, C48BF50000000000), BinData(128, C48BF53FFFFFFFFF)]",
+                "[BinData(128, C48BF58000000000), BinData(128, C48BF5BFFFFFFFFF)]",
+                "[BinData(128, C48BF5C000000000), BinData(128, C48BF5FFFFFFFFFF)]",
+                "[BinData(128, C48BF60000000000), BinData(128, C48BF6FFFFFFFFFF)]",
+                "[BinData(128, C48BF70000000000), BinData(128, C48BF7FFFFFFFFFF)]",
+                "[BinData(128, C48BF80000000000), BinData(128, C48BFBFFFFFFFFFF)]",
+                "[BinData(128, C48BFC0000000000), BinData(128, C48BFFFFFFFFFFFF)]",
+                "[BinData(128, C48E0F0000000000), BinData(128, C48E0FFFFFFFFFFF)]",
+                "[BinData(128, C48E180000000000), BinData(128, C48E1BFFFFFFFFFF)]",
+                "[BinData(128, C48E200000000000), BinData(128, C48E23FFFFFFFFFF)]",
+                "[BinData(128, C48E600000000000), BinData(128, C48E63FFFFFFFFFF)]",
+                "[BinData(128, C48E640000000000), BinData(128, C48E67FFFFFFFFFF)]",
+                "[BinData(128, C48E6C0000000000), BinData(128, C48E6FFFFFFFFFFF)]",
+                "[BinData(128, C48EC40000000000), BinData(128, C48EC7FFFFFFFFFF)]",
+                "[BinData(128, C48ECC0000000000), BinData(128, C48ECFFFFFFFFFFF)]",
+                "[BinData(128, C48EE40000000000), BinData(128, C48EE7FFFFFFFFFF)]",
+                "[BinData(128, C48EE80000000000), BinData(128, C48EEBFFFFFFFFFF)]",
+                "[BinData(128, C48EEC0000000000), BinData(128, C48EEFFFFFFFFFFF)]",
+                "[BinData(128, C4A4000000000000), BinData(128, C4A40FFFFFFFFFFF)]",
+                "[BinData(128, C4A4100000000000), BinData(128, C4A413FFFFFFFFFF)]",
+                "[BinData(128, C4A4140000000000), BinData(128, C4A417FFFFFFFFFF)]"
+              ]
+            },
+            "keysExamined": {
+              "$numberInt": "1"
+            },
+            "seeks": {
+              "$numberInt": "2"
+            },
+            "dupsTested": {
+              "$numberInt": "0"
+            },
+            "dupsDropped": {
+              "$numberInt": "0"
+            }
+          }
+        },
+        {
+          "stage": "FETCH",
+          "filter": {
+            "$TwoDPtInAnnulusExpression": true
+          },
+          "nReturned": {
+            "$numberInt": "0"
+          },
+          "executionTimeMillisEstimate": {
+            "$numberInt": "0"
+          },
+          "works": {
+            "$numberInt": "2"
+          },
+          "advanced": {
+            "$numberInt": "0"
+          },
+          "needTime": {
+            "$numberInt": "1"
+          },
+          "needYield": {
+            "$numberInt": "0"
+          },
+          "saveState": {
+            "$numberInt": "0"
+          },
+          "restoreState": {
+            "$numberInt": "0"
+          },
+          "isEOF": {
+            "$numberInt": "1"
+          },
+          "docsExamined": {
+            "$numberInt": "0"
+          },
+          "alreadyHasObj": {
+            "$numberInt": "0"
+          },
+          "inputStage": {
+            "stage": "IXSCAN",
+            "nReturned": {
+              "$numberInt": "0"
+            },
+            "executionTimeMillisEstimate": {
+              "$numberInt": "0"
+            },
+            "works": {
+              "$numberInt": "2"
+            },
+            "advanced": {
+              "$numberInt": "0"
+            },
+            "needTime": {
+              "$numberInt": "1"
+            },
+            "needYield": {
+              "$numberInt": "0"
+            },
+            "saveState": {
+              "$numberInt": "0"
+            },
+            "restoreState": {
+              "$numberInt": "0"
+            },
+            "isEOF": {
+              "$numberInt": "1"
+            },
+            "keyPattern": {
+              "pos": "2d"
+            },
+            "indexName": "pos_2d",
+            "isMultiKey": false,
+            "isUnique": false,
+            "isSparse": false,
+            "isPartial": false,
+            "indexVersion": {
+              "$numberInt": "2"
+            },
+            "direction": "forward",
+            "indexBounds": {
+              "pos": [
+                "[BinData(128, C48B500000000000), BinData(128, C48B5FFFFFFFFFFF)]",
+                "[BinData(128, C48B6C0000000000), BinData(128, C48B6FFFFFFFFFFF)]",
+                "[BinData(128, C48BC00000000000), BinData(128, C48BCFFFFFFFFFFF)]",
+                "[BinData(128, C48BE00000000000), BinData(128, C48BEFFFFFFFFFFF)]",
+                "[BinData(128, C48E000000000000), BinData(128, C48E03FFFFFFFFFF)]",
+                "[BinData(128, C48E040000000000), BinData(128, C48E07FFFFFFFFFF)]",
+                "[BinData(128, C48E080000000000), BinData(128, C48E0BFFFFFFFFFF)]",
+                "[BinData(128, C48E0C0000000000), BinData(128, C48E0CFFFFFFFFFF)]",
+                "[BinData(128, C48E0D0000000000), BinData(128, C48E0DFFFFFFFFFF)]",
+                "[BinData(128, C48E0E0000000000), BinData(128, C48E0EFFFFFFFFFF)]",
+                "[BinData(128, C48E100000000000), BinData(128, C48E13FFFFFFFFFF)]",
+                "[BinData(128, C48E140000000000), BinData(128, C48E17FFFFFFFFFF)]",
+                "[BinData(128, C48E1C0000000000), BinData(128, C48E1FFFFFFFFFFF)]",
+                "[BinData(128, C48E400000000000), BinData(128, C48E4FFFFFFFFFFF)]",
+                "[BinData(128, C48E700000000000), BinData(128, C48E73FFFFFFFFFF)]",
+                "[BinData(128, C48E780000000000), BinData(128, C48E7BFFFFFFFFFF)]",
+                "[BinData(128, C48ED00000000000), BinData(128, C48EDFFFFFFFFFFF)]",
+                "[BinData(128, C48EF00000000000), BinData(128, C48EFFFFFFFFFFFF)]",
+                "[BinData(128, C4A1500000000000), BinData(128, C4A15FFFFFFFFFFF)]",
+                "[BinData(128, C4A4180000000000), BinData(128, C4A41BFFFFFFFFFF)]",
+                "[BinData(128, C4A41C0000000000), BinData(128, C4A41FFFFFFFFFFF)]",
+                "[BinData(128, C4A4400000000000), BinData(128, C4A44FFFFFFFFFFF)]"
+              ]
+            },
+            "keysExamined": {
+              "$numberInt": "1"
+            },
+            "seeks": {
+              "$numberInt": "2"
+            },
+            "dupsTested": {
+              "$numberInt": "0"
+            },
+            "dupsDropped": {
+              "$numberInt": "0"
+            }
+          }
+        },
+        {
+          "stage": "FETCH",
+          "filter": {
+            "$TwoDPtInAnnulusExpression": true
+          },
+          "nReturned": {
+            "$numberInt": "0"
+          },
+          "executionTimeMillisEstimate": {
+            "$numberInt": "0"
+          },
+          "works": {
+            "$numberInt": "2"
+          },
+          "advanced": {
+            "$numberInt": "0"
+          },
+          "needTime": {
+            "$numberInt": "1"
+          },
+          "needYield": {
+            "$numberInt": "0"
+          },
+          "saveState": {
+            "$numberInt": "0"
+          },
+          "restoreState": {
+            "$numberInt": "0"
+          },
+          "isEOF": {
+            "$numberInt": "1"
+          },
+          "docsExamined": {
+            "$numberInt": "0"
+          },
+          "alreadyHasObj": {
+            "$numberInt": "0"
+          },
+          "inputStage": {
+            "stage": "IXSCAN",
+            "nReturned": {
+              "$numberInt": "0"
+            },
+            "executionTimeMillisEstimate": {
+              "$numberInt": "0"
+            },
+            "works": {
+              "$numberInt": "2"
+            },
+            "advanced": {
+              "$numberInt": "0"
+            },
+            "needTime": {
+              "$numberInt": "1"
+            },
+            "needYield": {
+              "$numberInt": "0"
+            },
+            "saveState": {
+              "$numberInt": "0"
+            },
+            "restoreState": {
+              "$numberInt": "0"
+            },
+            "isEOF": {
+              "$numberInt": "1"
+            },
+            "keyPattern": {
+              "pos": "2d"
+            },
+            "indexName": "pos_2d",
+            "isMultiKey": false,
+            "isUnique": false,
+            "isSparse": false,
+            "isPartial": false,
+            "indexVersion": {
+              "$numberInt": "2"
+            },
+            "direction": "forward",
+            "indexBounds": {
+              "pos": [
+                "[BinData(128, C489C00000000000), BinData(128, C489FFFFFFFFFFFF)]",
+                "[BinData(128, C48B000000000000), BinData(128, C48B3FFFFFFFFFFF)]",
+                "[BinData(128, C48B400000000000), BinData(128, C48B4FFFFFFFFFFF)]",
+                "[BinData(128, C48B600000000000), BinData(128, C48B63FFFFFFFFFF)]",
+                "[BinData(128, C48B640000000000), BinData(128, C48B67FFFFFFFFFF)]",
+                "[BinData(128, C48B680000000000), BinData(128, C48B6BFFFFFFFFFF)]",
+                "[BinData(128, C48B800000000000), BinData(128, C48BBFFFFFFFFFFF)]",
+                "[BinData(128, C48C800000000000), BinData(128, C48CBFFFFFFFFFFF)]",
+                "[BinData(128, C48CC00000000000), BinData(128, C48CFFFFFFFFFFFF)]",
+                "[BinData(128, C48E500000000000), BinData(128, C48E5FFFFFFFFFFF)]",
+                "[BinData(128, C48E740000000000), BinData(128, C48E77FFFFFFFFFF)]",
+                "[BinData(128, C48E7C0000000000), BinData(128, C48E7FFFFFFFFFFF)]",
+                "[BinData(128, C48F000000000000), BinData(128, C48F3FFFFFFFFFFF)]",
+                "[BinData(128, C48F800000000000), BinData(128, C48F8FFFFFFFFFFF)]",
+                "[BinData(128, C48FA00000000000), BinData(128, C48FAFFFFFFFFFFF)]",
+                "[BinData(128, C4A1100000000000), BinData(128, C4A11FFFFFFFFFFF)]",
+                "[BinData(128, C4A1400000000000), BinData(128, C4A14FFFFFFFFFFF)]",
+                "[BinData(128, C4A1600000000000), BinData(128, C4A16FFFFFFFFFFF)]",
+                "[BinData(128, C4A1700000000000), BinData(128, C4A17FFFFFFFFFFF)]",
+                "[BinData(128, C4A1D00000000000), BinData(128, C4A1DFFFFFFFFFFF)]",
+                "[BinData(128, C4A4200000000000), BinData(128, C4A42FFFFFFFFFFF)]",
+                "[BinData(128, C4A4300000000000), BinData(128, C4A43FFFFFFFFFFF)]",
+                "[BinData(128, C4A4500000000000), BinData(128, C4A45FFFFFFFFFFF)]",
+                "[BinData(128, C4A4600000000000), BinData(128, C4A46FFFFFFFFFFF)]",
+                "[BinData(128, C4A4700000000000), BinData(128, C4A47FFFFFFFFFFF)]",
+                "[BinData(128, C4A4800000000000), BinData(128, C4A4BFFFFFFFFFFF)]",
+                "[BinData(128, C4A4C00000000000), BinData(128, C4A4FFFFFFFFFFFF)]",
+                "[BinData(128, C4A5000000000000), BinData(128, C4A50FFFFFFFFFFF)]",
+                "[BinData(128, C4A5200000000000), BinData(128, C4A5203FFFFFFFFF)]"
+              ]
+            },
+            "keysExamined": {
+              "$numberInt": "1"
+            },
+            "seeks": {
+              "$numberInt": "2"
+            },
+            "dupsTested": {
+              "$numberInt": "0"
+            },
+            "dupsDropped": {
+              "$numberInt": "0"
+            }
+          }
+        },
+        {
+          "stage": "FETCH",
+          "filter": {
+            "$TwoDPtInAnnulusExpression": true
+          },
+          "nReturned": {
+            "$numberInt": "0"
+          },
+          "executionTimeMillisEstimate": {
+            "$numberInt": "0"
+          },
+          "works": {
+            "$numberInt": "2"
+          },
+          "advanced": {
+            "$numberInt": "0"
+          },
+          "needTime": {
+            "$numberInt": "1"
+          },
+          "needYield": {
+            "$numberInt": "0"
+          },
+          "saveState": {
+            "$numberInt": "0"
+          },
+          "restoreState": {
+            "$numberInt": "0"
+          },
+          "isEOF": {
+            "$numberInt": "1"
+          },
+          "docsExamined": {
+            "$numberInt": "0"
+          },
+          "alreadyHasObj": {
+            "$numberInt": "0"
+          },
+          "inputStage": {
+            "stage": "IXSCAN",
+            "nReturned": {
+              "$numberInt": "0"
+            },
+            "executionTimeMillisEstimate": {
+              "$numberInt": "0"
+            },
+            "works": {
+              "$numberInt": "2"
+            },
+            "advanced": {
+              "$numberInt": "0"
+            },
+            "needTime": {
+              "$numberInt": "1"
+            },
+            "needYield": {
+              "$numberInt": "0"
+            },
+            "saveState": {
+              "$numberInt": "0"
+            },
+            "restoreState": {
+              "$numberInt": "0"
+            },
+            "isEOF": {
+              "$numberInt": "1"
+            },
+            "keyPattern": {
+              "pos": "2d"
+            },
+            "indexName": "pos_2d",
+            "isMultiKey": false,
+            "isUnique": false,
+            "isSparse": false,
+            "isPartial": false,
+            "indexVersion": {
+              "$numberInt": "2"
+            },
+            "direction": "forward",
+            "indexBounds": {
+              "pos": [
+                "[BinData(128, C483F00000000000), BinData(128, C483FFFFFFFFFFFF)]",
+                "[BinData(128, C486800000000000), BinData(128, C486BFFFFFFFFFFF)]",
+                "[BinData(128, C486C00000000000), BinData(128, C486FFFFFFFFFFFF)]",
+                "[BinData(128, C488C00000000000), BinData(128, C488FFFFFFFFFFFF)]",
+                "[BinData(128, C489000000000000), BinData(128, C4893FFFFFFFFFFF)]",
+                "[BinData(128, C489400000000000), BinData(128, C4897FFFFFFFFFFF)]",
+                "[BinData(128, C489800000000000), BinData(128, C489BFFFFFFFFFFF)]",
+                "[BinData(128, C48A000000000000), BinData(128, C48AFFFFFFFFFFFF)]",
+                "[BinData(128, C48C000000000000), BinData(128, C48C3FFFFFFFFFFF)]",
+                "[BinData(128, C48C400000000000), BinData(128, C48C7FFFFFFFFFFF)]",
+                "[BinData(128, C48D000000000000), BinData(128, C48DFFFFFFFFFFFF)]",
+                "[BinData(128, C48F400000000000), BinData(128, C48F7FFFFFFFFFFF)]",
+                "[BinData(128, C48F900000000000), BinData(128, C48F9FFFFFFFFFFF)]",
+                "[BinData(128, C48FB00000000000), BinData(128, C48FBFFFFFFFFFFF)]",
+                "[BinData(128, C48FC00000000000), BinData(128, C48FFFFFFFFFFFFF)]",
+                "[BinData(128, C4A0400000000000), BinData(128, C4A07FFFFFFFFFFF)]",
+                "[BinData(128, C4A0C00000000000), BinData(128, C4A0FFFFFFFFFFFF)]",
+                "[BinData(128, C4A1000000000000), BinData(128, C4A10FFFFFFFFFFF)]",
+                "[BinData(128, C4A1200000000000), BinData(128, C4A12FFFFFFFFFFF)]",
+                "[BinData(128, C4A1300000000000), BinData(128, C4A13FFFFFFFFFFF)]",
+                "[BinData(128, C4A1800000000000), BinData(128, C4A1BFFFFFFFFFFF)]",
+                "[BinData(128, C4A1C00000000000), BinData(128, C4A1CFFFFFFFFFFF)]",
+                "[BinData(128, C4A1E00000000000), BinData(128, C4A1EFFFFFFFFFFF)]",
+                "[BinData(128, C4A1F00000000000), BinData(128, C4A1FFFFFFFFFFFF)]",
+                "[BinData(128, C4A3000000000000), BinData(128, C4A3FFFFFFFFFFFF)]",
+                "[BinData(128, C4A5100000000000), BinData(128, C4A51FFFFFFFFFFF)]",
+                "[BinData(128, C4A5204000000000), BinData(128, C4A5207FFFFFFFFF)]",
+                "[BinData(128, C4A5208000000000), BinData(128, C4A520BFFFFFFFFF)]",
+                "[BinData(128, C4A520C000000000), BinData(128, C4A520FFFFFFFFFF)]",
+                "[BinData(128, C4A5210000000000), BinData(128, C4A521FFFFFFFFFF)]",
+                "[BinData(128, C4A5220000000000), BinData(128, C4A522FFFFFFFFFF)]",
+                "[BinData(128, C4A5230000000000), BinData(128, C4A523FFFFFFFFFF)]",
+                "[BinData(128, C4A5240000000000), BinData(128, C4A527FFFFFFFFFF)]",
+                "[BinData(128, C4A5280000000000), BinData(128, C4A52BFFFFFFFFFF)]",
+                "[BinData(128, C4A52C0000000000), BinData(128, C4A52FFFFFFFFFFF)]",
+                "[BinData(128, C4A5300000000000), BinData(128, C4A53FFFFFFFFFFF)]",
+                "[BinData(128, C4A5400000000000), BinData(128, C4A57FFFFFFFFFFF)]",
+                "[BinData(128, C4A5800000000000), BinData(128, C4A5BFFFFFFFFFFF)]",
+                "[BinData(128, C4A5C00000000000), BinData(128, C4A5FFFFFFFFFFFF)]",
+                "[BinData(128, C4A6000000000000), BinData(128, C4A6FFFFFFFFFFFF)]",
+                "[BinData(128, C4A7000000000000), BinData(128, C4A7FFFFFFFFFFFF)]"
+              ]
+            },
+            "keysExamined": {
+              "$numberInt": "1"
+            },
+            "seeks": {
+              "$numberInt": "2"
+            },
+            "dupsTested": {
+              "$numberInt": "0"
+            },
+            "dupsDropped": {
+              "$numberInt": "0"
+            }
+          }
+        },
+        {
+          "stage": "FETCH",
+          "filter": {
+            "$TwoDPtInAnnulusExpression": true
+          },
+          "nReturned": {
+            "$numberInt": "0"
+          },
+          "executionTimeMillisEstimate": {
+            "$numberInt": "0"
+          },
+          "works": {
+            "$numberInt": "2"
+          },
+          "advanced": {
+            "$numberInt": "0"
+          },
+          "needTime": {
+            "$numberInt": "1"
+          },
+          "needYield": {
+            "$numberInt": "0"
+          },
+          "saveState": {
+            "$numberInt": "0"
+          },
+          "restoreState": {
+            "$numberInt": "0"
+          },
+          "isEOF": {
+            "$numberInt": "1"
+          },
+          "docsExamined": {
+            "$numberInt": "0"
+          },
+          "alreadyHasObj": {
+            "$numberInt": "0"
+          },
+          "inputStage": {
+            "stage": "IXSCAN",
+            "nReturned": {
+              "$numberInt": "0"
+            },
+            "executionTimeMillisEstimate": {
+              "$numberInt": "0"
+            },
+            "works": {
+              "$numberInt": "2"
+            },
+            "advanced": {
+              "$numberInt": "0"
+            },
+            "needTime": {
+              "$numberInt": "1"
+            },
+            "needYield": {
+              "$numberInt": "0"
+            },
+            "saveState": {
+              "$numberInt": "0"
+            },
+            "restoreState": {
+              "$numberInt": "0"
+            },
+            "isEOF": {
+              "$numberInt": "1"
+            },
+            "keyPattern": {
+              "pos": "2d"
+            },
+            "indexName": "pos_2d",
+            "isMultiKey": false,
+            "isUnique": false,
+            "isSparse": false,
+            "isPartial": false,
+            "indexVersion": {
+              "$numberInt": "2"
+            },
+            "direction": "forward",
+            "indexBounds": {
+              "pos": [
+                "[BinData(128, C1D7000000000000), BinData(128, C1D7FFFFFFFFFFFF)]",
+                "[BinData(128, C1DD000000000000), BinData(128, C1DDFFFFFFFFFFFF)]",
+                "[BinData(128, C1DF000000000000), BinData(128, C1DFFFFFFFFFFFFF)]",
+                "[BinData(128, C1F4000000000000), BinData(128, C1F7FFFFFFFFFFFF)]",
+                "[BinData(128, C480000000000000), BinData(128, C480FFFFFFFFFFFF)]",
+                "[BinData(128, C481000000000000), BinData(128, C481FFFFFFFFFFFF)]",
+                "[BinData(128, C482000000000000), BinData(128, C482FFFFFFFFFFFF)]",
+                "[BinData(128, C483000000000000), BinData(128, C4833FFFFFFFFFFF)]",
+                "[BinData(128, C483400000000000), BinData(128, C4837FFFFFFFFFFF)]",
+                "[BinData(128, C483800000000000), BinData(128, C483BFFFFFFFFFFF)]",
+                "[BinData(128, C483C00000000000), BinData(128, C483CFFFFFFFFFFF)]",
+                "[BinData(128, C483D00000000000), BinData(128, C483DFFFFFFFFFFF)]",
+                "[BinData(128, C483E00000000000), BinData(128, C483EFFFFFFFFFFF)]",
+                "[BinData(128, C484000000000000), BinData(128, C484FFFFFFFFFFFF)]",
+                "[BinData(128, C485000000000000), BinData(128, C485FFFFFFFFFFFF)]",
+                "[BinData(128, C486000000000000), BinData(128, C4863FFFFFFFFFFF)]",
+                "[BinData(128, C486400000000000), BinData(128, C4867FFFFFFFFFFF)]",
+                "[BinData(128, C487000000000000), BinData(128, C487FFFFFFFFFFFF)]",
+                "[BinData(128, C488000000000000), BinData(128, C4883FFFFFFFFFFF)]",
+                "[BinData(128, C488400000000000), BinData(128, C4887FFFFFFFFFFF)]",
+                "[BinData(128, C488800000000000), BinData(128, C488BFFFFFFFFFFF)]",
+                "[BinData(128, C490000000000000), BinData(128, C493FFFFFFFFFFFF)]",
+                "[BinData(128, C498000000000000), BinData(128, C49BFFFFFFFFFFFF)]",
+                "[BinData(128, C4A0000000000000), BinData(128, C4A03FFFFFFFFFFF)]",
+                "[BinData(128, C4A0800000000000), BinData(128, C4A0BFFFFFFFFFFF)]",
+                "[BinData(128, C4A2000000000000), BinData(128, C4A2FFFFFFFFFFFF)]",
+                "[BinData(128, C4A8000000000000), BinData(128, C4ABFFFFFFFFFFFF)]",
+                "[BinData(128, C4AC000000000000), BinData(128, C4AFFFFFFFFFFFFF)]",
+                "[BinData(128, C4B0000000000000), BinData(128, C4B3FFFFFFFFFFFF)]",
+                "[BinData(128, C4B8000000000000), BinData(128, C4B83FFFFFFFFFFF)]"
+              ]
+            },
+            "keysExamined": {
+              "$numberInt": "1"
+            },
+            "seeks": {
+              "$numberInt": "2"
+            },
+            "dupsTested": {
+              "$numberInt": "0"
+            },
+            "dupsDropped": {
+              "$numberInt": "0"
+            }
+          }
+        },
+        {
+          "stage": "FETCH",
+          "filter": {
+            "$TwoDPtInAnnulusExpression": true
+          },
+          "nReturned": {
+            "$numberInt": "0"
+          },
+          "executionTimeMillisEstimate": {
+            "$numberInt": "0"
+          },
+          "works": {
+            "$numberInt": "2"
+          },
+          "advanced": {
+            "$numberInt": "0"
+          },
+          "needTime": {
+            "$numberInt": "1"
+          },
+          "needYield": {
+            "$numberInt": "0"
+          },
+          "saveState": {
+            "$numberInt": "0"
+          },
+          "restoreState": {
+            "$numberInt": "0"
+          },
+          "isEOF": {
+            "$numberInt": "1"
+          },
+          "docsExamined": {
+            "$numberInt": "0"
+          },
+          "alreadyHasObj": {
+            "$numberInt": "0"
+          },
+          "inputStage": {
+            "stage": "IXSCAN",
+            "nReturned": {
+              "$numberInt": "0"
+            },
+            "executionTimeMillisEstimate": {
+              "$numberInt": "0"
+            },
+            "works": {
+              "$numberInt": "2"
+            },
+            "advanced": {
+              "$numberInt": "0"
+            },
+            "needTime": {
+              "$numberInt": "1"
+            },
+            "needYield": {
+              "$numberInt": "0"
+            },
+            "saveState": {
+              "$numberInt": "0"
+            },
+            "restoreState": {
+              "$numberInt": "0"
+            },
+            "isEOF": {
+              "$numberInt": "1"
+            },
+            "keyPattern": {
+              "pos": "2d"
+            },
+            "indexName": "pos_2d",
+            "isMultiKey": false,
+            "isUnique": false,
+            "isSparse": false,
+            "isPartial": false,
+            "indexVersion": {
+              "$numberInt": "2"
+            },
+            "direction": "forward",
+            "indexBounds": {
+              "pos": [
+                "[BinData(128, C170000000000000), BinData(128, C17FFFFFFFFFFFFF)]",
+                "[BinData(128, C1D0000000000000), BinData(128, C1D3FFFFFFFFFFFF)]",
+                "[BinData(128, C1D4000000000000), BinData(128, C1D4FFFFFFFFFFFF)]",
+                "[BinData(128, C1D5000000000000), BinData(128, C1D5FFFFFFFFFFFF)]",
+                "[BinData(128, C1D6000000000000), BinData(128, C1D6FFFFFFFFFFFF)]",
+                "[BinData(128, C1D8000000000000), BinData(128, C1DBFFFFFFFFFFFF)]",
+                "[BinData(128, C1DC000000000000), BinData(128, C1DCFFFFFFFFFFFF)]",
+                "[BinData(128, C1DE000000000000), BinData(128, C1DEFFFFFFFFFFFF)]",
+                "[BinData(128, C1F0000000000000), BinData(128, C1F3FFFFFFFFFFFF)]",
+                "[BinData(128, C1F8000000000000), BinData(128, C1FBFFFFFFFFFFFF)]",
+                "[BinData(128, C1FC000000000000), BinData(128, C1FFFFFFFFFFFFFF)]",
+                "[BinData(128, C351500000000000), BinData(128, C3515FFFFFFFFFFF)]",
+                "[BinData(128, C354000000000000), BinData(128, C357FFFFFFFFFFFF)]",
+                "[BinData(128, C420000000000000), BinData(128, C42FFFFFFFFFFFFF)]",
+                "[BinData(128, C430000000000000), BinData(128, C43FFFFFFFFFFFFF)]",
+                "[BinData(128, C494000000000000), BinData(128, C497FFFFFFFFFFFF)]",
+                "[BinData(128, C49C000000000000), BinData(128, C49FFFFFFFFFFFFF)]",
+                "[BinData(128, C4B4000000000000), BinData(128, C4B7FFFFFFFFFFFF)]",
+                "[BinData(128, C4B8400000000000), BinData(128, C4B87FFFFFFFFFFF)]",
+                "[BinData(128, C4B8800000000000), BinData(128, C4B8BFFFFFFFFFFF)]",
+                "[BinData(128, C4B8C00000000000), BinData(128, C4B8FFFFFFFFFFFF)]",
+                "[BinData(128, C4B9000000000000), BinData(128, C4B9FFFFFFFFFFFF)]",
+                "[BinData(128, C4BA000000000000), BinData(128, C4BAFFFFFFFFFFFF)]",
+                "[BinData(128, C4BB000000000000), BinData(128, C4BBFFFFFFFFFFFF)]",
+                "[BinData(128, C4BC000000000000), BinData(128, C4BFFFFFFFFFFFFF)]",
+                "[BinData(128, C4C0000000000000), BinData(128, C4CFFFFFFFFFFFFF)]",
+                "[BinData(128, C4E0000000000000), BinData(128, C4EFFFFFFFFFFFFF)]",
+                "[BinData(128, C600000000000000), BinData(128, C603FFFFFFFFFFFF)]",
+                "[BinData(128, C604000000000000), BinData(128, C607FFFFFFFFFFFF)]",
+                "[BinData(128, C610000000000000), BinData(128, C61FFFFFFFFFFFFF)]"
+              ]
+            },
+            "keysExamined": {
+              "$numberInt": "1"
+            },
+            "seeks": {
+              "$numberInt": "2"
+            },
+            "dupsTested": {
+              "$numberInt": "0"
+            },
+            "dupsDropped": {
+              "$numberInt": "0"
+            }
+          }
+        },
+        {
+          "stage": "FETCH",
+          "filter": {
+            "$TwoDPtInAnnulusExpression": true
+          },
+          "nReturned": {
+            "$numberInt": "0"
+          },
+          "executionTimeMillisEstimate": {
+            "$numberInt": "0"
+          },
+          "works": {
+            "$numberInt": "2"
+          },
+          "advanced": {
+            "$numberInt": "0"
+          },
+          "needTime": {
+            "$numberInt": "1"
+          },
+          "needYield": {
+            "$numberInt": "0"
+          },
+          "saveState": {
+            "$numberInt": "0"
+          },
+          "restoreState": {
+            "$numberInt": "0"
+          },
+          "isEOF": {
+            "$numberInt": "1"
+          },
+          "docsExamined": {
+            "$numberInt": "0"
+          },
+          "alreadyHasObj": {
+            "$numberInt": "0"
+          },
+          "inputStage": {
+            "stage": "IXSCAN",
+            "nReturned": {
+              "$numberInt": "0"
+            },
+            "executionTimeMillisEstimate": {
+              "$numberInt": "0"
+            },
+            "works": {
+              "$numberInt": "2"
+            },
+            "advanced": {
+              "$numberInt": "0"
+            },
+            "needTime": {
+              "$numberInt": "1"
+            },
+            "needYield": {
+              "$numberInt": "0"
+            },
+            "saveState": {
+              "$numberInt": "0"
+            },
+            "restoreState": {
+              "$numberInt": "0"
+            },
+            "isEOF": {
+              "$numberInt": "1"
+            },
+            "keyPattern": {
+              "pos": "2d"
+            },
+            "indexName": "pos_2d",
+            "isMultiKey": false,
+            "isUnique": false,
+            "isSparse": false,
+            "isPartial": false,
+            "indexVersion": {
+              "$numberInt": "2"
+            },
+            "direction": "forward",
+            "indexBounds": {
+              "pos": [
+                "[BinData(128, 6BFC000000000000), BinData(128, 6BFFFFFFFFFFFFFF)]",
+                "[BinData(128, 6EA0000000000000), BinData(128, 6EAFFFFFFFFFFFFF)]",
+                "[BinData(128, 6EB8000000000000), BinData(128, 6EBBFFFFFFFFFFFF)]",
+                "[BinData(128, C130000000000000), BinData(128, C13FFFFFFFFFFFFF)]",
+                "[BinData(128, C140000000000000), BinData(128, C14FFFFFFFFFFFFF)]",
+                "[BinData(128, C150000000000000), BinData(128, C15FFFFFFFFFFFFF)]",
+                "[BinData(128, C160000000000000), BinData(128, C16FFFFFFFFFFFFF)]",
+                "[BinData(128, C190000000000000), BinData(128, C19FFFFFFFFFFFFF)]",
+                "[BinData(128, C1B0000000000000), BinData(128, C1BFFFFFFFFFFFFF)]",
+                "[BinData(128, C1C0000000000000), BinData(128, C1CFFFFFFFFFFFFF)]",
+                "[BinData(128, C1E0000000000000), BinData(128, C1EFFFFFFFFFFFFF)]",
+                "[BinData(128, C310000000000000), BinData(128, C31FFFFFFFFFFFFF)]",
+                "[BinData(128, C340000000000000), BinData(128, C34FFFFFFFFFFFFF)]",
+                "[BinData(128, C350000000000000), BinData(128, C350FFFFFFFFFFFF)]",
+                "[BinData(128, C351000000000000), BinData(128, C3513FFFFFFFFFFF)]",
+                "[BinData(128, C351400000000000), BinData(128, C3514FFFFFFFFFFF)]",
+                "[BinData(128, C351600000000000), BinData(128, C3516FFFFFFFFFFF)]",
+                "[BinData(128, C351700000000000), BinData(128, C3517FFFFFFFFFFF)]",
+                "[BinData(128, C351800000000000), BinData(128, C351BFFFFFFFFFFF)]",
+                "[BinData(128, C351C00000000000), BinData(128, C351FFFFFFFFFFFF)]",
+                "[BinData(128, C352000000000000), BinData(128, C352FFFFFFFFFFFF)]",
+                "[BinData(128, C353000000000000), BinData(128, C353FFFFFFFFFFFF)]",
+                "[BinData(128, C358000000000000), BinData(128, C35BFFFFFFFFFFFF)]",
+                "[BinData(128, C35C000000000000), BinData(128, C35FFFFFFFFFFFFF)]",
+                "[BinData(128, C360000000000000), BinData(128, C36FFFFFFFFFFFFF)]",
+                "[BinData(128, C370000000000000), BinData(128, C37FFFFFFFFFFFFF)]",
+                "[BinData(128, C400000000000000), BinData(128, C40FFFFFFFFFFFFF)]",
+                "[BinData(128, C410000000000000), BinData(128, C41FFFFFFFFFFFFF)]",
+                "[BinData(128, C440000000000000), BinData(128, C47FFFFFFFFFFFFF)]",
+                "[BinData(128, C4D0000000000000), BinData(128, C4DFFFFFFFFFFFFF)]",
+                "[BinData(128, C4F0000000000000), BinData(128, C4FFFFFFFFFFFFFF)]",
+                "[BinData(128, C608000000000000), BinData(128, C60BFFFFFFFFFFFF)]",
+                "[BinData(128, C60C000000000000), BinData(128, C60FFFFFFFFFFFFF)]",
+                "[BinData(128, C620000000000000), BinData(128, C62FFFFFFFFFFFFF)]",
+                "[BinData(128, C630000000000000), BinData(128, C63FFFFFFFFFFFFF)]",
+                "[BinData(128, C640000000000000), BinData(128, C67FFFFFFFFFFFFF)]"
+              ]
+            },
+            "keysExamined": {
+              "$numberInt": "1"
+            },
+            "seeks": {
+              "$numberInt": "2"
+            },
+            "dupsTested": {
+              "$numberInt": "0"
+            },
+            "dupsDropped": {
+              "$numberInt": "0"
+            }
+          }
+        },
+        {
+          "stage": "FETCH",
+          "filter": {
+            "$TwoDPtInAnnulusExpression": true
+          },
+          "nReturned": {
+            "$numberInt": "0"
+          },
+          "executionTimeMillisEstimate": {
+            "$numberInt": "0"
+          },
+          "works": {
+            "$numberInt": "2"
+          },
+          "advanced": {
+            "$numberInt": "0"
+          },
+          "needTime": {
+            "$numberInt": "1"
+          },
+          "needYield": {
+            "$numberInt": "0"
+          },
+          "saveState": {
+            "$numberInt": "0"
+          },
+          "restoreState": {
+            "$numberInt": "0"
+          },
+          "isEOF": {
+            "$numberInt": "1"
+          },
+          "docsExamined": {
+            "$numberInt": "0"
+          },
+          "alreadyHasObj": {
+            "$numberInt": "0"
+          },
+          "inputStage": {
+            "stage": "IXSCAN",
+            "nReturned": {
+              "$numberInt": "0"
+            },
+            "executionTimeMillisEstimate": {
+              "$numberInt": "0"
+            },
+            "works": {
+              "$numberInt": "2"
+            },
+            "advanced": {
+              "$numberInt": "0"
+            },
+            "needTime": {
+              "$numberInt": "1"
+            },
+            "needYield": {
+              "$numberInt": "0"
+            },
+            "saveState": {
+              "$numberInt": "0"
+            },
+            "restoreState": {
+              "$numberInt": "0"
+            },
+            "isEOF": {
+              "$numberInt": "1"
+            },
+            "keyPattern": {
+              "pos": "2d"
+            },
+            "indexName": "pos_2d",
+            "isMultiKey": false,
+            "isUnique": false,
+            "isSparse": false,
+            "isPartial": false,
+            "indexVersion": {
+              "$numberInt": "2"
+            },
+            "direction": "forward",
+            "indexBounds": {
+              "pos": [
+                "[BinData(128, 6AC0000000000000), BinData(128, 6AFFFFFFFFFFFFFF)]",
+                "[BinData(128, 6B00000000000000), BinData(128, 6B3FFFFFFFFFFFFF)]",
+                "[BinData(128, 6B40000000000000), BinData(128, 6B7FFFFFFFFFFFFF)]",
+                "[BinData(128, 6B80000000000000), BinData(128, 6BBFFFFFFFFFFFFF)]",
+                "[BinData(128, 6BC0000000000000), BinData(128, 6BCFFFFFFFFFFFFF)]",
+                "[BinData(128, 6BD0000000000000), BinData(128, 6BDFFFFFFFFFFFFF)]",
+                "[BinData(128, 6BE0000000000000), BinData(128, 6BEFFFFFFFFFFFFF)]",
+                "[BinData(128, 6BF0000000000000), BinData(128, 6BF3FFFFFFFFFFFF)]",
+                "[BinData(128, 6BF4000000000000), BinData(128, 6BF7FFFFFFFFFFFF)]",
+                "[BinData(128, 6BF8000000000000), BinData(128, 6BFBFFFFFFFFFFFF)]",
+                "[BinData(128, 6E00000000000000), BinData(128, 6E3FFFFFFFFFFFFF)]",
+                "[BinData(128, 6E40000000000000), BinData(128, 6E7FFFFFFFFFFFFF)]",
+                "[BinData(128, 6E80000000000000), BinData(128, 6E8FFFFFFFFFFFFF)]",
+                "[BinData(128, 6E90000000000000), BinData(128, 6E9FFFFFFFFFFFFF)]",
+                "[BinData(128, 6EB0000000000000), BinData(128, 6EB3FFFFFFFFFFFF)]",
+                "[BinData(128, 6EB4000000000000), BinData(128, 6EB7FFFFFFFFFFFF)]",
+                "[BinData(128, 6EBC000000000000), BinData(128, 6EBFFFFFFFFFFFFF)]",
+                "[BinData(128, 6EC0000000000000), BinData(128, 6EFFFFFFFFFFFFFF)]",
+                "[BinData(128, 6F2A800000000000), BinData(128, 6F2ABFFFFFFFFFFF)]",
+                "[BinData(128, 6F80000000000000), BinData(128, 6FBFFFFFFFFFFFFF)]",
+                "[BinData(128, C000000000000000), BinData(128, C0FFFFFFFFFFFFFF)]",
+                "[BinData(128, C100000000000000), BinData(128, C10FFFFFFFFFFFFF)]",
+                "[BinData(128, C110000000000000), BinData(128, C11FFFFFFFFFFFFF)]",
+                "[BinData(128, C120000000000000), BinData(128, C12FFFFFFFFFFFFF)]",
+                "[BinData(128, C180000000000000), BinData(128, C18FFFFFFFFFFFFF)]",
+                "[BinData(128, C1A0000000000000), BinData(128, C1AFFFFFFFFFFFFF)]",
+                "[BinData(128, C200000000000000), BinData(128, C2FFFFFFFFFFFFFF)]",
+                "[BinData(128, C300000000000000), BinData(128, C30FFFFFFFFFFFFF)]",
+                "[BinData(128, C320000000000000), BinData(128, C32FFFFFFFFFFFFF)]",
+                "[BinData(128, C330000000000000), BinData(128, C33FFFFFFFFFFFFF)]",
+                "[BinData(128, C380000000000000), BinData(128, C3BFFFFFFFFFFFFF)]",
+                "[BinData(128, C3C0000000000000), BinData(128, C3FFFFFFFFFFFFFF)]",
+                "[BinData(128, C500000000000000), BinData(128, C5FFFFFFFFFFFFFF)]",
+                "[BinData(128, C680000000000000), BinData(128, C6BFFFFFFFFFFFFF)]",
+                "[BinData(128, C6C0000000000000), BinData(128, C6FFFFFFFFFFFFFF)]",
+                "[BinData(128, C700000000000000), BinData(128, C7FFFFFFFFFFFFFF)]",
+                "[BinData(128, C910000000000000), BinData(128, C91FFFFFFFFFFFFF)]",
+                "[BinData(128, C940000000000000), BinData(128, C97FFFFFFFFFFFFF)]",
+                "[BinData(128, CC00000000000000), BinData(128, CCFFFFFFFFFFFFFF)]"
+              ]
+            },
+            "keysExamined": {
+              "$numberInt": "1"
+            },
+            "seeks": {
+              "$numberInt": "2"
+            },
+            "dupsTested": {
+              "$numberInt": "0"
+            },
+            "dupsDropped": {
+              "$numberInt": "0"
+            }
+          }
+        },
+        {
+          "stage": "FETCH",
+          "filter": {
+            "$TwoDPtInAnnulusExpression": true
+          },
+          "nReturned": {
+            "$numberInt": "0"
+          },
+          "executionTimeMillisEstimate": {
+            "$numberInt": "0"
+          },
+          "works": {
+            "$numberInt": "2"
+          },
+          "advanced": {
+            "$numberInt": "0"
+          },
+          "needTime": {
+            "$numberInt": "1"
+          },
+          "needYield": {
+            "$numberInt": "0"
+          },
+          "saveState": {
+            "$numberInt": "0"
+          },
+          "restoreState": {
+            "$numberInt": "0"
+          },
+          "isEOF": {
+            "$numberInt": "1"
+          },
+          "docsExamined": {
+            "$numberInt": "0"
+          },
+          "alreadyHasObj": {
+            "$numberInt": "0"
+          },
+          "inputStage": {
+            "stage": "IXSCAN",
+            "nReturned": {
+              "$numberInt": "0"
+            },
+            "executionTimeMillisEstimate": {
+              "$numberInt": "0"
+            },
+            "works": {
+              "$numberInt": "2"
+            },
+            "advanced": {
+              "$numberInt": "0"
+            },
+            "needTime": {
+              "$numberInt": "1"
+            },
+            "needYield": {
+              "$numberInt": "0"
+            },
+            "saveState": {
+              "$numberInt": "0"
+            },
+            "restoreState": {
+              "$numberInt": "0"
+            },
+            "isEOF": {
+              "$numberInt": "1"
+            },
+            "keyPattern": {
+              "pos": "2d"
+            },
+            "indexName": "pos_2d",
+            "isMultiKey": false,
+            "isUnique": false,
+            "isSparse": false,
+            "isPartial": false,
+            "indexVersion": {
+              "$numberInt": "2"
+            },
+            "direction": "forward",
+            "indexBounds": {
+              "pos": [
+                "[BinData(128, 3DC0000000000000), BinData(128, 3DFFFFFFFFFFFFFF)]",
+                "[BinData(128, 3F00000000000000), BinData(128, 3FFFFFFFFFFFFFFF)]",
+                "[BinData(128, 6000000000000000), BinData(128, 63FFFFFFFFFFFFFF)]",
+                "[BinData(128, 6400000000000000), BinData(128, 67FFFFFFFFFFFFFF)]",
+                "[BinData(128, 6800000000000000), BinData(128, 68FFFFFFFFFFFFFF)]",
+                "[BinData(128, 6900000000000000), BinData(128, 69FFFFFFFFFFFFFF)]",
+                "[BinData(128, 6A00000000000000), BinData(128, 6A3FFFFFFFFFFFFF)]",
+                "[BinData(128, 6A40000000000000), BinData(128, 6A7FFFFFFFFFFFFF)]",
+                "[BinData(128, 6A80000000000000), BinData(128, 6ABFFFFFFFFFFFFF)]",
+                "[BinData(128, 6C00000000000000), BinData(128, 6CFFFFFFFFFFFFFF)]",
+                "[BinData(128, 6D00000000000000), BinData(128, 6DFFFFFFFFFFFFFF)]",
+                "[BinData(128, 6F00000000000000), BinData(128, 6F0FFFFFFFFFFFFF)]",
+                "[BinData(128, 6F10000000000000), BinData(128, 6F1FFFFFFFFFFFFF)]",
+                "[BinData(128, 6F20000000000000), BinData(128, 6F23FFFFFFFFFFFF)]",
+                "[BinData(128, 6F24000000000000), BinData(128, 6F27FFFFFFFFFFFF)]",
+                "[BinData(128, 6F28000000000000), BinData(128, 6F28FFFFFFFFFFFF)]",
+                "[BinData(128, 6F29000000000000), BinData(128, 6F29FFFFFFFFFFFF)]",
+                "[BinData(128, 6F2A000000000000), BinData(128, 6F2A3FFFFFFFFFFF)]",
+                "[BinData(128, 6F2A400000000000), BinData(128, 6F2A7FFFFFFFFFFF)]",
+                "[BinData(128, 6F2AC00000000000), BinData(128, 6F2AFFFFFFFFFFFF)]",
+                "[BinData(128, 6F2B000000000000), BinData(128, 6F2BFFFFFFFFFFFF)]",
+                "[BinData(128, 6F2C000000000000), BinData(128, 6F2FFFFFFFFFFFFF)]",
+                "[BinData(128, 6F30000000000000), BinData(128, 6F3FFFFFFFFFFFFF)]",
+                "[BinData(128, 6F40000000000000), BinData(128, 6F7FFFFFFFFFFFFF)]",
+                "[BinData(128, 6FC0000000000000), BinData(128, 6FFFFFFFFFFFFFFF)]",
+                "[BinData(128, 7800000000000000), BinData(128, 7BFFFFFFFFFFFFFF)]",
+                "[BinData(128, 9500000000000000), BinData(128, 95FFFFFFFFFFFFFF)]",
+                "[BinData(128, 9700000000000000), BinData(128, 97FFFFFFFFFFFFFF)]",
+                "[BinData(128, 9D00000000000000), BinData(128, 9DFFFFFFFFFFFFFF)]",
+                "[BinData(128, C800000000000000), BinData(128, C8FFFFFFFFFFFFFF)]",
+                "[BinData(128, C900000000000000), BinData(128, C90FFFFFFFFFFFFF)]",
+                "[BinData(128, C920000000000000), BinData(128, C92FFFFFFFFFFFFF)]",
+                "[BinData(128, C930000000000000), BinData(128, C93FFFFFFFFFFFFF)]",
+                "[BinData(128, C980000000000000), BinData(128, C9BFFFFFFFFFFFFF)]",
+                "[BinData(128, C9C0000000000000), BinData(128, C9FFFFFFFFFFFFFF)]",
+                "[BinData(128, CA00000000000000), BinData(128, CAFFFFFFFFFFFFFF)]",
+                "[BinData(128, CB00000000000000), BinData(128, CBFFFFFFFFFFFFFF)]",
+                "[BinData(128, CD00000000000000), BinData(128, CDFFFFFFFFFFFFFF)]",
+                "[BinData(128, CE00000000000000), BinData(128, CEFFFFFFFFFFFFFF)]",
+                "[BinData(128, CF00000000000000), BinData(128, CFFFFFFFFFFFFFFF)]",
+                "[BinData(128, D000000000000000), BinData(128, D3FFFFFFFFFFFFFF)]",
+                "[BinData(128, D800000000000000), BinData(128, DBFFFFFFFFFFFFFF)]"
+              ]
+            },
+            "keysExamined": {
+              "$numberInt": "1"
+            },
+            "seeks": {
+              "$numberInt": "2"
+            },
+            "dupsTested": {
+              "$numberInt": "0"
+            },
+            "dupsDropped": {
+              "$numberInt": "0"
+            }
+          }
+        },
+        {
+          "stage": "FETCH",
+          "filter": {
+            "$TwoDPtInAnnulusExpression": true
+          },
+          "nReturned": {
+            "$numberInt": "0"
+          },
+          "executionTimeMillisEstimate": {
+            "$numberInt": "0"
+          },
+          "works": {
+            "$numberInt": "2"
+          },
+          "advanced": {
+            "$numberInt": "0"
+          },
+          "needTime": {
+            "$numberInt": "1"
+          },
+          "needYield": {
+            "$numberInt": "0"
+          },
+          "saveState": {
+            "$numberInt": "0"
+          },
+          "restoreState": {
+            "$numberInt": "0"
+          },
+          "isEOF": {
+            "$numberInt": "1"
+          },
+          "docsExamined": {
+            "$numberInt": "0"
+          },
+          "alreadyHasObj": {
+            "$numberInt": "0"
+          },
+          "inputStage": {
+            "stage": "IXSCAN",
+            "nReturned": {
+              "$numberInt": "0"
+            },
+            "executionTimeMillisEstimate": {
+              "$numberInt": "0"
+            },
+            "works": {
+              "$numberInt": "2"
+            },
+            "advanced": {
+              "$numberInt": "0"
+            },
+            "needTime": {
+              "$numberInt": "1"
+            },
+            "needYield": {
+              "$numberInt": "0"
+            },
+            "saveState": {
+              "$numberInt": "0"
+            },
+            "restoreState": {
+              "$numberInt": "0"
+            },
+            "isEOF": {
+              "$numberInt": "1"
+            },
+            "keyPattern": {
+              "pos": "2d"
+            },
+            "indexName": "pos_2d",
+            "isMultiKey": false,
+            "isUnique": false,
+            "isSparse": false,
+            "isPartial": false,
+            "indexVersion": {
+              "$numberInt": "2"
+            },
+            "direction": "forward",
+            "indexBounds": {
+              "pos": [
+                "[BinData(128, 1C00000000000000), BinData(128, 1FFFFFFFFFFFFFFF)]",
+                "[BinData(128, 3000000000000000), BinData(128, 33FFFFFFFFFFFFFF)]",
+                "[BinData(128, 3400000000000000), BinData(128, 37FFFFFFFFFFFFFF)]",
+                "[BinData(128, 3800000000000000), BinData(128, 3BFFFFFFFFFFFFFF)]",
+                "[BinData(128, 3C00000000000000), BinData(128, 3CFFFFFFFFFFFFFF)]",
+                "[BinData(128, 3D00000000000000), BinData(128, 3D3FFFFFFFFFFFFF)]",
+                "[BinData(128, 3D40000000000000), BinData(128, 3D7FFFFFFFFFFFFF)]",
+                "[BinData(128, 3D80000000000000), BinData(128, 3DBFFFFFFFFFFFFF)]",
+                "[BinData(128, 3E00000000000000), BinData(128, 3EFFFFFFFFFFFFFF)]",
+                "[BinData(128, 4800000000000000), BinData(128, 4BFFFFFFFFFFFFFF)]",
+                "[BinData(128, 4C00000000000000), BinData(128, 4FFFFFFFFFFFFFFF)]",
+                "[BinData(128, 5800000000000000), BinData(128, 5BFFFFFFFFFFFFFF)]",
+                "[BinData(128, 7000000000000000), BinData(128, 73FFFFFFFFFFFFFF)]",
+                "[BinData(128, 7400000000000000), BinData(128, 77FFFFFFFFFFFFFF)]",
+                "[BinData(128, 7C00000000000000), BinData(128, 7FFFFFFFFFFFFFFF)]",
+                "[BinData(128, 9000000000000000), BinData(128, 93FFFFFFFFFFFFFF)]",
+                "[BinData(128, 9400000000000000), BinData(128, 94FFFFFFFFFFFFFF)]",
+                "[BinData(128, 9600000000000000), BinData(128, 96FFFFFFFFFFFFFF)]",
+                "[BinData(128, 9800000000000000), BinData(128, 9BFFFFFFFFFFFFFF)]",
+                "[BinData(128, 9C00000000000000), BinData(128, 9CFFFFFFFFFFFFFF)]",
+                "[BinData(128, 9E00000000000000), BinData(128, 9EFFFFFFFFFFFFFF)]",
+                "[BinData(128, 9F00000000000000), BinData(128, 9FFFFFFFFFFFFFFF)]",
+                "[BinData(128, B000000000000000), BinData(128, B3FFFFFFFFFFFFFF)]",
+                "[BinData(128, B400000000000000), BinData(128, B7FFFFFFFFFFFFFF)]",
+                "[BinData(128, BD00000000000000), BinData(128, BDFFFFFFFFFFFFFF)]",
+                "[BinData(128, D400000000000000), BinData(128, D7FFFFFFFFFFFFFF)]",
+                "[BinData(128, DC00000000000000), BinData(128, DFFFFFFFFFFFFFFF)]",
+                "[BinData(128, E000000000000000), BinData(128, EFFFFFFFFFFFFFFF)]",
+                "[BinData(128, F000000000000000), BinData(128, FFFFFFFFFFFFFFFF)]"
+              ]
+            },
+            "keysExamined": {
+              "$numberInt": "1"
+            },
+            "seeks": {
+              "$numberInt": "2"
+            },
+            "dupsTested": {
+              "$numberInt": "0"
+            },
+            "dupsDropped": {
+              "$numberInt": "0"
+            }
+          }
+        },
+        {
+          "stage": "FETCH",
+          "filter": {
+            "$TwoDPtInAnnulusExpression": true
+          },
+          "nReturned": {
+            "$numberInt": "0"
+          },
+          "executionTimeMillisEstimate": {
+            "$numberInt": "0"
+          },
+          "works": {
+            "$numberInt": "1"
+          },
+          "advanced": {
+            "$numberInt": "0"
+          },
+          "needTime": {
+            "$numberInt": "0"
+          },
+          "needYield": {
+            "$numberInt": "0"
+          },
+          "saveState": {
+            "$numberInt": "0"
+          },
+          "restoreState": {
+            "$numberInt": "0"
+          },
+          "isEOF": {
+            "$numberInt": "1"
+          },
+          "docsExamined": {
+            "$numberInt": "0"
+          },
+          "alreadyHasObj": {
+            "$numberInt": "0"
+          },
+          "inputStage": {
+            "stage": "IXSCAN",
+            "nReturned": {
+              "$numberInt": "0"
+            },
+            "executionTimeMillisEstimate": {
+              "$numberInt": "0"
+            },
+            "works": {
+              "$numberInt": "1"
+            },
+            "advanced": {
+              "$numberInt": "0"
+            },
+            "needTime": {
+              "$numberInt": "0"
+            },
+            "needYield": {
+              "$numberInt": "0"
+            },
+            "saveState": {
+              "$numberInt": "0"
+            },
+            "restoreState": {
+              "$numberInt": "0"
+            },
+            "isEOF": {
+              "$numberInt": "1"
+            },
+            "keyPattern": {
+              "pos": "2d"
+            },
+            "indexName": "pos_2d",
+            "isMultiKey": false,
+            "isUnique": false,
+            "isSparse": false,
+            "isPartial": false,
+            "indexVersion": {
+              "$numberInt": "2"
+            },
+            "direction": "forward",
+            "indexBounds": {
+              "pos": [
+                "[BinData(128, 0000000000000000), BinData(128, 0FFFFFFFFFFFFFFF)]",
+                "[BinData(128, 1000000000000000), BinData(128, 13FFFFFFFFFFFFFF)]",
+                "[BinData(128, 1400000000000000), BinData(128, 17FFFFFFFFFFFFFF)]",
+                "[BinData(128, 1800000000000000), BinData(128, 1BFFFFFFFFFFFFFF)]",
+                "[BinData(128, 2000000000000000), BinData(128, 2FFFFFFFFFFFFFFF)]",
+                "[BinData(128, 4000000000000000), BinData(128, 43FFFFFFFFFFFFFF)]",
+                "[BinData(128, 4400000000000000), BinData(128, 47FFFFFFFFFFFFFF)]",
+                "[BinData(128, 5000000000000000), BinData(128, 53FFFFFFFFFFFFFF)]",
+                "[BinData(128, 5400000000000000), BinData(128, 57FFFFFFFFFFFFFF)]",
+                "[BinData(128, 5C00000000000000), BinData(128, 5FFFFFFFFFFFFFFF)]",
+                "[BinData(128, 8000000000000000), BinData(128, 8FFFFFFFFFFFFFFF)]",
+                "[BinData(128, A000000000000000), BinData(128, AFFFFFFFFFFFFFFF)]",
+                "[BinData(128, B800000000000000), BinData(128, BBFFFFFFFFFFFFFF)]",
+                "[BinData(128, BC00000000000000), BinData(128, BCFFFFFFFFFFFFFF)]",
+                "[BinData(128, BE00000000000000), BinData(128, BEFFFFFFFFFFFFFF)]",
+                "[BinData(128, BF00000000000000), BinData(128, BFFFFFFFFFFFFFFF)]"
+              ]
+            },
+            "keysExamined": {
+              "$numberInt": "1"
+            },
+            "seeks": {
+              "$numberInt": "1"
+            },
+            "dupsTested": {
+              "$numberInt": "0"
+            },
+            "dupsDropped": {
+              "$numberInt": "0"
+            }
+          }
+        },
+        {
+          "stage": "FETCH",
+          "filter": {
+            "$TwoDPtInAnnulusExpression": true
+          },
+          "nReturned": {
+            "$numberInt": "0"
+          },
+          "executionTimeMillisEstimate": {
+            "$numberInt": "0"
+          },
+          "works": {
+            "$numberInt": "1"
+          },
+          "advanced": {
+            "$numberInt": "0"
+          },
+          "needTime": {
+            "$numberInt": "0"
+          },
+          "needYield": {
+            "$numberInt": "0"
+          },
+          "saveState": {
+            "$numberInt": "0"
+          },
+          "restoreState": {
+            "$numberInt": "0"
+          },
+          "isEOF": {
+            "$numberInt": "1"
+          },
+          "docsExamined": {
+            "$numberInt": "0"
+          },
+          "alreadyHasObj": {
+            "$numberInt": "0"
+          },
+          "inputStage": {
+            "stage": "IXSCAN",
+            "nReturned": {
+              "$numberInt": "0"
+            },
+            "executionTimeMillisEstimate": {
+              "$numberInt": "0"
+            },
+            "works": {
+              "$numberInt": "1"
+            },
+            "advanced": {
+              "$numberInt": "0"
+            },
+            "needTime": {
+              "$numberInt": "0"
+            },
+            "needYield": {
+              "$numberInt": "0"
+            },
+            "saveState": {
+              "$numberInt": "0"
+            },
+            "restoreState": {
+              "$numberInt": "0"
+            },
+            "isEOF": {
+              "$numberInt": "1"
+            },
+            "keyPattern": {
+              "pos": "2d"
+            },
+            "indexName": "pos_2d",
+            "isMultiKey": false,
+            "isUnique": false,
+            "isSparse": false,
+            "isPartial": false,
+            "indexVersion": {
+              "$numberInt": "2"
+            },
+            "direction": "forward",
+            "indexBounds": {
+              "pos": []
+            },
+            "keysExamined": {
+              "$numberInt": "0"
+            },
+            "seeks": {
+              "$numberInt": "1"
+            },
+            "dupsTested": {
+              "$numberInt": "0"
+            },
+            "dupsDropped": {
+              "$numberInt": "0"
+            }
+          }
+        }
+      ]
+    }
+  },
+  "queryShapeHash": "43DB2D6DD60CB98FB8A11C08C14BD83052E9E0ECF6D819BF8E01445A873AB08D",
+  "command": {
+    "find": "places",
+    "filter": {
+      "pos": {
+        "$near": [
+          {
+            "$numberDouble": "16.37"
+          },
+          {
+            "$numberDouble": "48.2"
+          }
+        ]
+      }
+    },
+    "$db": "explain_capture"
+  },
+  "serverInfo": {
+    "host": "488f3bea497e",
+    "port": {
+      "$numberInt": "27017"
+    },
+    "version": "8.0.17",
+    "gitVersion": "b20e43625b72f4bb43cc15107f80ac966ae13b6d"
+  },
+  "serverParameters": {
+    "internalQueryFacetBufferSizeBytes": {
+      "$numberInt": "104857600"
+    },
+    "internalQueryFacetMaxOutputDocSizeBytes": {
+      "$numberInt": "104857600"
+    },
+    "internalLookupStageIntermediateDocumentMaxSizeBytes": {
+      "$numberInt": "104857600"
+    },
+    "internalDocumentSourceGroupMaxMemoryBytes": {
+      "$numberInt": "104857600"
+    },
+    "internalQueryMaxBlockingSortMemoryUsageBytes": {
+      "$numberInt": "104857600"
+    },
+    "internalQueryProhibitBlockingMergeOnMongoS": {
+      "$numberInt": "0"
+    },
+    "internalQueryMaxAddToSetBytes": {
+      "$numberInt": "104857600"
+    },
+    "internalDocumentSourceSetWindowFieldsMaxMemoryBytes": {
+      "$numberInt": "104857600"
+    },
+    "internalQueryFrameworkControl": "trySbeRestricted",
+    "internalQueryPlannerIgnoreIndexWithCollationForRegex": {
+      "$numberInt": "1"
+    }
+  },
+  "ok": {
+    "$numberDouble": "1.0"
+  }
+}

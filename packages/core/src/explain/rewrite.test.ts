@@ -258,3 +258,38 @@ describe('rewriteForExplain refusals', () => {
     expect(refusalOf(statement)).toBe(EXPLAIN_NEEDS_ONE_QUERY);
   });
 });
+
+describe('rewriteForExplain refuses template literals and a bare explain property', () => {
+  it('refuses a backtick collection name with a template placeholder in bracket form', () => {
+    const result = rewriteForExplain('db[`orders${id}`].find({})', 'queryPlanner');
+    expect(result).toEqual({ ok: false, message: EXPLAIN_NEEDS_ONE_QUERY });
+  });
+
+  it('refuses a backtick collection name with a template placeholder in getCollection form', () => {
+    const result = rewriteForExplain('db.getCollection(`orders${id}`).find({})', 'queryPlanner');
+    expect(result).toEqual({ ok: false, message: EXPLAIN_NEEDS_ONE_QUERY });
+  });
+
+  it('accepts a backtick collection name without a placeholder', () => {
+    const result = rewriteForExplain('db.getCollection(`orders`).find({})', 'queryPlanner');
+    expect(result.ok).toBe(true);
+  });
+
+  it('refuses the prefix form when explain has no call parentheses', () => {
+    const result = rewriteForExplain('db.orders.explain.find({})', 'queryPlanner');
+    expect(result).toEqual({ ok: false, message: EXPLAIN_NEEDS_ONE_QUERY });
+  });
+
+  it('refuses the prefix form when explain has no call parentheses before a count', () => {
+    const result = rewriteForExplain('db.orders.explain.count({})', 'executionStats');
+    expect(result).toEqual({ ok: false, message: EXPLAIN_NEEDS_ONE_QUERY });
+  });
+
+  it('still accepts the prefix form with its verbosity argument', () => {
+    const result = rewriteForExplain(
+      'db.orders.explain("allPlansExecution").find({})',
+      'queryPlanner',
+    );
+    expect(result.ok).toBe(true);
+  });
+});

@@ -1,0 +1,159 @@
+{
+  "explainVersion": "1",
+  "stages": [
+    {
+      "$cursor": {
+        "queryPlanner": {
+          "namespace": "explain_capture.customers",
+          "parsedQuery": {
+            "_id": {
+              "$eq": {
+                "$numberInt": "5"
+              }
+            }
+          },
+          "indexFilterSet": false,
+          "queryHash": "9B5DE45B",
+          "planCacheShapeHash": "9B5DE45B",
+          "planCacheKey": "B4738D99",
+          "optimizationTimeMillis": {
+            "$numberInt": "0"
+          },
+          "maxIndexedOrSolutionsReached": false,
+          "maxIndexedAndSolutionsReached": false,
+          "maxScansToExplodeReached": false,
+          "prunedSimilarIndexes": false,
+          "winningPlan": {
+            "isCached": false,
+            "stage": "EXPRESS_IXSCAN",
+            "keyPattern": "{ _id: 1 }",
+            "indexName": "_id_"
+          },
+          "rejectedPlans": []
+        },
+        "executionStats": {
+          "executionSuccess": true,
+          "nReturned": {
+            "$numberInt": "1"
+          },
+          "executionTimeMillis": {
+            "$numberInt": "0"
+          },
+          "totalKeysExamined": {
+            "$numberInt": "1"
+          },
+          "totalDocsExamined": {
+            "$numberInt": "1"
+          },
+          "executionStages": {
+            "isCached": false,
+            "stage": "EXPRESS_IXSCAN",
+            "keyPattern": "{ _id: 1 }",
+            "indexName": "_id_",
+            "keysExamined": {
+              "$numberInt": "1"
+            },
+            "docsExamined": {
+              "$numberInt": "1"
+            },
+            "nReturned": {
+              "$numberInt": "1"
+            }
+          }
+        }
+      },
+      "nReturned": {
+        "$numberLong": "1"
+      },
+      "executionTimeMillisEstimate": {
+        "$numberLong": "1"
+      }
+    },
+    {
+      "$graphLookup": {
+        "from": "customers",
+        "as": "chain",
+        "connectToField": "_id",
+        "connectFromField": "referredBy",
+        "startWith": "$referredBy",
+        "maxDepth": {
+          "$numberLong": "3"
+        }
+      },
+      "nReturned": {
+        "$numberLong": "1"
+      },
+      "executionTimeMillisEstimate": {
+        "$numberLong": "1"
+      }
+    }
+  ],
+  "queryShapeHash": "D9459A09C6DF7F2E1D610BA8C82D65F1A2CCC04FBA32805063B5720E5C48665B",
+  "serverInfo": {
+    "host": "488f3bea497e",
+    "port": {
+      "$numberInt": "27017"
+    },
+    "version": "8.0.17",
+    "gitVersion": "b20e43625b72f4bb43cc15107f80ac966ae13b6d"
+  },
+  "serverParameters": {
+    "internalQueryFacetBufferSizeBytes": {
+      "$numberInt": "104857600"
+    },
+    "internalQueryFacetMaxOutputDocSizeBytes": {
+      "$numberInt": "104857600"
+    },
+    "internalLookupStageIntermediateDocumentMaxSizeBytes": {
+      "$numberInt": "104857600"
+    },
+    "internalDocumentSourceGroupMaxMemoryBytes": {
+      "$numberInt": "104857600"
+    },
+    "internalQueryMaxBlockingSortMemoryUsageBytes": {
+      "$numberInt": "104857600"
+    },
+    "internalQueryProhibitBlockingMergeOnMongoS": {
+      "$numberInt": "0"
+    },
+    "internalQueryMaxAddToSetBytes": {
+      "$numberInt": "104857600"
+    },
+    "internalDocumentSourceSetWindowFieldsMaxMemoryBytes": {
+      "$numberInt": "104857600"
+    },
+    "internalQueryFrameworkControl": "trySbeRestricted",
+    "internalQueryPlannerIgnoreIndexWithCollationForRegex": {
+      "$numberInt": "1"
+    }
+  },
+  "command": {
+    "aggregate": "customers",
+    "pipeline": [
+      {
+        "$match": {
+          "_id": {
+            "$numberInt": "5"
+          }
+        }
+      },
+      {
+        "$graphLookup": {
+          "from": "customers",
+          "startWith": "$referredBy",
+          "connectFromField": "referredBy",
+          "connectToField": "_id",
+          "as": "chain",
+          "maxDepth": {
+            "$numberInt": "3"
+          }
+        }
+      }
+    ],
+    "cursor": {},
+    "$db": "explain_capture"
+  },
+  "ok": {
+    "$numberDouble": "1.0"
+  }
+}

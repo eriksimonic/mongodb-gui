@@ -1,0 +1,268 @@
+{
+  "explainVersion": "1",
+  "stages": [
+    {
+      "$cursor": {
+        "queryPlanner": {
+          "namespace": "explain_capture.places",
+          "indexFilterSet": false,
+          "parsedQuery": {
+            "cuisine": {
+              "$eq": "thai"
+            }
+          },
+          "queryHash": "F3A03D93",
+          "planCacheKey": "62000A2B",
+          "maxIndexedOrSolutionsReached": false,
+          "maxIndexedAndSolutionsReached": false,
+          "maxScansToExplodeReached": false,
+          "winningPlan": {
+            "stage": "FETCH",
+            "inputStage": {
+              "stage": "IXSCAN",
+              "keyPattern": {
+                "cuisine": {
+                  "$numberInt": "1"
+                },
+                "rating": {
+                  "$numberInt": "-1"
+                }
+              },
+              "indexName": "cuisine_1_rating_-1",
+              "isMultiKey": false,
+              "multiKeyPaths": {
+                "cuisine": [],
+                "rating": []
+              },
+              "isUnique": false,
+              "isSparse": false,
+              "isPartial": false,
+              "indexVersion": {
+                "$numberInt": "2"
+              },
+              "direction": "forward",
+              "indexBounds": {
+                "cuisine": [
+                  "[\"thai\", \"thai\"]"
+                ],
+                "rating": [
+                  "[MaxKey, MinKey]"
+                ]
+              }
+            }
+          },
+          "rejectedPlans": []
+        },
+        "executionStats": {
+          "executionSuccess": true,
+          "nReturned": {
+            "$numberInt": "600"
+          },
+          "executionTimeMillis": {
+            "$numberInt": "52"
+          },
+          "totalKeysExamined": {
+            "$numberInt": "600"
+          },
+          "totalDocsExamined": {
+            "$numberInt": "600"
+          },
+          "executionStages": {
+            "stage": "FETCH",
+            "nReturned": {
+              "$numberInt": "600"
+            },
+            "executionTimeMillisEstimate": {
+              "$numberInt": "0"
+            },
+            "works": {
+              "$numberInt": "601"
+            },
+            "advanced": {
+              "$numberInt": "600"
+            },
+            "needTime": {
+              "$numberInt": "0"
+            },
+            "needYield": {
+              "$numberInt": "0"
+            },
+            "saveState": {
+              "$numberInt": "1"
+            },
+            "restoreState": {
+              "$numberInt": "1"
+            },
+            "isEOF": {
+              "$numberInt": "1"
+            },
+            "docsExamined": {
+              "$numberInt": "600"
+            },
+            "alreadyHasObj": {
+              "$numberInt": "0"
+            },
+            "inputStage": {
+              "stage": "IXSCAN",
+              "nReturned": {
+                "$numberInt": "600"
+              },
+              "executionTimeMillisEstimate": {
+                "$numberInt": "0"
+              },
+              "works": {
+                "$numberInt": "601"
+              },
+              "advanced": {
+                "$numberInt": "600"
+              },
+              "needTime": {
+                "$numberInt": "0"
+              },
+              "needYield": {
+                "$numberInt": "0"
+              },
+              "saveState": {
+                "$numberInt": "1"
+              },
+              "restoreState": {
+                "$numberInt": "1"
+              },
+              "isEOF": {
+                "$numberInt": "1"
+              },
+              "keyPattern": {
+                "cuisine": {
+                  "$numberInt": "1"
+                },
+                "rating": {
+                  "$numberInt": "-1"
+                }
+              },
+              "indexName": "cuisine_1_rating_-1",
+              "isMultiKey": false,
+              "multiKeyPaths": {
+                "cuisine": [],
+                "rating": []
+              },
+              "isUnique": false,
+              "isSparse": false,
+              "isPartial": false,
+              "indexVersion": {
+                "$numberInt": "2"
+              },
+              "direction": "forward",
+              "indexBounds": {
+                "cuisine": [
+                  "[\"thai\", \"thai\"]"
+                ],
+                "rating": [
+                  "[MaxKey, MinKey]"
+                ]
+              },
+              "keysExamined": {
+                "$numberInt": "600"
+              },
+              "seeks": {
+                "$numberInt": "1"
+              },
+              "dupsTested": {
+                "$numberInt": "0"
+              },
+              "dupsDropped": {
+                "$numberInt": "0"
+              }
+            }
+          }
+        }
+      },
+      "nReturned": {
+        "$numberLong": "600"
+      },
+      "executionTimeMillisEstimate": {
+        "$numberLong": "0"
+      }
+    },
+    {
+      "$lookup": {
+        "from": "customers",
+        "as": "m",
+        "localField": "cuisine",
+        "foreignField": "tier"
+      },
+      "totalDocsExamined": {
+        "$numberLong": "180000"
+      },
+      "totalKeysExamined": {
+        "$numberLong": "0"
+      },
+      "collectionScans": {
+        "$numberLong": "600"
+      },
+      "indexesUsed": [],
+      "nReturned": {
+        "$numberLong": "600"
+      },
+      "executionTimeMillisEstimate": {
+        "$numberLong": "51"
+      }
+    }
+  ],
+  "serverInfo": {
+    "host": "5366f353288c",
+    "port": {
+      "$numberInt": "27017"
+    },
+    "version": "6.0.28",
+    "gitVersion": "ef888a6df901622004aeb4b7362e007b8c4299da"
+  },
+  "serverParameters": {
+    "internalQueryFacetBufferSizeBytes": {
+      "$numberInt": "104857600"
+    },
+    "internalQueryFacetMaxOutputDocSizeBytes": {
+      "$numberInt": "104857600"
+    },
+    "internalLookupStageIntermediateDocumentMaxSizeBytes": {
+      "$numberInt": "104857600"
+    },
+    "internalDocumentSourceGroupMaxMemoryBytes": {
+      "$numberInt": "104857600"
+    },
+    "internalQueryMaxBlockingSortMemoryUsageBytes": {
+      "$numberInt": "104857600"
+    },
+    "internalQueryProhibitBlockingMergeOnMongoS": {
+      "$numberInt": "0"
+    },
+    "internalQueryMaxAddToSetBytes": {
+      "$numberInt": "104857600"
+    },
+    "internalDocumentSourceSetWindowFieldsMaxMemoryBytes": {
+      "$numberInt": "104857600"
+    }
+  },
+  "command": {
+    "aggregate": "places",
+    "pipeline": [
+      {
+        "$match": {
+          "cuisine": "thai"
+        }
+      },
+      {
+        "$lookup": {
+          "from": "customers",
+          "localField": "cuisine",
+          "foreignField": "tier",
+          "as": "m"
+        }
+      }
+    ],
+    "cursor": {},
+    "$db": "explain_capture"
+  },
+  "ok": {
+    "$numberDouble": "1.0"
+  }
+}

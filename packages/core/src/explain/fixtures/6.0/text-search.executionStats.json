@@ -1,0 +1,260 @@
+{
+  "explainVersion": "1",
+  "queryPlanner": {
+    "namespace": "explain_capture.places",
+    "indexFilterSet": false,
+    "parsedQuery": {
+      "$text": {
+        "$search": "coffee",
+        "$language": "english",
+        "$caseSensitive": false,
+        "$diacriticSensitive": false
+      }
+    },
+    "queryHash": "07C96184",
+    "planCacheKey": "7E54BFDF",
+    "maxIndexedOrSolutionsReached": false,
+    "maxIndexedAndSolutionsReached": false,
+    "maxScansToExplodeReached": false,
+    "winningPlan": {
+      "stage": "TEXT_MATCH",
+      "indexPrefix": {},
+      "indexName": "description_text",
+      "parsedTextQuery": {
+        "terms": [
+          "coffe"
+        ],
+        "negatedTerms": [],
+        "phrases": [],
+        "negatedPhrases": []
+      },
+      "textIndexVersion": {
+        "$numberInt": "3"
+      },
+      "inputStage": {
+        "stage": "FETCH",
+        "inputStage": {
+          "stage": "IXSCAN",
+          "keyPattern": {
+            "_fts": "text",
+            "_ftsx": {
+              "$numberInt": "1"
+            }
+          },
+          "indexName": "description_text",
+          "isMultiKey": true,
+          "isUnique": false,
+          "isSparse": false,
+          "isPartial": false,
+          "indexVersion": {
+            "$numberInt": "2"
+          },
+          "direction": "backward",
+          "indexBounds": {}
+        }
+      }
+    },
+    "rejectedPlans": []
+  },
+  "executionStats": {
+    "executionSuccess": true,
+    "nReturned": {
+      "$numberInt": "750"
+    },
+    "executionTimeMillis": {
+      "$numberInt": "4"
+    },
+    "totalKeysExamined": {
+      "$numberInt": "750"
+    },
+    "totalDocsExamined": {
+      "$numberInt": "750"
+    },
+    "executionStages": {
+      "stage": "TEXT_MATCH",
+      "nReturned": {
+        "$numberInt": "750"
+      },
+      "executionTimeMillisEstimate": {
+        "$numberInt": "3"
+      },
+      "works": {
+        "$numberInt": "751"
+      },
+      "advanced": {
+        "$numberInt": "750"
+      },
+      "needTime": {
+        "$numberInt": "0"
+      },
+      "needYield": {
+        "$numberInt": "0"
+      },
+      "saveState": {
+        "$numberInt": "0"
+      },
+      "restoreState": {
+        "$numberInt": "0"
+      },
+      "isEOF": {
+        "$numberInt": "1"
+      },
+      "indexPrefix": {},
+      "indexName": "description_text",
+      "parsedTextQuery": {
+        "terms": [
+          "coffe"
+        ],
+        "negatedTerms": [],
+        "phrases": [],
+        "negatedPhrases": []
+      },
+      "textIndexVersion": {
+        "$numberInt": "3"
+      },
+      "docsRejected": {
+        "$numberInt": "0"
+      },
+      "inputStage": {
+        "stage": "FETCH",
+        "nReturned": {
+          "$numberInt": "750"
+        },
+        "executionTimeMillisEstimate": {
+          "$numberInt": "3"
+        },
+        "works": {
+          "$numberInt": "751"
+        },
+        "advanced": {
+          "$numberInt": "750"
+        },
+        "needTime": {
+          "$numberInt": "0"
+        },
+        "needYield": {
+          "$numberInt": "0"
+        },
+        "saveState": {
+          "$numberInt": "0"
+        },
+        "restoreState": {
+          "$numberInt": "0"
+        },
+        "isEOF": {
+          "$numberInt": "1"
+        },
+        "docsExamined": {
+          "$numberInt": "750"
+        },
+        "alreadyHasObj": {
+          "$numberInt": "0"
+        },
+        "inputStage": {
+          "stage": "IXSCAN",
+          "nReturned": {
+            "$numberInt": "750"
+          },
+          "executionTimeMillisEstimate": {
+            "$numberInt": "0"
+          },
+          "works": {
+            "$numberInt": "751"
+          },
+          "advanced": {
+            "$numberInt": "750"
+          },
+          "needTime": {
+            "$numberInt": "0"
+          },
+          "needYield": {
+            "$numberInt": "0"
+          },
+          "saveState": {
+            "$numberInt": "0"
+          },
+          "restoreState": {
+            "$numberInt": "0"
+          },
+          "isEOF": {
+            "$numberInt": "1"
+          },
+          "keyPattern": {
+            "_fts": "text",
+            "_ftsx": {
+              "$numberInt": "1"
+            }
+          },
+          "indexName": "description_text",
+          "isMultiKey": true,
+          "isUnique": false,
+          "isSparse": false,
+          "isPartial": false,
+          "indexVersion": {
+            "$numberInt": "2"
+          },
+          "direction": "backward",
+          "indexBounds": {},
+          "keysExamined": {
+            "$numberInt": "750"
+          },
+          "seeks": {
+            "$numberInt": "1"
+          },
+          "dupsTested": {
+            "$numberInt": "750"
+          },
+          "dupsDropped": {
+            "$numberInt": "0"
+          }
+        }
+      }
+    }
+  },
+  "command": {
+    "find": "places",
+    "filter": {
+      "$text": {
+        "$search": "coffee"
+      }
+    },
+    "$db": "explain_capture"
+  },
+  "serverInfo": {
+    "host": "5366f353288c",
+    "port": {
+      "$numberInt": "27017"
+    },
+    "version": "6.0.28",
+    "gitVersion": "ef888a6df901622004aeb4b7362e007b8c4299da"
+  },
+  "serverParameters": {
+    "internalQueryFacetBufferSizeBytes": {
+      "$numberInt": "104857600"
+    },
+    "internalQueryFacetMaxOutputDocSizeBytes": {
+      "$numberInt": "104857600"
+    },
+    "internalLookupStageIntermediateDocumentMaxSizeBytes": {
+      "$numberInt": "104857600"
+    },
+    "internalDocumentSourceGroupMaxMemoryBytes": {
+      "$numberInt": "104857600"
+    },
+    "internalQueryMaxBlockingSortMemoryUsageBytes": {
+      "$numberInt": "104857600"
+    },
+    "internalQueryProhibitBlockingMergeOnMongoS": {
+      "$numberInt": "0"
+    },
+    "internalQueryMaxAddToSetBytes": {
+      "$numberInt": "104857600"
+    },
+    "internalDocumentSourceSetWindowFieldsMaxMemoryBytes": {
+      "$numberInt": "104857600"
+    }
+  },
+  "ok": {
+    "$numberDouble": "1.0"
+  }
+}

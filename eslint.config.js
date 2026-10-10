@@ -85,6 +85,8 @@ export default [
   },
   {
     files: ['packages/core/src/' + SOURCE_GLOB],
+    // The fixture capture is a developer script that drives a real server. See the note in its header.
+    ignores: ['packages/core/src/explain/fixtures/capture/**'],
     rules: {
       'no-restricted-imports': importBoundary({
         packages: ['electron', 'mongodb', 'bson', 'react'],

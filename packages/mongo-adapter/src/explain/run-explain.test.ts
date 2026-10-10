@@ -136,3 +136,28 @@ describe('runExplainCommand', () => {
     expect(calls).toHaveLength(0);
   });
 });
+
+describe('wrapWriteCommand keeps the hint and collation of a profiled delete', () => {
+  it('carries a hint into the delete entry', () => {
+    expect(
+      wrapWriteCommand({ q: { status: 'x' }, limit: 0, hint: { status: 1 } }, 'remove', 'orders'),
+    ).toEqual({
+      delete: 'orders',
+      deletes: [{ q: { status: 'x' }, limit: 0, hint: { status: 1 } }],
+    });
+  });
+
+  it('carries a collation into the delete entry', () => {
+    const collation = { locale: 'en', strength: 2 };
+    const wrapped = wrapWriteCommand({ q: {}, limit: 1, collation }, 'remove', 'orders');
+    expect(wrapped).toEqual({ delete: 'orders', deletes: [{ q: {}, limit: 1, collation }] });
+  });
+
+  it('omits hint and collation when the profile has neither', () => {
+    const entry = wrapWriteCommand({ q: {}, limit: 0 }, 'remove', 'orders');
+    expect(Object.keys((entry['deletes'] as Record<string, unknown>[])[0] ?? {})).toEqual([
+      'q',
+      'limit',
+    ]);
+  });
+});

@@ -62,3 +62,61 @@ These two files use plain JSON numbers, which relaxed EJSON allows. The normalis
 No captured case produces `MANY_REJECTED_PLANS`, because no rejected plans appeared for these
 queries. No case produces `FETCH_AFTER_COVERED_INDEX` either. Both codes are covered by
 synthetic cases in `warnings.test.ts`.
+
+## P3-4 cases
+
+`capture/capture-explain.ts` captured the cases below from one real server per run. Each case
+writes one file per version, `<version>/<case>.executionStats.json`, at `executionStats`
+verbosity. The script seeds its own database, `explain_capture`, with `places`, `customers`,
+`clustered` and `readings`. It starts its own container on a random port, and it stops the
+container when it finishes.
+
+Run it once per version, in the foreground:
+
+    node --experimental-strip-types packages/core/src/explain/fixtures/capture/capture-explain.ts 6.0
+
+Cases captured on 4.4, 6.0 and 8.0.17: `text-search`, `geo-2dsphere`, `geo-2d`,
+`geo-near-aggregate`, `and-hash`, `sort-merge`, `idhack`, `express-unique`, `update-express`,
+`delete-express`, `delete-many`, `sort-spill`, `group-spill`, `group-plain`, `lookup-pipeline`,
+`lookup-indexed`, `lookup-unindexed`, `union-with`, `facet`, `graph-lookup`, `pipeline-stages`,
+`out-stage`, `merge-stage`, `limit-skip`, `projection-default`, `cached-plan` and `or-subplan`.
+
+Skipped, with the reason:
+
+- `clustered-id` on 4.4. Clustered collections need 5.3 or newer, and the capture creates the
+  collection only from 6.0 on.
+- `timeseries-find` on 4.4. Timeseries collections need 5.0 or newer.
+
+No capture case failed on any version.
+
+Hand-written: `sharded/sharding-filter.executionStats.json` (SHARDING_FILTER with 480 orphans on
+one shard). The shard and merge stages come from the two older files.
+
+## P3-4 observed differences
+
+- 4.4 reports `usedDisk` on a sort that spilled, but no `spills` count. 6.0 adds `spills`.
+  8.0 adds `spilledDataStorageSize`.
+- 6.0 reports `usedDisk: true` on a classic `$group` that spilled. 4.4 reports no spill fields
+  on its `$group`. The 8.0 `group-spill` case did not spill, because the slot-based group
+  reads a different memory parameter, which the capture does not set. Its `GROUP` stage reports
+  `spills: 0`.
+- A `$lookup` with an inner pipeline shows no inner plan on any version, so the normaliser
+  models the inner pipeline from its spec.
+- 8.0 shows an indexed equality join as `EQ_LOOKUP` with an `indexName`, and an unindexed one as
+  `EQ_LOOKUP` without an index name, executed as `hash_lookup`. 4.4 and 6.0 show no index
+  evidence on the `$lookup` stage for either form.
+- `$unionWith` reports its input as a `$cursor` with its own `queryPlanner` and `executionStats`.
+- Each `$facet` branch reports its stages with their counters.
+- `$geoNear` runs its query under a `$geoNearCursor` key, not `$cursor`.
+- A timeseries find is an aggregate over `$cursor`, `$match`, `$_internalUnpackBucket` and
+  `$_internalBoundedSort` on 6.0 and 8.0.
+- 8.0 uses `EXPRESS_IXSCAN` for `_id` and unique equality matches, and `EXPRESS_CLUSTERED_IXSCAN`
+  for a clustered key. `UPDATE` and `DELETE` keep their `FETCH` child. `deleteMany` shows
+  `BATCHED_DELETE` on 8.0 and `DELETE` on 6.0.
+- `SORT_MERGE` sits under `FETCH` on 6.0 and 8.0 and under `SUBPLAN` on 4.4.
+
+Stages in the catalogue that no captured case produced: `AND_HASH`, `CACHED_PLAN` (the cached-plan
+case explains as its plan), `TEXT_OR`, `EXPRESS_UPDATE`, `EXPRESS_DELETE` and `SORT_KEY_GENERATOR`.
+`AND_SORTED` is not a winning stage in any capture. It appears only in the `rejectedPlans` of the
+`and-hash` case, on all three versions. `SHARDING_FILTER`, `SHARD_MERGE` and `SHARD_MERGE_SORT`
+are covered by the hand-written sharded files.

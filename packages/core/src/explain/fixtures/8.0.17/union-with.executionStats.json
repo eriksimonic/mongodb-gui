@@ -1,0 +1,368 @@
+{
+  "explainVersion": "1",
+  "stages": [
+    {
+      "$cursor": {
+        "queryPlanner": {
+          "namespace": "explain_capture.places",
+          "parsedQuery": {
+            "cuisine": {
+              "$eq": "thai"
+            }
+          },
+          "indexFilterSet": false,
+          "queryHash": "98FD4995",
+          "planCacheShapeHash": "98FD4995",
+          "planCacheKey": "6FFB3C7B",
+          "optimizationTimeMillis": {
+            "$numberInt": "0"
+          },
+          "maxIndexedOrSolutionsReached": false,
+          "maxIndexedAndSolutionsReached": false,
+          "maxScansToExplodeReached": false,
+          "prunedSimilarIndexes": false,
+          "winningPlan": {
+            "isCached": false,
+            "stage": "FETCH",
+            "inputStage": {
+              "stage": "IXSCAN",
+              "keyPattern": {
+                "cuisine": {
+                  "$numberInt": "1"
+                },
+                "rating": {
+                  "$numberInt": "-1"
+                }
+              },
+              "indexName": "cuisine_1_rating_-1",
+              "isMultiKey": false,
+              "multiKeyPaths": {
+                "cuisine": [],
+                "rating": []
+              },
+              "isUnique": false,
+              "isSparse": false,
+              "isPartial": false,
+              "indexVersion": {
+                "$numberInt": "2"
+              },
+              "direction": "forward",
+              "indexBounds": {
+                "cuisine": [
+                  "[\"thai\", \"thai\"]"
+                ],
+                "rating": [
+                  "[MaxKey, MinKey]"
+                ]
+              }
+            }
+          },
+          "rejectedPlans": []
+        },
+        "executionStats": {
+          "executionSuccess": true,
+          "nReturned": {
+            "$numberInt": "600"
+          },
+          "executionTimeMillis": {
+            "$numberInt": "0"
+          },
+          "totalKeysExamined": {
+            "$numberInt": "600"
+          },
+          "totalDocsExamined": {
+            "$numberInt": "600"
+          },
+          "executionStages": {
+            "isCached": false,
+            "stage": "FETCH",
+            "nReturned": {
+              "$numberInt": "600"
+            },
+            "executionTimeMillisEstimate": {
+              "$numberInt": "0"
+            },
+            "works": {
+              "$numberInt": "601"
+            },
+            "advanced": {
+              "$numberInt": "600"
+            },
+            "needTime": {
+              "$numberInt": "0"
+            },
+            "needYield": {
+              "$numberInt": "0"
+            },
+            "saveState": {
+              "$numberInt": "5"
+            },
+            "restoreState": {
+              "$numberInt": "5"
+            },
+            "isEOF": {
+              "$numberInt": "1"
+            },
+            "docsExamined": {
+              "$numberInt": "600"
+            },
+            "alreadyHasObj": {
+              "$numberInt": "0"
+            },
+            "inputStage": {
+              "stage": "IXSCAN",
+              "nReturned": {
+                "$numberInt": "600"
+              },
+              "executionTimeMillisEstimate": {
+                "$numberInt": "0"
+              },
+              "works": {
+                "$numberInt": "601"
+              },
+              "advanced": {
+                "$numberInt": "600"
+              },
+              "needTime": {
+                "$numberInt": "0"
+              },
+              "needYield": {
+                "$numberInt": "0"
+              },
+              "saveState": {
+                "$numberInt": "5"
+              },
+              "restoreState": {
+                "$numberInt": "5"
+              },
+              "isEOF": {
+                "$numberInt": "1"
+              },
+              "keyPattern": {
+                "cuisine": {
+                  "$numberInt": "1"
+                },
+                "rating": {
+                  "$numberInt": "-1"
+                }
+              },
+              "indexName": "cuisine_1_rating_-1",
+              "isMultiKey": false,
+              "multiKeyPaths": {
+                "cuisine": [],
+                "rating": []
+              },
+              "isUnique": false,
+              "isSparse": false,
+              "isPartial": false,
+              "indexVersion": {
+                "$numberInt": "2"
+              },
+              "direction": "forward",
+              "indexBounds": {
+                "cuisine": [
+                  "[\"thai\", \"thai\"]"
+                ],
+                "rating": [
+                  "[MaxKey, MinKey]"
+                ]
+              },
+              "keysExamined": {
+                "$numberInt": "600"
+              },
+              "seeks": {
+                "$numberInt": "1"
+              },
+              "dupsTested": {
+                "$numberInt": "0"
+              },
+              "dupsDropped": {
+                "$numberInt": "0"
+              }
+            }
+          }
+        }
+      },
+      "nReturned": {
+        "$numberLong": "600"
+      },
+      "executionTimeMillisEstimate": {
+        "$numberLong": "1"
+      }
+    },
+    {
+      "$unionWith": {
+        "coll": "customers",
+        "pipeline": [
+          {
+            "$cursor": {
+              "queryPlanner": {
+                "namespace": "explain_capture.customers",
+                "parsedQuery": {
+                  "tier": {
+                    "$eq": "gold"
+                  }
+                },
+                "indexFilterSet": false,
+                "queryHash": "1CC6328A",
+                "planCacheShapeHash": "1CC6328A",
+                "planCacheKey": "6CCD8462",
+                "optimizationTimeMillis": {
+                  "$numberInt": "0"
+                },
+                "maxIndexedOrSolutionsReached": false,
+                "maxIndexedAndSolutionsReached": false,
+                "maxScansToExplodeReached": false,
+                "prunedSimilarIndexes": false,
+                "winningPlan": {
+                  "isCached": false,
+                  "stage": "COLLSCAN",
+                  "filter": {
+                    "tier": {
+                      "$eq": "gold"
+                    }
+                  },
+                  "direction": "forward"
+                },
+                "rejectedPlans": []
+              },
+              "executionStats": {
+                "executionSuccess": true,
+                "nReturned": {
+                  "$numberInt": "100"
+                },
+                "executionTimeMillis": {
+                  "$numberInt": "0"
+                },
+                "totalKeysExamined": {
+                  "$numberInt": "0"
+                },
+                "totalDocsExamined": {
+                  "$numberInt": "300"
+                },
+                "executionStages": {
+                  "isCached": false,
+                  "stage": "COLLSCAN",
+                  "filter": {
+                    "tier": {
+                      "$eq": "gold"
+                    }
+                  },
+                  "nReturned": {
+                    "$numberInt": "100"
+                  },
+                  "executionTimeMillisEstimate": {
+                    "$numberInt": "0"
+                  },
+                  "works": {
+                    "$numberInt": "301"
+                  },
+                  "advanced": {
+                    "$numberInt": "100"
+                  },
+                  "needTime": {
+                    "$numberInt": "200"
+                  },
+                  "needYield": {
+                    "$numberInt": "0"
+                  },
+                  "saveState": {
+                    "$numberInt": "3"
+                  },
+                  "restoreState": {
+                    "$numberInt": "3"
+                  },
+                  "isEOF": {
+                    "$numberInt": "1"
+                  },
+                  "direction": "forward",
+                  "docsExamined": {
+                    "$numberInt": "300"
+                  }
+                }
+              }
+            },
+            "nReturned": {
+              "$numberLong": "100"
+            },
+            "executionTimeMillisEstimate": {
+              "$numberLong": "0"
+            }
+          }
+        ]
+      },
+      "nReturned": {
+        "$numberLong": "700"
+      },
+      "executionTimeMillisEstimate": {
+        "$numberLong": "1"
+      }
+    }
+  ],
+  "queryShapeHash": "16FBDE7397A0B13B70A543F0E9443D863984D06388FD8A63150F0502D6A5BFAD",
+  "serverInfo": {
+    "host": "488f3bea497e",
+    "port": {
+      "$numberInt": "27017"
+    },
+    "version": "8.0.17",
+    "gitVersion": "b20e43625b72f4bb43cc15107f80ac966ae13b6d"
+  },
+  "serverParameters": {
+    "internalQueryFacetBufferSizeBytes": {
+      "$numberInt": "104857600"
+    },
+    "internalQueryFacetMaxOutputDocSizeBytes": {
+      "$numberInt": "104857600"
+    },
+    "internalLookupStageIntermediateDocumentMaxSizeBytes": {
+      "$numberInt": "104857600"
+    },
+    "internalDocumentSourceGroupMaxMemoryBytes": {
+      "$numberInt": "104857600"
+    },
+    "internalQueryMaxBlockingSortMemoryUsageBytes": {
+      "$numberInt": "104857600"
+    },
+    "internalQueryProhibitBlockingMergeOnMongoS": {
+      "$numberInt": "0"
+    },
+    "internalQueryMaxAddToSetBytes": {
+      "$numberInt": "104857600"
+    },
+    "internalDocumentSourceSetWindowFieldsMaxMemoryBytes": {
+      "$numberInt": "104857600"
+    },
+    "internalQueryFrameworkControl": "trySbeRestricted",
+    "internalQueryPlannerIgnoreIndexWithCollationForRegex": {
+      "$numberInt": "1"
+    }
+  },
+  "command": {
+    "aggregate": "places",
+    "pipeline": [
+      {
+        "$match": {
+          "cuisine": "thai"
+        }
+      },
+      {
+        "$unionWith": {
+          "coll": "customers",
+          "pipeline": [
+            {
+              "$match": {
+                "tier": "gold"
+              }
+            }
+          ]
+        }
+      }
+    ],
+    "cursor": {},
+    "$db": "explain_capture"
+  },
+  "ok": {
+    "$numberDouble": "1.0"
+  }
+}

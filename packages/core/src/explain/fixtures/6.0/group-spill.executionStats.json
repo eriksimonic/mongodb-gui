@@ -1,0 +1,213 @@
+{
+  "explainVersion": "1",
+  "stages": [
+    {
+      "$cursor": {
+        "queryPlanner": {
+          "namespace": "explain_capture.places",
+          "indexFilterSet": false,
+          "parsedQuery": {},
+          "queryHash": "625BD987",
+          "planCacheKey": "625BD987",
+          "maxIndexedOrSolutionsReached": false,
+          "maxIndexedAndSolutionsReached": false,
+          "maxScansToExplodeReached": false,
+          "winningPlan": {
+            "stage": "PROJECTION_SIMPLE",
+            "transformBy": {
+              "name": {
+                "$numberInt": "1"
+              },
+              "_id": {
+                "$numberInt": "0"
+              }
+            },
+            "inputStage": {
+              "stage": "COLLSCAN",
+              "direction": "forward"
+            }
+          },
+          "rejectedPlans": []
+        },
+        "executionStats": {
+          "executionSuccess": true,
+          "nReturned": {
+            "$numberInt": "3000"
+          },
+          "executionTimeMillis": {
+            "$numberInt": "6"
+          },
+          "totalKeysExamined": {
+            "$numberInt": "0"
+          },
+          "totalDocsExamined": {
+            "$numberInt": "3000"
+          },
+          "executionStages": {
+            "stage": "PROJECTION_SIMPLE",
+            "nReturned": {
+              "$numberInt": "3000"
+            },
+            "executionTimeMillisEstimate": {
+              "$numberInt": "1"
+            },
+            "works": {
+              "$numberInt": "3001"
+            },
+            "advanced": {
+              "$numberInt": "3000"
+            },
+            "needTime": {
+              "$numberInt": "0"
+            },
+            "needYield": {
+              "$numberInt": "0"
+            },
+            "saveState": {
+              "$numberInt": "4"
+            },
+            "restoreState": {
+              "$numberInt": "4"
+            },
+            "isEOF": {
+              "$numberInt": "1"
+            },
+            "transformBy": {
+              "name": {
+                "$numberInt": "1"
+              },
+              "_id": {
+                "$numberInt": "0"
+              }
+            },
+            "inputStage": {
+              "stage": "COLLSCAN",
+              "nReturned": {
+                "$numberInt": "3000"
+              },
+              "executionTimeMillisEstimate": {
+                "$numberInt": "1"
+              },
+              "works": {
+                "$numberInt": "3001"
+              },
+              "advanced": {
+                "$numberInt": "3000"
+              },
+              "needTime": {
+                "$numberInt": "0"
+              },
+              "needYield": {
+                "$numberInt": "0"
+              },
+              "saveState": {
+                "$numberInt": "4"
+              },
+              "restoreState": {
+                "$numberInt": "4"
+              },
+              "isEOF": {
+                "$numberInt": "1"
+              },
+              "direction": "forward",
+              "docsExamined": {
+                "$numberInt": "3000"
+              }
+            }
+          }
+        }
+      },
+      "nReturned": {
+        "$numberLong": "3000"
+      },
+      "executionTimeMillisEstimate": {
+        "$numberLong": "2"
+      }
+    },
+    {
+      "$group": {
+        "_id": "$name",
+        "n": {
+          "$sum": {
+            "$const": {
+              "$numberInt": "1"
+            }
+          }
+        }
+      },
+      "maxAccumulatorMemoryUsageBytes": {
+        "n": {
+          "$numberLong": "21760"
+        }
+      },
+      "totalOutputDataSizeBytes": {
+        "$numberLong": "1174890"
+      },
+      "usedDisk": true,
+      "spills": {
+        "$numberLong": "12"
+      },
+      "nReturned": {
+        "$numberLong": "3000"
+      },
+      "executionTimeMillisEstimate": {
+        "$numberLong": "2"
+      }
+    }
+  ],
+  "serverInfo": {
+    "host": "5366f353288c",
+    "port": {
+      "$numberInt": "27017"
+    },
+    "version": "6.0.28",
+    "gitVersion": "ef888a6df901622004aeb4b7362e007b8c4299da"
+  },
+  "serverParameters": {
+    "internalQueryFacetBufferSizeBytes": {
+      "$numberInt": "104857600"
+    },
+    "internalQueryFacetMaxOutputDocSizeBytes": {
+      "$numberInt": "104857600"
+    },
+    "internalLookupStageIntermediateDocumentMaxSizeBytes": {
+      "$numberInt": "104857600"
+    },
+    "internalDocumentSourceGroupMaxMemoryBytes": {
+      "$numberInt": "65536"
+    },
+    "internalQueryMaxBlockingSortMemoryUsageBytes": {
+      "$numberInt": "104857600"
+    },
+    "internalQueryProhibitBlockingMergeOnMongoS": {
+      "$numberInt": "0"
+    },
+    "internalQueryMaxAddToSetBytes": {
+      "$numberInt": "104857600"
+    },
+    "internalDocumentSourceSetWindowFieldsMaxMemoryBytes": {
+      "$numberInt": "104857600"
+    }
+  },
+  "command": {
+    "aggregate": "places",
+    "pipeline": [
+      {
+        "$group": {
+          "_id": "$name",
+          "n": {
+            "$sum": {
+              "$numberInt": "1"
+            }
+          }
+        }
+      }
+    ],
+    "cursor": {},
+    "allowDiskUse": true,
+    "$db": "explain_capture"
+  },
+  "ok": {
+    "$numberDouble": "1.0"
+  }
+}

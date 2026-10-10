@@ -7,6 +7,8 @@ import {
 } from './plan-tree';
 import { explainInWords } from './explain-text';
 import { normaliseExplain } from './normalise';
+import { describeStage } from './stage-catalog';
+import { flattenStages } from './stage-walk';
 
 // Every committed fixture under ./fixtures, loaded as unknown JSON.
 const FIXTURES = import.meta.glob<unknown>('./fixtures/**/*.json', {
@@ -1010,7 +1012,405 @@ const EXPECTATIONS: readonly Expectation[] = [
     false,
     [],
   ),
+  e('4.4/and-hash.executionStats', 'find', 'classic', false, ['rating_1'], false, []),
+  e('4.4/cached-plan.executionStats', 'find', 'classic', false, ['cuisine_1_rating_-1'], false, []),
+  e('4.4/delete-express.executionStats', 'delete', 'classic', false, ['code_1'], false, []),
+  e('4.4/delete-many.executionStats', 'delete', 'classic', false, ['open_1'], false, []),
+  e('4.4/express-unique.executionStats', 'find', 'classic', false, ['code_1'], false, []),
+  e('4.4/facet.executionStats', 'aggregate', 'classic', false, ['open_1'], true, [
+    'IN_MEMORY_SORT',
+    'HIGH_EXAMINED_RATIO',
+    'UNBOUNDED_FACET',
+  ]),
+  e('4.4/geo-2d.executionStats', 'find', 'classic', false, ['pos_2d'], false, []),
+  e('4.4/geo-2dsphere.executionStats', 'find', 'classic', false, ['loc_2dsphere'], false, []),
+  e(
+    '4.4/geo-near-aggregate.executionStats',
+    'aggregate',
+    'classic',
+    false,
+    ['loc_2dsphere'],
+    false,
+    ['HIGH_EXAMINED_RATIO'],
+  ),
+  e('4.4/graph-lookup.executionStats', 'aggregate', 'classic', false, [], false, []),
+  e(
+    '4.4/group-plain.executionStats',
+    'aggregate',
+    'classic',
+    false,
+    ['cuisine_1_rating_-1'],
+    true,
+    ['IN_MEMORY_SORT'],
+  ),
+  e('4.4/group-spill.executionStats', 'aggregate', 'classic', true, [], false, ['COLLSCAN']),
+  e('4.4/idhack.executionStats', 'find', 'classic', false, [], false, []),
+  e('4.4/limit-skip.executionStats', 'find', 'classic', false, ['cuisine_1_rating_-1'], false, []),
+  e(
+    '4.4/lookup-indexed.executionStats',
+    'aggregate',
+    'classic',
+    false,
+    ['cuisine_1_rating_-1'],
+    false,
+    [],
+  ),
+  e(
+    '4.4/lookup-pipeline.executionStats',
+    'aggregate',
+    'classic',
+    false,
+    ['cuisine_1_rating_-1'],
+    false,
+    [],
+  ),
+  e(
+    '4.4/lookup-unindexed.executionStats',
+    'aggregate',
+    'classic',
+    false,
+    ['cuisine_1_rating_-1'],
+    false,
+    [],
+  ),
+  e(
+    '4.4/merge-stage.executionStats',
+    'aggregate',
+    'classic',
+    false,
+    ['cuisine_1_rating_-1'],
+    false,
+    [],
+  ),
+  e(
+    '4.4/or-subplan.executionStats',
+    'find',
+    'classic',
+    false,
+    ['cuisine_1_rating_-1', 'open_1'],
+    false,
+    [],
+  ),
+  e(
+    '4.4/out-stage.executionStats',
+    'aggregate',
+    'classic',
+    false,
+    ['cuisine_1_rating_-1'],
+    false,
+    [],
+  ),
+  e(
+    '4.4/pipeline-stages.executionStats',
+    'aggregate',
+    'classic',
+    false,
+    ['cuisine_1_rating_-1'],
+    true,
+    ['IN_MEMORY_SORT', 'HIGH_EXAMINED_RATIO'],
+  ),
+  e(
+    '4.4/projection-default.executionStats',
+    'find',
+    'classic',
+    false,
+    ['cuisine_1_rating_-1'],
+    false,
+    [],
+  ),
+  e('4.4/sort-merge.executionStats', 'find', 'classic', false, ['cuisine_1_rating_-1'], false, []),
+  e('4.4/sort-spill.executionStats', 'find', 'classic', true, [], true, [
+    'COLLSCAN',
+    'IN_MEMORY_SORT',
+    'SORT_SPILLED',
+  ]),
+  e('4.4/text-search.executionStats', 'find', 'classic', false, ['description_text'], false, [
+    'MULTIKEY_INDEX',
+  ]),
+  e('4.4/union-with.executionStats', 'aggregate', 'classic', true, ['cuisine_1_rating_-1'], false, [
+    'COLLSCAN',
+  ]),
+  e('4.4/update-express.executionStats', 'update', 'classic', false, ['code_1'], false, []),
+  e('6.0/and-hash.executionStats', 'find', 'classic', false, ['rating_1'], false, []),
+  e('6.0/cached-plan.executionStats', 'find', 'classic', false, ['cuisine_1_rating_-1'], false, []),
+  e('6.0/clustered-id.executionStats', 'find', 'classic', false, [], false, []),
+  e('6.0/delete-express.executionStats', 'delete', 'classic', false, ['code_1'], false, []),
+  e('6.0/delete-many.executionStats', 'delete', 'classic', false, ['open_1'], false, []),
+  e('6.0/express-unique.executionStats', 'find', 'classic', false, ['code_1'], false, []),
+  e('6.0/facet.executionStats', 'aggregate', 'classic', false, ['open_1'], true, [
+    'IN_MEMORY_SORT',
+    'HIGH_EXAMINED_RATIO',
+    'UNBOUNDED_FACET',
+  ]),
+  e('6.0/geo-2d.executionStats', 'find', 'classic', false, ['pos_2d'], false, []),
+  e('6.0/geo-2dsphere.executionStats', 'find', 'classic', false, ['loc_2dsphere'], false, []),
+  e(
+    '6.0/geo-near-aggregate.executionStats',
+    'aggregate',
+    'classic',
+    false,
+    ['loc_2dsphere'],
+    false,
+    ['HIGH_EXAMINED_RATIO'],
+  ),
+  e('6.0/graph-lookup.executionStats', 'aggregate', 'classic', false, [], false, []),
+  e(
+    '6.0/group-plain.executionStats',
+    'aggregate',
+    'classic',
+    false,
+    ['cuisine_1_rating_-1'],
+    true,
+    ['IN_MEMORY_SORT'],
+  ),
+  e('6.0/group-spill.executionStats', 'aggregate', 'classic', true, [], false, [
+    'COLLSCAN',
+    'GROUP_SPILLED',
+  ]),
+  e('6.0/idhack.executionStats', 'find', 'classic', false, [], false, []),
+  e('6.0/limit-skip.executionStats', 'find', 'classic', false, ['cuisine_1_rating_-1'], false, []),
+  e(
+    '6.0/lookup-indexed.executionStats',
+    'aggregate',
+    'classic',
+    false,
+    ['region_1', 'cuisine_1_rating_-1'],
+    false,
+    ['HIGH_EXAMINED_RATIO'],
+  ),
+  e(
+    '6.0/lookup-pipeline.executionStats',
+    'aggregate',
+    'classic',
+    false,
+    ['region_1', 'cuisine_1_rating_-1'],
+    false,
+    [],
+  ),
+  e(
+    '6.0/lookup-unindexed.executionStats',
+    'aggregate',
+    'classic',
+    false,
+    ['cuisine_1_rating_-1'],
+    false,
+    ['HIGH_EXAMINED_RATIO'],
+  ),
+  e(
+    '6.0/merge-stage.executionStats',
+    'aggregate',
+    'classic',
+    false,
+    ['cuisine_1_rating_-1'],
+    false,
+    [],
+  ),
+  e(
+    '6.0/or-subplan.executionStats',
+    'find',
+    'classic',
+    false,
+    ['cuisine_1_rating_-1', 'open_1'],
+    false,
+    [],
+  ),
+  e(
+    '6.0/out-stage.executionStats',
+    'aggregate',
+    'classic',
+    false,
+    ['cuisine_1_rating_-1'],
+    false,
+    [],
+  ),
+  e(
+    '6.0/pipeline-stages.executionStats',
+    'aggregate',
+    'classic',
+    false,
+    ['cuisine_1_rating_-1'],
+    true,
+    ['IN_MEMORY_SORT', 'HIGH_EXAMINED_RATIO'],
+  ),
+  e(
+    '6.0/projection-default.executionStats',
+    'find',
+    'classic',
+    false,
+    ['cuisine_1_rating_-1'],
+    false,
+    [],
+  ),
+  e('6.0/sort-merge.executionStats', 'find', 'classic', false, ['cuisine_1_rating_-1'], false, []),
+  e('6.0/sort-spill.executionStats', 'find', 'classic', true, [], true, [
+    'COLLSCAN',
+    'IN_MEMORY_SORT',
+    'SORT_SPILLED',
+  ]),
+  e('6.0/text-search.executionStats', 'find', 'classic', false, ['description_text'], false, [
+    'MULTIKEY_INDEX',
+  ]),
+  e('6.0/timeseries-find.executionStats', 'aggregate', 'classic', true, [], false, ['COLLSCAN']),
+  e('6.0/union-with.executionStats', 'aggregate', 'classic', true, ['cuisine_1_rating_-1'], false, [
+    'COLLSCAN',
+  ]),
+  e('6.0/update-express.executionStats', 'update', 'classic', false, ['code_1'], false, []),
+  e('8.0.17/and-hash.executionStats', 'find', 'classic', false, ['rating_1'], false, []),
+  e(
+    '8.0.17/cached-plan.executionStats',
+    'find',
+    'classic',
+    false,
+    ['cuisine_1_rating_-1'],
+    false,
+    [],
+  ),
+  e('8.0.17/clustered-id.executionStats', 'find', 'classic', false, [], false, []),
+  e('8.0.17/delete-express.executionStats', 'delete', 'classic', false, ['code_1'], false, []),
+  e('8.0.17/delete-many.executionStats', 'delete', 'classic', false, ['open_1'], false, []),
+  e('8.0.17/express-unique.executionStats', 'find', 'classic', false, ['code_1'], false, []),
+  e('8.0.17/facet.executionStats', 'aggregate', 'classic', false, ['open_1'], true, [
+    'IN_MEMORY_SORT',
+    'HIGH_EXAMINED_RATIO',
+    'UNBOUNDED_FACET',
+  ]),
+  e('8.0.17/geo-2d.executionStats', 'find', 'classic', false, ['pos_2d'], false, []),
+  e('8.0.17/geo-2dsphere.executionStats', 'find', 'classic', false, ['loc_2dsphere'], false, []),
+  e(
+    '8.0.17/geo-near-aggregate.executionStats',
+    'aggregate',
+    'classic',
+    false,
+    ['loc_2dsphere'],
+    false,
+    ['HIGH_EXAMINED_RATIO'],
+  ),
+  e('8.0.17/graph-lookup.executionStats', 'aggregate', 'classic', false, ['_id_'], false, []),
+  e('8.0.17/group-plain.executionStats', 'aggregate', 'sbe', false, ['cuisine_1_rating_-1'], true, [
+    'IN_MEMORY_SORT',
+  ]),
+  e('8.0.17/group-spill.executionStats', 'aggregate', 'sbe', true, [], false, ['COLLSCAN']),
+  e('8.0.17/idhack.executionStats', 'find', 'classic', false, ['_id_'], false, []),
+  e(
+    '8.0.17/limit-skip.executionStats',
+    'find',
+    'classic',
+    false,
+    ['cuisine_1_rating_-1'],
+    false,
+    [],
+  ),
+  e(
+    '8.0.17/lookup-indexed.executionStats',
+    'aggregate',
+    'sbe',
+    false,
+    ['region_1', 'cuisine_1_rating_-1'],
+    false,
+    ['HIGH_EXAMINED_RATIO'],
+  ),
+  e(
+    '8.0.17/lookup-pipeline.executionStats',
+    'aggregate',
+    'classic',
+    false,
+    ['region_1', 'cuisine_1_rating_-1'],
+    false,
+    [],
+  ),
+  e(
+    '8.0.17/lookup-unindexed.executionStats',
+    'aggregate',
+    'sbe',
+    false,
+    ['cuisine_1_rating_-1'],
+    false,
+    ['LOOKUP_WITHOUT_INDEX'],
+  ),
+  e(
+    '8.0.17/merge-stage.executionStats',
+    'aggregate',
+    'classic',
+    false,
+    ['cuisine_1_rating_-1'],
+    false,
+    [],
+  ),
+  e(
+    '8.0.17/or-subplan.executionStats',
+    'find',
+    'classic',
+    false,
+    ['cuisine_1_rating_-1', 'open_1'],
+    false,
+    [],
+  ),
+  e(
+    '8.0.17/out-stage.executionStats',
+    'aggregate',
+    'classic',
+    false,
+    ['cuisine_1_rating_-1'],
+    false,
+    [],
+  ),
+  e(
+    '8.0.17/pipeline-stages.executionStats',
+    'aggregate',
+    'classic',
+    false,
+    ['cuisine_1_rating_-1'],
+    true,
+    ['IN_MEMORY_SORT', 'HIGH_EXAMINED_RATIO'],
+  ),
+  e(
+    '8.0.17/projection-default.executionStats',
+    'find',
+    'classic',
+    false,
+    ['cuisine_1_rating_-1'],
+    false,
+    [],
+  ),
+  e(
+    '8.0.17/sort-merge.executionStats',
+    'find',
+    'classic',
+    false,
+    ['cuisine_1_rating_-1'],
+    false,
+    [],
+  ),
+  e('8.0.17/sort-spill.executionStats', 'find', 'classic', true, [], true, [
+    'COLLSCAN',
+    'IN_MEMORY_SORT',
+    'SORT_SPILLED',
+  ]),
+  e('8.0.17/text-search.executionStats', 'find', 'classic', false, ['description_text'], false, [
+    'MULTIKEY_INDEX',
+  ]),
+  e('8.0.17/timeseries-find.executionStats', 'aggregate', 'classic', true, [], false, ['COLLSCAN']),
+  e(
+    '8.0.17/union-with.executionStats',
+    'aggregate',
+    'classic',
+    true,
+    ['cuisine_1_rating_-1'],
+    false,
+    ['COLLSCAN'],
+  ),
+  e('8.0.17/update-express.executionStats', 'update', 'classic', false, ['code_1'], false, []),
+  e('sharded/sharding-filter.executionStats', 'find', 'classic', true, [], false, [
+    'COLLSCAN',
+    'COLLSCAN',
+    'HIGH_EXAMINED_RATIO',
+    'ORPHANS_FILTERED',
+  ]),
 ];
+
+// Fixtures that hold a stage the normaliser deliberately leaves as UNKNOWN. Empty: every captured
+// stage is modelled. Add a key here, with the reason, when a server emits a stage out of scope.
+const UNMODELLED_FIXTURES: ReadonlySet<string> = new Set<string>();
 
 const EXPECTATION_BY_KEY = new Map(EXPECTATIONS.map((row) => [row.key, row]));
 
@@ -1048,6 +1448,13 @@ describe('committed explain fixtures', () => {
     expect(tree.summary.inMemorySort).toBe(expected.inMemorySort);
     expect(tree.warnings.map((warning) => warning.code)).toEqual([...expected.warnings]);
     expect(tree.sharded).toBe(key.startsWith('sharded/'));
+    // Every node is modelled, unless the fixture is listed as deliberately unmodelled above.
+    if (!UNMODELLED_FIXTURES.has(key)) {
+      const nodes = [tree.winning, ...tree.rejected].flatMap((stage) => flattenStages(stage));
+      expect(nodes.filter((stage) => stage.name === 'UNKNOWN').map((stage) => stage.name)).toEqual(
+        [],
+      );
+    }
     // The group sorts after $group on every engine, so no index is advised for the sort.
     if (key.includes('aggregate-group')) {
       expect(explainInWords(tree).some((sentence) => sentence.startsWith('Add an index'))).toBe(
@@ -1065,5 +1472,67 @@ describe('committed explain fixtures', () => {
     } else {
       expect(tree.summary.executionTimeMs).toBeTypeOf('number');
     }
+  });
+});
+
+describe('committed fixture sub-trees and spill metrics', () => {
+  it('shows the inner pipeline of a $lookup as a labelled child on 6.0', () => {
+    const tree = normaliseExplain(FIXTURES['./fixtures/6.0/lookup-pipeline.executionStats.json']);
+    expect(tree.winning.children.map((child) => child.label)).toContain(
+      'inner pipeline of $lookup from customers',
+    );
+  });
+
+  it('shows each $facet branch as a labelled child on 8.0.17', () => {
+    const tree = normaliseExplain(FIXTURES['./fixtures/8.0.17/facet.executionStats.json']);
+    expect(tree.winning.children.map((child) => child.label)).toEqual(
+      expect.arrayContaining(['$facet branch byRating', '$facet branch total']),
+    );
+  });
+
+  it('shows the $unionWith input as its own plan on 8.0.17', () => {
+    const tree = normaliseExplain(FIXTURES['./fixtures/8.0.17/union-with.executionStats.json']);
+    const input = tree.winning.children.find((child) => child.label !== undefined);
+    expect(input?.label).toBe('union input from customers');
+    expect(input?.name).toBe('COLLSCAN');
+  });
+
+  it('reads the spill counters of a sort that spilled on 6.0', () => {
+    const tree = normaliseExplain(FIXTURES['./fixtures/6.0/sort-spill.executionStats.json']);
+    expect(tree.winning.name).toBe('SORT');
+    expect(tree.winning.usedDisk).toBe(true);
+    expect(tree.winning.spills).toBe(59);
+    // 6.0 does not report the bytes written, so spilledBytes is absent there.
+    expect(tree.winning.spilledBytes).toBeUndefined();
+    const eight = normaliseExplain(FIXTURES['./fixtures/8.0.17/sort-spill.executionStats.json']);
+    expect(eight.winning.spilledBytes).toBe(1151770);
+    expect(tree.warnings.map((warning) => warning.code)).toContain('SORT_SPILLED');
+  });
+
+  it('reads the spill of a $group on 6.0 and warns about it', () => {
+    const tree = normaliseExplain(FIXTURES['./fixtures/6.0/group-spill.executionStats.json']);
+    const group = flattenStages(tree.winning).find((stage) => stage.name === '$group');
+    expect(group?.usedDisk).toBe(true);
+    expect(tree.warnings.map((warning) => warning.code)).toContain('GROUP_SPILLED');
+  });
+
+  it('marks the shard children of the hand-written sharded plan', () => {
+    const tree = normaliseExplain(FIXTURES['./fixtures/sharded/find.executionStats.json']);
+    expect(tree.winning.children.some((child) => child.label?.startsWith('shard ') === true)).toBe(
+      true,
+    );
+  });
+});
+
+describe('fixture stage catalogue coverage', () => {
+  it('maps no stage of any fixture to the unknown category', () => {
+    const unknownNames = Object.values(FIXTURES).flatMap((raw) => {
+      const tree = normaliseExplain(raw);
+      return [tree.winning, ...tree.rejected]
+        .flatMap((stage) => flattenStages(stage))
+        .map((stage) => stage.name)
+        .filter((name) => describeStage(name).category === 'unknown');
+    });
+    expect([...new Set(unknownNames)]).toEqual([]);
   });
 });
