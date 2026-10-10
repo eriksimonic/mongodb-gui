@@ -3,6 +3,7 @@ import { useProfilerOpener } from '../../profiler/profiler-opener';
 import { useAppStore } from '../../state/app-store-context';
 import { shardingAvailability } from '../../sharding/sharding-availability';
 import { usePanelOpener } from '../../state/panel-opener';
+import { useBackupDialogs } from '../backup/backup-dialog-store';
 import { useGenerateDialog } from '../generate/generate-store';
 import { TreeMenu, type TreeMenuEntry } from './TreeMenu';
 
@@ -72,6 +73,16 @@ export function DatabaseContextMenu({
       kind: 'item',
       label: 'Database stats',
       onSelect: () => openPanel({ kind: 'databaseStats', connectionId, database }),
+    },
+    {
+      kind: 'item',
+      label: 'Back up database…',
+      onSelect: () => useBackupDialogs.getState().open({ kind: 'backup', connectionId, database }),
+    },
+    {
+      kind: 'item',
+      label: 'Restore into database…',
+      onSelect: () => useBackupDialogs.getState().open({ kind: 'restore', connectionId, database }),
     },
     {
       kind: 'item',
@@ -162,6 +173,12 @@ export function CollectionContextMenu({
       kind: 'item',
       label: 'Export data',
       onSelect: () => setTransferDialog({ kind: 'export', connectionId, database, collection }),
+    },
+    {
+      kind: 'item',
+      label: 'Back up collection…',
+      onSelect: () =>
+        useBackupDialogs.getState().open({ kind: 'backup', connectionId, database, collection }),
     },
     {
       kind: 'item',
