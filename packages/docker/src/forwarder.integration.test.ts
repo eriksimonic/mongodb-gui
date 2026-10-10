@@ -25,6 +25,9 @@ import {
 const SETUP_TIMEOUT_MS = 240_000;
 const TEST_TIMEOUT_MS = 120_000;
 const MONGO_IMAGE = 'mongo:8.0.17';
+// Testcontainers puts TESTCONTAINERS_HUB_IMAGE_NAME_PREFIX in front of Docker Hub images. CI sets
+// it to the ECR mirror, so the engine reports the container's image with that prefix.
+const STARTED_IMAGE = `${process.env['TESTCONTAINERS_HUB_IMAGE_NAME_PREFIX'] ?? ''}${MONGO_IMAGE}`;
 // Several worktrees can run this suite against one engine at once. A unique scope per run keeps
 // each run's cleanup away from the forwarders of the others.
 const SCOPE = `forwarder-test-${randomUUID()}`;
@@ -67,7 +70,7 @@ describe('Docker discovery and forwarder against a real engine', () => {
   }, SETUP_TIMEOUT_MS);
 
   it('discovers the container without a published port on its network', () => {
-    expect(target.image).toBe(MONGO_IMAGE);
+    expect(target.image).toBe(STARTED_IMAGE);
     expect(target.publishedPort).toBeUndefined();
     expect(target.networks).toEqual([network.getName()]);
   });
