@@ -77,6 +77,10 @@ inline edits in the tree, and a history and favourites list in the Output panel.
 | ---------------------------------------------------------------------------------------------------------------------- |
 | ![Replica set panel with the members table, state badges, lag and the election list](docs/screenshots/replica-set.png) |
 
+| Server diagnostics with the log tab and its filters                                                        |
+| ---------------------------------------------------------------------------------------------------------- |
+| ![Diagnostics panel with the log tab, level, component and text filters](docs/screenshots/diagnostics.png) |
+
 | Import wizard, preview and field mapping                                      | Export dialog                                                                     |
 | ----------------------------------------------------------------------------- | --------------------------------------------------------------------------------- |
 | ![Import wizard at the preview and mapping step](docs/screenshots/import.png) | ![Export dialog with a filter and the NDJSON format](docs/screenshots/export.png) |
@@ -85,9 +89,12 @@ inline edits in the tree, and a history and favourites list in the Output panel.
 | ---------------------------------------------------------------------------------------------------------------------- |
 | ![GridFS panel with the files of a bucket, the metadata badges and an upload in progress](docs/screenshots/gridfs.png) |
 
-| Change stream on a collection with live events and the selected event                                                                        |
-| -------------------------------------------------------------------------------------------------------------------------------------------- |
-| ![Change stream panel with the live event list, the state strip and the detail pane of a replace event](docs/screenshots/change-streams.png) |
+| Change stream on a collection with live events and the selected event                                                                               |
+| --------------------------------------------------------------------------------------------------------------------------------------------------- |
+| ![Change stream panel with the live event list, the state strip and the detail pane of a replace event](docs/screenshots/change-streams.png)        |
+| Sharding panel with the balancer, collections and chunks per shard                                                                                  |
+| --------------------------------------------------------------------------------------------------------------------------------------------------- |
+| ![Sharding panel with the balancer state, a collections table with chunk bars per shard and the Distribution action](docs/screenshots/sharding.png) |
 
 ## Prerequisites
 

@@ -1,6 +1,7 @@
 import { useChangesOpener } from '../../changes/changes-opener';
 import { useProfilerOpener } from '../../profiler/profiler-opener';
 import { useAppStore } from '../../state/app-store-context';
+import { shardingAvailability } from '../../sharding/sharding-availability';
 import { usePanelOpener } from '../../state/panel-opener';
 import { TreeMenu, type TreeMenuEntry } from './TreeMenu';
 
@@ -68,6 +69,11 @@ export function DatabaseContextMenu({
     },
     {
       kind: 'item',
+      label: 'Database stats',
+      onSelect: () => openPanel({ kind: 'databaseStats', connectionId, database }),
+    },
+    {
+      kind: 'item',
       label: 'Drop database',
       color: 'red',
       onSelect: () => setManagementDialog({ kind: 'dropDatabase', connectionId, database }),
@@ -100,6 +106,8 @@ export function CollectionContextMenu({
   const setTransferDialog = useAppStore((state) => state.setTransferDialog);
   const refreshDatabase = useAppStore((state) => state.refreshDatabase);
   const changesOpener = useChangesOpener();
+  const sharding = shardingAvailability(useAppStore((state) => state.statuses[connectionId]));
+  const openPanel = usePanelOpener();
   const target = { connectionId, database, collection };
   const entries: TreeMenuEntry[] = [
     {
@@ -130,6 +138,11 @@ export function CollectionContextMenu({
     },
     {
       kind: 'item',
+      label: 'Collection stats',
+      onSelect: () => openPanel({ kind: 'collectionStats', connectionId, database, collection }),
+    },
+    {
+      kind: 'item',
       label: 'Import data',
       onSelect: () => setTransferDialog({ kind: 'import', connectionId, database, collection }),
     },
@@ -137,6 +150,13 @@ export function CollectionContextMenu({
       kind: 'item',
       label: 'Export data',
       onSelect: () => setTransferDialog({ kind: 'export', connectionId, database, collection }),
+    },
+    {
+      kind: 'item',
+      label: 'Shard collection',
+      disabled: !sharding.available,
+      reason: sharding.available ? undefined : sharding.reason,
+      onSelect: () => setManagementDialog({ kind: 'shardCollection', ...target }),
     },
     {
       kind: 'item',

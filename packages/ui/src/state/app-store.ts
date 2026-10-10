@@ -134,6 +134,12 @@ export type ManagementDialog =
     }
   | { readonly kind: 'dropDatabase'; readonly connectionId: string; readonly database: string }
   | {
+      readonly kind: 'shardCollection';
+      readonly connectionId: string;
+      readonly database: string;
+      readonly collection: string;
+    }
+  | {
       readonly kind: 'createIndex';
       readonly connectionId: string;
       readonly database: string;

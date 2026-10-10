@@ -1,10 +1,12 @@
-import { Box, Menu } from '@mantine/core';
+import { Box, Menu, Text } from '@mantine/core';
 
 export type TreeMenuEntry =
   | {
       readonly kind: 'item';
       readonly label: string;
       readonly disabled?: boolean;
+      /** Shown on the right of a disabled item, for example why it is off. */
+      readonly reason?: string | undefined;
       readonly color?: string;
       readonly onSelect: () => void;
     }
@@ -36,6 +38,13 @@ export function TreeMenu({ entries, position, onClose }: TreeMenuProps) {
             <Menu.Item
               key={entry.label}
               disabled={entry.disabled ?? false}
+              rightSection={
+                entry.reason === undefined ? undefined : (
+                  <Text size="xs" c="dimmed">
+                    {entry.reason}
+                  </Text>
+                )
+              }
               {...(entry.color === undefined ? {} : { color: entry.color })}
               onClick={() => {
                 onClose();

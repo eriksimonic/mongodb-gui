@@ -44,6 +44,25 @@ export function profilerPanelId(connectionId: string, database: string): string 
   return `profiler:${catalogKey(connectionId, database)}`;
 }
 
+/** The dock id of a connection's server diagnostics panel. One panel per connection. */
+export function diagnosticsPanelId(connectionId: string): string {
+  return `diagnostics:${connectionId}`;
+}
+
+/** The dock id of a database's storage statistics panel. */
+export function databaseStatsPanelId(connectionId: string, database: string): string {
+  return `dbstats:${catalogKey(connectionId, database)}`;
+}
+
+/** The dock id of a collection's storage statistics panel. */
+export function collectionStatsPanelId(
+  connectionId: string,
+  database: string,
+  collection: string,
+): string {
+  return `collstats:${catalogKey(connectionId, database)}/${collection}`;
+}
+
 /** The dock id of a database's users and roles panel. */
 export function usersPanelId(connectionId: string, database: string): string {
   return `users:${catalogKey(connectionId, database)}`;

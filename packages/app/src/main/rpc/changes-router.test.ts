@@ -5,7 +5,6 @@ import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 import {
   AppErrorException,
   appError,
-  type ChangeWatchState,
   type ConnectionStatus,
   type RpcEvent,
   type RpcResult,

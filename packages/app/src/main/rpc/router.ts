@@ -12,6 +12,7 @@ import {
   normaliseExplain,
   rewriteForExplain,
   redactUri,
+  redactUriText,
   rpcContract,
   toAppError,
   type AppError,
@@ -25,6 +26,15 @@ import {
   type ConnectionProfile,
   type ConnectionProfileInput,
   type DialogResult,
+  type LogLine,
+  type ServerLog,
+  type ServerParameter,
+  capDiagnosticText,
+  redactArgv,
+  redactDiagnosticRecord,
+  redactDiagnosticValue,
+  redactRawLine,
+  isSecretKey,
   type OpenDialogInput,
   type SaveDialogInput,
   type ExplainResult,
@@ -105,6 +115,20 @@ import {
   type ProfileTail,
   changePassword,
   connectionStatus,
+  getBuildInfo,
+  getCollStats,
+  getCommandLineOptions,
+  getConnPoolStats,
+  getDbStats,
+  getHostInfo,
+  getParameters,
+  getServerLog,
+  getServerStatusTree,
+  getTop,
+  killAllSessionsByUser,
+  killSessions,
+  listSessions,
+  serverStatusDocument,
   createRole,
   createUser,
   dropRole,
@@ -116,6 +140,20 @@ import {
   revokeRoles,
   updateRole,
   userManagementCapabilities,
+  addShardToZone,
+  clearBalancerWindow,
+  describeShardCollection,
+  enableSharding,
+  getShardDistribution,
+  getShardingOverview,
+  moveChunk,
+  removeShardFromZone,
+  removeShardStatus,
+  setBalancerWindow,
+  shardCollection,
+  startBalancer,
+  stopBalancer,
+  updateZoneKeyRange,
 } from '@mongo-gui/mongo-adapter';
 import {
   createDockerEngineClient,
@@ -710,6 +748,82 @@ export function createRouter(deps: RouterDeps): Router {
     });
   }
 
+  /**
+   * A sharding call that changes server settings but not the database or collection tree. It
+   * reports no catalog change.
+   */
+  function serverOp<C extends RpcCall>(
+    method: string,
+    call: C,
+    run: (client: ClientOf, input: CallInput<C>) => Promise<unknown>,
+  ): [string, Operation] {
+    return entry(method, call, (input) =>
+      driverCall(() =>
+        run(deps.connections.getClient((input as ConnectionScoped).connectionId), input),
+      ),
+    );
+  }
+
+  /**
+   * Sharding calls. Each one runs against the connection's mongos. The adapter validates the
+   * input and the server refuses what it must. Enabling sharding and sharding a collection
+   * report a catalog change, so the tree refreshes.
+   */
+  function shardingOperations(): [string, Operation][] {
+    const s = rpcContract.sharding;
+    return [
+      readOnly('sharding.overview', s.overview, (client) => getShardingOverview(client)),
+      readOnly('sharding.collectionDistribution', s.collectionDistribution, (client, input) =>
+        getShardDistribution(client, input.namespace),
+      ),
+      serverOp('sharding.setBalancer', s.setBalancer, (client, input) =>
+        input.enabled ? startBalancer(client) : stopBalancer(client),
+      ),
+      serverOp('sharding.setBalancerWindow', s.setBalancerWindow, (client, input) =>
+        setBalancerWindow(client, input),
+      ),
+      serverOp('sharding.clearBalancerWindow', s.clearBalancerWindow, (client) =>
+        clearBalancerWindow(client),
+      ),
+      managed(
+        'sharding.enableSharding',
+        s.enableSharding,
+        (client, input) => enableSharding(client, input),
+        (input) => ({ database: input.database }),
+      ),
+      entry('sharding.shardCollection', s.shardCollection, (input) =>
+        driverCall(async () => {
+          const client = deps.connections.getClient(input.connectionId);
+          const summary = await describeShardCollection(client, input);
+          if (!input.confirmed) {
+            return { applied: false, summary };
+          }
+          await shardCollection(client, input);
+          deps.onEvent({
+            type: 'catalog:changed',
+            connectionId: input.connectionId,
+            database: input.database,
+            collection: input.collection,
+          });
+          return { applied: true, summary };
+        }),
+      ),
+      serverOp('sharding.moveChunk', s.moveChunk, (client, input) => moveChunk(client, input)),
+      serverOp('sharding.addShardToZone', s.addShardToZone, (client, input) =>
+        addShardToZone(client, input),
+      ),
+      serverOp('sharding.removeShardFromZone', s.removeShardFromZone, (client, input) =>
+        removeShardFromZone(client, input),
+      ),
+      serverOp('sharding.updateZoneKeyRange', s.updateZoneKeyRange, (client, input) =>
+        updateZoneKeyRange(client, input),
+      ),
+      serverOp('sharding.removeShard', s.removeShard, (client, input) =>
+        removeShardStatus(client, input),
+      ),
+    ];
+  }
+
   function securityOperations(): [string, Operation][] {
     const s = rpcContract.security;
     return [
@@ -742,6 +856,56 @@ export function createRouter(deps: RouterDeps): Router {
         userManagementCapabilities(client, input.database),
       ),
       entry('security.privilegeActions', s.privilegeActions, () => privilegeActionCatalog()),
+    ];
+  }
+
+  /**
+   * Server logs, parameters, host and build facts, sessions and the other diagnostics. Secret fields
+   * are masked and URIs redacted before a reply leaves. The kill calls report no catalog change.
+   */
+  function diagnosticsOperations(): [string, Operation][] {
+    const d = rpcContract.diagnostics;
+    return [
+      readOnly('diagnostics.getLog', d.getLog, async (client, input) =>
+        redactLog(await getServerLog(client, input.kind)),
+      ),
+      readOnly('diagnostics.cmdLineOpts', d.cmdLineOpts, async (client) => {
+        const options = await getCommandLineOptions(client);
+        return {
+          argv: redactArgv(options.argv),
+          parsed: toCanonicalEjson(redactDiagnosticValue(options.parsed)),
+        };
+      }),
+      readOnly('diagnostics.parameters', d.parameters, async (client) =>
+        (await getParameters(client)).map(redactParameter),
+      ),
+      readOnly('diagnostics.hostInfo', d.hostInfo, (client) => getHostInfo(client)),
+      readOnly('diagnostics.buildInfo', d.buildInfo, (client) => getBuildInfo(client)),
+      readOnly('diagnostics.serverStatus', d.serverStatus, async (client) => {
+        const tree = await getServerStatusTree(client);
+        return {
+          at: tree.at,
+          stripped: tree.stripped,
+          document: redactDiagnosticRecord(serverStatusDocument(tree)),
+        };
+      }),
+      readOnly('diagnostics.top', d.top, (client) => getTop(client)),
+      readOnly('diagnostics.dbStats', d.dbStats, (client, input) =>
+        getDbStats(client, input.database),
+      ),
+      readOnly('diagnostics.collStats', d.collStats, (client, input) =>
+        getCollStats(client, input.database, input.collection),
+      ),
+      readOnly('diagnostics.connPoolStats', d.connPoolStats, (client) => getConnPoolStats(client)),
+      readOnly('diagnostics.listSessions', d.listSessions, (client, input) =>
+        listSessions(client, { allUsers: input.allUsers === true }),
+      ),
+      readOnly('diagnostics.killSessions', d.killSessions, (client, input) =>
+        killSessions(client, input.ids),
+      ),
+      readOnly('diagnostics.killAllSessionsByUser', d.killAllSessionsByUser, (client, input) =>
+        killAllSessionsByUser(client, input.users),
+      ),
     ];
   }
 
@@ -945,6 +1109,8 @@ export function createRouter(deps: RouterDeps): Router {
     entry('explain.runCommand', rpcContract.explain.runCommand, (input) => explainCommand(input)),
     ...managementOperations(),
     ...securityOperations(),
+    ...shardingOperations(),
+    ...diagnosticsOperations(),
 
     entry('monitor.start', rpcContract.monitor.start, (input) =>
       monitor.start(input.connectionId, input.intervalMs),
@@ -1650,6 +1816,64 @@ function tailKey(connectionId: string, database: string): string {
  * Profile entries carry BSON values in command, locks, storage and raw. They are sent in
  * canonical extended JSON, so the renderer gets plain data with $oid and $date markers.
  */
+/** The text the log viewer shows: secrets masked, URIs redacted, attributes in canonical EJSON. */
+function redactLog(log: ServerLog): ServerLog {
+  return { ...log, lines: log.lines.map(redactLogLine) };
+}
+
+function redactLogLine(line: LogLine): LogLine {
+  const { attributes, ...rest } = line;
+  return {
+    ...rest,
+    message: redactUriText(line.message),
+    raw: redactRawLine(line.raw),
+    ...(attributes === undefined
+      ? {}
+      : { attributes: toCanonicalEjson(redactDiagnosticValue(attributes)) }),
+  };
+}
+
+const PARAMETER_MASK = '***';
+
+/**
+ * A parameter with secrets masked. Strings and object or array values are redacted recursively,
+ * and a structured value longer than the cap is cut short with truncated set.
+ */
+function redactParameter(parameter: ServerParameter): ServerParameter {
+  if (isSecretKey(parameter.name)) {
+    return {
+      name: parameter.name,
+      value: PARAMETER_MASK,
+      valueEjson: JSON.stringify(PARAMETER_MASK),
+    };
+  }
+  if (parameter.value !== undefined) {
+    if (typeof parameter.value !== 'string') {
+      return parameter;
+    }
+    const value = redactUriText(parameter.value);
+    return { name: parameter.name, value, valueEjson: JSON.stringify(value) };
+  }
+  // An object or array has no scalar value. Its canonical text is redacted as a parsed document.
+  let redacted: unknown;
+  try {
+    redacted = redactDiagnosticValue(JSON.parse(parameter.valueEjson) as unknown);
+  } catch {
+    const text = capDiagnosticText(redactUriText(parameter.valueEjson));
+    return {
+      name: parameter.name,
+      value: text.text,
+      valueEjson: text.text,
+      truncated: text.truncated,
+    };
+  }
+  const text = capDiagnosticText(JSON.stringify(redacted));
+  if (text.truncated) {
+    return { name: parameter.name, value: text.text, valueEjson: text.text, truncated: true };
+  }
+  return { name: parameter.name, value: redacted, valueEjson: text.text };
+}
+
 function canonicalEntry(entry: ProfileEntry): ProfileEntry {
   return {
     ...entry,

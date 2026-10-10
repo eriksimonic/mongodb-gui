@@ -10,7 +10,7 @@ import {
   TopEntrySchema,
 } from './types';
 
-const opStat = { time: 0, count: 0 };
+const opStat = { timeMs: 0, count: 0 };
 
 describe('LogLineSchema', () => {
   it('accepts a structured JSON line', () => {
@@ -115,6 +115,7 @@ describe('ServerStatusTreeSchema', () => {
     const tree = {
       at: '2026-01-01T00:00:00.000Z',
       rawJson: '{"host":"h"}',
+      canonicalJson: '{"host":"h"}',
       stripped: ['tcmalloc'],
     };
     expect(ServerStatusTreeSchema.safeParse(tree).success).toBe(true);

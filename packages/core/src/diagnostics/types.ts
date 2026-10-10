@@ -32,6 +32,8 @@ export const ServerParameterSchema = z.object({
   name: z.string(),
   value: z.unknown(),
   valueEjson: z.string(),
+  // Set when an object or array value was longer than the cap and was cut short.
+  truncated: z.boolean().optional(),
 });
 
 export const CommandLineOptionsSchema = z.object({
@@ -76,8 +78,9 @@ export const BuildInfoSchema = z.object({
   rawJson: z.string(),
 });
 
+// Time in milliseconds. The server reports microseconds, and the adapter divides them.
 export const OpStatSchema = z.object({
-  time: z.number().nonnegative(),
+  timeMs: z.number().nonnegative(),
   count: nonNegativeInt,
 });
 
@@ -110,9 +113,12 @@ export const ConnPoolStatsSchema = z.object({
   rawJson: z.string(),
 });
 
+// user is the server's "name@db" text. name and db split it at the last "@".
 export const SessionInfoSchema = z.object({
   id: z.string(),
   user: z.string().optional(),
+  name: z.string().optional(),
+  db: z.string().optional(),
   userId: z.string().optional(),
   lastUse: z.string().optional(),
   expired: z.boolean().optional(),
@@ -135,6 +141,9 @@ export const ServerStatusTreeSchema = z.object({
   // Relaxed EJSON text. Parse with JSON.parse; Dates, Longs above 2^53 and Timestamps stay as
   // single-key wrapper objects. "$" keys are not escaped.
   rawJson: z.string(),
+  // The same reply in canonical EJSON text. Parse with JSON.parse. Dates and Longs keep their
+  // wrappers. It is read through the driver, so a Long that fits a number reads as an int.
+  canonicalJson: z.string(),
   stripped: z.array(z.string()),
 });
 
