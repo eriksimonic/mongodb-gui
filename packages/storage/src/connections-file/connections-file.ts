@@ -13,7 +13,7 @@ import {
   type ConnectionsFile,
   type ScryptParams,
 } from '@mongo-gui/core';
-import { DEFAULT_KDF_PARAMS, deriveKek } from '../crypto/kdf';
+import { DEFAULT_KDF_PARAMS, deriveKek, type KdfParams } from '../crypto/kdf';
 import { DecryptError, open } from '../crypto/aead';
 
 const SALT_BYTES = 32;
@@ -23,18 +23,22 @@ const TAG_BYTES = 16;
 /**
  * Encrypts connection profiles, credentials included, into a connections file. The key comes from a
  * scrypt derivation of the passphrase with a fresh salt, and the IV is fresh too. The derived key
- * is zeroed before the function returns.
+ * is zeroed before the function returns. Tests pass a cheaper cost in params; the app uses the
+ * default.
  */
 export function exportConnections(
   profiles: readonly ConnectionProfile[],
   passphrase: string,
+  params: KdfParams = DEFAULT_KDF_PARAMS,
 ): Buffer {
   assertConnectionsPassphrase(passphrase);
   const salt = randomBytes(SALT_BYTES);
   const iv = randomBytes(IV_BYTES);
   const kdf: ScryptParams = {
     name: 'scrypt',
-    ...DEFAULT_KDF_PARAMS,
+    N: params.N,
+    r: params.r,
+    p: params.p,
     salt: salt.toString('base64'),
   };
   const cipherName = 'aes-256-gcm' as const;
@@ -47,7 +51,7 @@ export function exportConnections(
     }),
     'utf8',
   );
-  const key = deriveKek(passphrase, salt, DEFAULT_KDF_PARAMS);
+  const key = deriveKek(passphrase, salt, params);
   const plaintext = Buffer.from(JSON.stringify(profiles), 'utf8');
   try {
     const cipher = createCipheriv(cipherName, key, iv, { authTagLength: TAG_BYTES });

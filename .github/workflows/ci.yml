@@ -38,9 +38,18 @@ jobs:
         run: pnpm typecheck
 
       # The github-actions reporter turns failing tests into annotations, which are readable
-      # without downloading the job log.
+      # without downloading the job log. The JSON report holds every test with its error and
+      # duration, and is uploaded when the step fails.
       - name: Unit tests
-        run: pnpm exec vitest run --project unit --reporter=default --reporter=github-actions
+        run: pnpm exec vitest run --project unit --reporter=default --reporter=github-actions --reporter=json --outputFile.json=vitest-report.json
+
+      - name: Upload the unit test report
+        if: failure()
+        uses: actions/upload-artifact@v7
+        with:
+          name: unit-${{ matrix.os }}
+          path: vitest-report.json
+          if-no-files-found: ignore
 
       - name: Check formatting
         run: pnpm format:check
