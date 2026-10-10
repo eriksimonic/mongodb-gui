@@ -260,10 +260,10 @@ describe('vault calls', () => {
     const { router } = harness;
 
     const shortPassword = expectError(
-      await router.handle('vault.initialise', { password: 'short' }),
+      await router.handle('vault.initialise', { password: 'abc' }),
       'VALIDATION',
     );
-    expect(shortPassword.message).not.toContain('short');
+    expect(shortPassword.message).not.toContain('abc');
     expectError(await router.handle('vault.reset', { confirmation: 'YES' }), 'VALIDATION');
   });
 });

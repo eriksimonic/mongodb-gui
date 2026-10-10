@@ -26,7 +26,7 @@ describe('ChangePasswordModal', () => {
 
     fireEvent.click(await screen.findByRole('button', { name: 'Change password' }));
     expect(await screen.findByText('Enter the current master password.')).toBeInTheDocument();
-    expect(screen.getByText('Use at least 10 characters.')).toBeInTheDocument();
+    expect(screen.getByText('Use at least 4 characters.')).toBeInTheDocument();
   });
 
   it('reports a confirmation that does not match', async () => {

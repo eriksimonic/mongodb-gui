@@ -32,7 +32,7 @@ data key --AES-256-GCM--> every stored record
 ```
 
 - The app normalises the password to Unicode NFC before it derives the key.
-- The app requires at least 10 characters for a new master password.
+- The app requires at least 4 characters for a new master password. Longer passwords make the scrypt-derived key harder to guess; the strength meter counts 10 or more as one rule met.
 - At the first launch, the app creates the data key, wraps it under the key encryption key, and
   writes the wrapped key to `keyring.json`. The authentication tag of the wrapped key checks the
   password. The file has no separate password hash.

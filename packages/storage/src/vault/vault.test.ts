@@ -73,10 +73,10 @@ describe('Vault lifecycle', () => {
     vault.lock();
   });
 
-  it('rejects a password shorter than 10 characters', () => {
+  it('rejects a password shorter than 4 characters', () => {
     const vault = newVault(newDir());
     expect(() => {
-      vault.initialise('123456789');
+      vault.initialise('123');
     }).toThrow(AppErrorException);
     expect(vault.status()).toEqual({ state: 'uninitialised' });
   });
@@ -213,11 +213,11 @@ describe('Vault changePassword', () => {
     expect(readFileSync(vault.keyringPath, 'utf8')).toBe(before);
   });
 
-  it('rejects a new password shorter than 10 characters', async () => {
+  it('rejects a new password shorter than 4 characters', async () => {
     const vault = newVault(newDir());
     vault.initialise(PASSWORD);
     vault.lock();
-    await expectCode(() => vault.changePassword(PASSWORD, 'short'), 'VALIDATION');
+    await expectCode(() => vault.changePassword(PASSWORD, 'abc'), 'VALIDATION');
   });
 });
 

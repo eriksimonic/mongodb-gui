@@ -21,7 +21,7 @@ export interface VaultOptions {
   readonly onUnlocked?: () => void;
 }
 
-const MIN_PASSWORD_LENGTH = 10;
+const MIN_PASSWORD_LENGTH = 4;
 const SALT_BYTES = 32;
 const DEK_BYTES = 32;
 const KEYRING_FILE_NAME = 'keyring.json';

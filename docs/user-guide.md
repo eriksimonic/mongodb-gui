@@ -34,7 +34,7 @@ copy of it. See [security.md](security.md) for the details.
 
 On the first launch, the app shows the first-run screen.
 
-1. Type a master password in "Master password". The password must have at least 10 characters.
+1. Type a master password in "Master password". The password must have at least 4 characters. The strength meter still rates anything under 10 as weak.
 2. Type the same password in "Confirm master password". The strength meter shows how strong the
    password is.
 3. Click "Create vault".

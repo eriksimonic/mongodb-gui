@@ -37,8 +37,8 @@ describe('validateChangePassword', () => {
   });
 
   it('applies the first-run length rule to the new password', () => {
-    const errors = validateChangePassword({ ...valid, next: 'short', confirmation: 'short' });
-    expect(errors.password).toBe('Use at least 10 characters.');
+    const errors = validateChangePassword({ ...valid, next: 'abc', confirmation: 'abc' });
+    expect(errors.password).toBe('Use at least 4 characters.');
   });
 
   it('asks for the confirmation and reports a mismatch', () => {

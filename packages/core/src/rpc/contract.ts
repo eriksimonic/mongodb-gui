@@ -215,7 +215,7 @@ const connectionParam = z.object({ connectionId: z.uuid() });
 const databaseParam = connectionParam.extend({ database: z.string().min(1) });
 const collectionParam = databaseParam.extend({ collection: z.string().min(1) });
 const password = z.string().min(1);
-const newPassword = z.string().min(10);
+const newPassword = z.string().min(4);
 
 /** Adds connectionId to a management input. The intersection keeps the input's refinements. */
 function onConnection<T extends z.ZodType>(input: T) {

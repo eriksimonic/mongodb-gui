@@ -78,7 +78,7 @@ function ChangePasswordForm({ onClose, onChanged }: FormProps) {
         />
         <PasswordInput
           label="New master password"
-          description="At least 10 characters."
+          description="At least 4 characters."
           autoComplete="new-password"
           value={next}
           onChange={(event) => setNext(event.currentTarget.value)}

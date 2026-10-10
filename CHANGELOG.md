@@ -21,6 +21,10 @@ All notable changes to Mongo GUI are listed here, newest first.
 - Right-click a dock tab to close it, close the other tabs, close the tabs to its left or right,
   or close all tabs. The connections, welcome and output panels stay open.
 
+### Changed
+
+- The master password needs at least 4 characters instead of 10. The strength meter is unchanged.
+
 ### Fixed
 
 - Typing `db.` lists every collection of the database, including on slow or remote servers. The

@@ -155,9 +155,9 @@ describe('rpcContract', () => {
     expect(input.safeParse({ confirmation: 'delete' }).success).toBe(false);
   });
 
-  it('rejects a vault password shorter than 10 characters on initialise', () => {
+  it('rejects a vault password shorter than 4 characters on initialise', () => {
     const { input } = rpcContract.vault.initialise;
-    expect(input.safeParse({ password: 'short' }).success).toBe(false);
+    expect(input.safeParse({ password: 'abc' }).success).toBe(false);
     expect(input.safeParse({ password: 'long enough password' }).success).toBe(true);
   });
 

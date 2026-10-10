@@ -1,4 +1,7 @@
-export const MIN_PASSWORD_LENGTH = 10;
+export const MIN_PASSWORD_LENGTH = 4;
+
+/** The length the strength meter counts as a met rule. Shorter passwords are accepted. */
+export const STRONG_PASSWORD_LENGTH = 10;
 
 const STRENGTH_LABELS = ['Very weak', 'Weak', 'Fair', 'Good', 'Strong'] as const;
 
@@ -16,7 +19,7 @@ export interface NewPasswordErrors {
 /** Counts the rules a password meets: length, mixed case, digits and symbols. */
 export function passwordStrength(password: string): PasswordStrength {
   const rules = [
-    password.length >= MIN_PASSWORD_LENGTH,
+    password.length >= STRONG_PASSWORD_LENGTH,
     /[a-z]/.test(password) && /[A-Z]/.test(password),
     /\d/.test(password),
     /[^A-Za-z0-9]/.test(password),

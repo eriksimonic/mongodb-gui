@@ -24,8 +24,8 @@ describe('passwordStrength', () => {
 });
 
 describe('validateNewPassword', () => {
-  it('flags a password shorter than 10 characters', () => {
-    expect(validateNewPassword('short', 'short').password).toBe('Use at least 10 characters.');
+  it('flags a password shorter than 4 characters', () => {
+    expect(validateNewPassword('abc', 'abc').password).toBe('Use at least 4 characters.');
   });
 
   it('asks for the confirmation when it is empty', () => {

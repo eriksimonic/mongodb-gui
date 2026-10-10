@@ -20,9 +20,9 @@ describe('mock vault', () => {
     expect(await api.rpc.vault.status()).toEqual({ state: 'uninitialised' });
   });
 
-  it('rejects a master password shorter than 10 characters', async () => {
+  it('rejects a master password shorter than 4 characters', async () => {
     const api = createMockUiApi();
-    await expect(api.rpc.vault.initialise({ password: 'short' })).rejects.toMatchObject({
+    await expect(api.rpc.vault.initialise({ password: 'abc' })).rejects.toMatchObject({
       error: { code: 'VALIDATION' },
     });
     expect(await api.rpc.vault.status()).toEqual({ state: 'uninitialised' });

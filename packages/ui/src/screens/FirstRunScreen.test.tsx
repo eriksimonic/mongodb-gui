@@ -13,12 +13,12 @@ async function fillPasswords(password: string, confirmation: string) {
 }
 
 describe('FirstRunScreen', () => {
-  it('rejects a password shorter than 10 characters', async () => {
+  it('rejects a password shorter than 4 characters', async () => {
     renderApp({ mock: { preset: 'fresh' } });
-    await fillPasswords('short', 'short');
+    await fillPasswords('abc', 'abc');
     fireEvent.click(screen.getByRole('button', { name: 'Create vault' }));
 
-    expect(await screen.findByText('Use at least 10 characters.')).toBeInTheDocument();
+    expect(await screen.findByText('Use at least 4 characters.')).toBeInTheDocument();
     expect(screen.getByRole('heading', { name: 'Create master password' })).toBeInTheDocument();
   });
 
