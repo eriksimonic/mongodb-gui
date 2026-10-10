@@ -163,6 +163,38 @@ import {
   ShardNamespaceSchema,
   UpdateZoneKeyRangeInputSchema,
 } from '../sharding/types';
+import {
+  ReplicationApplyInputSchema,
+  ReplicationConfigOutputSchema,
+  ReplicationConnectionInputSchema,
+  ReplicationFreezeInputSchema,
+  ReplicationInitiateInputSchema,
+  ReplicationPlanInputSchema,
+  ReplicationPlanOutputSchema,
+  ReplicationSelfOutputSchema,
+  ReplicationStatusOutputSchema,
+  ReplicationStepDownInputSchema,
+  ReplicationStepDownOutputSchema,
+} from '../replication/rpc-schemas';
+import {
+  CollectionTargetSchema,
+  CommandLineReplySchema,
+  DatabaseTargetSchema,
+  KillAllSessionsInputSchema,
+  KillSessionsInputSchema,
+  ServerLogRequestSchema,
+  ServerStatusReplySchema,
+  SessionListInputSchema,
+} from '../diagnostics/calls';
+import {
+  BuildInfoSchema,
+  ConnPoolStatsSchema,
+  HostInfoSchema,
+  ServerLogSchema,
+  ServerParameterSchema,
+  SessionListSchema,
+  TopEntrySchema,
+} from '../diagnostics/types';
 import { defineCall, type RpcContract } from './define';
 
 const idParam = z.object({ id: z.uuid() });
@@ -354,6 +386,37 @@ export const rpcContract = {
     updateZoneKeyRange: defineCall(onConnection(UpdateZoneKeyRangeInputSchema), z.void()),
     /** A dry run unless confirmDraining is true. The result names the databases and chunks left. */
     removeShard: defineCall(onConnection(RemoveShardInputSchema), RemoveShardStatusSchema),
+  },
+
+  // Reads and changes a replica set through the connection. Only the node a connection points at
+  // takes step-down and freeze. A plan lives in the main process until it is applied or expires.
+  replication: {
+    getStatus: defineCall(ReplicationConnectionInputSchema, ReplicationStatusOutputSchema),
+    getConfig: defineCall(ReplicationConnectionInputSchema, ReplicationConfigOutputSchema),
+    selfHost: defineCall(ReplicationConnectionInputSchema, ReplicationSelfOutputSchema),
+    planReconfig: defineCall(ReplicationPlanInputSchema, ReplicationPlanOutputSchema),
+    applyReconfig: defineCall(ReplicationApplyInputSchema, z.void()),
+    stepDown: defineCall(ReplicationStepDownInputSchema, ReplicationStepDownOutputSchema),
+    freeze: defineCall(ReplicationFreezeInputSchema, z.void()),
+    initiate: defineCall(ReplicationInitiateInputSchema, z.void()),
+  },
+
+  // Server logs, server parameters and sessions. Reads report no catalog change. Kill calls need a
+  // connected server, and the adapter checks the session ids and user names before it sends them.
+  diagnostics: {
+    getLog: defineCall(onConnection(ServerLogRequestSchema), ServerLogSchema),
+    cmdLineOpts: defineCall(connectionParam, CommandLineReplySchema),
+    parameters: defineCall(connectionParam, z.array(ServerParameterSchema)),
+    hostInfo: defineCall(connectionParam, HostInfoSchema),
+    buildInfo: defineCall(connectionParam, BuildInfoSchema),
+    serverStatus: defineCall(connectionParam, ServerStatusReplySchema),
+    top: defineCall(connectionParam, z.array(TopEntrySchema)),
+    dbStats: defineCall(connectionParam.and(DatabaseTargetSchema), DatabaseStatsSchema),
+    collStats: defineCall(connectionParam.and(CollectionTargetSchema), CollectionStatsSchema),
+    connPoolStats: defineCall(connectionParam, ConnPoolStatsSchema),
+    listSessions: defineCall(onConnection(SessionListInputSchema), SessionListSchema),
+    killSessions: defineCall(onConnection(KillSessionsInputSchema), z.void()),
+    killAllSessionsByUser: defineCall(onConnection(KillAllSessionsInputSchema), z.void()),
   },
   // The sample is read by the shell runtime and the total from the server's metadata.
   schema: {

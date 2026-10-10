@@ -14,7 +14,7 @@ import {
 } from '../test/replica-set';
 import { addMember, applyReconfig, planReconfig, removeMember, updateMember } from './reconfig';
 import { freeze, initiate, stepDown } from './operations';
-import { getReplicaSetConfig, getReplicaSetStatus, isReplicaSet } from './status';
+import { getReplicaSetConfig, getReplicaSetStatus, getSelfHost, isReplicaSet } from './status';
 
 const IMAGES = ['mongo:8.0.17', 'mongo:6.0'] as const;
 const SUITE_TIMEOUT_MS = CONTAINER_STARTUP_TIMEOUT_MS * 2;
@@ -219,6 +219,17 @@ describe.each(IMAGES)('replica set administration on %s', (image) => {
       const status = await getReplicaSetStatus(setClient);
       expect(status.members.map((member) => member.id)).not.toContain(demotedId);
       expect(status.members).toHaveLength(3);
+    },
+    TEST_TIMEOUT_MS,
+  );
+
+  it(
+    'reads the host a member names itself by, which is one of the configured members',
+    async () => {
+      const self = await getSelfHost(setClient);
+      const status = await getReplicaSetStatus(setClient);
+      expect(self).toBeDefined();
+      expect(status.members.map((member) => member.name)).toContain(self);
     },
     TEST_TIMEOUT_MS,
   );

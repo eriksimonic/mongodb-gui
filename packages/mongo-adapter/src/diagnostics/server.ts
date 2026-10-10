@@ -116,7 +116,18 @@ export async function getServerStatusTree(client: MongoClient): Promise<ServerSt
     }
     raw[section] = value;
   }
-  return { at: new Date().toISOString(), rawJson: relaxedJson(raw), stripped };
+  return {
+    at: new Date().toISOString(),
+    rawJson: relaxedJson(raw),
+    canonicalJson: stringifyEjson(raw),
+    stripped,
+  };
+}
+
+// The tree as a plain object in canonical EJSON. A Date becomes { "$date": { "$numberLong" } }.
+export function serverStatusDocument(tree: ServerStatusTree): PlainObject {
+  const value: unknown = JSON.parse(tree.canonicalJson);
+  return isPlainObject(value) ? value : {};
 }
 
 export async function getConnPoolStats(client: MongoClient): Promise<ConnPoolStats> {
@@ -186,7 +197,8 @@ function toCpu(system: PlainObject | undefined): HostInfo['cpu'] {
   return { ...definedEntry('arch', arch), ...definedEntry('cores', cores) };
 }
 
-function toTopEntry(ns: string, value: unknown): TopEntry {
+// The top command reports time in microseconds. The entry keeps milliseconds.
+export function toTopEntry(ns: string, value: unknown): TopEntry {
   return {
     ns,
     total: toOpStat(readField(value, 'total')),
@@ -201,9 +213,11 @@ function toTopEntry(ns: string, value: unknown): TopEntry {
   };
 }
 
+const MICROSECONDS_PER_MS = 1000;
+
 function toOpStat(value: unknown): OpStat {
   return {
-    time: readNumber(value, 'time') ?? 0,
+    timeMs: (readNumber(value, 'time') ?? 0) / MICROSECONDS_PER_MS,
     count: readNumber(value, 'count') ?? 0,
   };
 }

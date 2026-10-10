@@ -12,6 +12,7 @@ describe('rpcContract', () => {
         'collections',
         'connections',
         'databases',
+        'diagnostics',
         'docker',
         'explain',
         'favourites',
@@ -21,6 +22,7 @@ describe('rpcContract', () => {
         'management',
         'monitor',
         'profiler',
+        'replication',
         'schema',
         'security',
         'settings',
@@ -31,6 +33,43 @@ describe('rpcContract', () => {
         'vault',
       ].sort(),
     );
+  });
+
+  it('applies a replica set plan by id and version, and defaults the step-down to 60 seconds', () => {
+    const { replication } = rpcContract;
+    const connectionId = '3f2b8c1e-5d4a-4b7e-9c1f-2a6d8e0b7f10';
+    const planId = '0d6f3b2a-9c1e-4f7a-8b5d-2e4c6a1f9b30';
+    expect(
+      replication.applyReconfig.input.safeParse({ connectionId, planId, expectedVersion: 4 })
+        .success,
+    ).toBe(true);
+    expect(
+      replication.applyReconfig.input.safeParse({
+        connectionId,
+        planId: 'plan',
+        expectedVersion: 4,
+      }).success,
+    ).toBe(false);
+    expect(
+      replication.applyReconfig.input.safeParse({ connectionId, planId, expectedVersion: 0 })
+        .success,
+    ).toBe(false);
+    expect(replication.stepDown.input.parse({ connectionId })).toEqual({
+      connectionId,
+      stepDownSeconds: 60,
+    });
+    expect(
+      replication.stepDown.input.safeParse({ connectionId, stepDownSeconds: 3601 }).success,
+    ).toBe(false);
+    expect(
+      replication.stepDown.input.safeParse({ connectionId, stepDownSeconds: 10 }).success,
+    ).toBe(false);
+    expect(
+      replication.stepDown.input.safeParse({ connectionId, stepDownSeconds: 11 }).success,
+    ).toBe(true);
+    expect(
+      replication.initiate.input.safeParse({ connectionId, setName: 'rs0', members: [] }).success,
+    ).toBe(false);
   });
 
   it('declares schema.analyse with a sample size up to 5000 and a strategy', () => {

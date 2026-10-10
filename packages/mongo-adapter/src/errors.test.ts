@@ -124,6 +124,21 @@ describe('mapDriverError', () => {
       code: 'COMMAND_FAILED',
       message: 'The server rejected the command',
       detail: 'driver says no',
+      codeName: 'Unauthorized',
+    });
+  });
+
+  it('drops a server error name that is not a plain identifier', () => {
+    const error = serverError(2, 'bad name mongodb://u:p@db.example.com');
+    expect(mapDriverError(error)).not.toHaveProperty('codeName');
+  });
+
+  it('keeps the server error name so callers can tell a server state by code', () => {
+    const error = serverError(94, 'NotYetInitialized');
+    expect(mapDriverError(error)).toMatchObject({
+      code: 'COMMAND_FAILED',
+      message: 'The server rejected the command',
+      codeName: 'NotYetInitialized',
     });
   });
 

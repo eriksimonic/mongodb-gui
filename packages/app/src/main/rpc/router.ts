@@ -11,6 +11,7 @@ import {
   normaliseExplain,
   rewriteForExplain,
   redactUri,
+  redactUriText,
   rpcContract,
   toAppError,
   type AppError,
@@ -19,6 +20,15 @@ import {
   type ConnectionProfile,
   type ConnectionProfileInput,
   type DialogResult,
+  type LogLine,
+  type ServerLog,
+  type ServerParameter,
+  capDiagnosticText,
+  redactArgv,
+  redactDiagnosticRecord,
+  redactDiagnosticValue,
+  redactRawLine,
+  isSecretKey,
   type OpenDialogInput,
   type SaveDialogInput,
   type ExplainResult,
@@ -71,9 +81,16 @@ import {
   listFiles,
   listIndexBuilds,
   listIndexes,
+  getReplicaSetConfig,
+  getReplicaSetStatus,
+  getSelfHost,
+  applyReconfig,
+  freeze,
+  initiate,
   listProfileEntries,
   mapDriverError,
   previewImport,
+  planReconfig,
   renameCollection,
   renameFile,
   replaceDocument,
@@ -81,6 +98,7 @@ import {
   setFileMetadata,
   setIndexHidden,
   setValidation,
+  stepDown,
   updateDocumentFields,
   profileCollectionInfo,
   setProfilingLevel,
@@ -89,6 +107,20 @@ import {
   type ProfileTail,
   changePassword,
   connectionStatus,
+  getBuildInfo,
+  getCollStats,
+  getCommandLineOptions,
+  getConnPoolStats,
+  getDbStats,
+  getHostInfo,
+  getParameters,
+  getServerLog,
+  getServerStatusTree,
+  getTop,
+  killAllSessionsByUser,
+  killSessions,
+  listSessions,
+  serverStatusDocument,
   createRole,
   createUser,
   dropRole,
@@ -149,6 +181,7 @@ import {
   type SamplerFactory,
 } from './monitor-service';
 import { createTransferService, type TransferAdapter } from './transfer-service';
+import { createReplicationPlans } from './replication-plans';
 
 /** Native file dialogs and the shell reveal. The main window's dialogs live in index.ts. */
 export interface NativeDialogs {
@@ -331,15 +364,22 @@ type CatalogScope = Omit<Extract<RpcEvent, { type: 'catalog:changed' }>, 'type' 
 const KEYRING_DIR_MODE = 0o700;
 const MS_PER_MINUTE = 60_000;
 const STORE_FILE_NAME = 'store.sqlite';
+// The server's default secondary catch-up period, in seconds.
+const DEFAULT_CATCH_UP_SECONDS = 10;
 
 export function createRouter(deps: RouterDeps): Router {
   let active: StoreHandles = { store: deps.store, repos: deps.repos };
   const repos = (): RouterRepos => active.repos;
   const profiler = deps.profiler ?? adapterProfilerPort;
+  const replicationPlans = createReplicationPlans();
   // At most one tail per connection and database, keyed by both.
   const tails = new Map<string, ActiveTail>();
   // Per-renderer cleanups. Tails register first; other services join the same registry.
   const rendererResets = new Set<() => void>();
+  // Plans belong to the page that made them. A reset drops them, so a reloaded page cannot apply one.
+  rendererResets.add(() => {
+    replicationPlans.clear();
+  });
   const profilerClient = (connectionId: string): DriverClient =>
     deps.connections.getClient(connectionId);
 
@@ -698,6 +738,56 @@ export function createRouter(deps: RouterDeps): Router {
     ];
   }
 
+  /**
+   * Server logs, parameters, host and build facts, sessions and the other diagnostics. Secret fields
+   * are masked and URIs redacted before a reply leaves. The kill calls report no catalog change.
+   */
+  function diagnosticsOperations(): [string, Operation][] {
+    const d = rpcContract.diagnostics;
+    return [
+      readOnly('diagnostics.getLog', d.getLog, async (client, input) =>
+        redactLog(await getServerLog(client, input.kind)),
+      ),
+      readOnly('diagnostics.cmdLineOpts', d.cmdLineOpts, async (client) => {
+        const options = await getCommandLineOptions(client);
+        return {
+          argv: redactArgv(options.argv),
+          parsed: toCanonicalEjson(redactDiagnosticValue(options.parsed)),
+        };
+      }),
+      readOnly('diagnostics.parameters', d.parameters, async (client) =>
+        (await getParameters(client)).map(redactParameter),
+      ),
+      readOnly('diagnostics.hostInfo', d.hostInfo, (client) => getHostInfo(client)),
+      readOnly('diagnostics.buildInfo', d.buildInfo, (client) => getBuildInfo(client)),
+      readOnly('diagnostics.serverStatus', d.serverStatus, async (client) => {
+        const tree = await getServerStatusTree(client);
+        return {
+          at: tree.at,
+          stripped: tree.stripped,
+          document: redactDiagnosticRecord(serverStatusDocument(tree)),
+        };
+      }),
+      readOnly('diagnostics.top', d.top, (client) => getTop(client)),
+      readOnly('diagnostics.dbStats', d.dbStats, (client, input) =>
+        getDbStats(client, input.database),
+      ),
+      readOnly('diagnostics.collStats', d.collStats, (client, input) =>
+        getCollStats(client, input.database, input.collection),
+      ),
+      readOnly('diagnostics.connPoolStats', d.connPoolStats, (client) => getConnPoolStats(client)),
+      readOnly('diagnostics.listSessions', d.listSessions, (client, input) =>
+        listSessions(client, { allUsers: input.allUsers === true }),
+      ),
+      readOnly('diagnostics.killSessions', d.killSessions, (client, input) =>
+        killSessions(client, input.ids),
+      ),
+      readOnly('diagnostics.killAllSessionsByUser', d.killAllSessionsByUser, (client, input) =>
+        killAllSessionsByUser(client, input.users),
+      ),
+    ];
+  }
+
   const docker = (): DockerRuntime => {
     if (deps.docker === undefined) {
       throw new AppErrorException(appError('INTERNAL', 'Docker support is not available.'));
@@ -899,6 +989,7 @@ export function createRouter(deps: RouterDeps): Router {
     ...managementOperations(),
     ...securityOperations(),
     ...shardingOperations(),
+    ...diagnosticsOperations(),
 
     entry('monitor.start', rpcContract.monitor.start, (input) =>
       monitor.start(input.connectionId, input.intervalMs),
@@ -922,6 +1013,53 @@ export function createRouter(deps: RouterDeps): Router {
       monitor.setInterval(input.connectionId, input.intervalMs),
     ),
 
+    entry('replication.getStatus', rpcContract.replication.getStatus, (input) =>
+      driverCall(() => getReplicaSetStatus(deps.connections.getClient(input.connectionId))),
+    ),
+    entry('replication.getConfig', rpcContract.replication.getConfig, (input) =>
+      driverCall(() => getReplicaSetConfig(deps.connections.getClient(input.connectionId))),
+    ),
+    entry('replication.selfHost', rpcContract.replication.selfHost, (input) =>
+      driverCall(async () => ({
+        host: (await getSelfHost(deps.connections.getClient(input.connectionId))) ?? null,
+      })),
+    ),
+    entry('replication.planReconfig', rpcContract.replication.planReconfig, (input) =>
+      driverCall(async () => {
+        const client = deps.connections.getClient(input.connectionId);
+        const status = await getReplicaSetStatus(client);
+        const config = await getReplicaSetConfig(client);
+        const plan = planReconfig(config, input.change, status);
+        return { planId: replicationPlans.store(input.connectionId, plan), plan };
+      }),
+    ),
+    entry('replication.applyReconfig', rpcContract.replication.applyReconfig, (input) =>
+      driverCall(async () => {
+        const plan = replicationPlans.take(input.connectionId, input.planId, input.expectedVersion);
+        await applyReconfig(deps.connections.getClient(input.connectionId), plan);
+      }),
+    ),
+    entry('replication.stepDown', rpcContract.replication.stepDown, (input) =>
+      driverCall(async () => ({
+        // The server needs the step-down longer than the catch-up period. The UI's minimum leaves
+        // room for the default 10 seconds of catch-up.
+        primary: await stepDown(deps.connections.getClient(input.connectionId), {
+          stepDownSeconds: input.stepDownSeconds,
+          secondaryCatchUpSeconds: Math.min(DEFAULT_CATCH_UP_SECONDS, input.stepDownSeconds - 1),
+        }),
+      })),
+    ),
+    entry('replication.freeze', rpcContract.replication.freeze, (input) =>
+      driverCall(() => freeze(deps.connections.getClient(input.connectionId), input.seconds)),
+    ),
+    entry('replication.initiate', rpcContract.replication.initiate, (input) =>
+      driverCall(() =>
+        initiate(deps.connections.getClient(input.connectionId), {
+          setName: input.setName,
+          members: input.members,
+        }),
+      ),
+    ),
     entry('layout.get', rpcContract.layout.get, (input) => ({
       value: repos().layout.get(input.key) ?? null,
     })),
@@ -1528,6 +1666,64 @@ function tailKey(connectionId: string, database: string): string {
  * Profile entries carry BSON values in command, locks, storage and raw. They are sent in
  * canonical extended JSON, so the renderer gets plain data with $oid and $date markers.
  */
+/** The text the log viewer shows: secrets masked, URIs redacted, attributes in canonical EJSON. */
+function redactLog(log: ServerLog): ServerLog {
+  return { ...log, lines: log.lines.map(redactLogLine) };
+}
+
+function redactLogLine(line: LogLine): LogLine {
+  const { attributes, ...rest } = line;
+  return {
+    ...rest,
+    message: redactUriText(line.message),
+    raw: redactRawLine(line.raw),
+    ...(attributes === undefined
+      ? {}
+      : { attributes: toCanonicalEjson(redactDiagnosticValue(attributes)) }),
+  };
+}
+
+const PARAMETER_MASK = '***';
+
+/**
+ * A parameter with secrets masked. Strings and object or array values are redacted recursively,
+ * and a structured value longer than the cap is cut short with truncated set.
+ */
+function redactParameter(parameter: ServerParameter): ServerParameter {
+  if (isSecretKey(parameter.name)) {
+    return {
+      name: parameter.name,
+      value: PARAMETER_MASK,
+      valueEjson: JSON.stringify(PARAMETER_MASK),
+    };
+  }
+  if (parameter.value !== undefined) {
+    if (typeof parameter.value !== 'string') {
+      return parameter;
+    }
+    const value = redactUriText(parameter.value);
+    return { name: parameter.name, value, valueEjson: JSON.stringify(value) };
+  }
+  // An object or array has no scalar value. Its canonical text is redacted as a parsed document.
+  let redacted: unknown;
+  try {
+    redacted = redactDiagnosticValue(JSON.parse(parameter.valueEjson) as unknown);
+  } catch {
+    const text = capDiagnosticText(redactUriText(parameter.valueEjson));
+    return {
+      name: parameter.name,
+      value: text.text,
+      valueEjson: text.text,
+      truncated: text.truncated,
+    };
+  }
+  const text = capDiagnosticText(JSON.stringify(redacted));
+  if (text.truncated) {
+    return { name: parameter.name, value: text.text, valueEjson: text.text, truncated: true };
+  }
+  return { name: parameter.name, value: redacted, valueEjson: text.text };
+}
+
 function canonicalEntry(entry: ProfileEntry): ProfileEntry {
   return {
     ...entry,

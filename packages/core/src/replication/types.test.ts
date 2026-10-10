@@ -7,6 +7,7 @@ import {
   ReconfigPlanSchema,
   RemoveMemberInputSchema,
   ReplicaSetConfigSchema,
+  ReplicaSetMemberConfigSchema,
   ReplicaSetMemberPatchSchema,
   ReplicaSetStatusSchema,
   StepDownInputSchema,
@@ -95,6 +96,49 @@ describe('ReplicaSetStatusSchema', () => {
 describe('member inputs', () => {
   it('accepts an add with only a host', () => {
     expect(AddMemberInputSchema.safeParse({ host: 'mongo3:27017' }).success).toBe(true);
+  });
+
+  it('accepts host:port and a bracketed IPv6 address with a port', () => {
+    for (const host of [
+      'db4.example.net:27017',
+      'localhost:27018',
+      '10.0.0.5:1',
+      '[::1]:27017',
+      '[2001:db8::7334]:65535',
+      '[::ffff:10.0.0.5]:27017',
+    ]) {
+      expect(AddMemberInputSchema.safeParse({ host }).success, host).toBe(true);
+    }
+  });
+
+  it('refuses credentials, an options query, a path and a space', () => {
+    for (const host of [
+      'user:pass@db4:27017',
+      'db4:27017?authSource=admin',
+      'db4:27017/admin',
+      'db 4:27017',
+      'db4:27017 ',
+    ]) {
+      expect(AddMemberInputSchema.safeParse({ host }).success, host).toBe(false);
+    }
+  });
+
+  it('refuses a second colon outside brackets and an IPv6 address without brackets', () => {
+    for (const host of ['db4:27017:1', '::1:27017', '2001:db8::1:27017', 'db4:']) {
+      expect(AddMemberInputSchema.safeParse({ host }).success, host).toBe(false);
+    }
+  });
+
+  it('refuses a missing port and a port outside 1 to 65535', () => {
+    for (const host of ['db4', 'db4:0', 'db4:65536', 'db4:port', '[::1]', '[::1]:0']) {
+      expect(AddMemberInputSchema.safeParse({ host }).success, host).toBe(false);
+    }
+  });
+
+  it('refuses a hostname with characters other than letters, digits, dots and hyphens', () => {
+    for (const host of ['db_4:27017', 'db4..net:27017', '.db4:27017', 'db4$:27017']) {
+      expect(AddMemberInputSchema.safeParse({ host }).success, host).toBe(false);
+    }
   });
 
   it('rejects an empty host and a host with a space', () => {
@@ -197,5 +241,70 @@ describe('ReconfigPlanSchema', () => {
       refused: 'The primary cannot be removed.',
     });
     expect(result.success).toBe(true);
+  });
+});
+
+describe('host schemas for server reads and user input', () => {
+  const longName = `${'a'.repeat(63)}.${'a'.repeat(63)}.${'a'.repeat(63)}.${'a'.repeat(61)}`;
+
+  it('reads a member host the server names, such as a Docker Compose name with an underscore', () => {
+    const parsed = ReplicaSetConfigSchema.safeParse({
+      id: 'rs0',
+      version: 1,
+      members: [
+        {
+          id: 0,
+          host: 'mongo_1:27017',
+          priority: 1,
+          votes: 1,
+          hidden: false,
+          arbiterOnly: false,
+          buildIndexes: true,
+          secondaryDelaySecs: 0,
+          tags: {},
+          extraEjson: '{}',
+        },
+      ],
+      settingsEjson: '{}',
+      extraEjson: '{}',
+    });
+    expect(parsed.success).toBe(true);
+  });
+
+  it('still refuses a server-read host that carries credentials or a query', () => {
+    expect(ReplicaSetMemberConfigSchema.safeParse({ ...member, host: 'u:p@h:1' }).success).toBe(
+      false,
+    );
+    expect(ReplicaSetMemberConfigSchema.safeParse({ ...member, host: 'h:1?x=1' }).success).toBe(
+      false,
+    );
+  });
+
+  it('refuses an input host with an underscore, which the hostname rule does not allow', () => {
+    expect(AddMemberInputSchema.safeParse({ host: 'mongo_1:27017' }).success).toBe(false);
+  });
+
+  it('accepts a hostname of 253 characters and refuses 254', () => {
+    expect(AddMemberInputSchema.safeParse({ host: `${longName}:27017` }).success).toBe(true);
+    expect(AddMemberInputSchema.safeParse({ host: `${longName}a:27017` }).success).toBe(false);
+  });
+
+  it('refuses labels that start or end with a hyphen, and a lone hyphen', () => {
+    for (const host of ['-:1', 'a-.example:1', '-a.example:1', 'a.-b:1']) {
+      expect(AddMemberInputSchema.safeParse({ host }).success, host).toBe(false);
+    }
+  });
+
+  it('refuses an IPv6 address without a hex digit or without two colons', () => {
+    for (const host of ['[:]:1', '[::]:1', '[1]:1']) {
+      expect(AddMemberInputSchema.safeParse({ host }).success, host).toBe(false);
+    }
+  });
+
+  it('refuses a port with leading zeros', () => {
+    for (const host of ['h:00001', 'h:027017', 'h:01']) {
+      expect(AddMemberInputSchema.safeParse({ host }).success, host).toBe(false);
+    }
+    expect(AddMemberInputSchema.safeParse({ host: 'h:1' }).success).toBe(true);
   });
 });

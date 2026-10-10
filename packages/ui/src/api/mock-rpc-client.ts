@@ -29,6 +29,7 @@ import {
   type UpdateState,
   type VaultStatus,
 } from '@mongo-gui/core';
+import type { MockReplicaSetInfo } from './mock-replication';
 import {
   fixtureBuilds,
   fixtureCatalog,
@@ -40,6 +41,7 @@ import {
 } from './mock-catalog';
 import { createManagementCalls } from './mock-management';
 import { createSecurityCalls, fixtureSecurity, type MockSecurity } from './mock-security';
+import { createDiagnosticsCalls } from './mock-diagnostics';
 import {
   fixtureConnections,
   DOCKER_PROFILE_ID,
@@ -63,6 +65,7 @@ import {
 import { createMockProfiler } from './mock-profiler';
 import { createMockGridFs, MOCK_FOLDER_PATH } from './mock-gridfs';
 import { createShardingCalls, fixtureCluster, type MockCluster } from './mock-sharding';
+import { createMockReplication } from './mock-replication';
 import { createMockExplain } from './mock-explain';
 import type { UiApi } from './ui-api';
 
@@ -87,7 +90,10 @@ export interface MockUiApiOptions {
   readonly docker?: 'available' | 'unavailable';
   /** Scripted update states. Defaults to an idle updater on version 0.1.0. */
   readonly updates?: MockUpdatesOptions;
-  /** Adds replica set members and lag to the monitor samples. Defaults to standalone. */
+  /**
+   * The local connection is a three-member replica set: a primary, a lagging secondary and an
+   * arbiter. It also gets the replication section in monitor samples. Defaults to standalone.
+   */
   readonly replication?: boolean;
   /** `viewer` signs in with no user or role rights, so the users and roles controls read disabled. */
   readonly security?: 'admin' | 'viewer';
@@ -95,6 +101,8 @@ export interface MockUiApiOptions {
   readonly dialogPath?: string;
   /** `cluster` makes the local connection report a sharded topology with a seeded two-shard cluster. */
   readonly sharding?: 'cluster' | 'standalone';
+  /** The local connection is a standalone started with --replSet and not yet initiated. */
+  readonly replSetUninitiated?: boolean;
 }
 
 const DEFAULT_UPDATE_STATE: UpdateState = { phase: 'idle', current: '0.1.0', canInstall: true };
@@ -232,6 +240,17 @@ function connectedStatus(topology: 'standalone' | 'sharded' = 'standalone'): Con
     serverVersion: SERVER_VERSION,
     topology,
     hosts: ['localhost:27017'],
+  };
+}
+
+/** The status a connection reports once connected. A replica set reports its name and members. */
+function connectedStatusFor(info: MockReplicaSetInfo): ConnectionStatus {
+  return {
+    state: 'connected',
+    serverVersion: SERVER_VERSION,
+    topology: info.topology,
+    hosts: [...info.hosts],
+    ...(info.setName === undefined ? {} : { setName: info.setName }),
   };
 }
 
@@ -472,6 +491,20 @@ export function createMockUiApi(options: MockUiApiOptions = {}): UiApi {
     viewer: options.security === 'viewer',
   });
 
+  const diagnostics = createDiagnosticsCalls({
+    latencyMs,
+    guard,
+    now: () => Date.now(),
+    dbStats: (connectionId, database) => databaseStats(findDatabaseOrFail(connectionId, database)),
+    collStats: (connectionId, database, collection) => {
+      const found = requireCollectionFor(findDatabaseOrFail(connectionId, database), collection);
+      if (found.info.type === 'view') {
+        throw fail('COMMAND_FAILED', 'Views have no storage statistics', collection);
+      }
+      return collectionStats(database, found);
+    },
+  });
+
   const management = createManagementCalls({
     latencyMs,
     guard,
@@ -529,6 +562,35 @@ export function createMockUiApi(options: MockUiApiOptions = {}): UiApi {
   });
 
   const explain = createMockExplain({ wrap: wrapCall, requireUnlocked, requireConnected });
+
+  const replication = createMockReplication({
+    latencyMs,
+    guard,
+    onChange(connectionId) {
+      if (statusOf(connectionId).state === 'connected') {
+        setStatus(connectionId, connectedStatusOf(connectionId));
+      }
+    },
+  });
+  if (options.replication === true) {
+    replication.setMode(localConnectionId, 'member');
+  }
+
+  // A replica set reports its own topology. Otherwise the local connection reports sharded when the
+  // sharding option is on, and every other connection is standalone.
+  function connectedStatusOf(connectionId: string): ConnectionStatus {
+    const info = replication.infoFor(connectionId);
+    if (info.topology !== 'standalone') {
+      return connectedStatusFor(info);
+    }
+    if (connectionId === localConnectionId && options.sharding === 'cluster') {
+      return connectedStatus('sharded');
+    }
+    return connectedStatusFor(info);
+  }
+  if (options.replSetUninitiated === true) {
+    replication.setMode(localConnectionId, 'uninitiated');
+  }
 
   const rpc: RpcClient = {
     updates: {
@@ -725,9 +787,7 @@ export function createMockUiApi(options: MockUiApiOptions = {}): UiApi {
         setStatus(id, { state: 'connecting' });
         await delay(latencyMs);
         const status: ConnectionStatus = isReachable(profile.uri)
-          ? connectedStatus(
-              id === localConnectionId && options.sharding === 'cluster' ? 'sharded' : 'standalone',
-            )
+          ? connectedStatusOf(id)
           : { state: 'error', error: authError() };
         setStatus(id, status);
         return status;
@@ -841,6 +901,7 @@ export function createMockUiApi(options: MockUiApiOptions = {}): UiApi {
     security,
     sharding,
     gridfs,
+    diagnostics,
     settings: {
       get: method(rpcContract.settings.get, latencyMs, () => {
         requireUnlocked();
@@ -971,6 +1032,7 @@ export function createMockUiApi(options: MockUiApiOptions = {}): UiApi {
     },
     profiler,
     explain,
+    replication: replication.rpc,
     docker: {
       status: method(rpcContract.docker.status, latencyMs, (): DockerStatus => {
         return state.dockerAvailable

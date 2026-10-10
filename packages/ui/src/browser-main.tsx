@@ -20,7 +20,17 @@ const sharding =
   new URLSearchParams(window.location.search).get('sharding') === 'cluster'
     ? 'cluster'
     : 'standalone';
-const api = createMockUiApi({ preset, latencyMs: 120, profilerRows, sharding });
+// ?replset=member makes the local connection a three-member set. ?replset=uninitiated makes it a
+// standalone started with --replSet that has no configuration yet.
+const replsetParam = new URLSearchParams(window.location.search).get('replset');
+const api = createMockUiApi({
+  preset,
+  latencyMs: 120,
+  profilerRows,
+  replication: replsetParam === 'member',
+  replSetUninitiated: replsetParam === 'uninitiated',
+  sharding,
+});
 
 createRoot(container).render(
   <StrictMode>
