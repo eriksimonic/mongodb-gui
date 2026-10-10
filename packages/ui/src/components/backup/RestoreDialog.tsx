@@ -359,10 +359,10 @@ export function RestoreDialogBody({
                   value={row.to}
                   style={{ flex: 1 }}
                   onChange={(event) => {
+                    // Read the value now. React clears currentTarget before the updater runs.
+                    const to = event.currentTarget.value;
                     setDraft((current) =>
-                      current === undefined
-                        ? current
-                        : setRename(current, row.from, event.currentTarget.value),
+                      current === undefined ? current : setRename(current, row.from, to),
                     );
                   }}
                 />
