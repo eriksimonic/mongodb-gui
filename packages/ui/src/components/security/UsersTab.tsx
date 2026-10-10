@@ -4,6 +4,10 @@ import { EXTERNAL_DATABASE, type UserInfo } from '@mongo-gui/core';
 import { useState } from 'react';
 import { useStore } from 'zustand';
 import type { SecurityStore } from '../../security/security-store';
+import { copyText } from '../../diagnostics/copy';
+import { useAppStore } from '../../state/app-store-context';
+import { TreeMenu, type TreeMenuEntry } from '../connections/TreeMenu';
+import { userConnectionString } from './connection-string';
 import {
   capabilityReason,
   CREATE_USERS_REASON,
@@ -18,12 +22,17 @@ import { RolesOfUserDialog } from './RolesOfUserDialog';
 
 export interface UsersTabProps {
   readonly store: SecurityStore;
+  readonly connectionId: string;
   readonly database: string;
 }
 
 /** The users of one database, with the actions the signed-in user may use. */
-export function UsersTab({ store, database }: UsersTabProps) {
+export function UsersTab({ store, connectionId, database }: UsersTabProps) {
   const users = useStore(store, (state) => state.users);
+  const status = useAppStore((state) => state.statuses[connectionId]);
+  const [menu, setMenu] = useState<
+    { readonly user: UserInfo; readonly x: number; readonly y: number } | undefined
+  >(undefined);
   const capabilities = useStore(store, (state) => state.capabilities);
   const [creating, setCreating] = useState(false);
   const [passwordOf, setPasswordOf] = useState<UserInfo | undefined>(undefined);
@@ -74,7 +83,14 @@ export function UsersTab({ store, database }: UsersTabProps) {
           </Table.Thead>
           <Table.Tbody>
             {users.map((user) => (
-              <Table.Tr key={user.id}>
+              <Table.Tr
+                key={user.id}
+                title="Right-click for more actions"
+                onContextMenu={(event) => {
+                  event.preventDefault();
+                  setMenu({ user, x: event.clientX, y: event.clientY });
+                }}
+              >
                 <Table.Td>{user.user}</Table.Td>
                 <Table.Td>
                   <RoleBadges roles={user.roles} />
@@ -133,6 +149,15 @@ export function UsersTab({ store, database }: UsersTabProps) {
           </Table.Tbody>
         </Table>
       )}
+      {menu === undefined ? null : (
+        <TreeMenu
+          entries={userMenuEntries(menu.user, () =>
+            copyText(userConnectionString(menu.user, status), 'Connection string copied'),
+          )}
+          position={{ x: menu.x, y: menu.y }}
+          onClose={() => setMenu(undefined)}
+        />
+      )}
 
       {creating ? (
         <CreateUserDialog store={store} database={database} onClose={() => setCreating(false)} />
@@ -167,4 +192,23 @@ function restrictionText(user: UserInfo): string {
     return 'None';
   }
   return count === 1 ? '1 restriction' : `${count} restrictions`;
+}
+
+/** The right-click menu of a user row. The connection string carries a placeholder password. */
+function userMenuEntries(
+  user: UserInfo,
+  copyConnectionString: () => Promise<void>,
+): TreeMenuEntry[] {
+  return [
+    {
+      kind: 'item',
+      label: 'Copy as connection string',
+      onSelect: () => void copyConnectionString(),
+    },
+    {
+      kind: 'item',
+      label: 'Copy user name',
+      onSelect: () => void copyText(`${user.user}@${user.db}`, 'User copied'),
+    },
+  ];
 }
