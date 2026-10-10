@@ -39,7 +39,7 @@ export interface ForwarderHandle {
 
 export interface ForwarderManagerOptions {
   readonly client: DockerEngineClient;
-  /** Image that runs socat. Defaults to `alpine/socat:latest`. */
+  /** Image that runs socat. Defaults to the pinned `alpine/socat:1.8.1.3` (FORWARDER_IMAGE). */
   readonly image?: string;
   /** How long a new forwarder may take to accept connections. Defaults to 3 seconds. */
   readonly readyTimeoutMs?: number;
