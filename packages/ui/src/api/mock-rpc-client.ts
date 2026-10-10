@@ -1,6 +1,8 @@
 import type { z } from 'zod';
 import {
   appError,
+  describeConnectionUri,
+  planConnectionsImport,
   type DockerMongoContainerSummary,
   type RpcCall,
   type DockerStatus,
@@ -54,6 +56,7 @@ import {
 } from './mock-fixtures';
 import { createMockShell } from './mock-shell';
 import { createMockPicks } from './mock-picks';
+import { createMockConnectionFiles } from './mock-connection-files';
 import { delay, fail, method } from './mock-support';
 import { createMockMonitor } from './mock-monitor';
 import {
@@ -187,6 +190,20 @@ function initialState(preset: MockPreset): MockState {
 type ProfilePatch = { [K in keyof ConnectionProfileInput]?: ConnectionProfileInput[K] | undefined };
 
 /** Applies only the fields the patch sets. Optional fields keep their current value. */
+/** The patch that makes a stored connection match an imported one. Absent optional fields are cleared. */
+function replacementPatch(input: ConnectionProfileInput): ProfilePatch {
+  return {
+    name: input.name,
+    uri: input.uri,
+    color: input.color,
+    tls: input.tls,
+    readPreference: input.readPreference,
+    connectTimeoutMs: input.connectTimeoutMs,
+    source: input.source,
+    dockerContainerId: input.dockerContainerId,
+  };
+}
+
 function applyPatch(
   current: ConnectionProfile,
   patch: ProfilePatch,
@@ -354,6 +371,7 @@ export function createMockUiApi(options: MockUiApiOptions = {}): UiApi {
   });
   // The picks the mock dialogs register. The mock transfer calls check them as the router does.
   const picks = createMockPicks();
+  const connectionFiles = createMockConnectionFiles();
   const dialogPath = options.dialogPath ?? MOCK_DIALOG_PATH;
   const transfers = createMockTransfers(
     emit,
@@ -747,6 +765,61 @@ export function createMockUiApi(options: MockUiApiOptions = {}): UiApi {
       }),
     },
     connections: {
+      exportToFile: method(rpcContract.connections.exportToFile, latencyMs, (input) => {
+        requireUnlocked();
+        picks.requireSaved(input.path);
+        const profiles = [...new Set(input.profileIds)].map((id) => findConnection(id));
+        connectionFiles.save(input.path, input.passphrase, profiles);
+        picks.consumeSaved(input.path);
+      }),
+      previewImport: method(rpcContract.connections.previewImport, latencyMs, (input) => {
+        requireUnlocked();
+        picks.requireOpened(input.path);
+        const incoming = connectionFiles.read(input.path, input.passphrase);
+        const names = new Set(state.connections.map((connection) => connection.name));
+        return {
+          profiles: incoming.map((profile) => ({
+            name: profile.name,
+            ...describeConnectionUri(profile.uri),
+            collides: names.has(profile.name),
+          })),
+        };
+      }),
+      importFromFile: method(rpcContract.connections.importFromFile, latencyMs, (input) => {
+        requireUnlocked();
+        picks.requireOpened(input.path);
+        const incoming = connectionFiles.read(input.path, input.passphrase);
+        const result = { imported: 0, skipped: 0, renamed: 0, replaced: 0 };
+        for (const action of planConnectionsImport(incoming, state.connections, input.mode)) {
+          if (action.kind === 'skip') {
+            result.skipped += 1;
+          } else if (action.kind === 'create') {
+            const now = new Date().toISOString();
+            state.connections.push({
+              ...action.input,
+              id: newId(),
+              createdAt: now,
+              updatedAt: now,
+            });
+            result.imported += 1;
+            result.renamed += action.renamed ? 1 : 0;
+          } else {
+            const current = findConnection(action.targetId);
+            setStatus(action.targetId, { state: 'disconnected' });
+            const next = applyPatch(
+              current,
+              replacementPatch(action.input),
+              new Date().toISOString(),
+            );
+            state.connections = state.connections.map((item) =>
+              item.id === action.targetId ? next : item,
+            );
+            result.replaced += 1;
+          }
+        }
+        picks.useOpened(input.path);
+        return result;
+      }),
       list: method(rpcContract.connections.list, latencyMs, () => {
         requireUnlocked();
         return state.connections.map(summarise);

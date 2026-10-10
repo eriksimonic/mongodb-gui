@@ -631,9 +631,18 @@ Cmd+, on macOS. The screen has these sections:
 - Connections. "Connect Docker instances automatically".
 - Updates. "Check for updates".
 - Data. "Sample size (documents)" sets how many documents schema analysis reads. "History limit
-  (entries)" sets how many history entries the app keeps. The buttons "Export connections" and
-  "Import connections" are disabled in this version. Their tooltip reads "Arrives with Phase 7
-  finishing".
+  (entries)" sets how many history entries the app keeps.
+- Data, "Export connections". Select the connections to write, then type a passphrase of at least
+  10 characters and confirm it. The app opens a save dialog, and it writes an encrypted file there.
+  The passphrase belongs to this file. You need it to import the file, and the app cannot recover
+  it. The file holds the credentials of the connections you selected, so store it as carefully as
+  the passwords themselves.
+- Data, "Import connections". The app opens a file dialog. Choose a file from "Export connections",
+  type its passphrase and click "Read file". The table lists each connection with its host, its
+  auth kind and whether the name is already in use. Then choose what happens to a name that exists:
+  "Import as copies" adds a number to the name, "Skip connections whose name exists" leaves the
+  existing connection alone, and "Replace the existing connection" overwrites it. Click "Import".
+  The result line gives the counts, and the connection tree reloads.
 - About. The version, the project page and the licence.
 
 The layout of panels and the window size are saved. The next launch opens where you left off.

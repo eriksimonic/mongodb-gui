@@ -106,6 +106,13 @@ import {
 } from '../transfer/calls';
 import { ImportPreviewSchema, TransferProgressSchema } from '../transfer/types';
 import {
+  ConnectionsImportPreviewSchema,
+  ConnectionsImportResultSchema,
+  ExportConnectionsInputSchema,
+  ImportConnectionsInputSchema,
+  PreviewConnectionsImportInputSchema,
+} from '../transfer/connections-file';
+import {
   GridFsBucketListSchema,
   GridFsDeleteCallSchema,
   GridFsDeleteOutputSchema,
@@ -284,6 +291,12 @@ export const rpcContract = {
     connect: defineCall(idParam, ConnectionStatusSchema),
     disconnect: defineCall(idParam, z.void()),
     status: defineCall(idParam, ConnectionStatusSchema),
+    /** Writes the chosen connections encrypted under a passphrase. The path must be a save-dialog pick. */
+    exportToFile: defineCall(ExportConnectionsInputSchema, z.void()),
+    /** Decrypts a file the open dialog returned and lists its connections. The pick is kept. */
+    previewImport: defineCall(PreviewConnectionsImportInputSchema, ConnectionsImportPreviewSchema),
+    /** Decrypts the file and creates its connections. The open-dialog pick is used up on success. */
+    importFromFile: defineCall(ImportConnectionsInputSchema, ConnectionsImportResultSchema),
   },
   databases: {
     list: defineCall(connectionParam, z.array(DatabaseInfoSchema)),

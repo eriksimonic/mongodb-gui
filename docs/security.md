@@ -77,8 +77,40 @@ Some columns stay in clear text:
 
 History is capped at 20,000 entries by default. Removing a connection removes its history.
 
-The app has no feature that exports connections to a file in version 0.1.0. The buttons
-"Export connections" and "Import connections" in Settings are disabled.
+## Connection export files
+
+Settings, Data, "Export connections" writes the connections you select to a file. The file holds
+the full connection profiles, credentials included, so the file is encrypted under a passphrase
+that you type for that export. The passphrase is not the master password, and the file does not
+depend on the vault.
+
+- The key comes from scrypt with the vault's parameters: N = 2^17, r = 8, p = 1. Each export draws
+  a new 32-byte salt.
+- The payload is encrypted with AES-256-GCM. Each export draws a new 12-byte IV.
+- The authenticated data covers the format name, the version, the scrypt parameters, the salt and
+  the IV. A changed header fails the check.
+- The passphrase must be at least 10 characters. The app does not store it, and it cannot recover
+  it. A lost passphrase means the file cannot be opened.
+- The GCM tag is the only check on the passphrase. A wrong passphrase and a damaged file give the
+  same message.
+- The app never logs, records in history or returns the passphrase. Error messages do not repeat
+  it.
+
+The file is one JSON object:
+
+```json
+{
+  "format": "mongo-gui-connections",
+  "version": 1,
+  "kdf": { "name": "scrypt", "N": 131072, "r": 8, "p": 1, "salt": "<base64, 32 bytes>" },
+  "cipher": { "name": "aes-256-gcm", "iv": "<base64, 12 bytes>", "tag": "<base64, 16 bytes>" },
+  "payload": "<base64 ciphertext of a JSON array of connection profiles>"
+}
+```
+
+Import refuses a file with another format name or another version. It also refuses a file whose
+scrypt cost is above N = 2^20 or above 256 MiB of memory, and a file larger than 8 MiB. The preview and
+the import each read and decrypt the file.
 
 ## What is never stored or logged
 
@@ -137,6 +169,10 @@ only the path that you choose.
   reader sees either the old file or the new one.
 - The app never overwrites a file that you did not pick.
 - The app refuses a path that contains `..`, and a path that is a symbolic link.
+- A connection export writes only to a path you picked in a save dialog. The pick is used up once
+  the export has written the file.
+- An import reads a connections file only after you pick it in an open dialog. The pick stays
+  usable while the passphrase is wrong, and it is used up after a successful import.
 - A GridFS download writes only to a file you picked, or to a file in a folder you picked.
 - "Show in folder" reveals only a file that the app exported during this session.
 

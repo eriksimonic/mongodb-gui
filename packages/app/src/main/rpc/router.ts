@@ -1,11 +1,14 @@
-import { existsSync, mkdirSync, realpathSync, statSync } from 'node:fs';
+import { existsSync, mkdirSync, readFileSync, realpathSync, statSync } from 'node:fs';
 import { exportTargetProblem, replaceFile } from './export-file';
 import { dirname, join, resolve } from 'node:path';
 import { randomUUID } from 'node:crypto';
 import {
   AppErrorException,
   CHANGE_EVENT_BATCH_LIMIT,
+  CONNECTIONS_FILE_MAX_BYTES,
   ConnectionProfileSummarySchema,
+  describeConnectionUri,
+  planConnectionsImport,
   DEFAULT_BATCH_SIZE,
   appError,
   groupByShape,
@@ -171,6 +174,8 @@ import {
   Vault,
   type KdfParams,
   type VaultOptions,
+  exportConnections,
+  importConnections,
 } from '@mongo-gui/storage';
 import { createDockerRuntime, type DockerRuntime } from '../docker/runtime';
 import { log, type Logger } from '../log';
@@ -1022,6 +1027,55 @@ export function createRouter(deps: RouterDeps): Router {
     entry('connections.status', rpcContract.connections.status, (input) =>
       deps.connections.status(input.id),
     ),
+    entry('connections.exportToFile', rpcContract.connections.exportToFile, (input) => {
+      const path = resolveRequestPath(input.path);
+      refuseUnpickedSave(path, savePaths);
+      refuseMissingFolder(path);
+      const problem = exportTargetProblem(path);
+      if (problem !== undefined) {
+        throw new AppErrorException(appError('VALIDATION', problem));
+      }
+      const profiles = [...new Set(input.profileIds)].map((id) => repos().connections.get(id));
+      // The pick is good for one write. It is used up only after the file is in place.
+      replaceFile(path, exportConnections(profiles, input.passphrase));
+      savePaths.delete(path);
+    }),
+    entry('connections.previewImport', rpcContract.connections.previewImport, (input) => {
+      const existing = repos().connections.list();
+      // A preview reads the file, so it reads only a picked file. It does not use up the pick.
+      const incoming = readConnectionsFile(pickedFile(input.path, openedFiles), input.passphrase);
+      const names = new Set(existing.map((connection) => connection.name));
+      return {
+        profiles: incoming.map((profile) => ({
+          name: profile.name,
+          ...describeConnectionUri(profile.uri),
+          collides: names.has(profile.name),
+        })),
+      };
+    }),
+    entry('connections.importFromFile', rpcContract.connections.importFromFile, async (input) => {
+      const existing = repos().connections.list();
+      const path = pickedFile(input.path, openedFiles);
+      const incoming = readConnectionsFile(path, input.passphrase);
+      const result = { imported: 0, skipped: 0, renamed: 0, replaced: 0 };
+      for (const action of planConnectionsImport(incoming, existing, input.mode)) {
+        if (action.kind === 'skip') {
+          result.skipped += 1;
+        } else if (action.kind === 'create') {
+          repos().connections.create(action.input);
+          result.imported += 1;
+          result.renamed += action.renamed ? 1 : 0;
+        } else {
+          const current = existing.find((connection) => connection.id === action.targetId);
+          await disconnectConnection(action.targetId, current);
+          repos().connections.update(action.targetId, replacementPatch(action.input));
+          result.replaced += 1;
+        }
+      }
+      // The pick is good for one import. A failed import keeps it, so the passphrase can be retried.
+      openedFiles.delete(path);
+      return result;
+    }),
 
     entry('databases.list', rpcContract.databases.list, (input) =>
       driverCall(() => listDatabases(deps.connections.getClient(input.connectionId))),
@@ -1955,6 +2009,52 @@ function refuseMissingFolder(path: string): void {
   if (!isDirectory(folder)) {
     throw new AppErrorException(appError('VALIDATION', 'The folder does not exist.', folder));
   }
+}
+
+/**
+ * A connections export writes only to a path the save dialog returned this session. The path must
+ * already be a pick, so an existing file is replaced only when the user picked it.
+ */
+function refuseUnpickedSave(path: string, picked: ReadonlySet<string>): void {
+  if (!picked.has(path)) {
+    throw new AppErrorException(appError('VALIDATION', 'Choose the file with Save as first.'));
+  }
+}
+
+/** Reads and decrypts a connections file the open dialog returned. The size is checked before the read. */
+function readConnectionsFile(path: string, passphrase: string): ConnectionProfile[] {
+  let bytes: Buffer;
+  try {
+    if (statSync(path).size > CONNECTIONS_FILE_MAX_BYTES) {
+      throw new AppErrorException(
+        appError('VALIDATION', 'The file is too large to be a connections file.'),
+      );
+    }
+    bytes = readFileSync(path);
+  } catch (error) {
+    if (error instanceof AppErrorException) {
+      throw error;
+    }
+    throw new AppErrorException(appError('VALIDATION', 'The file could not be read.'));
+  }
+  return importConnections(bytes, passphrase);
+}
+
+/**
+ * The patch that makes a stored connection match an imported one. Each optional field the file
+ * leaves out is set to undefined, so the store drops it and the old value does not survive.
+ */
+function replacementPatch(input: ConnectionProfileInput): Partial<ConnectionProfileInput> {
+  return {
+    name: input.name,
+    uri: input.uri,
+    color: input.color,
+    tls: input.tls,
+    readPreference: input.readPreference,
+    connectTimeoutMs: input.connectTimeoutMs,
+    source: input.source,
+    dockerContainerId: input.dockerContainerId,
+  } as Partial<ConnectionProfileInput>;
 }
 
 /**

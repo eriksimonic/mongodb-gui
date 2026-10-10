@@ -2,6 +2,15 @@
 
 All notable changes to Mongo GUI are listed here, newest first.
 
+## Unreleased
+
+### Added
+
+- Exports selected connections to a file encrypted with AES-256-GCM under a scrypt key from a
+  passphrase of at least 10 characters. Each export uses a new salt and IV.
+- Imports a connections file after its passphrase is typed. Name collisions can skip, rename or
+  replace the existing connection, and the connection tree reloads.
+
 ## 0.1.0 - 2026-10-10
 
 First tagged release.
