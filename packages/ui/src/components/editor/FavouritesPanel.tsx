@@ -131,7 +131,7 @@ export function FavouritesPanel() {
                     alignItems: 'center',
                   }}
                 >
-                  <Text size="xs" fw={600} c="dimmed" tt="uppercase">
+                  <Text size="xs" fw={600} c="dimmed" tt="none">
                     {row.folder}
                   </Text>
                 </div>

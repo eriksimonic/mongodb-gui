@@ -42,6 +42,28 @@ describe('formatMongoshCode', () => {
     expect(formatMongoshCode('db.a.find({ ratio: a / b })')).toContain('a / b');
   });
 
+  it('keeps the line break between a use command and the next statement', () => {
+    expect(formatMongoshCode('use shop\ndb.a.find()')).toBe('use shop\ndb.a.find()\n');
+  });
+
+  it('keeps one blank line between statements and drops extra blank lines', () => {
+    expect(formatMongoshCode('use shop\n\n\n\ndb.a.find()\n\ndb.b.find()')).toBe(
+      'use shop\n\ndb.a.find()\n\ndb.b.find()\n',
+    );
+  });
+
+  it('indents a chained call that starts a new line', () => {
+    expect(formatMongoshCode('db.a.find()\n.sort({ n: 1 })')).toBe(
+      'db.a.find()\n  .sort({\n    n: 1\n  })\n',
+    );
+  });
+
+  it('ignores line breaks inside a literal or a call', () => {
+    expect(formatMongoshCode('db.a.find(\n{ a: 1,\n b: 2 })')).toBe(
+      'db.a.find({\n  a: 1,\n  b: 2\n})\n',
+    );
+  });
+
   it('is idempotent', () => {
     const once = formatMongoshCode(
       'db.a.aggregate([{$match:{status:"paid"}},{$group:{_id:"$c",n:{$sum:1}}}])',

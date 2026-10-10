@@ -3,15 +3,16 @@ import { useVirtualizer } from '@tanstack/react-virtual';
 import { useMemo, useRef } from 'react';
 import { useAppStore, useAppStoreApi } from '../../state/app-store-context';
 import type { PrintLine } from '../../state/editors';
-import { clockTime } from './labels';
+import { clockTime, countOf } from './labels';
 import { FavouritesPanel } from './FavouritesPanel';
 import { HistoryPanel } from './HistoryPanel';
+import { TransfersPanel } from '../transfers/TransfersPanel';
 
 const LINE_HEIGHT_PX = 20;
 
 /**
  * The bottom panel. Output lists the print lines of every editor and the errors of their runs, with
- * the time and the database of each. History and Favourites are the other tabs.
+ * the time and the database of each. History, Favourites and Transfers are the other tabs.
  */
 export function OutputPanel() {
   return (
@@ -27,6 +28,7 @@ export function OutputPanel() {
         <Tabs.Tab value="output">Output</Tabs.Tab>
         <Tabs.Tab value="history">History</Tabs.Tab>
         <Tabs.Tab value="favourites">Favourites</Tabs.Tab>
+        <Tabs.Tab value="transfers">Transfers</Tabs.Tab>
       </Tabs.List>
       <Tabs.Panel value="output" style={{ display: 'flex', flexDirection: 'column' }}>
         <OutputLines />
@@ -36,6 +38,9 @@ export function OutputPanel() {
       </Tabs.Panel>
       <Tabs.Panel value="favourites" style={{ display: 'flex', flexDirection: 'column' }}>
         <FavouritesPanel />
+      </Tabs.Panel>
+      <Tabs.Panel value="transfers">
+        <TransfersPanel />
       </Tabs.Panel>
     </Tabs>
   );
@@ -62,7 +67,7 @@ export function OutputLines() {
     <>
       <Group justify="space-between" mb={4}>
         <Text size="xs" c="dimmed">
-          {output.length === 0 ? 'No output yet' : `${output.length} lines`}
+          {output.length === 0 ? 'No output yet' : countOf(output.length, 'line')}
         </Text>
         <Button
           size="xs"

@@ -16,6 +16,7 @@ import { ConnectionManager } from '../components/connections/ConnectionManager';
 import { ManagementDialogs } from '../components/management/ManagementDialogs';
 import { runReported } from '../components/notify-error';
 import { SettingsModal } from '../components/settings/SettingsModal';
+import { TransferModals } from '../components/transfers/TransferModals';
 import { UpdateBanner } from '../components/updates/UpdateBanner';
 import { ProfilerOpenerContext, type ProfilerOpener } from '../profiler/profiler-opener';
 import type { AppData, PanelRequest } from '../state/app-store';
@@ -27,12 +28,14 @@ import {
   ConnectionsPanel,
   DocumentsDockPanel,
   EditorDockPanel,
+  ExplainDockPanel,
   FixedTab,
   IndexesDockPanel,
   MonitorPanel,
   OperationsPanelView,
   OutputPanel,
   ProfilerDockPanel,
+  SchemaDockPanel,
   ValidationDockPanel,
   WelcomePanel,
 } from './ShellPanels';
@@ -48,6 +51,8 @@ const PANEL_COMPONENTS = {
   validation: ValidationDockPanel,
   documents: DocumentsDockPanel,
   editor: EditorDockPanel,
+  explain: ExplainDockPanel,
+  schema: SchemaDockPanel,
 };
 
 const TAB_COMPONENTS = { fixed: FixedTab };
@@ -66,6 +71,7 @@ const PANEL_TITLE_SUFFIX: Readonly<Record<PanelRequest['panel'], string>> = {
   indexes: 'indexes',
   validation: 'validation',
   documents: 'documents',
+  schema: 'schema',
 };
 
 /**
@@ -155,6 +161,23 @@ function editorTitle(
       ? connections.data.find((item) => item.id === connectionId)?.name
       : undefined;
   return `${name ?? 'Connection'} · ${database}`;
+}
+
+/**
+ * Adds the explain panel of the store to the centre group, or focuses it when it is open. The
+ * panel reads its request and result from the store.
+ */
+function openExplainPanel(api: DockviewApi, id: string, title: string): void {
+  if (api.getPanel(id) !== undefined) {
+    return;
+  }
+  api.addPanel({
+    id,
+    component: 'explain',
+    title,
+    params: { panelId: id },
+    position: { referencePanel: 'welcome', direction: 'within' },
+  });
 }
 
 function panelId(request: PanelRequest): string {
@@ -256,6 +279,9 @@ export function ShellScreen() {
   const activeEditor = useAppStore((state) => state.editors.activeId);
   // The editor panels this shell opened, by tab id. Their state lives in the store.
   const editorPanels = useRef(new Set<string>());
+  const explainPanels = useAppStore((state) => state.explainPanels);
+  const explainFocus = useAppStore((state) => state.explainFocus);
+  const closeExplainPanel = useAppStore((state) => state.closeExplainPanel);
   const dockApi = useRef<DockviewApi | undefined>(undefined);
   const [dock, setDock] = useState<DockviewApi | undefined>(undefined);
   // The collection panels this shell opened, by panel id.
@@ -284,6 +310,23 @@ export function ShellScreen() {
     openCollectionPanel(dock, panelRequest, collectionPanels.current);
     clearPanelRequest();
   }, [dock, panelRequest, clearPanelRequest]);
+
+  // Adds the explain panels the store holds, then shows the one a request asked for.
+  useEffect(() => {
+    if (dock === undefined) {
+      return;
+    }
+    for (const panel of Object.values(explainPanels)) {
+      openExplainPanel(dock, panel.id, panel.title);
+    }
+  }, [dock, explainPanels]);
+
+  useEffect(() => {
+    if (dock === undefined || explainFocus === undefined) {
+      return;
+    }
+    dock.getPanel(explainFocus.id)?.api.setActive();
+  }, [dock, explainFocus]);
 
   // Closes a collection panel once its database or collection is gone from a loaded list. A
   // database that was never expanded still counts, because the database list is loaded first.
@@ -434,6 +477,9 @@ export function ShellScreen() {
                     if (editorPanels.current.delete(panel.id)) {
                       store.getState().closeEditor(panel.id);
                     }
+                    if (panel.id.startsWith('explain:')) {
+                      closeExplainPanel(panel.id);
+                    }
                   });
                   event.api.onDidActivePanelChange(({ panel }) => {
                     if (panel !== undefined && editorPanels.current.has(panel.id)) {
@@ -465,6 +511,7 @@ export function ShellScreen() {
           />
           <ConnectionManager />
           <SettingsModal />
+          <TransferModals />
         </Flex>
       </ProfilerOpenerContext.Provider>
     </PanelOpenerContext.Provider>

@@ -25,6 +25,7 @@ export function MongoshEditor({
   onChange,
   onRun,
   onRunAll,
+  onExplain,
 }: MongoshEditorProps) {
   const area = useRef<HTMLTextAreaElement>(null);
   useEffect(
@@ -37,6 +38,8 @@ export function MongoshEditor({
         if (event.type === 'editor:command') {
           if (event.command === 'runAll') {
             onRunAll(element.value);
+          } else if (event.command === 'explain') {
+            onExplain(requestFrom(element));
           } else {
             onRun(requestFrom(element));
           }
@@ -48,7 +51,7 @@ export function MongoshEditor({
         const next = `${value.slice(0, element.selectionStart)}${event.text}${value.slice(element.selectionEnd)}`;
         onChange(next);
       }),
-    [tabId, value, onChange, onRun, onRunAll],
+    [tabId, value, onChange, onRun, onRunAll, onExplain],
   );
   return (
     <textarea

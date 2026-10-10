@@ -16,3 +16,8 @@ export function clockTime(iso: string): string {
   const date = new Date(iso);
   return Number.isNaN(date.getTime()) ? '' : date.toLocaleTimeString('en-GB').slice(0, TIME_LENGTH);
 }
+
+/** A count with its noun, singular for one: "1 document", "2 documents". */
+export function countOf(count: number, singular: string, plural = `${singular}s`): string {
+  return `${count} ${count === 1 ? singular : plural}`;
+}

@@ -66,7 +66,7 @@ function TypeHeader(props: CustomHeaderProps & TypeHeaderParams) {
         {props.displayName}
       </Text>
       {(props.types ?? []).map((type) => (
-        <Badge key={type} size="xs" variant="light" color="gray" radius="sm">
+        <Badge tt="none" key={type} size="xs" variant="light" color="gray" radius="sm">
           {BSON_TYPE_LABELS[type]}
         </Badge>
       ))}
@@ -180,7 +180,14 @@ export function TableView({
         </Popover>
         {editable ? null : (
           <Tooltip label={editabilityNote} multiline w={260} withArrow>
-            <Badge size="sm" variant="light" color="gray" tabIndex={0} aria-label={editabilityNote}>
+            <Badge
+              tt="none"
+              size="sm"
+              variant="light"
+              color="gray"
+              tabIndex={0}
+              aria-label={editabilityNote}
+            >
               Read only
             </Badge>
           </Tooltip>

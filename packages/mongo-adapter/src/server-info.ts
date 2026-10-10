@@ -33,7 +33,7 @@ export function detectTopology(hello: unknown, loadBalanced: boolean): ClusterTo
   return 'unknown';
 }
 
-async function runHello(client: MongoClient): Promise<unknown> {
+export async function runHello(client: MongoClient): Promise<unknown> {
   const admin = client.db('admin');
   try {
     const reply: unknown = await admin.command({ hello: 1 });

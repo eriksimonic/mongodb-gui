@@ -17,6 +17,7 @@ import {
   collectionStats,
   ConnectionManager,
   databaseStats,
+  estimatedDocumentCount,
   listCollections,
   listDatabases,
   listIndexes,
@@ -250,6 +251,16 @@ describe.each(MONGO_IMAGES)('MongoDB %s adapter', (image) => {
       // Index listing on a timeseries collection differs by version (none on 6.0), so only the shape is checked.
       const indexes = await listIndexes(client, SEED_DB, 'metrics');
       indexes.forEach((index) => IndexInfoSchema.parse(index));
+    },
+    SUITE_TIMEOUT_MS,
+  );
+
+  it(
+    'estimates the document count from metadata and reports zero for a view',
+    async () => {
+      const client = manager.getClient(profile.id);
+      await expect(estimatedDocumentCount(client, SEED_DB, 'orders')).resolves.toBe(50);
+      await expect(estimatedDocumentCount(client, SEED_DB, 'paidOrders')).resolves.toBe(0);
     },
     SUITE_TIMEOUT_MS,
   );

@@ -314,6 +314,30 @@ function numberText(value: unknown): string {
   return typeof inner === 'string' ? inner : '';
 }
 
+/** The byte count of base64 text. Each group of four characters holds three bytes, less the padding. */
+function decodedLength(base64: string): number {
+  const unpadded = base64.replace(/=+$/, '');
+  return Math.floor((unpadded.length * 3) / 4);
+}
+
+/** The 8-4-4-4-12 form of 16 base64 encoded bytes, or undefined when the bytes are not 16. */
+function uuidText(base64: string): string | undefined {
+  if (decodedLength(base64) !== 16) {
+    return undefined;
+  }
+  const bytes = atob(base64);
+  const hex = Array.from(bytes, (char) => char.charCodeAt(0).toString(16).padStart(2, '0')).join(
+    '',
+  );
+  return [
+    hex.slice(0, 8),
+    hex.slice(8, 12),
+    hex.slice(12, 16),
+    hex.slice(16, 20),
+    hex.slice(20),
+  ].join('-');
+}
+
 function wrapperText(type: BsonType, value: unknown): string {
   if (!isPlainObject(value)) {
     return '';
@@ -321,11 +345,18 @@ function wrapperText(type: BsonType, value: unknown): string {
   switch (type) {
     case 'Binary': {
       const binary = isPlainObject(value.$binary) ? value.$binary : {};
-      return `Binary(${String(binary.subType ?? '')}, ${String(binary.base64 ?? '').length} bytes base64)`;
+      const subType = String(binary.subType ?? '');
+      const base64 = String(binary.base64 ?? '');
+      // Subtype 4 is a UUID. Its 16 bytes read as the usual 8-4-4-4-12 form.
+      const uuid = parseInt(subType, 16) === 4 ? uuidText(base64) : undefined;
+      if (uuid !== undefined) {
+        return `UUID(${uuid})`;
+      }
+      return `Binary(${subType}, ${decodedLength(base64)} bytes)`;
     }
     case 'Timestamp': {
       const stamp = isPlainObject(value.$timestamp) ? value.$timestamp : {};
-      return `Timestamp(${String(stamp.t ?? '')}, ${String(stamp.i ?? '')})`;
+      return `Timestamp(${String(numberOf(stamp.t) ?? '')}, ${String(numberOf(stamp.i) ?? '')})`;
     }
     case 'Regex': {
       const regex = isPlainObject(value.$regularExpression) ? value.$regularExpression : {};
@@ -440,7 +471,10 @@ const FIND_CHAIN_METHODS = new Set([
   'readPref',
 ]);
 
-const FIND_START = /^db\.([A-Za-z_][A-Za-z0-9_]*)\.find\(/;
+// The collection is named as db.<name>, db.getCollection("<name>") or db["<name>"]. The method is
+// find or findOne. Groups: 1 dotted name, 3 getCollection name, 5 bracket name, 6 method.
+const FIND_START =
+  /^db(?:\.([A-Za-z_][A-Za-z0-9_]*)|\.getCollection\(\s*(["'])([^"'\\]+)\2\s*\)|\[\s*(["'])([^"'\\]+)\4\s*\])\.(find|findOne)\(/;
 const WHITESPACE = /\s/;
 const IDENTIFIER_PART = /[A-Za-z0-9_]/;
 
@@ -455,6 +489,8 @@ export function collectionOfFind(statement: string): string | undefined {
   if (start === null) {
     return undefined;
   }
+  const collection = start[1] ?? start[3] ?? start[5];
+  const chainable = start[6] === 'find';
   let index = skipCall(text, start[0].length - 1);
   if (index === undefined) {
     return undefined;
@@ -462,9 +498,9 @@ export function collectionOfFind(statement: string): string | undefined {
   for (;;) {
     index = skipWhitespace(text, index);
     if (index === text.length) {
-      return start[1];
+      return collection;
     }
-    if (text.charAt(index) !== '.') {
+    if (!chainable || text.charAt(index) !== '.') {
       return undefined;
     }
     index = skipWhitespace(text, index + 1);
@@ -543,6 +579,8 @@ export type EditValueResult =
 const INT32_MIN = -2_147_483_648;
 const INT32_MAX = 2_147_483_647;
 const INTEGER_TEXT = /^[+-]?\d+$/;
+const INT64_MIN = -(2n ** 63n);
+const INT64_MAX = 2n ** 63n - 1n;
 const DECIMAL_TEXT = /^[+-]?(\d+(\.\d*)?|\.\d+)([eE][+-]?\d+)?$/;
 const OBJECT_ID_TEXT = /^[0-9a-fA-F]{24}$/;
 
@@ -573,10 +611,18 @@ export function valueFromEdit(type: EditType, text: string): EditValueResult {
     }
     case 'long': {
       const trimmed = text.trim();
-      if (!INTEGER_TEXT.test(trimmed) || !Number.isSafeInteger(Number(trimmed))) {
-        return { ok: false, message: 'Enter a whole number that fits in 53 bits.' };
+      // BigInt keeps every digit, so the range is exact where a Number would round.
+      if (
+        !INTEGER_TEXT.test(trimmed) ||
+        BigInt(trimmed) < INT64_MIN ||
+        BigInt(trimmed) > INT64_MAX
+      ) {
+        return {
+          ok: false,
+          message: 'Enter a whole number between -9223372036854775808 and 9223372036854775807.',
+        };
       }
-      return { ok: true, value: { $numberLong: String(Number(trimmed)) } };
+      return { ok: true, value: { $numberLong: BigInt(trimmed).toString() } };
     }
     case 'double': {
       const number = Number(text.trim());

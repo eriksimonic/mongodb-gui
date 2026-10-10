@@ -19,6 +19,7 @@ import {
   IconX,
 } from '@tabler/icons-react';
 import { useMemo, useRef, useState } from 'react';
+import { DestructiveDialog } from '../components/management/DestructiveDialog';
 import { errorText } from '../components/notify-error';
 import {
   BSON_TYPE_LABELS,
@@ -95,6 +96,8 @@ export function TreeView({
 }: TreeViewProps) {
   const [state, setState] = useState<TreeState>(COLLAPSED);
   const [editing, setEditing] = useState<EditState | undefined>(undefined);
+  // The field a Remove click asked about. The removal waits for the user to confirm it.
+  const [pendingRemoval, setPendingRemoval] = useState<TreeRow | undefined>(undefined);
   const [busy, setBusy] = useState(false);
   const [notice, setNotice] = useState<string | undefined>(undefined);
   const scroller = useRef<HTMLDivElement>(null);
@@ -187,7 +190,7 @@ export function TreeView({
           </Button>
         </Group>
         {editable ? null : (
-          <Badge size="sm" variant="light" color="gray" aria-label={editabilityNote}>
+          <Badge tt="none" size="sm" variant="light" color="gray" aria-label={editabilityNote}>
             Read only
           </Badge>
         )}
@@ -313,7 +316,14 @@ export function TreeView({
                     <ValueText row={row} />
                   )}
                 </div>
-                <Badge size="xs" variant="light" color="gray" radius="sm" aria-label="Type">
+                <Badge
+                  tt="none"
+                  size="xs"
+                  variant="light"
+                  color="gray"
+                  radius="sm"
+                  aria-label="Type"
+                >
                   {BSON_TYPE_LABELS[row.type]}
                 </Badge>
                 <Group gap={2} wrap="nowrap" justify="flex-end">
@@ -337,7 +347,7 @@ export function TreeView({
                       <IconClipboard size={13} />
                     </ActionIcon>
                   </Tooltip>
-                  {editable && row.path !== '' && editTypeOf(row.value) !== undefined ? (
+                  {editable && isEditableField(row) && editTypeOf(row.value) !== undefined ? (
                     <Tooltip label="Edit value" withArrow>
                       <ActionIcon
                         aria-label={`Edit ${row.path}`}
@@ -349,7 +359,7 @@ export function TreeView({
                       </ActionIcon>
                     </Tooltip>
                   ) : null}
-                  {editable && row.path !== '' ? (
+                  {editable && isEditableField(row) ? (
                     <Tooltip label="Remove field" withArrow>
                       <ActionIcon
                         aria-label={`Remove ${row.path}`}
@@ -357,7 +367,7 @@ export function TreeView({
                         variant="subtle"
                         color="red"
                         disabled={busy}
-                        onClick={() => void removeField(row)}
+                        onClick={() => setPendingRemoval(row)}
                       >
                         <IconTrash size={13} />
                       </ActionIcon>
@@ -369,8 +379,22 @@ export function TreeView({
           })}
         </div>
       </div>
+      {pendingRemoval === undefined ? null : (
+        <DestructiveDialog
+          title="Remove field"
+          description={`Remove ${pendingRemoval.path} from document ${pendingRemoval.documentIndex + 1}? The document is written without the field.`}
+          confirmLabel="Remove"
+          onConfirm={() => removeField(pendingRemoval)}
+          onClose={() => setPendingRemoval(undefined)}
+        />
+      )}
     </Stack>
   );
+}
+
+/** A field a user may edit or remove. The document itself and its _id are fixed. */
+function isEditableField(row: TreeRow): boolean {
+  return row.path !== '' && row.path !== '_id';
 }
 
 /** The value column. Containers show their summary, and the full text on hover. */

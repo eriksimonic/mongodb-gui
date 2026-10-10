@@ -276,7 +276,13 @@ const SlowQueryRow = memo(function SlowQueryRow({
         {entry.ns}
       </div>
       <div role="gridcell" className="mg-profiler-cell">
-        <Badge variant="light" size="xs" color="gray" style={{ flexShrink: 0, maxWidth: 'none' }}>
+        <Badge
+          tt="none"
+          variant="light"
+          size="xs"
+          color="gray"
+          style={{ flexShrink: 0, maxWidth: 'none' }}
+        >
           {entry.op}
         </Badge>
       </div>
@@ -303,7 +309,13 @@ const SlowQueryRow = memo(function SlowQueryRow({
       </div>
       <div role="gridcell" className="mg-profiler-cell mg-profiler-plan" title={entry.planSummary}>
         {isCollscan(entry.planSummary) ? (
-          <Badge color="red" variant="filled" size="xs" style={{ flexShrink: 0, maxWidth: 'none' }}>
+          <Badge
+            tt="none"
+            color="red"
+            variant="filled"
+            size="xs"
+            style={{ flexShrink: 0, maxWidth: 'none' }}
+          >
             COLLSCAN
           </Badge>
         ) : null}
@@ -318,6 +330,7 @@ const SlowQueryRow = memo(function SlowQueryRow({
         <div role="gridcell" className="mg-profiler-cell">
           {entry.errMsg === undefined ? null : (
             <Badge
+              tt="none"
               color="red"
               variant="light"
               size="xs"

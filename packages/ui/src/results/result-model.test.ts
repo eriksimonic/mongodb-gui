@@ -179,7 +179,7 @@ describe('cellView', () => {
 
   it('describes the less common BSON types', () => {
     expect(cellView({ $binary: { base64: 'AAAA', subType: '04' } }).text).toBe(
-      'Binary(04, 4 bytes base64)',
+      'Binary(04, 3 bytes)',
     );
     expect(cellView({ $timestamp: { t: 5, i: 1 } }).text).toBe('Timestamp(5, 1)');
     expect(cellView({ $regularExpression: { pattern: 'ab', options: 'i' } }).text).toBe('/ab/i');
@@ -242,6 +242,10 @@ describe('collectionOfFind', () => {
     'db.orders.find({}, { _id: 0 }).limit(50).skip(10)',
     '  db.orders.find({ note: "a) b" }) ',
     "db.orders.find({ note: 'it''s (ok' }).batchSize(20)",
+    'db.orders.findOne({ _id: 1 })',
+    'db.getCollection("orders").find()',
+    "db.getCollection('orders').findOne()",
+    'db["orders"].find({})',
   ])('reads the collection of %s', (statement) => {
     expect(collectionOfFind(statement)).toBe('orders');
   });
@@ -252,7 +256,8 @@ describe('collectionOfFind', () => {
     'db.orders.find({}).map(x => x)',
     'db.orders.find({}) + 1',
     'db.orders.find({ a: 1 }',
-    'db.getCollection("orders").find()',
+    'db.orders.findOne().sort({ a: 1 })',
+    'db["orders"].aggregate([])',
     'print(db.orders.find())',
     'db.orders.find(); db.users.find()',
     'db.orders.find().sort({a: 1}).count()',
@@ -328,5 +333,34 @@ describe('editTypeOf and editTextOf', () => {
   it('offers no edit type for an array or a binary value', () => {
     expect(editTypeOf([1])).toBeUndefined();
     expect(editTypeOf({ $binary: { base64: '', subType: '00' } })).toBeUndefined();
+  });
+});
+
+describe('binary, timestamp and long values', () => {
+  it('shows a subtype 4 binary as a UUID', () => {
+    const value = { $binary: { base64: 'EjRWeBI0VngSNFZ4EjRWeA==', subType: '04' } };
+    expect(cellView(value).text).toBe('UUID(12345678-1234-5678-1234-567812345678)');
+  });
+
+  it('shows the decoded byte length for other subtypes', () => {
+    const value = { $binary: { base64: 'AQID', subType: '00' } };
+    expect(cellView(value).text).toBe('Binary(00, 3 bytes)');
+    const padded = { $binary: { base64: 'AQI=', subType: '80' } };
+    expect(cellView(padded).text).toBe('Binary(80, 2 bytes)');
+  });
+
+  it('reads wrapped timestamp parts', () => {
+    const value = { $timestamp: { t: { $numberInt: '5' }, i: { $numberInt: '2' } } };
+    expect(cellView(value).text).toBe('Timestamp(5, 2)');
+  });
+
+  it('keeps every digit of a long edit and checks the int64 range exactly', () => {
+    expect(valueFromEdit('long', '9223372036854775807')).toEqual({
+      ok: true,
+      value: { $numberLong: '9223372036854775807' },
+    });
+    expect(valueFromEdit('long', '-9223372036854775808').ok).toBe(true);
+    expect(valueFromEdit('long', '9223372036854775808').ok).toBe(false);
+    expect(valueFromEdit('long', '-9223372036854775809').ok).toBe(false);
   });
 });

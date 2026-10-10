@@ -215,7 +215,7 @@ describe('ProfilerPanel', () => {
     try {
       fireEvent.click(screen.getByRole('button', { name: 'Explain this' }));
       fireEvent.click(screen.getByRole('button', { name: 'Open in editor' }));
-      expect(await screen.findByText('Explain arrives in phase 3.')).toBeInTheDocument();
+      expect(await screen.findByRole('button', { name: 'Open in editor' })).toBeInTheDocument();
       expect(events.map((event) => event.type)).toEqual(['profiler:explain', 'profiler:open']);
       expect(events[0]?.ref.entry.id).toBe(target?.id);
     } finally {

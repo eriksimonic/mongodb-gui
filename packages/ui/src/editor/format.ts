@@ -1,8 +1,9 @@
 /**
  * Reindents mongosh source. It breaks object and array literals over lines, one entry per line,
- * and starts each top-level statement on its own line. It keeps every token: strings, regex
- * literals and comments are copied as they are. It does not reflow long calls. Prettier is not
- * used here on purpose.
+ * and starts each top-level statement on its own line. Lines outside literals and calls keep their
+ * breaks, and a blank line between them is kept as one blank line. It keeps every token: strings,
+ * regex literals and comments are copied as they are. It does not reflow long calls. Prettier is
+ * not used here on purpose.
  */
 
 type TokenKind = 'word' | 'punct' | 'text' | 'comment';
@@ -12,6 +13,8 @@ interface Token {
   readonly text: string;
   /** True when whitespace separated this token from the one before it. */
   readonly spaced: boolean;
+  /** Newlines in the whitespace before this token. Two or more mean a blank line. */
+  readonly newlines: number;
 }
 
 const WORD = /[A-Za-z0-9_$]/;
@@ -22,11 +25,15 @@ function tokenize(code: string): Token[] {
   const tokens: Token[] = [];
   let index = 0;
   let spaced = false;
+  let newlines = 0;
   while (index < code.length) {
     const char = code.charAt(index);
     const next = code.charAt(index + 1);
     if (char === ' ' || char === '\t' || char === '\n' || char === '\r') {
       spaced = true;
+      if (char === '\n') {
+        newlines += 1;
+      }
       index += 1;
       continue;
     }
@@ -52,8 +59,9 @@ function tokenize(code: string): Token[] {
       }
       kind = 'word';
     }
-    tokens.push({ kind, text: code.slice(index, end), spaced });
+    tokens.push({ kind, text: code.slice(index, end), spaced, newlines });
     spaced = false;
+    newlines = 0;
     index = end;
   }
   return tokens;
@@ -167,6 +175,9 @@ export function formatMongoshCode(code: string, indentSize = 2): string {
 
   // Calls add no indentation, so only literals count toward the depth.
   const literalDepth = (): number => brackets.filter((bracket) => isLiteral(bracket)).length;
+  // Indent of a chained call that started a line at depth zero. It lasts until the statement ends.
+  let chainIndent = 0;
+  const indentation = (): string => ' '.repeat(literalDepth() * indentSize + chainIndent);
   const newline = (): void => {
     out = out.replace(/[ \t]+$/, '');
     if (out !== '') {
@@ -179,6 +190,18 @@ export function formatMongoshCode(code: string, indentSize = 2): string {
     const following = tokens.at(position + 1);
     const isOpening = isPunct(token, OPENERS);
     const isClosing = isPunct(token, CLOSERS);
+    // Outside literals and calls, a source line break starts a new line. A chained call on its
+    // own line is indented one level under its statement.
+    if (brackets.length === 0 && previous !== undefined && token.newlines > 0) {
+      const continuation = isPunct(token, ['.']);
+      chainIndent = continuation ? indentSize : 0;
+      if (!lineStart) {
+        newline();
+      }
+      if (token.newlines > 1 && !out.endsWith('\n\n')) {
+        out += '\n';
+      }
+    }
 
     if (isClosing) {
       const opener = brackets.pop();
@@ -188,10 +211,10 @@ export function formatMongoshCode(code: string, indentSize = 2): string {
         newline();
       }
       if (lineStart) {
-        out += ' '.repeat(literalDepth() * indentSize);
+        out += indentation();
       }
     } else if (lineStart) {
-      out += ' '.repeat(literalDepth() * indentSize);
+      out += indentation();
     } else if (previous !== undefined && needsSpace(previous, token)) {
       out += ' ';
     }
@@ -209,6 +232,7 @@ export function formatMongoshCode(code: string, indentSize = 2): string {
     } else if (isPunct(token, [',']) && brackets.length > 0 && brackets.at(-1) !== '(') {
       newline();
     } else if (isPunct(token, [';']) && brackets.length === 0) {
+      chainIndent = 0;
       newline();
     }
   });

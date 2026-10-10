@@ -5,6 +5,7 @@ import {
   lastCollection,
   mergeCompletions,
   operatorCompletions,
+  operatorsFor,
   runtimeCompletions,
 } from './completion-model';
 import { signatureAt } from './signature';
@@ -18,11 +19,34 @@ describe('completionContext', () => {
 
   it('names the collection of the statement', () => {
     const code = 'db.orders.find({ st';
-    expect(completionContext(code, code.length)).toEqual({ prefix: 'st', collection: 'orders' });
+    expect(completionContext(code, code.length)).toEqual({
+      prefix: 'st',
+      collection: 'orders',
+      head: 'db.orders.find({ ',
+      memberOfCollection: false,
+      objectKey: true,
+    });
+  });
+
+  it('reports the line text before the word, not the text of earlier lines', () => {
+    const code = 'use shop\ndb.ord';
+    expect(completionContext(code, code.length)).toMatchObject({ prefix: 'ord', head: 'db.' });
+  });
+
+  it('marks the position right after db.<collection>.', () => {
+    const code = 'db.orders.fi';
+    expect(completionContext(code, code.length)).toMatchObject({
+      prefix: 'fi',
+      memberOfCollection: true,
+    });
   });
 
   it('has no collection outside a db expression', () => {
     expect(completionContext('pri', 3).collection).toBeUndefined();
+  });
+
+  it('handles an offset at the start of the text', () => {
+    expect(completionContext('\ndb', 0)).toMatchObject({ prefix: '', head: '' });
   });
 
   it('does not take the collection from another statement', () => {
@@ -45,12 +69,83 @@ describe('lastCollection', () => {
   });
 });
 
+describe('runtimeCompletions', () => {
+  // The runtime returns whole-line texts, so these are the shapes the editor receives.
+  it('turns the whole-line texts after db. into collection names', () => {
+    const items = runtimeCompletions(
+      [
+        { text: 'db.adminCommand', kind: 'method' },
+        { text: 'db.orders', kind: 'collection' },
+      ],
+      'db.',
+    );
+    expect(items.map((item) => item.label)).toEqual(['adminCommand', 'orders']);
+    expect(mergeCompletions('ord', [items]).map((item) => item.label)).toEqual(['orders']);
+  });
+
+  it('keeps only the part after the typed word, so accepting does not repeat the prefix', () => {
+    const items = runtimeCompletions([{ text: 'db.orders.find', kind: 'method' }], 'db.orders.');
+    expect(items).toEqual([{ label: 'find', kind: 'method', rank: 1 }]);
+  });
+
+  it('drops texts that do not share the line text before the word', () => {
+    const items = runtimeCompletions(
+      [
+        { text: 'db.orders.find', kind: 'method' },
+        { text: 'print', kind: 'method' },
+      ],
+      'db.orders.',
+    );
+    expect(items.map((item) => item.label)).toEqual(['find']);
+  });
+
+  it('ranks runtime methods above operators unless the prefix starts with a dollar sign', () => {
+    const methods = runtimeCompletions([{ text: 'db.orders.find', kind: 'method' }], 'db.orders.');
+    const sources = [methods, operatorCompletions()];
+    expect(mergeCompletions('f', sources)[0]?.label).toBe('find');
+    expect(mergeCompletions('$', sources)[0]?.kind).toBe('operator');
+  });
+});
+
+describe('operatorsFor', () => {
+  it('offers no operators after db. or on a collection member', () => {
+    const code = 'db.orders.';
+    expect(operatorsFor(completionContext(code, code.length))).toEqual([]);
+  });
+
+  it('offers operators in an object key and after a dollar sign', () => {
+    const code = 'db.orders.find({ ';
+    expect(operatorsFor(completionContext(code, code.length)).length).toBeGreaterThan(0);
+    const dollar = '$gt';
+    expect(operatorsFor(completionContext(dollar, dollar.length)).length).toBeGreaterThan(0);
+  });
+});
+
+describe('fieldCompletions in an object key', () => {
+  it('quotes a dotted field name so the key is valid', () => {
+    const [field] = fieldCompletions(
+      [{ path: 'address.city', types: ['string'], presence: 1 }],
+      true,
+    );
+    expect(field?.label).toBe('address.city');
+    expect(field?.insertText).toBe('"address.city"');
+  });
+
+  it('leaves a bare field name unquoted', () => {
+    const [field] = fieldCompletions([{ path: 'status', types: ['string'], presence: 1 }], true);
+    expect(field?.insertText).toBeUndefined();
+  });
+});
+
 describe('mergeCompletions', () => {
   const sources = [
-    runtimeCompletions([
-      { text: 'find', kind: 'method' },
-      { text: 'findOne', kind: 'method' },
-    ]),
+    runtimeCompletions(
+      [
+        { text: 'db.orders.find', kind: 'method' },
+        { text: 'db.orders.findOne', kind: 'method' },
+      ],
+      'db.orders.',
+    ),
     fieldCompletions([
       { path: 'status', types: ['string'], presence: 1 },
       { path: 'total', types: ['Double'], presence: 0.5 },
@@ -76,7 +171,7 @@ describe('mergeCompletions', () => {
 
   it('keeps the first entry of a label that appears twice', () => {
     const duplicated = [
-      runtimeCompletions([{ text: 'status', kind: 'property' }]),
+      runtimeCompletions([{ text: 'status', kind: 'property' }], ''),
       fieldCompletions([{ path: 'status', types: ['string'], presence: 1 }]),
     ];
     const items = mergeCompletions('st', duplicated);

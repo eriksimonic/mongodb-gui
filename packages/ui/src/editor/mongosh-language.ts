@@ -2,7 +2,7 @@
 import './monaco-setup';
 import type * as Monaco from 'monaco-editor/editor/editor.api';
 import type { EditorCompletion } from './completion-model';
-import { mergeCompletions, completionContext, operatorCompletions } from './completion-model';
+import { mergeCompletions, completionContext, operatorsFor } from './completion-model';
 import type { CompletionSource } from './completion-source';
 import { signatureAt } from './signature';
 
@@ -225,8 +225,8 @@ async function provideCompletions(
     position.lineNumber,
     word.endColumn,
   );
-  const { prefix } = completionContext(code, offset);
-  const items = mergeCompletions(prefix, [remote, operatorCompletions()]);
+  const context = completionContext(code, offset);
+  const items = mergeCompletions(context.prefix, [remote, operatorsFor(context)]);
   return { suggestions: items.map((item) => toSuggestion(monaco, item, range)) };
 }
 
@@ -238,7 +238,7 @@ function toSuggestion(
   return {
     label: item.label,
     kind: kindOf(monaco, item.kind),
-    insertText: item.label,
+    insertText: item.insertText ?? item.label,
     ...(item.detail === undefined ? {} : { detail: item.detail }),
     ...(item.doc === undefined ? {} : { documentation: item.doc }),
     range,

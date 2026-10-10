@@ -139,6 +139,39 @@ describe('shell namespace through the router against MongoDB 8.0', () => {
   );
 
   it(
+    'keeps the open cursor when a completion runs between pages',
+    async () => {
+      const first = valueOf(
+        await call('shell.evaluate', {
+          connectionId,
+          database: DATABASE,
+          code: 'db.orders.find({}).sort({ n: 1 })',
+          batchSize: 25,
+        }),
+      ) as { requestId: string; result?: { hasMore: boolean } };
+      expect(first.result?.hasMore).toBe(true);
+
+      // Completing in the same database must not run use(), which would clear the cursor.
+      const completed = valueOf(
+        await call('shell.complete', {
+          connectionId,
+          database: DATABASE,
+          code: 'db.orders.fi',
+          position: 'db.orders.fi'.length,
+        }),
+      ) as { items: { text: string }[] };
+      expect(completed.items.map((item) => item.text)).toContain('db.orders.find');
+
+      const second = valueOf(
+        await call('shell.next', { connectionId, requestId: first.requestId, batchSize: 25 }),
+      ) as { result?: { printableEjson: string; hasMore: boolean } };
+      expect(documentsOf(second.result?.printableEjson ?? '[]')).toHaveLength(25);
+      expect(second.result?.hasMore).toBe(true);
+    },
+    CALL_TIMEOUT_MS,
+  );
+
+  it(
     'streams print output as shell:print events tagged with the request id',
     async () => {
       const requestId = '6f1b2c3d-4e5f-4a6b-8c7d-9e0f1a2b3c4d';
@@ -240,6 +273,42 @@ describe('shell namespace through the router against MongoDB 8.0', () => {
         code: '1',
       });
       expect(refused.ok).toBe(false);
+    },
+    CALL_TIMEOUT_MS,
+  );
+
+  it(
+    'analyses the schema with the sample from the shell and the total from the server',
+    async () => {
+      const report = valueOf(
+        await call('schema.analyse', {
+          connectionId,
+          database: DATABASE,
+          collection: 'orders',
+          size: 25,
+          strategy: 'first',
+        }),
+      ) as {
+        database: string;
+        collection: string;
+        sampled: number;
+        total: number;
+        fields: { path: string; types: string[]; presence: number; numeric?: unknown }[];
+      };
+      expect(report).toMatchObject({
+        database: DATABASE,
+        collection: 'orders',
+        sampled: 25,
+        total: DOCUMENT_COUNT,
+      });
+      // The first strategy reads the earliest _id values, which were inserted with n from 0 up.
+      expect(report.fields).toContainEqual(
+        expect.objectContaining({ path: 'n', types: ['Int32'], presence: 1 }),
+      );
+      expect(report.fields.find((field) => field.path === 'n')?.numeric).toEqual({
+        min: 0,
+        max: 24,
+      });
     },
     CALL_TIMEOUT_MS,
   );

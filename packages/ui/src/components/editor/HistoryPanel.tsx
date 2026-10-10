@@ -17,7 +17,7 @@ import { useUiApi } from '../../api/ui-api';
 import { errorText, notifyError } from '../notify-error';
 import { useAppStore, useAppStoreApi } from '../../state/app-store-context';
 import { SaveFavouriteDialog } from './SaveFavouriteDialog';
-import { firstLine, formatRunTime } from './labels';
+import { countOf, firstLine, formatRunTime } from './labels';
 
 const ROW_HEIGHT_PX = 52;
 const SEARCH_DEBOUNCE_MS = 200;
@@ -203,11 +203,13 @@ export function HistoryPanel() {
                   <Text size="xs" c="dimmed" truncate="end">
                     {nameOf(entry.connectionId)} · {entry.database} ·{' '}
                     {formatRunTime(entry.startedAt)} · {entry.durationMs.toFixed(0)} ms
-                    {entry.resultCount === undefined ? '' : ` · ${entry.resultCount} documents`}
+                    {entry.resultCount === undefined
+                      ? ''
+                      : ` · ${countOf(entry.resultCount, 'document')}`}
                   </Text>
                 </button>
                 {entry.error === undefined ? null : (
-                  <Badge size="xs" color="red" variant="light">
+                  <Badge tt="none" size="xs" color="red" variant="light">
                     Error
                   </Badge>
                 )}

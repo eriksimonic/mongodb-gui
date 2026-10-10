@@ -220,14 +220,48 @@ describe('editor actions: tabs', () => {
     expect(store.getState().editors.tabs[id]?.database).toBe('shop');
   });
 
-  it('keeps the explain action as a placeholder that changes nothing', async () => {
+  it('re-runs history code in a new tab and keeps the text of the current tab', async () => {
     const api = await connectedMockApi();
     const store = await storeOn(api);
-    const before = store.getState().editors;
-    store
+    const current = store
       .getState()
-      .openExplain({ connectionId: localConnectionId, database: 'shop', code: 'db.orders.find()' });
-    expect(store.getState().editors).toBe(before);
+      .openEditor({ connectionId: localConnectionId, database: 'shop' });
+    store.getState().setEditorText(current, 'db.orders.countDocuments()');
+
+    await store.getState().rerunStatement({
+      connectionId: localConnectionId,
+      database: 'analytics',
+      code: 'db.bson_samples.find()',
+    });
+
+    const { tabs, order, activeId } = store.getState().editors;
+    expect(order).toHaveLength(2);
+    expect(tabs[current]?.text).toBe('db.orders.countDocuments()');
+    expect(activeId).not.toBe(current);
+    expect(activeId === undefined ? undefined : tabs[activeId]).toMatchObject({
+      database: 'analytics',
+      text: 'db.bson_samples.find()',
+    });
+  });
+
+  it('re-runs history code in an empty current tab instead of opening another', async () => {
+    const api = await connectedMockApi();
+    const store = await storeOn(api);
+    const empty = store
+      .getState()
+      .openEditor({ connectionId: localConnectionId, database: 'shop' });
+
+    await store.getState().rerunStatement({
+      connectionId: localConnectionId,
+      database: 'analytics',
+      code: 'db.bson_samples.find()',
+    });
+
+    expect(store.getState().editors.order).toEqual([empty]);
+    expect(store.getState().editors.tabs[empty]).toMatchObject({
+      database: 'analytics',
+      text: 'db.bson_samples.find()',
+    });
   });
 
   it('closes a tab and makes the next one active', async () => {

@@ -88,6 +88,26 @@ import {
   DockerStatusSchema,
 } from '../docker/types';
 import { UpdateStateSchema } from '../updates/types';
+import { SchemaAnalyseInputSchema, SchemaReportSchema } from '../schema/types';
+import {
+  DialogResultSchema,
+  OpenDialogInputSchema,
+  PreviewImportInputSchema,
+  SaveDialogInputSchema,
+  ShowItemInFolderInputSchema,
+  StartExportInputSchema,
+  WriteExportInputSchema,
+  StartImportInputSchema,
+  StartTransferOutputSchema,
+  TransferIdInputSchema,
+  TransferListOutputSchema,
+} from '../transfer/calls';
+import { ImportPreviewSchema, TransferProgressSchema } from '../transfer/types';
+import {
+  ExplainResultSchema,
+  ExplainRunCommandInputSchema,
+  ExplainRunInputSchema,
+} from '../explain/rpc-schemas';
 import { defineCall, type RpcContract } from './define';
 
 const LayoutKeySchema = z.string().min(1).max(200);
@@ -191,6 +211,12 @@ export const rpcContract = {
     restart: defineCall(ShellConnectionInputSchema, z.void()),
     state: defineCall(ShellConnectionInputSchema, ShellStateSchema),
   },
+  // Explain runs the statement's single collection query with explain on the connection's
+  // runtime (run) or the connection's driver (runCommand). Nothing is written by explain.
+  explain: {
+    run: defineCall(ExplainRunInputSchema, ExplainResultSchema),
+    runCommand: defineCall(ExplainRunCommandInputSchema, ExplainResultSchema),
+  },
   // Every input carries connectionId plus the adapter input. Mutating calls emit catalog:changed.
   management: {
     createCollection: defineCall(onConnection(CreateCollectionInputSchema), CollectionInfoSchema),
@@ -229,6 +255,10 @@ export const rpcContract = {
     ),
     findDocumentById: defineCall(onConnection(FindDocumentByIdInputSchema), z.string().nullable()),
     sampleDocuments: defineCall(onConnection(SampleDocumentsInputSchema), z.array(z.string())),
+  },
+  // The sample is read by the shell runtime and the total from the server's metadata.
+  schema: {
+    analyse: defineCall(SchemaAnalyseInputSchema, SchemaReportSchema),
   },
   settings: {
     get: defineCall(z.void(), SettingsSchema),
@@ -300,6 +330,14 @@ export const rpcContract = {
     /** Starts or stops the 10 second poll that pushes `docker:containers` events. */
     watch: defineCall(z.object({ enabled: z.boolean() }), z.void()),
   },
+  transfer: {
+    previewImport: defineCall(PreviewImportInputSchema, ImportPreviewSchema),
+    startImport: defineCall(StartImportInputSchema, StartTransferOutputSchema),
+    startExport: defineCall(StartExportInputSchema, StartTransferOutputSchema),
+    cancel: defineCall(TransferIdInputSchema, z.void()),
+    status: defineCall(TransferIdInputSchema, TransferProgressSchema),
+    list: defineCall(z.void(), TransferListOutputSchema),
+  },
   updates: {
     state: defineCall(z.void(), UpdateStateSchema),
     check: defineCall(z.void(), UpdateStateSchema),
@@ -314,5 +352,12 @@ export const rpcContract = {
   },
   app: {
     openExternal: defineCall(z.object({ url: externalUrl }), z.void()),
+    /** Shows the native open dialog. The renderer gets only the path the user picked. */
+    showOpenDialog: defineCall(OpenDialogInputSchema, DialogResultSchema),
+    showSaveDialog: defineCall(SaveDialogInputSchema, DialogResultSchema),
+    /** Reveals a file this session exported. Other paths are refused by the router. */
+    showItemInFolder: defineCall(ShowItemInFolderInputSchema, z.void()),
+    /** Writes text to a file the user picked with showSaveDialog. An existing file is never replaced. */
+    writeExport: defineCall(WriteExportInputSchema, z.void()),
   },
 } satisfies RpcContract;

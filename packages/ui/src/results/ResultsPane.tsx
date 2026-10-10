@@ -10,6 +10,7 @@ import { formatJson } from '../management/input-rules';
 import { discoverColumns, formatCount, type JsonObject } from './result-model';
 import { JsonView } from './JsonView';
 import { jsonTextFor } from './json-text';
+import type { ExportFormat } from './result-export';
 import { TableView } from './TableView';
 import { TreeView, type TreeEdit } from './TreeView';
 
@@ -42,6 +43,7 @@ export interface ResultsPaneProps {
   readonly onLoadAll: () => void;
   readonly onSetField: (edit: TreeEdit) => Promise<void>;
   readonly onUnsetField: (documentIndex: number, path: string) => Promise<void>;
+  readonly onExport: (format: ExportFormat) => void;
 }
 
 /** The time since a run started, redrawn every quarter second while it runs. */
@@ -77,6 +79,7 @@ export function ResultsPane({
   onLoadAll,
   onSetField,
   onUnsetField,
+  onExport,
 }: ResultsPaneProps) {
   const [selected, setSelected] = useState<readonly number[]>([]);
   const [openIndex, setOpenIndex] = useState<number | undefined>(undefined);
@@ -107,7 +110,7 @@ export function ResultsPane({
       selected.length === 0
         ? result.documents
         : selected.map((index) => result.documents[index]).filter(isDocument);
-    const text = jsonTextFor({ documents: chosen }, 'relaxed');
+    const text = jsonTextFor({ documents: chosen }, 'canonical');
     void navigator.clipboard.writeText(text);
   }
 
@@ -132,7 +135,7 @@ export function ResultsPane({
             </Text>
           )}
           {result?.summary === undefined ? null : (
-            <Badge size="sm" variant="light" color="teal" data-testid="result-summary">
+            <Badge tt="none" size="sm" variant="light" color="teal" data-testid="result-summary">
               {result.summary}
             </Badge>
           )}
@@ -190,6 +193,22 @@ export function ResultsPane({
                 onClick={copyJson}
               >
                 {selected.length === 0 ? 'Copy JSON' : `Copy ${selected.length} as JSON`}
+              </Button>
+              <Button
+                size="xs"
+                variant="default"
+                disabled={count === 0}
+                onClick={() => onExport('json')}
+              >
+                Export JSON
+              </Button>
+              <Button
+                size="xs"
+                variant="default"
+                disabled={count === 0}
+                onClick={() => onExport('csv')}
+              >
+                Export CSV
               </Button>
             </>
           )}

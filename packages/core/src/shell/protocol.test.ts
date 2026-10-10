@@ -54,13 +54,37 @@ describe('ShellRequestSchema', () => {
     expect(result.success).toBe(false);
   });
 
-  it('rejects a sampleSchema request with a sample size above 1000', () => {
+  it('accepts a sampleSchema request up to 5000 documents with a strategy', () => {
     const result = ShellRequestSchema.safeParse({
       id: '1',
       kind: 'sampleSchema',
       database: 'a',
       collection: 'b',
       size: 5000,
+      strategy: 'last',
+    });
+    expect(result.success).toBe(true);
+  });
+
+  it('defaults a sampleSchema request without a strategy to random', () => {
+    const result = ShellRequestSchema.parse({
+      id: '1',
+      kind: 'sampleSchema',
+      database: 'a',
+      collection: 'b',
+      size: 100,
+    });
+    expect(result).toMatchObject({ strategy: 'random' });
+  });
+
+  it('rejects a sampleSchema request with a sample size above 5000', () => {
+    const result = ShellRequestSchema.safeParse({
+      id: '1',
+      kind: 'sampleSchema',
+      database: 'a',
+      collection: 'b',
+      size: 5001,
+      strategy: 'random',
     });
     expect(result.success).toBe(false);
   });

@@ -128,10 +128,10 @@ export function EditorView({ tabId }: EditorViewProps) {
     }
   }
 
-  function explain() {
-    const target = runTargetFor(current.text, current.text.length);
+  function explain(request: RunRequest) {
+    const target = runTargetFor(request.code, request.cursor, request.selection);
     if (target.source !== 'empty') {
-      api.openExplain({
+      void api.openExplain({
         connectionId: current.connectionId,
         database: current.database,
         code: target.text,
@@ -242,7 +242,11 @@ export function EditorView({ tabId }: EditorViewProps) {
             Cancel
           </Button>
         ) : null}
-        <Button size="xs" variant="default" onClick={explain}>
+        <Button
+          size="xs"
+          variant="default"
+          onClick={() => editorUiEvents.emit({ type: 'editor:command', tabId, command: 'explain' })}
+        >
           Explain
         </Button>
         <Select
@@ -296,7 +300,7 @@ export function EditorView({ tabId }: EditorViewProps) {
         </Tooltip>
         <span style={{ flex: 1 }} />
         {unsaved ? (
-          <Badge size="sm" variant="dot" color="yellow" aria-label="Unsaved changes">
+          <Badge tt="none" size="sm" variant="dot" color="yellow" aria-label="Unsaved changes">
             Unsaved
           </Badge>
         ) : null}
@@ -311,6 +315,7 @@ export function EditorView({ tabId }: EditorViewProps) {
             onChange={(text) => api.setEditorText(tabId, text)}
             onRun={run}
             onRunAll={runAll}
+            onExplain={explain}
           />
         </div>
         <div
@@ -351,6 +356,7 @@ export function EditorView({ tabId }: EditorViewProps) {
             onView={(view) => api.setEditorView(tabId, view)}
             onLoadMore={() => void api.loadMoreEditor(tabId)}
             onLoadAll={() => void api.loadAllEditor(tabId)}
+            onExport={(format) => void api.exportResult(tabId, format).catch(notifyError)}
             onSetField={(edit: TreeEdit) =>
               api.editField({
                 tabId,

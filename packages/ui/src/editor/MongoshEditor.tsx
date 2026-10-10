@@ -19,6 +19,8 @@ export interface MongoshEditorProps {
   readonly onChange: (value: string) => void;
   readonly onRun: (request: RunRequest) => void;
   readonly onRunAll: (code: string) => void;
+  /** Explains the statement under the cursor, or the selection. */
+  readonly onExplain: (request: RunRequest) => void;
 }
 
 // Monaco is large and touches the DOM when it loads, so it loads on first use.

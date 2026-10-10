@@ -27,6 +27,7 @@ function KeyBadges({ index }: { readonly index: IndexInfo }) {
       {Object.entries(index.key).map(([field, direction]) =>
         direction === 1 || direction === -1 ? (
           <Badge
+            tt="none"
             key={field}
             variant="outline"
             color="gray"
@@ -41,7 +42,7 @@ function KeyBadges({ index }: { readonly index: IndexInfo }) {
             {field}
           </Badge>
         ) : (
-          <Badge key={field} variant="outline" color="gray">
+          <Badge tt="none" key={field} variant="outline" color="gray">
             {field}{' '}
             <Text component="span" size="xs" c="violet" ml={4}>
               {String(direction)}
@@ -218,7 +219,7 @@ export function IndexesPanel({ connectionId, database, collection }: CollectionP
                   ) : (
                     <Group gap={4}>
                       {chips.map((chip) => (
-                        <Badge key={chip} size="xs" variant="light">
+                        <Badge tt="none" key={chip} size="xs" variant="light">
                           {chip}
                         </Badge>
                       ))}

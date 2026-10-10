@@ -1,7 +1,7 @@
 import { useComputedColorScheme } from '@mantine/core';
 import Editor, { type OnMount } from '@monaco-editor/react';
 import { useEffect, useRef } from 'react';
-import { editorUiEvents } from './editor-events';
+import { editorUiEvents, insertionText } from './editor-events';
 import {
   clearCompletionSource,
   MONGOSH_LANGUAGE,
@@ -15,6 +15,13 @@ import type { MongoshEditorProps, RunRequest } from './MongoshEditor';
  * The Monaco editor for one tab. Loaded lazily by MongoshEditor, so Monaco is not evaluated until
  * an editor opens. Ctrl+Enter runs the selection or the statement, and Ctrl+Shift+Enter runs all.
  */
+/** The editor action each toolbar command runs. */
+const COMMAND_ACTIONS = {
+  run: 'mongo-gui.run',
+  runAll: 'mongo-gui.run-all',
+  explain: 'mongo-gui.explain',
+} as const;
+
 export function MongoshMonaco({
   tabId,
   label,
@@ -23,14 +30,15 @@ export function MongoshMonaco({
   onChange,
   onRun,
   onRunAll,
+  onExplain,
 }: MongoshEditorProps) {
   const scheme = useComputedColorScheme('dark');
   // Handlers read the latest props, because Monaco keeps the callbacks it got on mount.
-  const latest = useRef({ onRun, onRunAll, source });
+  const latest = useRef({ onRun, onRunAll, onExplain, source });
   const modelUri = useRef<string | undefined>(undefined);
   useEffect(() => {
-    latest.current = { onRun, onRunAll, source };
-  }, [onRun, onRunAll, source]);
+    latest.current = { onRun, onRunAll, onExplain, source };
+  }, [onRun, onRunAll, onExplain, source]);
 
   // Keeps the editor's completion source in the registry. The registry reads the ref on each call.
   useEffect(() => {
@@ -81,6 +89,13 @@ export function MongoshMonaco({
       },
     });
     editor.addAction({
+      id: 'mongo-gui.explain',
+      label: 'Explain statement',
+      run: () => {
+        runAt((code, cursor, selection) => latest.current.onExplain({ code, cursor, selection }));
+      },
+    });
+    editor.addAction({
       id: 'mongo-gui.run-all',
       label: 'Run all',
       keybindings: [monaco.KeyMod.CtrlCmd | monaco.KeyMod.Shift | monaco.KeyCode.Enter],
@@ -93,11 +108,7 @@ export function MongoshMonaco({
         return;
       }
       if (event.type === 'editor:command') {
-        editor.trigger(
-          'toolbar',
-          event.command === 'run' ? 'mongo-gui.run' : 'mongo-gui.run-all',
-          null,
-        );
+        editor.trigger('toolbar', COMMAND_ACTIONS[event.command], null);
         return;
       }
       if (event.type !== 'editor:insert') {
@@ -105,8 +116,9 @@ export function MongoshMonaco({
       }
       const selection = editor.getSelection();
       if (selection !== null) {
+        const text = insertionText(editor.getValue(), event.text);
         editor.executeEdits('mongo-gui.insert', [
-          { range: selection, text: event.text, forceMoveMarkers: true },
+          { range: selection, text, forceMoveMarkers: true },
         ]);
       }
       editor.focus();

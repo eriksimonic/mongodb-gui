@@ -33,6 +33,7 @@ import {
   fixtureBuilds,
   fixtureCatalog,
   findDatabase,
+  findMockCollection,
   type MockBuild,
   type MockCollection,
   type MockDatabase,
@@ -51,7 +52,14 @@ import {
 import { createMockShell } from './mock-shell';
 import { delay, fail, method } from './mock-support';
 import { createMockMonitor } from './mock-monitor';
+import {
+  createMockTransfers,
+  MOCK_DIALOG_PATH,
+  mockImportPreview,
+  mockSavePath,
+} from './mock-transfer';
 import { createMockProfiler } from './mock-profiler';
+import { createMockExplain } from './mock-explain';
 import type { UiApi } from './ui-api';
 
 export type MockPreset = 'fresh' | 'unlocked';
@@ -303,6 +311,13 @@ export function createMockUiApi(options: MockUiApiOptions = {}): UiApi {
     emit,
     hasReplication: () => options.replication === true,
   });
+  const transfers = createMockTransfers(
+    emit,
+    (database, collection) =>
+      fixtureCatalog(localConnectionId)
+        .find((item) => item.name === database)
+        ?.collections.find((item) => item.info.name === collection)?.documents.length,
+  );
 
   function statusOf(connectionId: string): ConnectionStatus {
     return state.statuses.get(connectionId) ?? { state: 'disconnected' };
@@ -442,6 +457,8 @@ export function createMockUiApi(options: MockUiApiOptions = {}): UiApi {
     emit,
   });
 
+  const explain = createMockExplain({ wrap: wrapCall, requireUnlocked, requireConnected });
+
   const rpc: RpcClient = {
     updates: {
       state: method(rpcContract.updates.state, latencyMs, () => currentUpdate()),
@@ -467,6 +484,54 @@ export function createMockUiApi(options: MockUiApiOptions = {}): UiApi {
     },
     app: {
       openExternal: method(rpcContract.app.openExternal, latencyMs, () => undefined),
+      showOpenDialog: method(rpcContract.app.showOpenDialog, latencyMs, () => ({
+        path: MOCK_DIALOG_PATH,
+      })),
+      showSaveDialog: method(rpcContract.app.showSaveDialog, latencyMs, ({ filters }) => ({
+        path: mockSavePath(filters[0]?.extensions[0] ?? 'csv'),
+      })),
+      showItemInFolder: method(rpcContract.app.showItemInFolder, latencyMs, ({ path }) => {
+        if (!transfers.wroteFile(path)) {
+          throw fail('VALIDATION', 'Only a file exported in this session can be shown.');
+        }
+      }),
+      // The mock has no disk. The export is accepted and nothing is written.
+      writeExport: method(rpcContract.app.writeExport, latencyMs, () => undefined),
+    },
+    transfer: {
+      previewImport: method(rpcContract.transfer.previewImport, latencyMs, ({ connectionId }) => {
+        requireUnlocked();
+        findConnection(connectionId);
+        return mockImportPreview();
+      }),
+      startImport: method(rpcContract.transfer.startImport, latencyMs, (input) => {
+        requireUnlocked();
+        requireConnected(input.connectionId);
+        const { connectionId, ...request } = input;
+        return { transferId: transfers.startImport(connectionId, request) };
+      }),
+      startExport: method(rpcContract.transfer.startExport, latencyMs, (input) => {
+        requireUnlocked();
+        requireConnected(input.connectionId);
+        const { connectionId, ...request } = input;
+        return { transferId: transfers.startExport(connectionId, request) };
+      }),
+      cancel: method(rpcContract.transfer.cancel, latencyMs, ({ transferId }) => {
+        requireUnlocked();
+        transfers.cancel(transferId);
+      }),
+      status: method(rpcContract.transfer.status, latencyMs, ({ transferId }) => {
+        requireUnlocked();
+        const progress = transfers.status(transferId);
+        if (progress === undefined) {
+          throw fail('VALIDATION', 'The transfer was not found.');
+        }
+        return progress;
+      }),
+      list: method(rpcContract.transfer.list, latencyMs, () => {
+        requireUnlocked();
+        return transfers.list();
+      }),
     },
     vault: {
       status: method(rpcContract.vault.status, latencyMs, () => ({ state: state.vault })),
@@ -688,6 +753,33 @@ export function createMockUiApi(options: MockUiApiOptions = {}): UiApi {
         return { ...state.settings };
       }),
     },
+    schema: {
+      analyse: method(rpcContract.schema.analyse, latencyMs, (input) => {
+        requireUnlocked();
+        requireConnected(input.connectionId);
+        const found = findMockCollection(
+          catalogOf(input.connectionId),
+          input.database,
+          input.collection,
+        );
+        if (found === undefined) {
+          throw fail(
+            'COMMAND_FAILED',
+            'Collection not found',
+            `${input.database}.${input.collection}`,
+          );
+        }
+        const sample = shell.sampleSchema(input);
+        return {
+          database: input.database,
+          collection: input.collection,
+          sampled: sample.sampled,
+          total: found.documents.length,
+          fields: sample.fields,
+          at: new Date().toISOString(),
+        };
+      }),
+    },
     monitor: {
       start: method(rpcContract.monitor.start, latencyMs, ({ connectionId, intervalMs }) => {
         requireUnlocked();
@@ -789,6 +881,7 @@ export function createMockUiApi(options: MockUiApiOptions = {}): UiApi {
       }),
     },
     profiler,
+    explain,
     docker: {
       status: method(rpcContract.docker.status, latencyMs, (): DockerStatus => {
         return state.dockerAvailable

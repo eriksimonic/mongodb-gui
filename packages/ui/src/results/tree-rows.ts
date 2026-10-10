@@ -2,6 +2,8 @@ import {
   bsonTypeOf,
   cellView,
   isPlainObject,
+  objectIdHex,
+  wrapperKey,
   type BsonType,
   type JsonObject,
 } from './result-model';
@@ -100,10 +102,25 @@ export function valueTextOf(value: unknown): string {
   return cellView(value).text;
 }
 
-/** Text copied for "copy value": JSON for objects and arrays, the plain text otherwise. */
+/**
+ * Text copied for "copy value": JSON for documents and arrays. A BSON value, such as an ObjectId or a
+ * Long, copies its mongosh form, not the EJSON wrapper. Other values copy their plain text.
+ */
 export function copyTextOf(value: unknown): string {
-  if (typeof value === 'object' && value !== null) {
+  if (typeof value === 'object' && value !== null && wrapperKey(value) === undefined) {
     return JSON.stringify(value, null, 2) ?? '';
+  }
+  return mongoshFormOf(value);
+}
+
+/** The value as mongosh writes it in a statement, in full. The table cell may shorten it. */
+function mongoshFormOf(value: unknown): string {
+  const hex = objectIdHex(value);
+  if (hex !== undefined) {
+    return `ObjectId("${hex}")`;
+  }
+  if (bsonTypeOf(value) === 'Int64' && isPlainObject(value)) {
+    return `Long("${String(value.$numberLong)}")`;
   }
   return valueTextOf(value);
 }

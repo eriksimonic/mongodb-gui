@@ -16,6 +16,7 @@ import {
   type JsonObject,
 } from '../results/result-model';
 import { withoutPath, withValueAtPath } from '../results/document-path';
+import { EXPORT_FORMATS, exportText, type ExportFormat } from '../results/result-export';
 import {
   appendOutput,
   appendPage,
@@ -242,12 +243,16 @@ export function createEditorActions(access: EditorStoreAccess) {
       return;
     }
     update((state) => setLoadingMore(state, id, true));
-    const batchSize = mode === 'all' ? LOAD_ALL_BATCH : Math.min(tab.batchSize, NEXT_BATCH_LIMIT);
+    // Load all asks for no more than the documents still under the limit, so it stops at the limit.
+    const batchFor = (count: number): number =>
+      mode === 'all'
+        ? Math.min(LOAD_ALL_BATCH, LOAD_ALL_LIMIT - count)
+        : Math.min(tab.batchSize, NEXT_BATCH_LIMIT);
     let loaded = result.documents.length;
     let cursor: string | undefined = result.cursorRequestId;
     let more = true;
-    while (more && cursor !== undefined) {
-      const page = await nextPage(tab.connectionId, cursor, batchSize);
+    while (more && cursor !== undefined && (mode === 'batch' || loaded < LOAD_ALL_LIMIT)) {
+      const page = await nextPage(tab.connectionId, cursor, batchFor(loaded));
       if ('error' in page) {
         update((state) => setTabError(state, id, page.error));
         return;
@@ -262,7 +267,7 @@ export function createEditorActions(access: EditorStoreAccess) {
           cursorRequestId: page.cursorRequestId,
         }),
       );
-      if (mode === 'batch' || loaded >= LOAD_ALL_LIMIT) {
+      if (mode === 'batch') {
         break;
       }
     }
@@ -342,6 +347,30 @@ export function createEditorActions(access: EditorStoreAccess) {
       return readPages(id, 'batch');
     },
 
+    /**
+     * Saves the loaded documents of a tab as a JSON or CSV file. The user picks the file first. The
+     * main process writes it only when no file exists under that name.
+     */
+    async exportResult(id: string, format: ExportFormat): Promise<void> {
+      const result = access.get().editors.tabs[id]?.result;
+      if (result === undefined) {
+        return;
+      }
+      const { extension, name } = EXPORT_FORMATS[format];
+      const picked = await rpc.app.showSaveDialog({
+        title: `Export results as ${name}`,
+        filters: [{ name, extensions: [extension] }],
+        defaultPath: `${result.collection ?? 'results'}.${extension}`,
+      });
+      if (picked.path === undefined) {
+        return;
+      }
+      await rpc.app.writeExport({
+        path: picked.path,
+        content: exportText(result.documents, format),
+      });
+    },
+
     loadAllEditor(id: string): Promise<void> {
       return readPages(id, 'all');
     },
@@ -411,10 +440,29 @@ export function createEditorActions(access: EditorStoreAccess) {
       });
     },
 
-    /** Opens the code on the connection and database in a tab, and runs it. Used by history and favourites. */
+    /**
+     * Runs the code from history or favourites. It goes into a new tab, so the text of the current
+     * tab stays. An empty current tab on the same connection takes the code instead.
+     */
     async rerunStatement(target: CodeTarget): Promise<void> {
-      const id = openEditor({ connectionId: target.connectionId, database: target.database });
-      update((state) => setTabText(state, id, target.code));
+      const state = access.get().editors;
+      const active = state.activeId === undefined ? undefined : state.tabs[state.activeId];
+      let id: string;
+      if (
+        active !== undefined &&
+        active.connectionId === target.connectionId &&
+        active.text.trim() === ''
+      ) {
+        id = active.id;
+        update((current) => setTabDatabase(current, id, target.database));
+      } else {
+        id = openEditor({
+          connectionId: target.connectionId,
+          database: target.database,
+          newTab: true,
+        });
+      }
+      update((current) => setTabText(current, id, target.code));
       await runEditor(id, target.code);
     },
 
@@ -431,15 +479,6 @@ export function createEditorActions(access: EditorStoreAccess) {
       }
       const id = openEditor({ connectionId: target.connectionId, database: target.database });
       update((current) => setTabText(current, id, target.code));
-    },
-
-    /**
-     * Shows the explain plan of the code. Explain is a later phase, so this does nothing yet. The
-     * signature is fixed here so that phase can replace the body.
-     */
-    openExplain(target: CodeTarget): void {
-      void target;
-      return undefined;
     },
 
     restoreEditors,

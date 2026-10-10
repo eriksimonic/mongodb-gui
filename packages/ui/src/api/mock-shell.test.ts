@@ -152,10 +152,10 @@ describe('mock shell', () => {
       position: 10,
     });
     expect(member.items.map((item) => item.text)).toEqual([
-      'find',
-      'findOne',
-      'aggregate',
-      'countDocuments',
+      'db.orders.find',
+      'db.orders.findOne',
+      'db.orders.aggregate',
+      'db.orders.countDocuments',
     ]);
     const root = await api.rpc.shell.complete({
       connectionId: localConnectionId,
@@ -163,7 +163,21 @@ describe('mock shell', () => {
       code: 'db.',
       position: 3,
     });
-    expect(root.items).toContainEqual({ text: 'orders', kind: 'collection' });
+    expect(root.items).toContainEqual({ text: 'db.orders', kind: 'collection' });
+  });
+
+  it('returns whole-line texts that keep the text before the word being completed', async () => {
+    const { api } = connectedApi();
+    await api.rpc.connections.connect({ id: localConnectionId });
+    const code = 'use shop\ndb.orders.fi';
+    const partial = await api.rpc.shell.complete({
+      connectionId: localConnectionId,
+      database: DATABASE,
+      code,
+      position: code.length,
+    });
+    expect(partial.items).toContainEqual({ text: 'db.orders.find', kind: 'method' });
+    expect(partial.items.every((item) => item.text.startsWith('db.orders.'))).toBe(true);
   });
 
   it('samples a schema from the fixture documents', async () => {
@@ -174,10 +188,11 @@ describe('mock shell', () => {
       database: DATABASE,
       collection: COLLECTION,
       size: 100,
+      strategy: 'random',
     });
     expect(schema.sampled).toBe(100);
     const status = schema.fields.find((field) => field.path === 'status');
-    expect(status).toEqual({ path: 'status', types: ['string'], presence: 1 });
+    expect(status).toMatchObject({ path: 'status', types: ['String'], presence: 1 });
     expect(schema.fields.find((field) => field.path === '_id')?.types).toEqual(['ObjectId']);
   });
 

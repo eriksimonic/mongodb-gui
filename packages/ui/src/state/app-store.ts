@@ -2,6 +2,8 @@ import {
   toAppError,
   type AppError,
   type CollectionInfo,
+  type StartExportInput,
+  type StartImportInput,
   type ConnectionProfile,
   type ConnectionProfileInput,
   type ConnectionProfileSummary,
@@ -25,9 +27,17 @@ import {
   EMPTY_MONITOR_VIEW,
   type MonitorView,
 } from './monitor-state';
+import { createExplainActions, type ExplainActions } from '../explain/explain-actions';
+import type { ExplainPanelState } from '../explain/explain-model';
 import { catalogKey, connectionNodeId } from './node-ids';
 import { EMPTY_EDITORS, savedTabsOf, type EditorsState } from './editors';
 import { createEditorActions, type EditorActions } from './editor-actions';
+import {
+  applyTransferProgress,
+  registerTransfer,
+  transfersFromList,
+  type TransfersState,
+} from './transfer-state';
 
 export type VaultState = VaultStatus['state'];
 
@@ -44,6 +54,25 @@ export interface Selection {
   readonly database?: string | undefined;
   readonly collection?: string | undefined;
 }
+
+/**
+ * The import wizard and the export dialog. An import without a collection creates one from the
+ * name the user types in the wizard.
+ */
+export type TransferDialogState =
+  | { readonly kind: 'closed' }
+  | {
+      readonly kind: 'import';
+      readonly connectionId: string;
+      readonly database: string;
+      readonly collection: string | undefined;
+    }
+  | {
+      readonly kind: 'export';
+      readonly connectionId: string;
+      readonly database: string;
+      readonly collection: string;
+    };
 
 export type DialogState =
   | { readonly kind: 'closed' }
@@ -72,11 +101,32 @@ export type ManagementDialog =
       readonly database: string;
       readonly collection: string;
     }
-  | { readonly kind: 'dropDatabase'; readonly connectionId: string; readonly database: string };
+  | { readonly kind: 'dropDatabase'; readonly connectionId: string; readonly database: string }
+  | {
+      readonly kind: 'createIndex';
+      readonly connectionId: string;
+      readonly database: string;
+      readonly collection: string;
+      /** A field to index first. The dialog starts with it in the key builder. */
+      readonly field?: string | undefined;
+    };
+
+/**
+ * A field the validation panel should add a rule for. The panel applies it to its draft when the
+ * target collection matches, then the store clears it.
+ */
+export interface ValidationFieldRequest {
+  readonly connectionId: string;
+  readonly database: string;
+  readonly collection: string;
+  readonly path: string;
+  /** BSON type names the schema report saw at the path. */
+  readonly types: readonly string[];
+}
 
 /** A request to show a collection panel. The shell opens or focuses it, then clears the request. */
 export interface PanelRequest {
-  readonly panel: 'indexes' | 'validation' | 'documents';
+  readonly panel: 'indexes' | 'validation' | 'documents' | 'schema';
   readonly connectionId: string;
   readonly database: string;
   readonly collection: string;
@@ -106,6 +156,7 @@ export interface AppData {
   readonly managerOpen: boolean;
   readonly managementDialog: ManagementDialog | undefined;
   readonly panelRequest: PanelRequest | undefined;
+  readonly validationField: ValidationFieldRequest | undefined;
   /** Counts catalog:changed events. Panels reload when it moves. */
   readonly catalogRevision: number;
   readonly settingsOpen: boolean;
@@ -113,9 +164,16 @@ export interface AppData {
   readonly updates: UpdateState;
   /** Editor tabs, their results and output, and the shell runtime state of each connection. */
   readonly editors: EditorsState;
+  /** Imports and exports this session started, with their latest progress. */
+  readonly transfers: TransfersState;
+  readonly transferDialog: TransferDialogState;
+  /** Explain panels by panel id. A panel is removed when its tab closes. */
+  readonly explainPanels: Readonly<Record<string, ExplainPanelState>>;
+  /** The explain panel the shell should show. `serial` moves on each request, so a repeat counts. */
+  readonly explainFocus: { readonly id: string; readonly serial: number } | undefined;
 }
 
-export interface AppActions extends EditorActions {
+export interface AppActions extends EditorActions, ExplainActions {
   refreshVault(): Promise<void>;
   initialise(password: string): Promise<void>;
   unlock(password: string): Promise<void>;
@@ -149,6 +207,9 @@ export interface AppActions extends EditorActions {
   /** Asks the shell to show a collection panel. */
   requestPanel(request: PanelRequest): void;
   clearPanelRequest(): void;
+  /** Asks the validation panel of a collection to add a rule for a field. */
+  requestValidationField(request: ValidationFieldRequest): void;
+  clearValidationField(): void;
   /** Drops the cached collections of one database. The open tree nodes reload them. */
   refreshDatabase(connectionId: string, database: string): void;
   loadDocker(): Promise<void>;
@@ -166,6 +227,13 @@ export interface AppActions extends EditorActions {
   installUpdate(): Promise<void>;
   dismissUpdate(version: string): Promise<void>;
   applyEvent(event: RpcEvent): void;
+  setTransferDialog(dialog: TransferDialogState): void;
+  /** Starts an import and records it. Resolves with the transfer id. */
+  startTransferImport(input: StartImportInput): Promise<string>;
+  startTransferExport(input: StartExportInput): Promise<string>;
+  cancelTransfer(transferId: string): Promise<void>;
+  /** Replaces the transfers with the list the backend holds, for example after a reload. */
+  refreshTransfers(): Promise<void>;
 }
 
 export type AppState = AppData & AppActions;
@@ -185,8 +253,13 @@ const SESSION_RESET: Pick<
   | 'managerOpen'
   | 'managementDialog'
   | 'panelRequest'
+  | 'validationField'
   | 'settingsOpen'
   | 'editors'
+  | 'transfers'
+  | 'transferDialog'
+  | 'explainPanels'
+  | 'explainFocus'
 > = {
   connections: { state: 'loading' },
   statuses: {},
@@ -200,8 +273,13 @@ const SESSION_RESET: Pick<
   managerOpen: false,
   managementDialog: undefined,
   panelRequest: undefined,
+  validationField: undefined,
   settingsOpen: false,
   editors: EMPTY_EDITORS,
+  transfers: {},
+  transferDialog: { kind: 'closed' },
+  explainPanels: {},
+  explainFocus: undefined,
 };
 
 /** Replaced by the first state the backend reports. */
@@ -307,6 +385,7 @@ export function createAppStore(api: UiApi, initial: Partial<AppData> = {}): AppS
       ...INITIAL_DATA,
       ...initial,
       ...editorActions,
+      ...createExplainActions(rpc, set, get),
 
       async refreshVault() {
         try {
@@ -534,6 +613,14 @@ export function createAppStore(api: UiApi, initial: Partial<AppData> = {}): AppS
         set({ panelRequest: undefined });
       },
 
+      requestValidationField(request) {
+        set({ validationField: request });
+      },
+
+      clearValidationField() {
+        set({ validationField: undefined });
+      },
+
       refreshDatabase(connectionId, database) {
         const key = catalogKey(connectionId, database);
         set((state) => ({
@@ -633,6 +720,47 @@ export function createAppStore(api: UiApi, initial: Partial<AppData> = {}): AppS
         set({ updates: await rpc.updates.dismiss({ version }) });
       },
 
+      setTransferDialog(dialog) {
+        set({ transferDialog: dialog });
+      },
+
+      async startTransferImport(input) {
+        const { transferId } = await rpc.transfer.startImport(input);
+        set((state) => ({
+          transfers: registerTransfer(state.transfers, {
+            transferId,
+            kind: 'import',
+            database: input.database,
+            collection: input.collection,
+            path: input.path,
+          }),
+        }));
+        return transferId;
+      },
+
+      async startTransferExport(input) {
+        const { transferId } = await rpc.transfer.startExport(input);
+        set((state) => ({
+          transfers: registerTransfer(state.transfers, {
+            transferId,
+            kind: 'export',
+            database: input.database,
+            collection: input.collection,
+            path: input.path,
+          }),
+        }));
+        return transferId;
+      },
+
+      async cancelTransfer(transferId) {
+        await rpc.transfer.cancel({ transferId });
+      },
+
+      async refreshTransfers() {
+        const list = await rpc.transfer.list();
+        set({ transfers: transfersFromList(list) });
+      },
+
       applyEvent(event) {
         if (event.type === 'shell:print') {
           editorActions.printLine(event.requestId, event.text);
@@ -649,6 +777,15 @@ export function createAppStore(api: UiApi, initial: Partial<AppData> = {}): AppS
         if (event.type === 'vault:locked') {
           clearSession();
           set({ vault: 'locked' });
+          return;
+        }
+        if (event.type === 'transfer:progress') {
+          // Events after the vault locked belong to transfers that the lock has already cancelled.
+          if (get().vault === 'unlocked') {
+            set((state) => ({
+              transfers: applyTransferProgress(state.transfers, event),
+            }));
+          }
           return;
         }
         if (event.type === 'catalog:changed') {

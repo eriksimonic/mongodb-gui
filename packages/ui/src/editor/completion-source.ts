@@ -66,14 +66,17 @@ export function createCompletionSource(options: CompletionSourceOptions): Comple
       }
       const database = options.database();
       const context = completionContext(code, offset);
+      const fieldsApply = context.collection !== undefined && !context.memberOfCollection;
       const [runtime, fields] = await Promise.all([
         options.rpc.shell
           .complete({ connectionId: options.connectionId, database, code, position: offset })
-          .then((response) => runtimeCompletions(response.items))
+          .then((response) => runtimeCompletions(response.items, context.head))
           .catch((): EditorCompletion[] => []),
-        context.collection === undefined
-          ? Promise.resolve<EditorCompletion[]>([])
-          : sampleOf(database, context.collection).then(fieldCompletions),
+        fieldsApply
+          ? sampleOf(database, context.collection ?? '').then((sample) =>
+              fieldCompletions(sample, context.objectKey),
+            )
+          : Promise.resolve<EditorCompletion[]>([]),
       ]);
       return signal.aborted ? [] : [...runtime, ...fields];
     },

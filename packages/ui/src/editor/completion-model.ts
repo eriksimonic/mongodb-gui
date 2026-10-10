@@ -10,6 +10,8 @@ export interface EditorCompletion {
   readonly doc?: string | undefined;
   /** Lower sorts first. Items from the runtime come before the static lists. */
   readonly rank: number;
+  /** The text inserted in place of the prefix. Defaults to the label. */
+  readonly insertText?: string | undefined;
 }
 
 export interface CompletionContext {
@@ -17,19 +19,33 @@ export interface CompletionContext {
   readonly prefix: string;
   /** The collection of the nearest `db.<name>` in the same statement, when there is one. */
   readonly collection: string | undefined;
+  /** The text of the line before the prefix. Runtime completion texts start with it. */
+  readonly head: string;
+  /** The cursor sits right after `db.<name>.`, where only the collection's methods apply. */
+  readonly memberOfCollection: boolean;
+  /** The cursor sits where an object key starts, after `{` or `,`. Operators and quoted keys apply here. */
+  readonly objectKey: boolean;
 }
 
 const WORD_BEFORE = /[A-Za-z0-9_$]*$/;
 const COLLECTION_REF = /\bdb\.([A-Za-z_][A-Za-z0-9_]*)\b/g;
 
-/** The word before the cursor and the collection the statement names. */
+/** The word before the cursor, the line text before that word, and the collection the statement names. */
 export function completionContext(code: string, offset: number): CompletionContext {
-  const before = code.slice(0, offset);
-  const prefix = WORD_BEFORE.exec(before)?.[0] ?? '';
+  const lineStart = offset > 0 ? code.lastIndexOf('\n', offset - 1) + 1 : 0;
+  const lineBefore = code.slice(lineStart, offset);
+  const prefix = WORD_BEFORE.exec(lineBefore)?.[0] ?? '';
+  const head = lineBefore.slice(0, lineBefore.length - prefix.length);
   const statement = statementAt(code, offset);
   const scope =
     statement === undefined ? '' : code.slice(statement.start, Math.min(offset, statement.end));
-  return { prefix, collection: lastCollection(scope) };
+  return {
+    prefix,
+    collection: lastCollection(scope),
+    head,
+    memberOfCollection: /\bdb\.[A-Za-z_][A-Za-z0-9_]*\.$/.test(head),
+    objectKey: /[{,]\s*$/.test(head),
+  };
 }
 
 /** The collection named by the last `db.<name>` in the text, skipping the database's own methods. */
@@ -61,18 +77,28 @@ const DATABASE_MEMBERS = new Set([
   'version',
 ]);
 
-/** Field completions from a sample. Dotted paths keep their dots, and array elements are not split. */
-export function fieldCompletions(fields: readonly SchemaField[]): EditorCompletion[] {
+/**
+ * Field completions from a sample. Dotted paths keep their dots, and array elements are not split.
+ * In an object key a dotted path is quoted, because `a.b` as a bare key is not valid JavaScript.
+ */
+export function fieldCompletions(
+  fields: readonly SchemaField[],
+  objectKey = false,
+): EditorCompletion[] {
   return fields.map((field) => ({
     label: field.path,
     kind: 'property',
     detail: field.types.join(' | '),
     doc: `Present in ${Math.round(field.presence * 100)} percent of the sampled documents.`,
     rank: 2,
+    ...(objectKey && field.path.includes('.') ? { insertText: `"${field.path}"` } : {}),
   }));
 }
 
-/** Operator completions. They match a prefix that starts with `$`, and every operator matches an empty prefix. */
+/**
+ * Operator completions. They match a prefix that starts with `$`, and they appear where an object
+ * key starts. Elsewhere they are noise.
+ */
 export function operatorCompletions(): EditorCompletion[] {
   return QUERY_OPERATORS.map((operator) => ({
     label: operator.name,
@@ -82,9 +108,31 @@ export function operatorCompletions(): EditorCompletion[] {
   }));
 }
 
-/** Items the runtime returned, in their own order. */
-export function runtimeCompletions(items: readonly CompletionItem[]): EditorCompletion[] {
-  return items.map((item) => ({ label: item.text, kind: item.kind, rank: 1 }));
+/** The operators that fit the cursor: all of them after a `$`, and in an object key. */
+export function operatorsFor(context: CompletionContext): EditorCompletion[] {
+  return context.prefix.startsWith('$') || context.objectKey ? operatorCompletions() : [];
+}
+
+/**
+ * Runtime completions turned into the part to insert. The runtime returns whole-line texts, such as
+ * `db.orders.find` for `db.orders.fi`. The part after `head` is the completion. Texts that do not
+ * start with `head` belong to another position, so they are dropped.
+ */
+export function runtimeCompletions(
+  items: readonly CompletionItem[],
+  head: string,
+): EditorCompletion[] {
+  const result: EditorCompletion[] = [];
+  for (const item of items) {
+    if (!item.text.startsWith(head)) {
+      continue;
+    }
+    const label = item.text.slice(head.length);
+    if (label.length > 0) {
+      result.push({ label, kind: item.kind, rank: 1 });
+    }
+  }
+  return result;
 }
 
 /**
