@@ -125,4 +125,74 @@ describe('BackupDialog', () => {
     fireEvent.click(checkbox);
     expect(screen.getByRole('button', { name: 'Start backup' })).toBeEnabled();
   });
+
+  it('keeps Start disabled until the selected scope has been described', async () => {
+    const api = createMockUiApi({ preset: 'unlocked' });
+    await api.rpc.connections.connect({ id: localConnectionId });
+    const real = api.rpc.backup.describeServer.bind(api.rpc.backup);
+    vi.spyOn(api.rpc.backup, 'describeServer').mockImplementation((input) =>
+      input.scope === undefined ? real(input) : new Promise(() => undefined),
+    );
+    renderWithApp(
+      <BackupDialogBody
+        connectionId={localConnectionId}
+        database="shop"
+        onClose={() => undefined}
+      />,
+      { api },
+    );
+    await chooseFolder();
+    expect(screen.getByRole('button', { name: 'Start backup' })).toBeDisabled();
+  });
+
+  it('keeps Start disabled and shows the error when the scope cannot be described', async () => {
+    const api = createMockUiApi({ preset: 'unlocked' });
+    await api.rpc.connections.connect({ id: localConnectionId });
+    const real = api.rpc.backup.describeServer.bind(api.rpc.backup);
+    vi.spyOn(api.rpc.backup, 'describeServer').mockImplementation((input) =>
+      input.scope === undefined ? real(input) : Promise.reject(new Error('listCollections failed')),
+    );
+    renderWithApp(
+      <BackupDialogBody
+        connectionId={localConnectionId}
+        database="shop"
+        onClose={() => undefined}
+      />,
+      { api },
+    );
+    await chooseFolder();
+    await screen.findByText(/listCollections failed/);
+    expect(screen.getByRole('button', { name: 'Start backup' })).toBeDisabled();
+  });
+
+  it('drops exclude prefixes once the scope is the whole server', async () => {
+    const api = await renderDialog();
+    const spy = vi.spyOn(api.rpc.backup, 'start');
+    const prefixes = screen.getByRole('textbox', { name: 'Exclude prefixes' });
+    fireEvent.change(prefixes, { target: { value: 'tmp_' } });
+    fireEvent.keyDown(prefixes, { key: 'Enter' });
+    expect(screen.getByText('tmp_')).toBeInTheDocument();
+    fireEvent.keyDown(screen.getByRole('textbox', { name: 'Databases' }), { key: 'Backspace' });
+    await waitFor(() =>
+      expect(screen.queryByRole('textbox', { name: 'Exclude prefixes' })).toBeNull(),
+    );
+    await chooseFolder();
+    await waitFor(() => expect(screen.getByRole('button', { name: 'Start backup' })).toBeEnabled());
+    fireEvent.click(screen.getByRole('button', { name: 'Start backup' }));
+    await waitFor(() => expect(spy).toHaveBeenCalled());
+    expect(spy).toHaveBeenCalledWith(
+      expect.objectContaining({
+        scope: { kind: 'server' },
+        options: expect.not.objectContaining({ excludeCollectionsWithPrefix: ['tmp_'] }),
+      }),
+    );
+  });
+
+  it('drops the query once the target is no longer a collection', async () => {
+    await renderDialog({ database: 'shop', collection: 'orders' });
+    fireEvent.change(screen.getByLabelText('Query'), { target: { value: '{"status": "paid"}' } });
+    fireEvent.click(screen.getByRole('radio', { name: 'Server or databases' }));
+    await chooseFolder();
+    await waitFor(() => expect(screen.getByRole('button', { name: 'Start backup' })).toBeEnabled());
+  });
 });

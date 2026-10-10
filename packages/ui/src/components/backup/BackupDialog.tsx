@@ -100,6 +100,11 @@ interface Answer {
   readonly info: BackupServerInfo;
 }
 
+interface Failure {
+  readonly key: string;
+  readonly message: string;
+}
+
 function fieldError(problems: readonly BackupProblem[], field: string): string | undefined {
   return problems.find((problem) => problem.field === field)?.message;
 }
@@ -137,6 +142,7 @@ export function BackupDialogBody({
   const [base, setBase] = useState<BackupServerInfo | undefined>(undefined);
   // Each answer is kept with the key it was asked for, so a stale one is ignored.
   const [scopedAnswer, setScopedAnswer] = useState<Answer | undefined>(undefined);
+  const [scopedFailure, setScopedFailure] = useState<Failure | undefined>(undefined);
   const [firstAnswer, setFirstAnswer] = useState<Answer | undefined>(undefined);
   const [acknowledged, setAcknowledged] = useState<readonly FindingCode[]>([]);
   const [confirmation, setConfirmation] = useState('');
@@ -188,7 +194,7 @@ export function BackupDialogBody({
       },
       (failure: unknown) => {
         if (active) {
-          setLoadProblem(errorText(failure));
+          setScopedFailure({ key: scopeKey, message: errorText(failure) });
         }
       },
     );
@@ -222,6 +228,12 @@ export function BackupDialogBody({
 
   const scoped =
     scopedAnswer !== undefined && scopedAnswer.key === scopeKey ? scopedAnswer.info : undefined;
+  const scopeFailure = scopedFailure?.key === scopeKey ? scopedFailure.message : undefined;
+  // The unscoped answer lists no collections, so findings about them wait for the scoped one.
+  const scopePending =
+    scope !== undefined && scoped === undefined
+      ? (scopeFailure ?? 'Checking the selected databases and collections…')
+      : undefined;
   const firstDatabase =
     firstAnswer !== undefined && firstAnswer.key === firstName ? firstAnswer.info : undefined;
   const server = scoped ?? base;
@@ -245,13 +257,19 @@ export function BackupDialogBody({
       : undefined;
   const noOplog = oplogReason !== undefined;
   const noUsers = usersReason !== undefined;
+  // The exclude fields and the query are hidden for other scopes. The draft keeps their values
+  // in case the user switches back, but they are not sent.
+  const collectionTarget = draft.target === 'collection';
   const effective = useMemo<BackupDraft>(
     () => ({
       ...draft,
       oplog: draft.oplog && !noOplog,
       dumpDbUsersAndRoles: draft.dumpDbUsersAndRoles && !noUsers,
+      excludeCollections: databaseScope ? draft.excludeCollections : [],
+      excludePrefixes: databaseScope ? draft.excludePrefixes : [],
+      query: collectionTarget ? draft.query : '',
     }),
-    [draft, noOplog, noUsers],
+    [draft, noOplog, noUsers, databaseScope, collectionTarget],
   );
 
   const problems = useMemo(() => {
@@ -268,7 +286,7 @@ export function BackupDialogBody({
         ? []
         : assessBackup({
             server,
-            namespaces: server.namespaces,
+            namespaces: scoped?.namespaces ?? [],
             tools: {
               selected: draft.toolsVersion,
               installed: (tools?.installs ?? [])
@@ -277,10 +295,10 @@ export function BackupDialogBody({
               available,
             },
           }),
-    [server, draft.toolsVersion, tools, available],
+    [server, scoped, draft.toolsVersion, tools, available],
   );
   const unresolved = unresolvedFindings(findings, acknowledged, confirmation, connectionName);
-  const blocker = problems[0]?.message ?? unresolved[0]?.message;
+  const blocker = problems[0]?.message ?? scopePending ?? unresolved[0]?.message;
 
   function patch(next: Partial<BackupDraft>) {
     setDraft((current) => {
@@ -613,6 +631,11 @@ export function BackupDialogBody({
       {loadProblem === undefined ? null : (
         <Alert color="red" role="alert">
           {loadProblem}
+        </Alert>
+      )}
+      {scopeFailure === undefined ? null : (
+        <Alert color="red" role="alert">
+          {scopeFailure}
         </Alert>
       )}
       {job.problem === undefined ? null : (
