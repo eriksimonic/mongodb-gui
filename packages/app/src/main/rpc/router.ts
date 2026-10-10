@@ -1,7 +1,8 @@
 import { existsSync, mkdirSync, readFileSync, realpathSync, statSync } from 'node:fs';
 import { exportTargetProblem, replaceFile } from './export-file';
-import { dirname, join, resolve } from 'node:path';
+import { basename, dirname, join, resolve } from 'node:path';
 import { randomUUID } from 'node:crypto';
+import { spawn as nodeSpawn } from 'node:child_process';
 import {
   AppErrorException,
   CHANGE_EVENT_BATCH_LIMIT,
@@ -60,6 +61,11 @@ import {
   type UserInfo,
   directConnectionName,
   directUriFor,
+  type BackupInspection,
+  type BackupScope,
+  type BackupServerInfo,
+  type ToolsPlatform,
+  type ToolsPreference,
 } from '@mongo-gui/core';
 import {
   ConnectionManager,
@@ -162,6 +168,8 @@ import {
   startBalancer,
   stopBalancer,
   updateZoneKeyRange,
+  readArchivePrelude,
+  readBackupServerInfo,
 } from '@mongo-gui/mongo-adapter';
 import {
   createDockerEngineClient,
@@ -201,6 +209,15 @@ import {
 import { createTransferService, type TransferAdapter } from './transfer-service';
 import { createGenerateService } from './generate-service';
 import { createReplicationPlans } from './replication-plans';
+import { createBackupService, type BackupService } from '../backup/backup-service';
+import { resolveToolsEndpoint, type ToolsEndpointDocker } from '../backup/endpoint';
+import { inspectBackup } from '../backup/inspect';
+import { sweepTempConfigs } from '../backup/temp-config';
+import { createToolsDownloads, type ToolsDownloads } from '../tools/download-service';
+import { createFeedClient, type FeedClient } from '../tools/feed-client';
+import { toolsRoots } from '../tools/paths';
+import type { SpawnFn } from '../tools/probe';
+import { createToolsRegistry, type ToolsRegistry } from '../tools/registry';
 
 /** Native file dialogs and the shell reveal. The main window's dialogs live in index.ts. */
 export interface NativeDialogs {
@@ -287,6 +304,30 @@ export interface RouterDeps {
   readonly transferAdapter?: TransferAdapter;
   /** Opens a change watch. Tests inject a fake watch. Defaults to the adapter. */
   readonly openWatch?: typeof openChangeWatch;
+  /**
+   * Builds the backup and tools services for this router. Without it the backup and tools calls
+   * fail with INTERNAL. Tests pass fakes.
+   */
+  readonly backupTools?: (wiring: BackupToolsWiring) => BackupTools;
+}
+
+/** What the router gives the backup services: its event sink and its folder pick check. */
+export interface BackupToolsWiring {
+  readonly emit: (event: RpcEvent) => void;
+  /** True when the folder, by its real location, was picked in a folder dialog this session. */
+  readonly isPickedFolder: (folder: string) => boolean;
+}
+
+/** The backup and tools services the router calls. */
+export interface BackupTools {
+  readonly registry: Pick<ToolsRegistry, 'list' | 'remove' | 'licence'>;
+  readonly feed: Pick<FeedClient, 'available'>;
+  readonly downloads: ToolsDownloads;
+  readonly backups: BackupService;
+  /** Reads the server facts the backup dialog shows. */
+  readonly describeServer: (client: DriverClient, scope?: BackupScope) => Promise<BackupServerInfo>;
+  /** Describes an archive or a dump folder. */
+  readonly inspect: (path: string) => Promise<BackupInspection>;
 }
 
 /** The driver client type, named without importing the driver into the main process. */
@@ -380,6 +421,23 @@ export interface AppServicesOptions {
   /** Engine socket for docker support. Tests point it at a missing socket to stay off the host engine. */
   readonly dockerSocketPath?: string;
   readonly updates?: UpdatesRuntime;
+  /** Where the MongoDB tools live and how they run. Without it the backup and tools calls fail. */
+  readonly tools?: ToolsRuntime;
+}
+
+/** What the backup and tools services need from Electron. The tools folders sit under userDataDir. */
+export interface ToolsRuntime {
+  readonly isPackaged: boolean;
+  /** process.resourcesPath, which holds the bundled tools in a packaged app. */
+  readonly resourcesPath: string;
+  /** The packages/app folder, which holds the bundled tools in development. */
+  readonly appRoot: string;
+  /** Recorded in each backup's sidecar. */
+  readonly appVersion: string;
+  /** Electron net.fetch, so the system proxy applies to feed and tools downloads. */
+  readonly fetchImpl: typeof fetch;
+  /** Defaults to child_process.spawn. */
+  readonly spawn?: SpawnFn;
 }
 
 export type AppServices = Omit<RouterDeps, 'onEvent' | 'docker' | 'updates'> & {
@@ -411,6 +469,8 @@ type CatalogScope = Omit<Extract<RpcEvent, { type: 'catalog:changed' }>, 'type' 
 const KEYRING_DIR_MODE = 0o700;
 const MS_PER_MINUTE = 60_000;
 const STORE_FILE_NAME = 'store.sqlite';
+// The sidecar inside a dump folder. A picked one stands for its folder.
+const DIRECTORY_SIDECAR_NAME = 'mongo-gui-backup.json';
 // The server's default secondary catch-up period, in seconds.
 const DEFAULT_CATCH_UP_SECONDS = 10;
 
@@ -962,6 +1022,53 @@ export function createRouter(deps: RouterDeps): Router {
   const folderPicks = new Set<string>();
   // Files picked in an open dialog: an upload or an import reads only these, one use each.
   const openedFiles = new Set<string>();
+  // Backup sources inspected this session: a restore reads only these.
+  const inspectedSources = new Set<string>();
+
+  /** The real location of a folder picked this session, or undefined when it was not picked. */
+  const pickedFolder = (folder: string): string | undefined => {
+    const real = realFolder(resolveRequestPath(folder));
+    return real !== undefined && folderPicks.has(real) ? real : undefined;
+  };
+
+  const backupTools = deps.backupTools?.({
+    emit: deps.onEvent,
+    isPickedFolder: (folder) => pickedFolder(folder) !== undefined,
+  });
+  const tools = (): BackupTools => {
+    if (backupTools === undefined) {
+      throw new AppErrorException(appError('INTERNAL', 'Backup and restore are not available.'));
+    }
+    return backupTools;
+  };
+
+  /**
+   * The source a backup.inspect call may read: an archive picked in an open dialog (a picked
+   * sidecar stands for its archive or dump folder), or a folder picked in a folder dialog.
+   */
+  const inspectableSource = (path: string): string => {
+    const file = resolveRequestPath(path);
+    if (openedFiles.has(file)) {
+      if (basename(file) === DIRECTORY_SIDECAR_NAME) {
+        return dirname(file);
+      }
+      return file.endsWith('.json') ? file.slice(0, -'.json'.length) : file;
+    }
+    const folder = pickedFolder(file);
+    if (folder !== undefined && isDirectory(folder)) {
+      return folder;
+    }
+    throw new AppErrorException(appError('VALIDATION', 'Choose the backup in a dialog first.'));
+  };
+
+  /** The saved tools version, or 'auto' while the vault is locked. */
+  const toolsPreference = (): ToolsPreference => {
+    try {
+      return repos().settings.get().mongoToolsVersion;
+    } catch {
+      return 'auto';
+    }
+  };
 
   const dialogs = (): NativeDialogs => {
     if (deps.dialogs === undefined) {
@@ -1420,17 +1527,61 @@ export function createRouter(deps: RouterDeps): Router {
       generate.cancel(input.jobId);
     }),
 
-    entry('backup.describeServer', rpcContract.backup.describeServer, notWired),
-    entry('backup.start', rpcContract.backup.start, notWired),
-    entry('backup.inspect', rpcContract.backup.inspect, notWired),
-    entry('backup.startRestore', rpcContract.backup.startRestore, notWired),
-    entry('backup.cancel', rpcContract.backup.cancel, notWired),
-    entry('tools.list', rpcContract.tools.list, notWired),
-    entry('tools.available', rpcContract.tools.available, notWired),
-    entry('tools.download', rpcContract.tools.download, notWired),
-    entry('tools.cancelDownload', rpcContract.tools.cancelDownload, notWired),
-    entry('tools.remove', rpcContract.tools.remove, notWired),
-    entry('tools.licence', rpcContract.tools.licence, notWired),
+    entry('backup.describeServer', rpcContract.backup.describeServer, (input) => {
+      requireConnectionProfile(input.connectionId);
+      const { describeServer } = tools();
+      return driverCall(() =>
+        describeServer(deps.connections.getClient(input.connectionId), input.scope),
+      );
+    }),
+    entry('backup.start', rpcContract.backup.start, async (input) => {
+      requireConnectionProfile(input.connectionId);
+      const folder = pickedFolder(input.folder);
+      if (folder === undefined) {
+        throw new AppErrorException(
+          appError('VALIDATION', 'Choose the backup folder in a dialog first.'),
+        );
+      }
+      // The service writes into the real folder, so the kernel writes where the check looked.
+      return { jobId: await tools().backups.startDump({ ...input, folder }) };
+    }),
+    entry('backup.inspect', rpcContract.backup.inspect, async (input) => {
+      const source = inspectableSource(input.path);
+      const inspection = await tools().inspect(source);
+      inspectedSources.add(source);
+      inspectedSources.add(inspection.path);
+      return inspection;
+    }),
+    entry('backup.startRestore', rpcContract.backup.startRestore, async (input) => {
+      requireConnectionProfile(input.connectionId);
+      const source = resolveRequestPath(input.source);
+      if (!inspectedSources.has(source)) {
+        throw new AppErrorException(appError('VALIDATION', 'Open the backup in a dialog first.'));
+      }
+      return { jobId: await tools().backups.startRestore({ ...input, source }) };
+    }),
+    entry('backup.cancel', rpcContract.backup.cancel, (input) => {
+      tools().backups.cancel(input.jobId);
+    }),
+    entry('tools.list', rpcContract.tools.list, () => tools().registry.list(toolsPreference())),
+    entry('tools.available', rpcContract.tools.available, async (input) => {
+      const { registry, feed } = tools();
+      const listed = await registry.list('auto');
+      const installed = listed.installs
+        .filter((install) => install.health.state === 'ok')
+        .map((install) => install.version);
+      return feed.available(installed, input.refresh);
+    }),
+    entry('tools.download', rpcContract.tools.download, (input) =>
+      tools().downloads.start(input.version),
+    ),
+    entry('tools.cancelDownload', rpcContract.tools.cancelDownload, (input) => {
+      tools().downloads.cancel(input.downloadId);
+    }),
+    entry('tools.remove', rpcContract.tools.remove, (input) => tools().registry.remove(input.id)),
+    entry('tools.licence', rpcContract.tools.licence, (input) =>
+      tools().registry.licence(input.id),
+    ),
 
     entry('gridfs.listBuckets', rpcContract.gridfs.listBuckets, (input) =>
       driverCall(() => listBuckets(deps.connections.getClient(input.connectionId), input)),
@@ -1525,8 +1676,9 @@ export function createRouter(deps: RouterDeps): Router {
       replaceFile(input.path, input.content);
     }),
     entry('app.showItemInFolder', rpcContract.app.showItemInFolder, (input) => {
-      // Only a file this session exported is revealed, so the renderer cannot open arbitrary paths.
-      if (!transfers.wroteFile(input.path)) {
+      // Only a file this session exported or backed up is revealed, so the renderer cannot open
+      // arbitrary paths.
+      if (!transfers.wroteFile(input.path) && backupTools?.backups.wroteFile(input.path) !== true) {
         throw new AppErrorException(
           appError('VALIDATION', 'Only a file exported in this session can be shown.'),
         );
@@ -1549,6 +1701,12 @@ export function createRouter(deps: RouterDeps): Router {
   // Generate jobs end with the page that started them, as transfers do.
   rendererResets.add(() => {
     generate.cancelAll();
+  });
+  // Backups, restores and tools downloads end with the page too, and a new page inspects again.
+  rendererResets.add(() => {
+    inspectedSources.clear();
+    backupTools?.backups.cancelAll();
+    backupTools?.downloads.cancelAll();
   });
 
   const monitor = createMonitorService({
@@ -1581,6 +1739,7 @@ export function createRouter(deps: RouterDeps): Router {
     if (status.state !== 'connected') {
       transfers.cancelConnection(connectionId);
       generate.cancelConnection(connectionId);
+      backupTools?.backups.cancelConnection(connectionId);
     }
     // A runtime serves only an open connection, so any other state ends its process.
     if (status.state !== 'connected') {
@@ -1602,6 +1761,8 @@ export function createRouter(deps: RouterDeps): Router {
     stopChangeWatches(() => true);
     monitor.stopAll();
     transfers.cancelAll();
+    // A job reads its connection profile from the store, so a lock ends it. Downloads go on.
+    backupTools?.backups.cancelAll();
     void deps.connections.disconnectAll();
     void deps.shell?.stopAll();
     deps.docker?.suspend();
@@ -1829,6 +1990,15 @@ export function createAppServices(options: AppServicesOptions): AppServices {
     log,
   });
   const updates = createUpdatesService(options.updates, () => handles);
+  const backupTools =
+    options.tools === undefined
+      ? undefined
+      : createBackupToolsFactory(options.tools, {
+          userDataDir: options.userDataDir,
+          connections,
+          repos: () => handles.repos,
+          docker,
+        });
 
   return {
     vault,
@@ -1861,12 +2031,128 @@ export function createAppServices(options: AppServicesOptions): AppServices {
       },
     },
     updates,
+    ...(backupTools === undefined ? {} : { backupTools: backupTools.build }),
     async dispose() {
       shell.dispose();
       updates.stop();
+      // The tools run against open connections, so they stop before the disconnect.
+      await backupTools?.dispose();
       await connections.disconnectAll();
       await docker.dispose();
       handles.store.close();
+    },
+  };
+}
+
+/** The backup services builder for createRouter, and the cleanup for what it built. */
+interface BackupToolsFactory {
+  readonly build: (wiring: BackupToolsWiring) => BackupTools;
+  dispose(): Promise<void>;
+}
+
+/**
+ * Builds the tools registry and the feed client now, and removes what an earlier run left behind.
+ * The downloads and the backup service need the router's event sink, so `build` makes them.
+ */
+function createBackupToolsFactory(
+  runtime: ToolsRuntime,
+  deps: {
+    readonly userDataDir: string;
+    readonly connections: ConnectionManager;
+    readonly repos: () => RouterRepos;
+    readonly docker: DockerRuntime;
+  },
+): BackupToolsFactory {
+  const { platform, arch } = process;
+  const roots = toolsRoots({
+    isPackaged: runtime.isPackaged,
+    resourcesPath: runtime.resourcesPath,
+    appRoot: runtime.appRoot,
+    userDataDir: deps.userDataDir,
+    platform,
+    arch,
+  });
+  const spawn = runtime.spawn ?? nodeSpawn;
+  const toolsPlatform: ToolsPlatform = {
+    os: platform === 'win32' || platform === 'darwin' ? platform : 'linux',
+    arch: arch === 'arm64' ? 'arm64' : 'x64',
+  };
+  const now = (): Date => new Date();
+  const registry = createToolsRegistry({ roots, spawn, platform, arch });
+  const feed = createFeedClient({ fetchImpl: runtime.fetchImpl, now, platform: toolsPlatform });
+  // No job can start before the vault unlocks, so every leftover found here is stale.
+  void registry.sweep().catch((error: unknown) => {
+    log.warn('tools sweep failed', { error: error instanceof Error ? error.message : 'unknown' });
+  });
+  void sweepTempConfigs(roots.tmp);
+
+  const dockerSummary = async (
+    profile: ConnectionProfile,
+  ): Promise<ToolsEndpointDocker | undefined> => {
+    const container = (await deps.docker.list()).find(
+      (candidate) => candidate.id === profile.dockerContainerId,
+    );
+    return container === undefined
+      ? undefined
+      : { containerName: container.name, image: container.image };
+  };
+  const inspect = (path: string): Promise<BackupInspection> =>
+    inspectBackup(path, { readPrelude: readArchivePrelude });
+  const built: BackupTools[] = [];
+
+  return {
+    build(wiring) {
+      const downloads = createToolsDownloads({
+        feed,
+        registry,
+        fetchImpl: runtime.fetchImpl,
+        emit: wiring.emit,
+        roots,
+        platform: toolsPlatform,
+        now,
+        spawn,
+      });
+      const backups = createBackupService({
+        registry,
+        getClient: (connectionId) => deps.connections.getClient(connectionId),
+        endpoint: (connectionId, overrides) =>
+          resolveToolsEndpoint(
+            {
+              status: (id) => deps.connections.status(id),
+              getProfile: (id) => deps.repos().connections.get(id),
+              dockerSummary,
+            },
+            connectionId,
+            overrides,
+          ),
+        readServerInfo: readBackupServerInfo,
+        inspect,
+        spawn,
+        emit: wiring.emit,
+        now: () => Date.now(),
+        tmpRoot: roots.tmp,
+        appVersion: runtime.appVersion,
+        platform,
+        arch,
+        isPickedFolder: wiring.isPickedFolder,
+        log,
+      });
+      const services: BackupTools = {
+        registry,
+        feed,
+        downloads,
+        backups,
+        describeServer: readBackupServerInfo,
+        inspect,
+      };
+      built.push(services);
+      return services;
+    },
+    async dispose() {
+      for (const services of built) {
+        services.downloads.cancelAll();
+      }
+      await Promise.all(built.map((services) => services.backups.dispose()));
     },
   };
 }
@@ -2251,11 +2537,6 @@ function withEjsonCustomData(user: UserInfo): UserInfo {
   const { customData, ...rest } = user;
   const canonical = toCanonicalEjson(customData);
   return canonical === undefined ? rest : { ...rest, customData: canonical };
-}
-
-/** Placeholder for the backup and restore calls until the services are wired in. */
-function notWired(): never {
-  throw new AppErrorException(appError('INTERNAL', 'Backup and restore are not wired yet.'));
 }
 
 function failure(error: AppError): RpcResult {

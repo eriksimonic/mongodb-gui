@@ -2,6 +2,7 @@ import {
   app,
   BrowserWindow,
   dialog,
+  net,
   screen,
   session,
   shell,
@@ -351,6 +352,15 @@ app
         platform: process.platform,
         isPackaged: app.isPackaged,
         appVersion: app.getVersion(),
+      },
+      tools: {
+        isPackaged: app.isPackaged,
+        resourcesPath: process.resourcesPath,
+        // The packages/app folder in development, which holds the fetched tools.
+        appRoot: app.getAppPath(),
+        appVersion: app.getVersion(),
+        // net.fetch goes through the system proxy, as the updater does.
+        fetchImpl: (input, init) => net.fetch(input instanceof URL ? input.href : input, init),
       },
     });
     services = appServices;
