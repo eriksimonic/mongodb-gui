@@ -1,4 +1,4 @@
-import { ActionIcon, Button, Group, Stack, Text, TextInput, Tooltip } from '@mantine/core';
+import { ActionIcon, Box, Button, Group, Stack, Text, TextInput, Tooltip } from '@mantine/core';
 import { notifications } from '@mantine/notifications';
 import { IconChevronDown, IconChevronUp, IconCopy } from '@tabler/icons-react';
 import { useEffect, useMemo, useRef, useState, type KeyboardEvent } from 'react';
@@ -6,12 +6,18 @@ import { notifyError } from '../components/notify-error';
 import { JsonEditor, type JsonEditorHandle } from '../editor/JsonEditor';
 import { findTextMatches, nextMatchIndex, previousMatchIndex, type TextSpan } from './stage-view';
 
+/** The editor never gets shorter than this, so a short panel scrolls instead of squashing it. */
+const MIN_EDITOR_HEIGHT_PX = 240;
+
 export interface ExplainRawProps {
   /** The server's explain document as canonical EJSON. Copied and searched as it is. */
   readonly text: string;
 }
 
-/** The raw explain document with search, next and previous match, folding and copy. */
+/**
+ * The raw explain document with search, next and previous match, folding and copy. The editor
+ * takes the height its panel leaves after the search row, with a floor for a short panel.
+ */
 export function ExplainRaw({ text }: ExplainRawProps) {
   const [query, setQuery] = useState('');
   const [current, setCurrent] = useState(0);
@@ -53,7 +59,7 @@ export function ExplainRaw({ text }: ExplainRawProps) {
 
   const hasQuery = query !== '';
   return (
-    <Stack gap="xs">
+    <Stack gap="xs" style={{ flex: 1, minHeight: 0 }}>
       <Group gap="xs" wrap="nowrap" align="flex-end">
         <TextInput
           size="xs"
@@ -105,15 +111,17 @@ export function ExplainRaw({ text }: ExplainRawProps) {
           Copy
         </Button>
       </Group>
-      <JsonEditor
-        label="Raw explain output"
-        readOnly
-        height={360}
-        value={text}
-        onEditorReady={(editorHandle) => {
-          handle.current = editorHandle;
-        }}
-      />
+      <Box style={{ flex: 1, minHeight: MIN_EDITOR_HEIGHT_PX }}>
+        <JsonEditor
+          label="Raw explain output"
+          readOnly
+          height="100%"
+          value={text}
+          onEditorReady={(editorHandle) => {
+            handle.current = editorHandle;
+          }}
+        />
+      </Box>
     </Stack>
   );
 }

@@ -59,7 +59,7 @@ function ExplainPanelBody({ panel }: { readonly panel: ExplainPanelState }) {
     request.source.kind === 'statement' ? request.source.code : request.source.commandEjson;
 
   return (
-    <Stack gap="xs" p="sm" className="mg-explain">
+    <Stack gap="xs" p="sm" className="mg-explain" h="100%" style={{ minHeight: 0 }}>
       <button
         type="button"
         className={
@@ -132,12 +132,16 @@ function ExplainPanelBody({ panel }: { readonly panel: ExplainPanelState }) {
       ) : null}
       {outcome.state === 'refused' ? <NoPlan message={outcome.message} /> : null}
       {outcome.state === 'ready' ? (
-        <Tabs value={tab} onChange={setTab}>
+        <Tabs
+          value={tab}
+          onChange={setTab}
+          styles={{ root: { flex: 1, minHeight: 0, display: 'flex', flexDirection: 'column' } }}
+        >
           <Tabs.List>
             <Tabs.Tab value="plan">Plan</Tabs.Tab>
             <Tabs.Tab value="raw">Raw</Tabs.Tab>
           </Tabs.List>
-          <Tabs.Panel value="plan" pt="xs">
+          <Tabs.Panel value="plan" pt="xs" style={{ minHeight: 0, overflow: 'auto' }}>
             <PlanView
               tree={outcome.result.tree}
               collection={panel.collection}
@@ -145,7 +149,11 @@ function ExplainPanelBody({ panel }: { readonly panel: ExplainPanelState }) {
               onSelect={setSelection}
             />
           </Tabs.Panel>
-          <Tabs.Panel value="raw" pt="xs">
+          <Tabs.Panel
+            value="raw"
+            pt="xs"
+            style={{ flex: 1, minHeight: 0, display: 'flex', flexDirection: 'column' }}
+          >
             <ExplainRaw text={outcome.result.rawEjson} />
           </Tabs.Panel>
         </Tabs>
