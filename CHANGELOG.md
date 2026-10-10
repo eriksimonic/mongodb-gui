@@ -15,6 +15,11 @@ All notable changes to Mongo GUI are listed here, newest first.
   so a failed create after the drop leaves the index missing until a valid definition is saved.
 - Opens a whole document on double-click in the Documents panel and in the table and tree views of
   results. A result that cannot be edited opens the document read-only.
+- "Open documents" on a collection, and a double-click on a collection in the tree, open an editor
+  tab that runs `find({})` on the collection. The Documents panel stays available as "Manage
+  documents".
+- Right-click a dock tab to close it, close the other tabs, close the tabs to its left or right,
+  or close all tabs. The connections, welcome and output panels stay open.
 
 ### Fixed
 

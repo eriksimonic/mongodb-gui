@@ -161,6 +161,7 @@ export function ConnectionTree() {
   const openPanel = usePanelOpener();
   const profilerOpener = useProfilerOpener();
   const openEditor = useAppStore((state) => state.openEditor);
+  const openCollectionQuery = useAppStore((state) => state.openCollectionQuery);
   const [focusKey, setFocusKey] = useState<string | undefined>(undefined);
   const [menu, setMenu] = useState<MenuAnchor | undefined>(undefined);
   const items = useRef(new Map<string, HTMLDivElement>());
@@ -307,6 +308,17 @@ export function ConnectionTree() {
   function openDatabaseEditor(row: TreeRowModel) {
     if (row.database !== undefined) {
       openEditor({ connectionId: row.connectionId, database: row.database });
+    }
+  }
+
+  /** A collection opens a query tab that lists its documents. */
+  function openCollectionRow(row: TreeRowModel) {
+    if (row.database !== undefined && row.collection !== undefined) {
+      void openCollectionQuery({
+        connectionId: row.connectionId,
+        database: row.database,
+        collection: row.collection,
+      });
     }
   }
 
@@ -575,6 +587,8 @@ export function ConnectionTree() {
                   openDatabaseEditor(row);
                 } else if (row.kind === 'gridfs-bucket') {
                   openGridFsBucket(row);
+                } else if (row.kind === 'collection') {
+                  openCollectionRow(row);
                 } else if (row.kind !== 'connection') {
                   openToolRow(row);
                 } else if (canConnect(statuses[row.connectionId])) {

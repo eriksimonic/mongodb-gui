@@ -102,6 +102,7 @@ export function CollectionContextMenu({
   onClose,
 }: CollectionContextMenuProps) {
   const requestPanel = useAppStore((state) => state.requestPanel);
+  const openCollectionQuery = useAppStore((state) => state.openCollectionQuery);
   const setManagementDialog = useAppStore((state) => state.setManagementDialog);
   const setTransferDialog = useAppStore((state) => state.setTransferDialog);
   const refreshDatabase = useAppStore((state) => state.refreshDatabase);
@@ -113,6 +114,11 @@ export function CollectionContextMenu({
     {
       kind: 'item',
       label: 'Open documents',
+      onSelect: () => void openCollectionQuery(target),
+    },
+    {
+      kind: 'item',
+      label: 'Manage documents',
       onSelect: () => requestPanel({ panel: 'documents', ...target }),
     },
     {

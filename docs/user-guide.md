@@ -170,7 +170,8 @@ Keyboard use in the tree:
 
 Right-click a database or collection to see its menu. The collection menu offers these items:
 
-- "Open documents" lists the documents in the Documents panel.
+- "Open documents" opens an editor tab with `db.<collection>.find({})` and runs it.
+- "Manage documents" lists the documents in the Documents panel.
 - "Indexes" and "Validation" open the matching panels.
 - "Analyse schema" opens the schema panel.
 - "Import data" and "Export data" open the transfer dialogs.
@@ -180,6 +181,12 @@ Right-click a database or collection to see its menu. The collection menu offers
 - "Rename", "Clear" and "Drop" change the collection. Each one asks for confirmation.
 - "Refresh" reloads the node.
 
+Double-click a collection to open the same query tab as "Open documents". A collection name that
+is not a plain identifier, such as `daily-totals`, runs as `db.getCollection("daily-totals").find({})`.
+So does a name that starts with `_`, contains `$` or matches a `db` method, such as `stats`.
+If the active tab on the same connection is empty, the query replaces its text. Otherwise the query
+opens a new tab.
+
 The database menu offers "Open editor", "New collection", "Import data into new collection",
 "Open profiler", "Watch changes", "Users and roles", "New GridFS bucket", "Database stats",
 "Drop database" and "Refresh".
@@ -187,6 +194,14 @@ The database menu offers "Open editor", "New collection", "Import data into new 
 The connection menu offers "Connect", "Disconnect", "Monitor", "Watch changes", "Sharding",
 "Replica set", "Diagnostics", "Users and roles", "Open editor", "New database", "Edit", "Refresh"
 and "Remove".
+
+## Tabs
+
+The centre area holds dock tabs for the editors, documents, indexes and other panels. Right-click
+a tab to open its menu. "Close" closes the tab, as its close button does. "Close others" closes
+the other tabs in the same group. "Close tabs to the left" and "Close tabs to the right" close the
+tabs on that side in the group, and their items are off when no tab lies on that side. "Close all
+tabs" closes every tab. The connections, welcome and output panels never close from this menu.
 
 ## The editor
 
@@ -358,7 +373,8 @@ the collection in an editor.
 
 ### Documents
 
-Open the "Documents" panel from the collection menu, or choose "Open documents".
+Choose "Open documents" from the collection menu to run `find({})` in an editor tab. Choose
+"Manage documents" to open the "Documents" panel.
 
 - Type a filter in "Filter". "Count matches" counts the documents the filter matches.
 - "Load more" fetches the next page.
