@@ -25,7 +25,7 @@ export function exportTargetProblem(path: string): string | undefined {
  * beside the target, which is then renamed over it. The rename is one step, so a reader sees the old
  * file or the new one. The temporary file is removed on every path.
  */
-export function replaceFile(path: string, content: string): void {
+export function replaceFile(path: string, content: string | Uint8Array): void {
   const temporary = join(dirname(path), `.${basename(path)}.${randomUUID()}.tmp`);
   writeFileSync(temporary, content, { flag: 'wx' });
   try {

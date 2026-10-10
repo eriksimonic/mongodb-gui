@@ -13,10 +13,13 @@ export interface MockPicks {
   requireOpened(path: string): void;
   useOpened(path: string): void;
   requireDownloadTarget(path: string): void;
+  requireSaved(path: string): void;
+  consumeSaved(path: string): void;
 }
 
 const DOT_DOT_MESSAGE = 'A path may not contain ".." segments.';
 const PICK_FILE_MESSAGE = 'Choose the file in a dialog first.';
+const SAVE_FIRST_MESSAGE = 'Choose the file with Save as first.';
 const PICK_TARGET_MESSAGE = 'Choose the folder or the save location in a dialog first.';
 
 export function createMockPicks(): MockPicks {
@@ -48,6 +51,15 @@ export function createMockPicks(): MockPicks {
     },
     useOpened(path) {
       openedFiles.delete(path);
+    },
+    requireSaved(path) {
+      refuseDotDot(path);
+      if (!savePaths.has(path)) {
+        throw fail('VALIDATION', SAVE_FIRST_MESSAGE);
+      }
+    },
+    consumeSaved(path) {
+      savePaths.delete(path);
     },
     requireDownloadTarget(path) {
       refuseDotDot(path);

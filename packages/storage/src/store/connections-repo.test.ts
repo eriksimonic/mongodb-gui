@@ -117,3 +117,32 @@ describe('ConnectionsRepository.remove', () => {
     );
   });
 });
+
+describe('ConnectionsRepository.transaction', () => {
+  it('keeps every write when fn returns', () => {
+    test = openTestStore();
+    test.connections.transaction(() => {
+      test.connections.create(connectionInput({ name: 'One' }));
+      test.connections.create(connectionInput({ name: 'Two' }));
+    });
+    // Rows created in the same millisecond sort by id, so the names are compared sorted.
+    expect(
+      test.connections
+        .list()
+        .map((item) => item.name)
+        .sort(),
+    ).toEqual(['One', 'Two']);
+  });
+
+  it('rolls back the writes made before a throw and rethrows the error', () => {
+    test = openTestStore();
+    const failure = new Error('disk full');
+    expect(() =>
+      test.connections.transaction(() => {
+        test.connections.create(connectionInput({ name: 'One' }));
+        throw failure;
+      }),
+    ).toThrow(failure);
+    expect(test.connections.list()).toEqual([]);
+  });
+});

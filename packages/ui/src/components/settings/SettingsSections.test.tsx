@@ -112,10 +112,26 @@ describe('SettingsModal sections', () => {
     await waitFor(() => expect(clear).toHaveBeenCalledOnce());
   });
 
-  it('keeps the export and import buttons disabled with the Phase 7 hint', async () => {
+  it('enables the export and import buttons', async () => {
     renderSettings();
-    expect(await screen.findByRole('button', { name: 'Export connections' })).toBeDisabled();
-    expect(screen.getByRole('button', { name: 'Import connections' })).toBeDisabled();
+    expect(await screen.findByRole('button', { name: 'Export connections' })).toBeEnabled();
+    expect(screen.getByRole('button', { name: 'Import connections' })).toBeEnabled();
+  });
+
+  it('opens the export dialog from the data section', async () => {
+    renderSettings();
+    fireEvent.click(await screen.findByRole('button', { name: 'Export connections' }));
+
+    expect(await screen.findByRole('dialog', { name: 'Export connections' })).toBeInTheDocument();
+  });
+
+  it('opens the import dialog after the open dialog returns a file', async () => {
+    const { api } = renderSettings();
+    const open = vi.spyOn(api.rpc.app, 'showOpenDialog');
+    fireEvent.click(await screen.findByRole('button', { name: 'Import connections' }));
+
+    await waitFor(() => expect(open).toHaveBeenCalledOnce());
+    expect(await screen.findByRole('dialog', { name: 'Import connections' })).toBeInTheDocument();
   });
 
   it('shows the runtime versions and opens the project links through openExternal', async () => {

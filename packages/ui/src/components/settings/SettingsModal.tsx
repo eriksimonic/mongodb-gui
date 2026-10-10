@@ -1,5 +1,4 @@
 import {
-  Box,
   Button,
   Divider,
   Group,
@@ -10,7 +9,6 @@ import {
   Switch,
   Text,
   Title,
-  Tooltip,
 } from '@mantine/core';
 import { modals } from '@mantine/modals';
 import { notifications } from '@mantine/notifications';
@@ -21,6 +19,9 @@ import { LICENCE_URL, PROJECT_URL } from './links';
 import { useAppStore } from '../../state/app-store-context';
 import { runReported } from '../notify-error';
 import { ChangePasswordModal } from './ChangePasswordModal';
+import { ConnectionsExportModal } from './ConnectionsExportModal';
+import { ConnectionsImportModal } from './ConnectionsImportModal';
+import { CONNECTIONS_FILE_FILTER } from './connections-file-model';
 import {
   clampToRange,
   EDITOR_FONT_SIZE_RANGE,
@@ -29,8 +30,6 @@ import {
   SAMPLE_SIZE_RANGE,
   type NumericRange,
 } from './settings-limits';
-
-const EXPORT_IMPORT_HINT = 'Arrives with Phase 7 finishing';
 
 /** The settings screen. Each control saves when the user changes it, and reads back the stored value. */
 export function SettingsModal() {
@@ -281,8 +280,22 @@ function UpdatesSection({ settings }: SectionProps) {
 }
 
 function DataSection({ settings }: SectionProps) {
+  const { rpc } = useUiApi();
   const save = useSaveSettings();
   const clearHistory = useAppStore((state) => state.clearHistory);
+  const [exporting, setExporting] = useState(false);
+  // The import modal opens once the open dialog has returned a file.
+  const [importPath, setImportPath] = useState<string | undefined>(undefined);
+
+  async function chooseImportFile() {
+    const picked = await rpc.app.showOpenDialog({
+      title: 'Choose a connections file',
+      filters: [CONNECTIONS_FILE_FILTER],
+    });
+    if (picked.path !== undefined) {
+      setImportPath(picked.path);
+    }
+  }
   return (
     <Section id="settings-data" title="Data">
       <NumericField
@@ -326,23 +339,16 @@ function DataSection({ settings }: SectionProps) {
         </Button>
       </Group>
       <Group gap="xs">
-        <DisabledWithHint label="Export connections" />
-        <DisabledWithHint label="Import connections" />
-      </Group>
-    </Section>
-  );
-}
-
-/** A button that cannot be used yet. The tooltip says when it arrives. */
-function DisabledWithHint({ label }: { readonly label: string }) {
-  return (
-    <Tooltip label={EXPORT_IMPORT_HINT} withArrow>
-      <Box component="span" display="inline-block">
-        <Button variant="default" disabled>
-          {label}
+        <Button variant="default" onClick={() => setExporting(true)}>
+          Export connections
         </Button>
-      </Box>
-    </Tooltip>
+        <Button variant="default" onClick={() => void runReported(chooseImportFile)}>
+          Import connections
+        </Button>
+      </Group>
+      <ConnectionsExportModal opened={exporting} onClose={() => setExporting(false)} />
+      <ConnectionsImportModal path={importPath} onClose={() => setImportPath(undefined)} />
+    </Section>
   );
 }
 

@@ -1,4 +1,13 @@
-import { mkdirSync, mkdtempSync, rmSync, statSync, symlinkSync, writeFileSync } from 'node:fs';
+import {
+  existsSync,
+  mkdirSync,
+  mkdtempSync,
+  readFileSync,
+  rmSync,
+  statSync,
+  symlinkSync,
+  writeFileSync,
+} from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { afterEach, describe, expect, it, vi } from 'vitest';
@@ -1364,5 +1373,326 @@ describe('file picks', () => {
       ),
       'VALIDATION',
     );
+  });
+});
+
+describe('connection files', () => {
+  let harness: Harness | undefined;
+  let base = '';
+  const picks: { open: string | undefined; save: string | undefined } = {
+    open: undefined,
+    save: undefined,
+  };
+  const PASSPHRASE = 'file passphrase';
+
+  afterEach(() => {
+    harness?.dispose();
+    harness = undefined;
+    if (base !== '') {
+      rmSync(base, { recursive: true, force: true });
+      base = '';
+    }
+  });
+
+  async function setUp(): Promise<{ router: Router; localId: string; remoteId: string }> {
+    base = mkdtempSync(join(tmpdir(), 'conn-files-'));
+    harness = buildHarness(undefined, undefined, {
+      showOpenDialog: async () => (picks.open === undefined ? {} : { path: picks.open }),
+      showSaveDialog: async () => (picks.save === undefined ? {} : { path: picks.save }),
+      showItemInFolder: () => undefined,
+    });
+    const { router } = harness;
+    expectValue(await router.handle('vault.initialise', { password: PASSWORD }));
+    const local = expectValue(await router.handle('connections.create', profileInput)) as {
+      id: string;
+    };
+    const remote = expectValue(
+      await router.handle('connections.create', {
+        name: 'Remote',
+        uri: 'mongodb://remote.example.com:27017',
+      }),
+    ) as { id: string };
+    return { router, localId: local.id, remoteId: remote.id };
+  }
+
+  /** Saves the chosen connections through the save dialog and returns the written path. */
+  async function exportTo(
+    router: Router,
+    profileIds: string[],
+    passphrase = PASSPHRASE,
+  ): Promise<string> {
+    const path = join(base, 'connections.mgconn');
+    picks.save = path;
+    expectValue(await router.handle('app.showSaveDialog', { title: 't', filters: [] }));
+    expectValue(await router.handle('connections.exportToFile', { profileIds, passphrase, path }));
+    return path;
+  }
+
+  /** Picks a file in the open dialog, as the import flow does before preview. */
+  async function pickOpen(router: Router, path: string): Promise<void> {
+    picks.open = path;
+    expectValue(await router.handle('app.showOpenDialog', { title: 't', filters: [] }));
+  }
+
+  it('exports only to a path the save dialog returned, and only once', async () => {
+    const { router, localId } = await setUp();
+    const path = join(base, 'connections.mgconn');
+    expectError(
+      await router.handle('connections.exportToFile', {
+        profileIds: [localId],
+        passphrase: PASSPHRASE,
+        path,
+      }),
+      'VALIDATION',
+    );
+
+    const written = await exportTo(router, [localId]);
+    expect(existsSync(written)).toBe(true);
+
+    const again = expectError(
+      await router.handle('connections.exportToFile', {
+        profileIds: [localId],
+        passphrase: PASSPHRASE,
+        path: written,
+      }),
+      'VALIDATION',
+    );
+    expect(again.message).toBe('Choose the file with Save as first.');
+  });
+
+  it('never replaces an existing file the user did not pick', async () => {
+    const { router, localId } = await setUp();
+    const existing = join(base, 'keep.mgconn');
+    writeFileSync(existing, 'keep me');
+    picks.save = join(base, 'other.mgconn');
+    expectValue(await router.handle('app.showSaveDialog', { title: 't', filters: [] }));
+
+    expectError(
+      await router.handle('connections.exportToFile', {
+        profileIds: [localId],
+        passphrase: PASSPHRASE,
+        path: existing,
+      }),
+      'VALIDATION',
+    );
+    expect(readFileSync(existing, 'utf8')).toBe('keep me');
+  });
+
+  it('refuses a passphrase under ten characters without echoing it', async () => {
+    const { router, localId } = await setUp();
+    const path = join(base, 'short.mgconn');
+    picks.save = path;
+    expectValue(await router.handle('app.showSaveDialog', { title: 't', filters: [] }));
+
+    const failed = expectError(
+      await router.handle('connections.exportToFile', {
+        profileIds: [localId],
+        passphrase: 'tiny pass',
+        path,
+      }),
+      'VALIDATION',
+    );
+    expect(failed.message).toBe('The input is invalid.');
+    expect(JSON.stringify(failed)).not.toContain('tiny pass');
+    expect(existsSync(path)).toBe(false);
+  });
+
+  it('previews a picked file without using up the pick, and never returns a secret', async () => {
+    const { router, localId } = await setUp();
+    const written = await exportTo(router, [localId]);
+    await pickOpen(router, written);
+
+    const first = expectValue(
+      await router.handle('connections.previewImport', { path: written, passphrase: PASSPHRASE }),
+    ) as { profiles: { name: string; host: string; authKind: string; collides: boolean }[] };
+    const second = expectValue(
+      await router.handle('connections.previewImport', { path: written, passphrase: PASSPHRASE }),
+    );
+    expect(second).toEqual(first);
+    expect(first.profiles).toEqual([
+      { name: 'Local', host: 'localhost:27017', authKind: 'password', collides: true },
+    ]);
+    expect(JSON.stringify(first)).not.toContain('hunter2');
+  });
+
+  it('refuses a preview of a file the open dialog did not return', async () => {
+    const { router, localId } = await setUp();
+    const written = await exportTo(router, [localId]);
+
+    expectError(
+      await router.handle('connections.previewImport', { path: written, passphrase: PASSPHRASE }),
+      'VALIDATION',
+    );
+  });
+
+  it('refuses a wrong passphrase with the damaged-file message, without echoing it', async () => {
+    const { router, localId } = await setUp();
+    const written = await exportTo(router, [localId]);
+    await pickOpen(router, written);
+
+    const failed = expectError(
+      await router.handle('connections.previewImport', {
+        path: written,
+        passphrase: 'a wrong passphrase',
+      }),
+      'VALIDATION',
+    );
+    expect(failed.message).toBe('Wrong passphrase or damaged file.');
+    expect(JSON.stringify(failed)).not.toContain('a wrong passphrase');
+  });
+
+  it('imports as copies, creates the connections and uses up the pick', async () => {
+    const { router, localId } = await setUp();
+    const written = await exportTo(router, [localId]);
+    await pickOpen(router, written);
+
+    const result = expectValue(
+      await router.handle('connections.importFromFile', {
+        path: written,
+        passphrase: PASSPHRASE,
+        mode: 'rename',
+      }),
+    );
+    expect(result).toEqual({ imported: 1, skipped: 0, renamed: 1, replaced: 0 });
+    const names = (
+      expectValue(await router.handle('connections.list', undefined)) as {
+        name: string;
+      }[]
+    ).map((item) => item.name);
+    // Connections created in the same millisecond sort by id, so the order is compared sorted.
+    expect([...names].sort()).toEqual(['Local', 'Local (2)', 'Remote']);
+
+    expectError(
+      await router.handle('connections.importFromFile', {
+        path: written,
+        passphrase: PASSPHRASE,
+        mode: 'rename',
+      }),
+      'VALIDATION',
+    );
+  });
+
+  it('keeps the pick after a failed passphrase so the import can be retried', async () => {
+    const { router, localId } = await setUp();
+    const written = await exportTo(router, [localId]);
+    await pickOpen(router, written);
+
+    expectError(
+      await router.handle('connections.importFromFile', {
+        path: written,
+        passphrase: 'a wrong passphrase',
+        mode: 'skip',
+      }),
+      'VALIDATION',
+    );
+    expect(
+      expectValue(
+        await router.handle('connections.importFromFile', {
+          path: written,
+          passphrase: PASSPHRASE,
+          mode: 'skip',
+        }),
+      ),
+    ).toEqual({ imported: 0, skipped: 1, renamed: 0, replaced: 0 });
+  });
+
+  it('replaces a target once when the file repeats its name, and counts both entries', async () => {
+    const { router, localId, remoteId } = await setUp();
+    expectValue(
+      await router.handle('connections.update', { id: remoteId, patch: { name: 'Local' } }),
+    );
+    const written = await exportTo(router, [localId, remoteId]);
+    expectValue(await router.handle('connections.remove', { id: remoteId }));
+    await pickOpen(router, written);
+
+    const result = expectValue(
+      await router.handle('connections.importFromFile', {
+        path: written,
+        passphrase: PASSPHRASE,
+        mode: 'replace',
+      }),
+    );
+    expect(result).toEqual({ imported: 1, skipped: 0, renamed: 1, replaced: 1 });
+    expect(
+      (expectValue(await router.handle('connections.list', undefined)) as { name: string }[])
+        .map((item) => item.name)
+        .sort(),
+    ).toEqual(['Local', 'Local (2)']);
+  });
+
+  it('rolls back every write when one create fails, and keeps the pick for a retry', async () => {
+    const { router, localId, remoteId } = await setUp();
+    const written = await exportTo(router, [localId, remoteId]);
+    await pickOpen(router, written);
+    const connections = harness?.handles.repos.connections;
+    if (connections === undefined) {
+      throw new Error('the harness is not open');
+    }
+    const real = connections.create.bind(connections);
+    let calls = 0;
+    const failing = vi.spyOn(connections, 'create').mockImplementation((input) => {
+      calls += 1;
+      if (calls === 2) {
+        throw new Error('disk full');
+      }
+      return real(input);
+    });
+
+    expectError(
+      await router.handle('connections.importFromFile', {
+        path: written,
+        passphrase: PASSPHRASE,
+        mode: 'rename',
+      }),
+      'INTERNAL',
+    );
+    expect(calls).toBe(2);
+    failing.mockRestore();
+    expect(
+      (expectValue(await router.handle('connections.list', undefined)) as { name: string }[])
+        .map((item) => item.name)
+        .sort(),
+    ).toEqual(['Local', 'Remote']);
+
+    expect(
+      expectValue(
+        await router.handle('connections.importFromFile', {
+          path: written,
+          passphrase: PASSPHRASE,
+          mode: 'rename',
+        }),
+      ),
+    ).toEqual({ imported: 2, skipped: 0, renamed: 2, replaced: 0 });
+  });
+
+  it('replaces a colliding connection and clears the options the file leaves out', async () => {
+    const { router, remoteId } = await setUp();
+    const written = await exportTo(router, [remoteId]);
+    await pickOpen(router, written);
+    // Rename the source so the name is free again, then give the target the same name with TLS.
+    expectValue(
+      await router.handle('connections.update', { id: remoteId, patch: { name: 'Other' } }),
+    );
+    const target = expectValue(
+      await router.handle('connections.create', {
+        name: 'Remote',
+        uri: 'mongodb://old.example.com:27017',
+        tls: { enabled: true },
+      }),
+    ) as { id: string };
+
+    const result = expectValue(
+      await router.handle('connections.importFromFile', {
+        path: written,
+        passphrase: PASSPHRASE,
+        mode: 'replace',
+      }),
+    );
+    expect(result).toEqual({ imported: 0, skipped: 0, renamed: 0, replaced: 1 });
+    const replaced = expectValue(
+      await router.handle('connections.get', { id: target.id }),
+    ) as ConnectionProfile;
+    expect(replaced.uri).toBe('mongodb://remote.example.com:27017');
+    expect(replaced.tls).toBeUndefined();
   });
 });
