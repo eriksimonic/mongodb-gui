@@ -540,13 +540,21 @@ function slotCounters(
   const keyStage = matches.find((stage) => KEY_STAGES.has(asString(stage['stage']) ?? ''));
   const readStage = matches.find((stage) => READ_STAGES.has(asString(stage['stage']) ?? ''));
   const spillStage = matches.find((stage) => SPILL_STAGES.has(asString(stage['stage']) ?? ''));
+  // An 8.0 hash join reports what it examined in its hash_lookup section. That section counts the
+  // whole join, while the scans under it count only their own reads.
+  const hashLookup =
+    plan['stage'] === 'EQ_LOOKUP'
+      ? matches.find((stage) => stage['stage'] === 'hash_lookup')
+      : undefined;
   return {
     fields: definedFields({
       nReturned: readNumber(top?.['nReturned']),
       executionTimeMs: readNumber(top?.['executionTimeMillisEstimate']),
-      keysExamined: readNumber(keyStage?.['keysExamined']),
+      keysExamined:
+        readNumber(hashLookup?.['totalKeysExamined']) ?? readNumber(keyStage?.['keysExamined']),
       // numReads on a scan or seek stage counts the documents it read.
-      docsExamined: readNumber(readStage?.['numReads']),
+      docsExamined:
+        readNumber(hashLookup?.['totalDocsExamined']) ?? readNumber(readStage?.['numReads']),
       memLimitBytes: readNumber(spillStage?.['memLimit']),
       memUsageBytes:
         readNumber(spillStage?.['totalDataSizeSorted']) ??

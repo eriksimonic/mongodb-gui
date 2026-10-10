@@ -105,6 +105,12 @@
   flex: 1 1 240px;
 }
 
+.mg-explain-warning-advice {
+  display: block;
+  color: var(--mantine-color-dimmed);
+  font-size: 12px;
+}
+
 .mg-explain-warning-stage {
   color: var(--mantine-color-dimmed);
   font-size: 12px;
@@ -228,13 +234,71 @@
   font-size: 12px;
 }
 
-.mg-explain-shard {
+.mg-explain-group {
   padding-top: 6px;
   padding-right: 8px;
   padding-bottom: 2px;
-  color: var(--mantine-color-violet-3);
+  color: var(--mg-accent-text);
   font-size: 12px;
   font-weight: 600;
+}
+
+.mg-explain-group-toggle,
+.mg-explain-group-label {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 0;
+  border: none;
+  background: transparent;
+  color: inherit;
+  font: inherit;
+}
+
+.mg-explain-group-toggle {
+  cursor: pointer;
+}
+
+.mg-explain-stage-head {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  min-width: 0;
+}
+
+.mg-explain-stage-icon {
+  display: inline-grid;
+  flex: none;
+  place-items: center;
+}
+
+.mg-explain-unknown {
+  color: var(--mg-text-muted);
+  font-style: italic;
+}
+
+.mg-explain-tip {
+  display: grid;
+  gap: 4px;
+  font-size: 12px;
+  line-height: 1.4;
+}
+
+.mg-explain-tip-advice {
+  opacity: 0.85;
+}
+
+.mg-explain-metric-spill {
+  padding: 0 4px;
+  border-radius: var(--mantine-radius-xs);
+  background: var(--mantine-color-orange-light);
+  color: var(--mantine-color-orange-light-color);
+}
+
+.mg-explain-shard-error {
+  font-family: var(--mantine-font-family-monospace);
+  font-size: 12px;
+  overflow-wrap: anywhere;
 }
 
 .mg-explain-rejected {
@@ -244,6 +308,32 @@
 .mg-explain-rejected summary {
   color: var(--mantine-color-dimmed);
   cursor: pointer;
+}
+
+.mg-explain-rejected-list {
+  display: grid;
+  gap: 6px;
+  margin: 6px 0 0;
+  padding: 0;
+  list-style: none;
+}
+
+.mg-explain-rejected-item {
+  padding: 4px 8px;
+  border: 1px solid var(--mg-border);
+  border-radius: var(--mantine-radius-sm);
+}
+
+.mg-explain-compare {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(260px, 1fr));
+  gap: 8px;
+  margin-top: 6px;
+  min-width: 0;
+}
+
+.mg-explain-compare-column {
+  min-width: 0;
 }
 
 .mg-explain-tree-static {

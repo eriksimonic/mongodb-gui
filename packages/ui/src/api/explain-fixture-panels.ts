@@ -89,6 +89,50 @@ export function mockExplainPanel(
   };
 }
 
+/** A panel that holds a finished explain of a raw server document, for shapes no fixture has. */
+export function mockExplainPanelFromRaw(
+  options: FixturePanelOptions & { readonly raw: unknown },
+): ExplainPanelState {
+  return {
+    ...panelBase(options),
+    outcome: {
+      state: 'ready',
+      result: {
+        requestId: newId(),
+        tree: normaliseExplain(options.raw),
+        rawEjson: JSON.stringify(options.raw, null, 2),
+        elapsedMs: FIXTURE_ELAPSED_MS,
+      },
+    },
+  };
+}
+
+/**
+ * A copy of a sharded fixture in which the second shard failed. The planner and execution sides
+ * both report the error, as mongos does.
+ */
+export function withFailedShard(raw: unknown, message: string): unknown {
+  const copy = structuredClone(raw) as Json;
+  const failed = { shardName: 'shard02', error: { code: 96, errmsg: message } };
+  const planner = objectAt(objectAt(copy['queryPlanner'])?.['winningPlan'])?.['shards'];
+  if (Array.isArray(planner) && planner.length > 1) {
+    planner[1] = failed;
+  }
+  const exec = objectAt(objectAt(copy['executionStats'])?.['executionStages'])?.['shards'];
+  if (Array.isArray(exec) && exec.length > 1) {
+    exec[1] = failed;
+  }
+  return copy;
+}
+
+type Json = Record<string, unknown>;
+
+function objectAt(value: unknown): Json | undefined {
+  return typeof value === 'object' && value !== null && !Array.isArray(value)
+    ? (value as Json)
+    : undefined;
+}
+
 /** A panel that is waiting for its explain, for the loading state. */
 export function loadingExplainPanel(options: FixturePanelOptions): ExplainPanelState {
   return { ...panelBase(options), outcome: { state: 'loading' } };

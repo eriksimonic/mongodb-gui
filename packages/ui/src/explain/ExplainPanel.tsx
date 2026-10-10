@@ -18,10 +18,10 @@ import {
 } from '@mongo-gui/core';
 import { useState } from 'react';
 import { errorText } from '../components/notify-error';
-import { JsonEditor } from '../editor/JsonEditor';
 import { useAppStore } from '../state/app-store-context';
 import { stageIdByName, type ExplainPanelState } from './explain-model';
 import { ExplainPlainLanguage, ExplainSummaryBar, ExplainWarnings } from './ExplainParts';
+import { ExplainRaw } from './ExplainRaw';
 import { PlanTreeView, type StageSelection } from './PlanTreeView';
 import './explain.css';
 
@@ -146,12 +146,7 @@ function ExplainPanelBody({ panel }: { readonly panel: ExplainPanelState }) {
             />
           </Tabs.Panel>
           <Tabs.Panel value="raw" pt="xs">
-            <JsonEditor
-              label="Raw explain output"
-              readOnly
-              height={360}
-              value={outcome.result.rawEjson}
-            />
+            <ExplainRaw text={outcome.result.rawEjson} />
           </Tabs.Panel>
         </Tabs>
       ) : null}

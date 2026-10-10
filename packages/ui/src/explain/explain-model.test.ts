@@ -6,8 +6,10 @@ import {
   commandCollection,
   createIndexLine,
   explainTitle,
+  groupKey,
   hotStageId,
   planRows,
+  revealKeys,
   stageIdByName,
 } from './explain-model';
 
@@ -52,15 +54,44 @@ describe('planRows', () => {
     expect(planRows(TREE, new Set(['0'])).map((row) => row.id)).toEqual(['0']);
   });
 
-  it('puts a heading before each shard subtree', () => {
+  it('puts a labelled heading before each sub-tree and keeps the label as the normaliser gave it', () => {
     const sharded = stage('SHARD_MERGE', {}, [
-      stage('FETCH', { shard: 'a' }, [stage('IXSCAN', { shard: 'a' })]),
-      stage('FETCH', { shard: 'b' }),
+      stage('FETCH', { shard: 'a', label: 'shard a' }, [stage('IXSCAN', { shard: 'a' })]),
+      stage('FETCH', { shard: 'b', label: 'shard b' }),
     ]);
     const kinds = planRows(sharded, new Set()).map((row) =>
-      row.kind === 'shard' ? `shard ${row.shard}` : row.id,
+      row.kind === 'group' ? `group ${row.label}` : row.id,
     );
-    expect(kinds).toEqual(['0', 'shard a', '0.0', '0.0.0', 'shard b', '0.1']);
+    expect(kinds).toEqual(['0', 'group shard a', '0.0', '0.0.0', 'group shard b', '0.1']);
+  });
+
+  it('shares one heading across consecutive siblings with the same label', () => {
+    const lookup = stage('$lookup', {}, [
+      stage('$match', { label: 'inner pipeline of $lookup from customers' }),
+      stage('COLLSCAN', { label: 'inner pipeline of $lookup from customers' }),
+    ]);
+    const rows = planRows(lookup, new Set());
+    expect(rows.filter((row) => row.kind === 'group')).toHaveLength(1);
+    expect(rows.map((row) => row.id)).toEqual(['0', '0#group:0', '0.0', '0.1']);
+  });
+
+  it('hides a labelled sub-tree when its heading is collapsed', () => {
+    const sharded = stage('SHARD_MERGE', {}, [
+      stage('FETCH', { label: 'shard a' }, [stage('IXSCAN')]),
+    ]);
+    const rows = planRows(sharded, new Set([groupKey('0', 0)]));
+    expect(rows.map((row) => row.id)).toEqual(['0', '0#group:0']);
+    expect(rows[1]).toMatchObject({ kind: 'group', expanded: false });
+  });
+
+  it('does not add a heading for children without a label', () => {
+    const rows = planRows(TREE, new Set());
+    expect(rows.some((row) => row.kind === 'group')).toBe(false);
+  });
+
+  it('reveals a stage by opening its ancestors and the labelled groups above it', () => {
+    const collapsed = new Set(['0', '0#group:0', '0.1', '0.1#group:1', '0.2']);
+    expect([...revealKeys(collapsed, '0.1.0')]).toEqual(['0.2']);
   });
 });
 

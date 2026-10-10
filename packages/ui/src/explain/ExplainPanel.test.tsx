@@ -1,10 +1,21 @@
 // @vitest-environment jsdom
 import { fireEvent, screen, waitFor, within } from '@testing-library/react';
 import { describe, expect, it, vi } from 'vitest';
-import { appError, AppErrorException, normaliseExplain } from '@mongo-gui/core';
+import {
+  appError,
+  AppErrorException,
+  describeStage,
+  normaliseExplain,
+  type PlanWarning,
+} from '@mongo-gui/core';
 import { localConnectionId } from '../api/mock-fixtures';
 import { createMockUiApi, type MockUiApiOptions } from '../api/mock-rpc-client';
-import { mockExplainPanel } from '../api/explain-fixture-panels';
+import {
+  mockExplainPanel,
+  mockExplainPanelFromRaw,
+  rawFixture,
+  withFailedShard,
+} from '../api/explain-fixture-panels';
 import type { UiApi } from '../api/ui-api';
 import type { ExplainPanelState } from './explain-model';
 import { renderWithApp } from '../test-support/render';
@@ -247,7 +258,216 @@ describe('ExplainPanel states', () => {
   it('shows the plan of a sharded explain under one heading per shard', async () => {
     const api = await connectedApi();
     renderPanel(api, panelFor('sharded/find-sort'));
-    expect(document.querySelector('.mg-explain-tree')?.textContent).toContain('Shard shard01');
-    expect(document.querySelector('.mg-explain-tree')?.textContent).toContain('Shard shard02');
+    expect(document.querySelector('.mg-explain-tree')?.textContent).toContain('shard shard01');
+    expect(document.querySelector('.mg-explain-tree')?.textContent).toContain('shard shard02');
+  });
+});
+
+/** A panel that holds a finished explain of a raw server document. */
+function rawPanel(raw: unknown): ExplainPanelState {
+  return mockExplainPanelFromRaw({
+    id: PANEL_ID,
+    connectionId: localConnectionId,
+    database: 'shop',
+    code: FIND_CODE,
+    collection: 'orders',
+    raw,
+  });
+}
+
+/** The tree row of a stage by its name, as the first match in display order. */
+function rowNamed(name: string): HTMLElement {
+  const names = [...document.querySelectorAll<HTMLElement>('.mg-explain-stage-name')];
+  const match = names.find((element) => element.textContent === name);
+  if (match === undefined) {
+    throw new Error(`no stage row named ${name}`);
+  }
+  return match.closest<HTMLElement>('[role="treeitem"]') ?? match;
+}
+
+describe('ExplainPanel stage catalogue', () => {
+  it('shows a category icon and the catalogue description on hover for a known stage', async () => {
+    const api = await connectedApi();
+    renderPanel(api, panelFor('8.0.17/collscan'));
+    const row = rowNamed('COLLSCAN');
+    expect(row.querySelector('[data-category="scan"]')).not.toBeNull();
+    fireEvent.mouseEnter(row.querySelector('.mg-explain-stage-head') as HTMLElement);
+    expect(
+      await screen.findByText(
+        'Reads every document in the collection and applies the filter to each one.',
+      ),
+    ).toBeInTheDocument();
+    // The advice shows in the tooltip and in the COLLSCAN warning, so more than one match is expected.
+    expect(
+      (await screen.findAllByText(/Add an index on the fields in the filter/)).length,
+    ).toBeGreaterThan(0);
+  });
+
+  it('shows a neutral icon and the raw name for a stage the catalogue does not know', async () => {
+    const api = await connectedApi();
+    const raw = {
+      queryPlanner: {
+        namespace: 'shop.orders',
+        winningPlan: { stage: 'WARP_DRIVE', inputStage: { stage: 'COLLSCAN' } },
+      },
+      executionStats: { executionSuccess: true, nReturned: 0, executionStages: {} },
+    };
+    renderPanel(api, rawPanel(raw));
+    expect(screen.getByText('Unknown stage')).toBeInTheDocument();
+    const row = document.querySelector('[role="treeitem"]') as HTMLElement;
+    expect(row.querySelector('[data-category="unknown"]')).not.toBeNull();
+    expect(row.textContent).toContain('WARP_DRIVE');
+  });
+});
+
+describe('ExplainPanel per-stage metrics', () => {
+  it('shows the metrics that apply to each stage and no others', async () => {
+    const api = await connectedApi();
+    renderPanel(api, panelFor('8.0.17/collscan'));
+    const scan = rowNamed('COLLSCAN').closest('[role="treeitem"]') as HTMLElement;
+    expect(scan.textContent).toContain('Docs');
+    expect(scan.textContent).not.toContain('Keys');
+  });
+
+  it('marks an examined-to-returned ratio badge on a fetch that reads many documents', async () => {
+    const api = await connectedApi();
+    renderPanel(api, panelFor('8.0.17/collscan'));
+    const scan = rowNamed('COLLSCAN').closest('[role="treeitem"]') as HTMLElement;
+    expect(scan.textContent).toContain('examined per returned');
+  });
+});
+
+describe('ExplainPanel sub-trees', () => {
+  it('labels the inner pipeline of a $lookup as a collapsible sub-tree', async () => {
+    const api = await connectedApi();
+    renderPanel(api, panelFor('8.0.17/lookup-pipeline', 'db.orders.aggregate([{ $lookup: {} }])'));
+    const heading = screen.getByRole('button', {
+      name: /inner pipeline of \$lookup from customers/,
+    });
+    expect(heading).toHaveAttribute('aria-expanded', 'true');
+    fireEvent.click(heading);
+    expect(heading).toHaveAttribute('aria-expanded', 'false');
+  });
+
+  it('shows the error message of a failed shard in red', async () => {
+    const api = await connectedApi();
+    const raw = withFailedShard(
+      rawFixture('sharded/find-sort', 'executionStats'),
+      'shard02 is down',
+    );
+    renderPanel(api, rawPanel(raw));
+    const message = document.querySelector('.mg-explain-shard-error');
+    expect(message?.textContent).toBe('shard02 is down');
+    expect(rowNamed('SHARD_ERROR')).toBeInTheDocument();
+  });
+});
+
+describe('ExplainPanel warning to stage', () => {
+  it('scrolls the stage a warning points at into view and selects it', async () => {
+    const scroll = vi.fn();
+    Element.prototype.scrollIntoView = scroll;
+    const api = await connectedApi();
+    renderPanel(api, panelFor('8.0.17/collscan'));
+    scroll.mockClear();
+    fireEvent.click(screen.getByRole('button', { name: /COLLSCAN/ }));
+    expect(selectedStageName()).toBe('COLLSCAN');
+    expect(scroll).toHaveBeenCalled();
+  });
+});
+
+describe('ExplainPanel rejected plans', () => {
+  it('shows the rejected plan next to the winning one when Compare is pressed', async () => {
+    const api = await connectedApi();
+    renderPanel(
+      api,
+      panelFor('8.0.17/competing', `db.orders.find({ customerId: 7, status: 'paid' })`),
+    );
+    fireEvent.click(screen.getByText(/Rejected plans/));
+    const compare = screen.getByRole('button', { name: 'Compare' });
+    expect(compare).toHaveAttribute('aria-pressed', 'false');
+    expect(screen.queryByRole('region', { name: 'Rejected plan 1' })).toBeNull();
+    fireEvent.click(compare);
+    expect(compare).toHaveAttribute('aria-pressed', 'true');
+    expect(screen.getByRole('region', { name: 'Winning plan' })).toBeInTheDocument();
+    expect(screen.getByRole('region', { name: 'Rejected plan 1' })).toBeInTheDocument();
+    fireEvent.click(compare);
+    expect(screen.queryByRole('region', { name: 'Rejected plan 1' })).toBeNull();
+  });
+});
+
+describe('ExplainPanel raw search', () => {
+  it('moves to the next and previous match and wraps at both ends', async () => {
+    const api = await connectedApi();
+    const panel = panelFor(SORT_FIXTURE);
+    renderPanel(api, panel);
+    fireEvent.click(screen.getByRole('tab', { name: 'Raw' }));
+    if (panel.outcome.state !== 'ready') {
+      throw new Error('panel is not ready');
+    }
+    const total = countStage(panel);
+    expect(total).toBeGreaterThan(1);
+    fireEvent.change(screen.getByRole('textbox', { name: 'Search raw output' }), {
+      target: { value: 'stage' },
+    });
+    expect(screen.getByText(`1 of ${total}`)).toBeInTheDocument();
+    fireEvent.click(screen.getByRole('button', { name: 'Next match' }));
+    expect(screen.getByText(`2 of ${total}`)).toBeInTheDocument();
+    fireEvent.click(screen.getByRole('button', { name: 'Previous match' }));
+    expect(screen.getByText(`1 of ${total}`)).toBeInTheDocument();
+    fireEvent.click(screen.getByRole('button', { name: 'Previous match' }));
+    expect(screen.getByText(`${total} of ${total}`)).toBeInTheDocument();
+  });
+
+  it('says so when the search has no match', async () => {
+    const api = await connectedApi();
+    renderPanel(api, panelFor(SORT_FIXTURE));
+    fireEvent.click(screen.getByRole('tab', { name: 'Raw' }));
+    fireEvent.change(screen.getByRole('textbox', { name: 'Search raw output' }), {
+      target: { value: 'no such text anywhere' },
+    });
+    expect(screen.getByText('No matches')).toBeInTheDocument();
+  });
+});
+
+/** The number of "stage" keys in the raw output of a ready panel. */
+function countStage(panel: ExplainPanelState): number {
+  if (panel.outcome.state !== 'ready') {
+    return 0;
+  }
+  return panel.outcome.result.rawEjson.toLowerCase().split('stage').length - 1;
+}
+
+describe('ExplainPanel spill highlight', () => {
+  it('does not highlight a sort that did not spill, even though it reports bytes sorted', async () => {
+    const api = await connectedApi();
+    renderPanel(api, panelFor(SORT_FIXTURE));
+    expect(document.querySelector('.mg-explain-metric-spill')).toBeNull();
+  });
+});
+
+describe('ExplainPanel warning advice', () => {
+  it('shows the catalogue advice for a warning the core left without advice', async () => {
+    const api = await connectedApi();
+    const panel = panelFor(SORT_FIXTURE);
+    if (panel.outcome.state !== 'ready') {
+      throw new Error('panel is not ready');
+    }
+    const tree = panel.outcome.result.tree;
+    const warnings = tree.warnings.map((warning) => {
+      const copy: Partial<PlanWarning> = { ...warning };
+      delete copy.advice;
+      return copy as PlanWarning;
+    });
+    const stripped: ExplainPanelState = {
+      ...panel,
+      outcome: {
+        ...panel.outcome,
+        result: { ...panel.outcome.result, tree: { ...tree, warnings } },
+      },
+    };
+    renderPanel(api, stripped);
+    const sortAdvice = describeStage('SORT').advice;
+    expect(sortAdvice).toBeDefined();
+    expect(document.querySelector('.mg-explain-warning-advice')?.textContent).toBe(sortAdvice);
   });
 });

@@ -3,7 +3,7 @@ import Editor from '@monaco-editor/react';
 import { useMemo } from 'react';
 import { useAppStore } from '../state/app-store-context';
 import './monaco-setup';
-import type { JsonEditorProps } from './JsonEditor';
+import type { JsonEditorHandle, JsonEditorProps } from './JsonEditor';
 
 /** Used before the saved settings load, and while the vault is locked. */
 const DEFAULT_EDITOR_FONT_SIZE = 13;
@@ -15,6 +15,7 @@ export function MonacoJsonEditor({
   label,
   readOnly = false,
   height = 200,
+  onEditorReady,
 }: JsonEditorProps) {
   // Follows the app's colour scheme. The dark theme is the default, as in the rest of the app.
   const scheme = useComputedColorScheme('dark');
@@ -44,6 +45,21 @@ export function MonacoJsonEditor({
       value={value}
       onChange={(next) => onChange?.(next ?? '')}
       options={options}
+      onMount={(editor) => {
+        const handle: JsonEditorHandle = {
+          reveal: (span) => {
+            const range = {
+              startLineNumber: span.line,
+              startColumn: span.column,
+              endLineNumber: span.line,
+              endColumn: span.column + span.length,
+            };
+            editor.setSelection(range);
+            editor.revealRangeInCenter(range);
+          },
+        };
+        onEditorReady?.(handle);
+      }}
     />
   );
 }
