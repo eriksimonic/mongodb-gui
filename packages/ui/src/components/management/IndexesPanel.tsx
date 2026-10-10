@@ -7,6 +7,7 @@ import { useUiApi } from '../../api/ui-api';
 import { useAppStore } from '../../state/app-store-context';
 import { formatBytes } from '../../management/input-rules';
 import { runReported } from '../notify-error';
+import { canEditIndex } from '../../management/index-builder';
 import { CreateIndexDialog } from './CreateIndexDialog';
 import { DestructiveDialog } from './DestructiveDialog';
 
@@ -96,6 +97,7 @@ export function IndexesPanel({ connectionId, database, collection }: CollectionP
   const [loadError, setLoadError] = useState<string | undefined>(undefined);
   const [builds, setBuilds] = useState<IndexBuildProgress[]>([]);
   const [creating, setCreating] = useState(false);
+  const [editing, setEditing] = useState<IndexInfo | undefined>(undefined);
   const [dropping, setDropping] = useState<IndexInfo | undefined>(undefined);
 
   useEffect(() => {
@@ -235,6 +237,14 @@ export function IndexesPanel({ connectionId, database, collection }: CollectionP
                     <Button
                       size="xs"
                       variant="default"
+                      disabled={protectedIndex || !canEditIndex(index)}
+                      onClick={() => setEditing(index)}
+                    >
+                      Edit
+                    </Button>
+                    <Button
+                      size="xs"
+                      variant="default"
                       disabled={protectedIndex}
                       onClick={() => setHidden(index, index.hidden !== true)}
                     >
@@ -265,6 +275,15 @@ export function IndexesPanel({ connectionId, database, collection }: CollectionP
           onClose={() => setCreating(false)}
         />
       ) : null}
+      {editing === undefined ? null : (
+        <CreateIndexDialog
+          connectionId={connectionId}
+          database={database}
+          collection={collection}
+          editing={editing}
+          onClose={() => setEditing(undefined)}
+        />
+      )}
       {dropping === undefined ? null : (
         <DestructiveDialog
           title={`Drop index ${dropping.name}`}

@@ -28,6 +28,16 @@ function renderTable(onOpenDocument = vi.fn(), editable = true) {
   );
 }
 
+/** The grid row that shows the second customer. */
+async function customerRow(): Promise<HTMLElement> {
+  const cell = (await screen.findAllByText('Customer 2'))[0] as HTMLElement;
+  const row = cell.closest<HTMLElement>('[role="row"]');
+  if (row === null) {
+    throw new Error('The customer cell is not inside a grid row');
+  }
+  return row;
+}
+
 describe('TableView', () => {
   it('shows a column per discovered field path with its BSON type badges', async () => {
     renderTable();
@@ -53,14 +63,28 @@ describe('TableView', () => {
     expect(document.querySelector('[data-bson-type="Boolean"]')?.textContent).toBe('true');
   });
 
-  it('does not open a document when the result is read only', async () => {
+  it('opens the double-clicked document when the result is read only', async () => {
     const onOpen = vi.fn();
     renderTable(onOpen, false);
+    const index = DOCUMENTS.findIndex(
+      (document) => (document.customer as { name: string }).name === 'Customer 2',
+    );
 
-    fireEvent.doubleClick((await screen.findAllByText('Customer 2'))[0] as HTMLElement);
+    fireEvent.doubleClick(await customerRow());
 
-    expect(onOpen).not.toHaveBeenCalled();
+    // The grid reports row double-clicks on a timer, so the check waits for the call.
+    expect(index).toBeGreaterThanOrEqual(0);
+    await waitFor(() => expect(onOpen).toHaveBeenCalledWith(index));
     expect(screen.getByText('Read only')).toBeInTheDocument();
+  });
+
+  it('opens the double-clicked document when the result can be edited', async () => {
+    const onOpen = vi.fn();
+    renderTable(onOpen, true);
+
+    fireEvent.doubleClick(await customerRow());
+
+    await waitFor(() => expect(onOpen).toHaveBeenCalledTimes(1));
   });
 });
 

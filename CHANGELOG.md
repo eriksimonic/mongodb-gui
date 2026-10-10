@@ -10,6 +10,11 @@ All notable changes to Mongo GUI are listed here, newest first.
   passphrase of at least 10 characters. Each export uses a new salt and IV.
 - Imports a connections file after its passphrase is typed. Name collisions can skip, rename or
   replace the existing connection, and the connection tree reloads.
+- Edits an index from the Indexes panel. The index builder opens with the current definition, and
+  "Replace index" drops the index and creates the new one. MongoDB cannot change an index in place,
+  so a failed create after the drop leaves the index missing until a valid definition is saved.
+- Opens a whole document on double-click in the Documents panel and in the table and tree views of
+  results. A result that cannot be edited opens the document read-only.
 
 ## 0.1.0 - 2026-10-10
 

@@ -1,4 +1,4 @@
-import { Alert, Badge, Button, Group, SegmentedControl, Stack, Text } from '@mantine/core';
+import { Alert, Badge, Button, Group, Modal, SegmentedControl, Stack, Text } from '@mantine/core';
 import { modals } from '@mantine/modals';
 import { IconCopy } from '@tabler/icons-react';
 import { useEffect, useMemo, useState } from 'react';
@@ -241,6 +241,7 @@ export function ResultsPane({
               documents={result.documents}
               editable={editable}
               editabilityNote={editabilityNote}
+              onOpenDocument={setOpenIndex}
               onSetField={onSetField}
               onUnsetField={onUnsetField}
             />
@@ -249,9 +250,13 @@ export function ResultsPane({
           )}
         </div>
       )}
-      {target === undefined ||
-      openIndex === undefined ||
-      result?.documents[openIndex] === undefined ? null : (
+      {openIndex === undefined || result?.documents[openIndex] === undefined ? null : target ===
+        undefined ? (
+        <DocumentModal
+          document={result.documents[openIndex]}
+          onClose={() => setOpenIndex(undefined)}
+        />
+      ) : (
         <DocumentEditorDialog
           connectionId={target.connectionId}
           database={target.database}
@@ -269,4 +274,33 @@ export function ResultsPane({
 
 function isDocument(value: unknown): value is JsonObject {
   return typeof value === 'object' && value !== null && !Array.isArray(value);
+}
+
+/** One document of a result that cannot be edited. It opens read-only, with a copy action. */
+function DocumentModal({
+  document,
+  onClose,
+}: {
+  readonly document: JsonObject;
+  readonly onClose: () => void;
+}) {
+  const source = useMemo(() => ({ printableEjson: JSON.stringify(document) }), [document]);
+  return (
+    <Modal opened onClose={onClose} title="Document" centered size="xl">
+      <Stack gap="sm">
+        <div style={{ height: 420 }}>
+          <JsonView source={source} label="Document as JSON" />
+        </div>
+        <Group justify="flex-end">
+          <Button
+            variant="default"
+            leftSection={<IconCopy size={13} />}
+            onClick={() => void navigator.clipboard.writeText(jsonTextFor(source, 'canonical'))}
+          >
+            Copy
+          </Button>
+        </Group>
+      </Stack>
+    </Modal>
+  );
 }

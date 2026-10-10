@@ -108,8 +108,7 @@ function CellRenderer(props: CustomCellRendererProps<Row, unknown>) {
 
 /**
  * The documents as a grid. Each field path is a column, discovered from the loaded pages. The
- * column chooser hides and shows columns. Double-clicking a row opens the document when it can be
- * edited.
+ * column chooser hides and shows columns. Double-clicking a row opens the whole document.
  */
 export function TableView({
   documents,
@@ -207,7 +206,7 @@ export function TableView({
             onSelectionChange(event.api.getSelectedRows().map((row: Row) => row.index))
           }
           onRowDoubleClicked={(event) => {
-            if (editable && event.data !== undefined) {
+            if (event.data !== undefined) {
               onOpenDocument(event.data.index);
             }
           }}

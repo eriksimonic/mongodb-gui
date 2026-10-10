@@ -114,7 +114,11 @@ export function defaultIndexName(keys: Record<string, unknown>): string {
 }
 
 function toIndexOptions(options: CreateIndexInput['options']): Record<string, unknown> {
-  const result: Record<string, unknown> = {};
+  // The extra options go in first, so the named options below win over any clash.
+  const result: Record<string, unknown> =
+    options.extraOptionsEjson === undefined
+      ? {}
+      : { ...parseEjsonDocument(options.extraOptionsEjson, 'The extra index options') };
   if (options.unique !== undefined) {
     result.unique = options.unique;
   }

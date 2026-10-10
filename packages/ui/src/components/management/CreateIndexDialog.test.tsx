@@ -57,6 +57,55 @@ describe('CreateIndexDialog', () => {
     });
   });
 
+  it('replaces an index by dropping it and then creating the new definition', async () => {
+    const api = await connectedMockApi();
+    const drop = vi.spyOn(api.rpc.management, 'dropIndex');
+    const create = vi.spyOn(api.rpc.management, 'createIndex');
+    const onClose = vi.fn();
+    renderWithApp(
+      <CreateIndexDialog
+        {...target}
+        editing={{ name: 'email_1', key: { email: 1 }, unique: true }}
+        onClose={onClose}
+      />,
+      { api },
+    );
+
+    expect(screen.getByText('Edit index email_1')).toBeInTheDocument();
+    fireEvent.click(screen.getByRole('button', { name: 'Replace index' }));
+
+    await waitFor(() => expect(onClose).toHaveBeenCalledTimes(1));
+    expect(drop).toHaveBeenCalledWith({
+      connectionId: localConnectionId,
+      database: 'shop',
+      collection: 'customers',
+      name: 'email_1',
+    });
+    expect(create).toHaveBeenCalledWith(
+      expect.objectContaining({ keys: { email: 1 }, options: { name: 'email_1', unique: true } }),
+    );
+  });
+
+  it('says the old index was dropped when the create fails after the drop', async () => {
+    const api = await connectedMockApi();
+    vi.spyOn(api.rpc.management, 'createIndex').mockRejectedValueOnce(new Error('Bad definition'));
+    const onClose = vi.fn();
+    renderWithApp(
+      <CreateIndexDialog
+        {...target}
+        editing={{ name: 'email_1', key: { email: 1 } }}
+        onClose={onClose}
+      />,
+      { api },
+    );
+
+    fireEvent.click(screen.getByRole('button', { name: 'Replace index' }));
+
+    expect(await screen.findByText(/The index email_1 was dropped/)).toBeInTheDocument();
+    expect(screen.getByText(/Bad definition/)).toBeInTheDocument();
+    expect(onClose).not.toHaveBeenCalled();
+  });
+
   it('previews the createIndexes command as the builder reads it', async () => {
     const api = await connectedMockApi();
     renderWithApp(<CreateIndexDialog {...target} />, { api });

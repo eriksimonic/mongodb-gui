@@ -137,6 +137,7 @@ export const CreateIndexInputSchema = z.object({
     wildcardProjectionEjson: z.string().optional(),
     weights: z.record(z.string().min(1), z.number().positive()).optional(),
     defaultLanguage: z.string().min(1).optional(),
+    extraOptionsEjson: z.string().optional(),
   }),
 });
 
