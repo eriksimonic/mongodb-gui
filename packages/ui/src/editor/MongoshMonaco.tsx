@@ -1,8 +1,9 @@
 import { useComputedColorScheme } from '@mantine/core';
-import Editor, { type OnMount } from '@monaco-editor/react';
+import Editor, { type BeforeMount, type OnMount } from '@monaco-editor/react';
 import { useEffect, useRef } from 'react';
 import type * as Monaco from 'monaco-editor/editor/editor.api';
 import { editorUiEvents, insertionText, markerRanges } from './editor-events';
+import { defineEditorThemes, themeFor } from './editor-theme';
 import {
   clearCompletionSource,
   MONGOSH_LANGUAGE,
@@ -18,7 +19,8 @@ const MARKER_OWNER = 'sql';
 
 /**
  * The Monaco editor for one tab. Loaded lazily by MongoshEditor, so Monaco is not evaluated until
- * an editor opens. Ctrl+Enter runs the selection or the statement, and Ctrl+Shift+Enter runs all.
+ * an editor opens. F5 and Ctrl+Enter run the selection or the statement, and Ctrl+Shift+Enter runs
+ * all.
  */
 /** The text before the selection start and after its end, for an insert. */
 function textAround(
@@ -82,6 +84,11 @@ export function MongoshMonaco({
     };
   }, []);
 
+  // The themes must exist before the editor takes one by name.
+  const handleBeforeMount: BeforeMount = (monaco) => {
+    defineEditorThemes(monaco);
+  };
+
   const handleMount: OnMount = (editor, monaco) => {
     registerMongoshLanguage(monaco);
     registerSqlLanguage(monaco);
@@ -132,7 +139,7 @@ export function MongoshMonaco({
     editor.addAction({
       id: 'mongo-gui.run',
       label: 'Run statement',
-      keybindings: [monaco.KeyMod.CtrlCmd | monaco.KeyCode.Enter],
+      keybindings: [monaco.KeyMod.CtrlCmd | monaco.KeyCode.Enter, monaco.KeyCode.F5],
       run: () => {
         runAt((code, cursor, selection) => latest.current.onRun({ code, cursor, selection }));
       },
@@ -200,7 +207,8 @@ export function MongoshMonaco({
       path={`inmemory://mongo-gui/${tabId}.${language === 'sql' ? 'sql' : 'mongosh'}`}
       height="100%"
       language={language === 'sql' ? SQL_LANGUAGE : MONGOSH_LANGUAGE}
-      theme={scheme === 'dark' ? 'vs-dark' : 'vs'}
+      theme={themeFor(scheme)}
+      beforeMount={handleBeforeMount}
       value={value}
       onChange={(next) => onChange(next ?? '')}
       onMount={handleMount}

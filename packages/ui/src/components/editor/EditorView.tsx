@@ -325,10 +325,12 @@ export function EditorView({ tabId }: EditorViewProps) {
           aria-label="Query language"
           data={LANGUAGE_OPTIONS.map((option) => ({ ...option }))}
           value={current.language}
+          disabled={busy}
           onChange={(value) => {
             const language = LANGUAGE_OPTIONS.find((option) => option.value === value)?.value;
             if (language !== undefined && language !== current.language) {
-              void api.setEditorLanguage(tabId, language);
+              // Switching to Mongo translates the SQL text, with the sampled field types.
+              void api.setEditorLanguage(tabId, language, source ?? NO_SAMPLER);
             }
           }}
         />
@@ -337,7 +339,7 @@ export function EditorView({ tabId }: EditorViewProps) {
           leftSection={<IconPlayerPlay size={13} />}
           disabled={busy}
           onClick={() => editorUiEvents.emit({ type: 'editor:command', tabId, command: 'run' })}
-          title="Run the selection or the statement under the cursor (Ctrl+Enter)"
+          title="Run the selection or the statement under the cursor (F5 or Ctrl+Enter)"
         >
           Run
         </Button>

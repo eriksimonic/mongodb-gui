@@ -190,7 +190,7 @@ export function ClosableTab(props: IDockviewPanelHeaderProps) {
       database: () => store.getState().editors.tabs[tab.id]?.database ?? tab.database,
       isBusy: () => store.getState().editors.runtime[tab.connectionId] === 'busy',
     });
-    void store.getState().convertEditorToMongosh(tab.id, source);
+    void store.getState().setEditorLanguage(tab.id, 'mongosh', source);
   }
 
   const entries =

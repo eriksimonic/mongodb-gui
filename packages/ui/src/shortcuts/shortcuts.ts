@@ -69,10 +69,11 @@ export const SHORTCUTS: readonly Shortcut[] = [
   { id: 'dialog-close', keys: 'Escape', action: 'Close the open dialog', scope: 'dialog' },
   { id: 'dialog-submit', keys: 'Enter', action: 'Submit the dialog form', scope: 'dialog' },
   { id: 'editor-find', keys: 'mod+f', action: 'Find text in a JSON editor', scope: 'editor' },
-  // MongoshMonaco registers these two as Monaco actions. The keys match the Monaco bindings.
+  // MongoshMonaco registers these two as Monaco actions. The keys match the Monaco bindings, and
+  // the run action has F5 as a second key.
   {
     id: 'editor-run',
-    keys: 'mod+Enter',
+    keys: 'F5, mod+Enter',
     action: 'Run the selection, or the statement under the cursor',
     scope: 'editor',
   },

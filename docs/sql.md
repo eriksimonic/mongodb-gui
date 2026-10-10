@@ -2,7 +2,7 @@
 
 ## What it is
 
-The editor's SQL mode translates each T-SQL statement into one mongosh statement and runs that statement. The generated mongosh is shown to the user, so the user can read exactly what the database receives. The translation runs in one direction only: T-SQL goes in, mongosh comes out, and nothing converts mongosh back. The code is in `packages/core/src/sql`. `translateSql` in `index.ts` returns one result per statement, each with either the mongosh text or an error and the span to underline. The editor integration is not part of this module yet.
+The editor's SQL mode translates each T-SQL statement into one mongosh statement and runs that statement. The generated mongosh is shown to the user, so the user can read exactly what the database receives. The translation runs in one direction only: T-SQL goes in, mongosh comes out, and nothing converts mongosh back. Switching an editor tab from SQL to Mongo replaces the SQL text with the translation of all its statements. The tab keeps the original SQL, so switching back restores it while the text is still the converted mongosh. Any other mongosh text stays as it is. The code is in `packages/core/src/sql`. `translateSql` in `index.ts` returns one result per statement, each with either the mongosh text or an error and the span to underline.
 
 ## Supported statements
 

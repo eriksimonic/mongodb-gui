@@ -3,6 +3,7 @@ import {
   appError,
   newId,
   toAppError,
+  translateSql,
   translateSqlStatement,
   type AppError,
   type EditorLanguage,
@@ -30,6 +31,7 @@ import {
   patchDocument,
   bumpListRevision,
   closeTab,
+  convertTabToMongosh,
   findTab,
   finishRun,
   forgetRequest,
@@ -39,6 +41,7 @@ import {
   openTab,
   resultFromEvaluation,
   restoreTabs,
+  revertTabToSql,
   savedTabsOf,
   SavedTabsSchema,
   setActiveTab,
@@ -60,6 +63,8 @@ import { collectionQueryStatement, collectionSelectStatement } from './collectio
 const LOAD_ALL_BATCH = 500;
 /** The largest batch the runtime accepts for one `next` call. */
 const NEXT_BATCH_LIMIT = 1000;
+/** Samples nothing, so a translation has no field types. */
+const NO_SAMPLER: SqlSampler = { fieldsOf: () => Promise.resolve([]) };
 
 /** What the editor actions need from the store. */
 export interface EditorStoreAccess {
@@ -148,6 +153,39 @@ export function createEditorActions(access: EditorStoreAccess) {
   /** The language in the saved settings. Mongosh until the settings load. */
   function defaultLanguage(): EditorLanguage {
     return access.get().settings?.editorLanguage ?? 'mongosh';
+  }
+
+  /**
+   * Switches a SQL tab to mongosh by translating its text. Resolves to true when the tab is
+   * mongosh afterwards. A failure marks the span and the tab error and leaves the SQL in place. A
+   * tab that changed while the sampler ran, by an edit, a run or a switch, is left alone.
+   */
+  async function convertToMongosh(id: string, sql: string, sampler: SqlSampler): Promise<boolean> {
+    if (translateSql(sql).length === 0) {
+      update((state) => setTabLanguage(state, id, 'mongosh'));
+      return true;
+    }
+    const plan = await prepareSqlRun(sql, sampler);
+    const now = access.get().editors.tabs[id];
+    if (
+      now === undefined ||
+      now.text !== sql ||
+      now.language !== 'sql' ||
+      now.running !== undefined
+    ) {
+      return false;
+    }
+    if (!plan.ok) {
+      editorUiEvents.emit({
+        type: 'editor:markers',
+        tabId: id,
+        markers: [{ start: plan.span.start, end: plan.span.end, message: plan.message }],
+      });
+      update((state) => setTabError(state, id, appError('VALIDATION', plan.message)));
+      return false;
+    }
+    update((state) => convertTabToMongosh(state, id, { sql, mongosh: plan.mongosh }));
+    return true;
   }
 
   function openEditor(input: OpenEditorInput): string {
@@ -582,24 +620,6 @@ export function createEditorActions(access: EditorStoreAccess) {
       await runEditor(id, result.translation.mongosh, { sql: code });
     },
 
-    /**
-     * Replaces the SQL of a tab with its mongosh translation and switches the tab to mongosh. The
-     * saved default language stays. A text that does not translate leaves the tab as it is and
-     * shows the error on the tab.
-     */
-    async convertEditorToMongosh(id: string, sampler: SqlSampler): Promise<void> {
-      const tab = access.get().editors.tabs[id];
-      if (tab === undefined || tab.language !== 'sql') {
-        return;
-      }
-      const plan = await prepareSqlRun(tab.text, sampler);
-      if (!plan.ok) {
-        update((current) => setTabError(current, id, appError('VALIDATION', plan.message)));
-        return;
-      }
-      update((current) => setTabText(setTabLanguage(current, id, 'mongosh'), id, plan.mongosh));
-    },
-
     /** Shows an error on a tab, or clears it. The run flow uses it for a SQL that does not translate. */
     setEditorError(id: string, error: AppError | undefined): void {
       update((state) => setTabError(state, id, error));
@@ -637,11 +657,36 @@ export function createEditorActions(access: EditorStoreAccess) {
     },
 
     /**
-     * Switches a tab between mongosh and SQL and saves the choice as the default for new tabs. The
-     * text and the result stay. A failed settings save keeps the tab switched and shows an error line.
+     * Switches a tab between mongosh and SQL and saves the choice as the default for new tabs. Both
+     * the language toggle and the "Convert to mongosh" tab menu entry call it.
+     *
+     * Switching to mongosh translates every SQL statement of the text, with the field types the
+     * sampler gives, and replaces the text with the mongosh. Text with no statements, empty or only
+     * comments, switches with the text unchanged. A text that does not translate keeps the SQL and
+     * the SQL language, underlines the failing span and shows the message on the tab. The tab
+     * remembers the SQL, so switching back to SQL restores it while the text is still the mongosh of
+     * the conversion. Nothing translates mongosh to SQL, so any other text stays as it is.
+     *
+     * A tab with a run in progress, and an unknown tab, stay as they are. A failed settings save
+     * keeps the tab switched and shows an error line.
      */
-    async setEditorLanguage(id: string, language: EditorLanguage): Promise<void> {
-      update((state) => setTabLanguage(state, id, language));
+    async setEditorLanguage(
+      id: string,
+      language: EditorLanguage,
+      sampler: SqlSampler = NO_SAMPLER,
+    ): Promise<void> {
+      const tab = access.get().editors.tabs[id];
+      if (tab === undefined || tab.running !== undefined) {
+        return;
+      }
+      if (tab.language === language) {
+        return;
+      }
+      if (language === 'sql') {
+        update((state) => revertTabToSql(state, id));
+      } else if (!(await convertToMongosh(id, tab.text, sampler))) {
+        return;
+      }
       if (access.get().settings?.editorLanguage === language) {
         return;
       }

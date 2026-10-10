@@ -63,4 +63,9 @@ describe('convertEntries', () => {
     const [, entry] = convertEntries(sqlTab('  \n'), vi.fn());
     expect(entry).toMatchObject({ disabled: true, reason: 'The tab is empty' });
   });
+
+  it('stays on for text that holds only comments, which switches the language alone', () => {
+    const [, entry] = convertEntries(sqlTab('-- nothing yet'), vi.fn());
+    expect(entry).toMatchObject({ disabled: false, reason: undefined });
+  });
 });

@@ -281,7 +281,7 @@ describe('EditorView SQL mode', () => {
     });
   });
 
-  it('shows the toggle on SQL for a SQL tab and switches back to Mongo', async () => {
+  it('shows the toggle on SQL for a SQL tab and translates the text when it switches to Mongo', async () => {
     const api = await connectedMockApi();
     await openSql(SQL_SAMPLES, api);
     expect(screen.getByRole('radio', { name: 'SQL' })).toBeChecked();
@@ -289,6 +289,109 @@ describe('EditorView SQL mode', () => {
     fireEvent.click(screen.getByRole('radio', { name: 'Mongo' }));
 
     expect(await screen.findByRole('radio', { name: 'Mongo' })).toBeChecked();
+    await waitFor(() => expect(editor().value).toBe(MONGOSH_SAMPLES));
+    await waitFor(async () => {
+      expect((await api.rpc.settings.get()).editorLanguage).toBe('mongosh');
+    });
+  });
+
+  it('adds no line to the Output panel when the toggle converts', async () => {
+    const api = await connectedMockApi();
+    const evaluate = vi.spyOn(api.rpc.shell, 'evaluate');
+    await openSql(SQL_SAMPLES, api);
+
+    fireEvent.click(screen.getByRole('radio', { name: 'Mongo' }));
+
+    await waitFor(() => expect(editor().value).toBe(MONGOSH_SAMPLES));
+    expect(evaluate).not.toHaveBeenCalled();
+    const log = await screen.findByRole('log', { name: 'Output' });
+    expect(within(log).queryByText(MONGOSH_SAMPLES)).not.toBeInTheDocument();
+  });
+
+  it('joins the statements of all the SQL when the toggle converts', async () => {
+    await openSql(`${SQL_SAMPLES};\nDELETE FROM orders WHERE id = 1`);
+
+    fireEvent.click(screen.getByRole('radio', { name: 'Mongo' }));
+
+    await waitFor(() =>
+      expect(editor().value).toBe(`${MONGOSH_SAMPLES};\ndb.orders.deleteMany({ id: 1 })`),
+    );
+  });
+
+  it('switches with the text unchanged when the SQL tab holds only comments', async () => {
+    await openSql('-- nothing yet');
+
+    fireEvent.click(screen.getByRole('radio', { name: 'Mongo' }));
+
+    expect(await screen.findByRole('radio', { name: 'Mongo' })).toBeChecked();
+    expect(editor().value).toBe('-- nothing yet');
+  });
+
+  it('switches with the text unchanged when the SQL tab is empty', async () => {
+    await openSql('');
+
+    fireEvent.click(screen.getByRole('radio', { name: 'Mongo' }));
+
+    expect(await screen.findByRole('radio', { name: 'Mongo' })).toBeChecked();
+    expect(editor().value).toBe('');
+  });
+
+  it('stays on SQL, keeps the text and underlines the clause when the SQL does not translate', async () => {
+    await openSql('SELECT * FROM orders WHERE');
+
+    fireEvent.click(screen.getByRole('radio', { name: 'Mongo' }));
+
+    expect(await screen.findByRole('alert')).toHaveTextContent(
+      'expected an expression but the statement ended',
+    );
+    expect(screen.getByRole('radio', { name: 'SQL' })).toBeChecked();
+    expect(screen.getByRole('radio', { name: 'Mongo' })).not.toBeChecked();
+    expect(editor().value).toBe('SELECT * FROM orders WHERE');
+    expect(events).toEqual([
+      {
+        type: 'editor:markers',
+        tabId: EDITOR_TAB_ID,
+        markers: [
+          { start: 21, end: 26, message: 'expected an expression but the statement ended' },
+        ],
+      },
+    ]);
+  });
+
+  it('restores the original SQL when the toggle goes back to SQL', async () => {
+    const sql = 'select *   from bson_samples';
+    await openSql(sql);
+
+    fireEvent.click(screen.getByRole('radio', { name: 'Mongo' }));
+    await waitFor(() => expect(editor().value).toBe(MONGOSH_SAMPLES));
+    fireEvent.click(screen.getByRole('radio', { name: 'SQL' }));
+
+    expect(await screen.findByRole('radio', { name: 'SQL' })).toBeChecked();
+    await waitFor(() => expect(editor().value).toBe(sql));
+  });
+
+  it('keeps an edited mongosh text when the toggle goes back to SQL', async () => {
+    await openSql(SQL_SAMPLES);
+    fireEvent.click(screen.getByRole('radio', { name: 'Mongo' }));
+    await waitFor(() => expect(editor().value).toBe(MONGOSH_SAMPLES));
+    typeText('db.bson_samples.find({}).limit(2)');
+
+    fireEvent.click(screen.getByRole('radio', { name: 'SQL' }));
+
+    expect(await screen.findByRole('radio', { name: 'SQL' })).toBeChecked();
+    expect(editor().value).toBe('db.bson_samples.find({}).limit(2)');
+  });
+
+  it('blocks the toggle while a run is in progress', async () => {
+    const api = await connectedMockApi();
+    vi.spyOn(api.rpc.shell, 'evaluate').mockReturnValue(new Promise(() => undefined));
+    await openSql(SQL_SAMPLES, api);
+    pressRun();
+    await waitFor(() => expect(screen.getByRole('radio', { name: 'Mongo' })).toBeDisabled());
+
+    fireEvent.click(screen.getByRole('radio', { name: 'Mongo' }));
+
+    expect(screen.getByRole('radio', { name: 'SQL' })).toBeChecked();
     expect(editor().value).toBe(SQL_SAMPLES);
   });
 

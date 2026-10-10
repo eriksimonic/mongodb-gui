@@ -54,6 +54,12 @@ export interface RunState {
   readonly startedAt: number;
 }
 
+/** The SQL a tab held before it converted to mongosh, and the mongosh the conversion produced. */
+export interface SqlOrigin {
+  readonly sql: string;
+  readonly mongosh: string;
+}
+
 export interface EditorTab {
   readonly id: string;
   readonly connectionId: string;
@@ -65,6 +71,11 @@ export interface EditorTab {
   readonly view: ResultView;
   /** Whether the text is mongosh or SQL. SQL is translated before it runs. */
   readonly language: EditorLanguage;
+  /**
+   * Set when the tab converted from SQL to mongosh. Switching back to SQL restores the SQL while the
+   * text still equals the mongosh of the conversion. It is not saved between launches.
+   */
+  readonly sqlOrigin?: SqlOrigin | undefined;
   readonly running: RunState | undefined;
   readonly result: ResultSet | undefined;
   readonly error: AppError | undefined;
@@ -244,6 +255,36 @@ export function setTabLanguage(
   language: EditorLanguage,
 ): EditorsState {
   return updateTab(state, id, (tab) => (tab.language === language ? tab : { ...tab, language }));
+}
+
+/**
+ * Switches the tab from SQL to mongosh in one step. The text becomes the mongosh, the SQL is kept
+ * as the origin of the conversion, and the tab error clears.
+ */
+export function convertTabToMongosh(
+  state: EditorsState,
+  id: string,
+  origin: SqlOrigin,
+): EditorsState {
+  return updateTab(state, id, (tab) => ({
+    ...tab,
+    text: origin.mongosh,
+    language: 'mongosh',
+    sqlOrigin: origin,
+    error: undefined,
+  }));
+}
+
+/**
+ * Switches the tab from mongosh to SQL. While the text still equals the mongosh of the conversion,
+ * the SQL of the conversion comes back. Otherwise the text stays. The origin is spent either way.
+ */
+export function revertTabToSql(state: EditorsState, id: string): EditorsState {
+  return updateTab(state, id, (tab) => {
+    const origin = tab.sqlOrigin;
+    const text = origin !== undefined && tab.text === origin.mongosh ? origin.sql : tab.text;
+    return { ...tab, text, language: 'sql', sqlOrigin: undefined };
+  });
 }
 
 /** Marks the text as saved, which clears the unsaved indicator. */

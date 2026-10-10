@@ -6,6 +6,9 @@ All notable changes to Mongo GUI are listed here, newest first.
 
 ### Added
 
+- F5 runs the selection or the statement under the cursor in the mongosh and SQL editors, like
+  Ctrl+Enter. Field names, quoted keys and columns, collections and tables, and method names have
+  their own colors in both editors, in the dark and the light theme.
 - `packages/core` translates a T-SQL subset to mongosh: SELECT with joins, grouping and paging,
   UPDATE, DELETE, INSERT and TRUNCATE. Each statement becomes one mongosh statement, and a
   construct outside the subset is refused with a message that points at it.
@@ -15,6 +18,10 @@ All notable changes to Mongo GUI are listed here, newest first.
   for confirmation, and Format formats SQL. SQL completes table names after FROM and JOIN, and
   fields after an alias and a dot. The history and favourites lists mark SQL entries, and "Convert
   to mongosh" on a SQL tab replaces its text with the translation.
+- Switching an editor tab from SQL to Mongo with the language toggle translates its SQL to
+  mongosh, as "Convert to mongosh" in the tab menu does. A text that does not translate stays SQL,
+  with the failing clause underlined. Switching back restores the original SQL while the text is
+  still the converted mongosh.
 - "Generate data" on a collection inserts made-up documents from a seeded set of generators
   (identifiers, numbers, dates, names, emails, file paths and lorem text), with unique fields,
   a preview, progress and cancel. A unique field that its generator cannot fill is refused before

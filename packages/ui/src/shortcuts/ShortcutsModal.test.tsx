@@ -41,7 +41,7 @@ describe('ShortcutsModal', () => {
     const table = await screen.findByRole('table', { name: 'Keyboard shortcuts' });
     const expected: [string, RegExp][] = [
       ['Open a new editor on the selected connection and database', /^(Ctrl|Cmd)\+N$/],
-      ['Run the selection, or the statement under the cursor', /^(Ctrl|Cmd)\+Enter$/],
+      ['Run the selection, or the statement under the cursor', /^F5 or (Ctrl|Cmd)\+Enter$/],
       ['Run all the text in the editor', /^(Ctrl|Cmd)\+Shift\+Enter$/],
     ];
     for (const [action, keys] of expected) {

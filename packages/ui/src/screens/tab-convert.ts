@@ -8,7 +8,8 @@ import type { EditorTab } from '../state/editors';
 
 /**
  * The "Convert to mongosh" entry of a SQL tab. The entry is off, with the first error as its
- * reason, when the text does not translate. The conversion itself samples the field types.
+ * reason, when the text does not translate. Selecting it runs the same store action as the language
+ * toggle, `setEditorLanguage`, which samples the field types and keeps the SQL for a way back.
  */
 export function convertEntries(tab: EditorTab, onSelect: () => void): TreeMenuEntry[] {
   const failure = translateSql(tab.text).find((result) => !result.ok);

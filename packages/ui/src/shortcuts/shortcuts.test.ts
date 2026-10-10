@@ -37,6 +37,32 @@ describe('shortcut registry', () => {
   });
 });
 
+describe('editor run shortcut', () => {
+  const run = SHORTCUTS.find((shortcut) => shortcut.id === 'editor-run');
+
+  it('has F5 and Ctrl+Enter as its keys', () => {
+    expect(run?.scope).toBe('editor');
+    expect(parseKeys(run?.keys ?? '')).toEqual([['F5'], ['mod', 'Enter']]);
+  });
+
+  it('reads F5 or Ctrl+Enter on Linux and F5 or Cmd+Enter on macOS', () => {
+    expect(formatShortcut(run?.keys ?? '', 'Linux x86_64')).toBe('F5 or Ctrl+Enter');
+    expect(formatShortcut(run?.keys ?? '', 'MacIntel')).toBe('F5 or Cmd+Enter');
+  });
+
+  it('does not bind F5 anywhere else', () => {
+    const owners = SHORTCUTS.filter((shortcut) =>
+      parseKeys(shortcut.keys).some((parts) => parts.join('+') === 'F5'),
+    );
+    expect(owners.map((shortcut) => shortcut.id)).toEqual(['editor-run']);
+  });
+
+  it('keeps Run all on Ctrl+Shift+Enter', () => {
+    const runAll = SHORTCUTS.find((shortcut) => shortcut.id === 'editor-run-all');
+    expect(runAll?.keys).toBe('mod+Shift+Enter');
+  });
+});
+
 describe('parseKeys', () => {
   it('splits alternatives and modifiers', () => {
     expect(parseKeys('Shift+F10, ContextMenu')).toEqual([['Shift', 'F10'], ['ContextMenu']]);

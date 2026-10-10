@@ -19,6 +19,161 @@ import {
 
 export const SQL_LANGUAGE = 'tsql';
 
+/** Keywords that the completion list leaves out but the tokenizer colors and stops names at. */
+const EXTRA_KEYWORDS = [
+  'DECLARE',
+  'EXCEPT',
+  'INTERSECT',
+  'OVER',
+  'TABLE',
+  'THEN',
+  'TRUNCATE',
+  'UNION',
+];
+
+/** The words after which a table name follows. */
+const TABLE_INTRODUCERS = ['FROM', 'JOIN', 'UPDATE', 'INTO', 'TABLE'];
+
+const WORD = String.raw`[A-Za-z_][\w$]*`;
+const BRACKETED = String.raw`\[(?:[^\]]|\]\])*\]`;
+const QUOTED = String.raw`"(?:[^"]|"")*"`;
+
+/** The case table of a word. `fallback` is the token of a word that no list claims. */
+function wordCases(fallback: string): Record<string, unknown> {
+  return {
+    cases: {
+      '@introducers': { token: 'keyword', next: '@table' },
+      '@keywords': 'keyword',
+      '@functions': 'predefined',
+      '@types': 'keyword.type',
+      '@default': fallback,
+    },
+  };
+}
+
+/**
+ * The T-SQL tokenizer. Token names the themes in editor-theme.ts color:
+ *
+ * - `type`: a table. That is the name after FROM, JOIN, UPDATE, INTO or TABLE (with its schema
+ *   parts and an alias), and any name directly before a dot, which is a qualifier or an alias.
+ * - `property`: a column. That is a plain name anywhere else, the part after a dot, and a
+ *   bracketed or double-quoted name outside table position.
+ * - `keyword.type`: a data type such as INT or NVARCHAR. It takes the keyword color by prefix, and
+ *   its own name keeps it apart from the table token, which a theme colors by `type`.
+ * - `predefined`: a built-in function that the translator knows. `function` is any other name
+ *   that a parenthesis follows.
+ * - `keyword`, `variable`, `string`, `number`, `comment`, `operator`, `delimiter` as usual.
+ *
+ * The `table` state starts after a table keyword. `afterTable` follows a table name and takes a
+ * dot (the next part is a table name too), AS, or an alias. A bracketed or quoted name is one
+ * token only when it closes on its line, so a name that spans lines is not supported.
+ */
+export const SQL_MONARCH = {
+  ignoreCase: true,
+  keywords: [...SQL_KEYWORDS, ...EXTRA_KEYWORDS],
+  functions: [...SQL_FUNCTIONS],
+  types: [...SQL_TYPES],
+  introducers: TABLE_INTRODUCERS,
+  aliasKeywords: ['AS'],
+  tokenizer: {
+    root: [
+      { include: '@trivia' },
+      [/N'/, 'string', '@string'],
+      [/'/, 'string', '@string'],
+      [new RegExp(`${BRACKETED}(?=\\.)`), 'type'],
+      [new RegExp(QUOTED + '(?=\\.)'), 'type'],
+      [new RegExp(BRACKETED), 'property'],
+      [new RegExp(QUOTED), 'property'],
+      [/\[[^\]]*$/, 'property'],
+      [/"[^"]*$/, 'property'],
+      // Monarch reads a doubled at sign in a rule as one literal at sign, so `@@@?` is the regular
+      // expression `@@?`. Written with two, the rule matched every word and colored it a variable.
+      [/@@@?[A-Za-z_][A-Za-z0-9_]*/, 'variable'],
+      [/#{1,2}[A-Za-z_][\w$]*/, 'type'],
+      [new RegExp(`(\\.)(${WORD})(?=\\s*\\()`), ['delimiter', 'function']],
+      [new RegExp(`(\\.)(${WORD})(?=\\.)`), ['delimiter', 'type']],
+      [new RegExp(`(\\.)(${WORD})`), ['delimiter', 'property']],
+      [new RegExp(`${WORD}(?=\\.)`), 'type'],
+      [new RegExp(`${WORD}(?=\\s*\\()`), wordCases('function')],
+      [new RegExp(WORD), wordCases('property')],
+      [/\d+(\.\d*)?([eE][+-]?\d+)?|\.\d+([eE][+-]?\d+)?/, 'number'],
+      [/[()]/, '@brackets'],
+      [/[;,.]/, 'delimiter'],
+      [/<>|<=|>=|!=|[=<>+\-*/%]/, 'operator'],
+      [/\s+/, 'white'],
+    ],
+    trivia: [
+      [/--.*$/, 'comment'],
+      [/\/\*/, 'comment', '@blockComment'],
+    ],
+    // Right after a table keyword. Anything that is not a name ends the state without a token.
+    table: [
+      [/\s+/, 'white'],
+      { include: '@trivia' },
+      [new RegExp(BRACKETED), { token: 'type', switchTo: '@afterTable' }],
+      [new RegExp(QUOTED), { token: 'type', switchTo: '@afterTable' }],
+      [/\[[^\]]*$/, { token: 'type', next: '@pop' }],
+      [/"[^"]*$/, { token: 'type', next: '@pop' }],
+      [
+        /#{0,2}[A-Za-z_][\w$]*/,
+        {
+          cases: {
+            '@keywords': { token: '@rematch', next: '@pop' },
+            '@default': { token: 'type', switchTo: '@afterTable' },
+          },
+        },
+      ],
+      [/(?=\S)/, { token: '@rematch', next: '@pop' }],
+    ],
+    // After a table name: a dot continues the name, AS or a bare word is an alias.
+    afterTable: [
+      [/\./, { token: 'delimiter', switchTo: '@table' }],
+      [/\s+/, 'white'],
+      { include: '@trivia' },
+      [
+        new RegExp(WORD),
+        {
+          cases: {
+            '@aliasKeywords': { token: 'keyword', switchTo: '@alias' },
+            '@keywords': { token: '@rematch', next: '@pop' },
+            '@default': { token: 'type', next: '@pop' },
+          },
+        },
+      ],
+      [new RegExp(BRACKETED), { token: 'type', next: '@pop' }],
+      [new RegExp(QUOTED), { token: 'type', next: '@pop' }],
+      [/(?=\S)/, { token: '@rematch', next: '@pop' }],
+    ],
+    alias: [
+      [/\s+/, 'white'],
+      { include: '@trivia' },
+      [
+        new RegExp(WORD),
+        {
+          cases: {
+            '@keywords': { token: '@rematch', next: '@pop' },
+            '@default': { token: 'type', next: '@pop' },
+          },
+        },
+      ],
+      [new RegExp(BRACKETED), { token: 'type', next: '@pop' }],
+      [new RegExp(QUOTED), { token: 'type', next: '@pop' }],
+      [/(?=\S)/, { token: '@rematch', next: '@pop' }],
+    ],
+    blockComment: [
+      [/[^/*]+/, 'comment'],
+      [/\*\//, 'comment', '@pop'],
+      [/[/*]/, 'comment'],
+    ],
+    // A doubled quote stands for itself inside the string.
+    string: [
+      [/[^']+/, 'string'],
+      [/''/, 'string.escape'],
+      [/'/, 'string', '@pop'],
+    ],
+  },
+} as Monaco.languages.IMonarchLanguage;
+
 const registeredMonaco = new WeakSet<object>();
 let latestRequest = 0;
 
@@ -52,60 +207,7 @@ export function registerSqlLanguage(monaco: typeof Monaco): void {
     // The same shape as the word the completion model reads, so an accepted item replaces it.
     wordPattern: /[A-Za-z_@#][A-Za-z0-9_$]*/,
   });
-  monaco.languages.setMonarchTokensProvider(SQL_LANGUAGE, {
-    ignoreCase: true,
-    keywords: [...SQL_KEYWORDS],
-    functions: [...SQL_FUNCTIONS],
-    types: [...SQL_TYPES],
-    tokenizer: {
-      root: [
-        [/--.*$/, 'comment'],
-        [/\/\*/, 'comment', '@blockComment'],
-        [/N'/, 'string', '@string'],
-        [/'/, 'string', '@string'],
-        [/\[/, 'identifier', '@bracket'],
-        [/"/, 'identifier', '@quoted'],
-        [/@@?[A-Za-z_][A-Za-z0-9_]*/, 'variable'],
-        [
-          /[A-Za-z_][A-Za-z0-9_$]*/,
-          {
-            cases: {
-              '@keywords': 'keyword',
-              '@functions': 'predefined',
-              '@types': 'type',
-              '@default': 'identifier',
-            },
-          },
-        ],
-        [/\d+(\.\d*)?([eE][+-]?\d+)?|\.\d+([eE][+-]?\d+)?/, 'number'],
-        [/[()]/, '@brackets'],
-        [/[;,.]/, 'delimiter'],
-        [/<>|<=|>=|!=|[=<>+\-*/%]/, 'operator'],
-        [/\s+/, 'white'],
-      ],
-      blockComment: [
-        [/[^/*]+/, 'comment'],
-        [/\*\//, 'comment', '@pop'],
-        [/[/*]/, 'comment'],
-      ],
-      // A doubled quote stands for itself inside the string.
-      string: [
-        [/[^']+/, 'string'],
-        [/''/, 'string.escape'],
-        [/'/, 'string', '@pop'],
-      ],
-      bracket: [
-        [/[^\]]+/, 'identifier'],
-        [/\]\]/, 'identifier'],
-        [/\]/, 'identifier', '@pop'],
-      ],
-      quoted: [
-        [/[^"]+/, 'identifier'],
-        [/""/, 'identifier'],
-        [/"/, 'identifier', '@pop'],
-      ],
-    },
-  } as Monaco.languages.IMonarchLanguage);
+  monaco.languages.setMonarchTokensProvider(SQL_LANGUAGE, SQL_MONARCH);
 
   monaco.languages.registerCompletionItemProvider(SQL_LANGUAGE, {
     triggerCharacters: ['.'],

@@ -49,11 +49,13 @@ it.
 | Shortcut        | Action                                               |
 | --------------- | ---------------------------------------------------- |
 | Mod+F           | Find text in a JSON editor                           |
-| Mod+Enter       | Run the selection, or the statement under the cursor |
+| F5 or Mod+Enter | Run the selection, or the statement under the cursor |
 | Mod+Shift+Enter | Run all the text in the editor                       |
 
-In the mongosh editor, Mod+Enter and Mod+Shift+Enter use Cmd on macOS and Ctrl elsewhere. The
-Explain action has no shortcut. Use the "Explain" button.
+In the mongosh and SQL editors, F5 and Mod+Enter do the same thing. If text is selected, they run
+the selection. Otherwise they run the statement that holds the cursor. Mod+Enter and
+Mod+Shift+Enter use Cmd on macOS and Ctrl elsewhere. The Explain action has no shortcut. Use the
+"Explain" button.
 
 The editor component also has its own default keys, such as Ctrl+Space for suggestions. The app
 does not register or list them.

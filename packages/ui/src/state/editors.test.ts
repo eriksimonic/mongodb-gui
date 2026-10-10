@@ -7,6 +7,7 @@ import {
   beginRun,
   bumpListRevision,
   closeTab,
+  convertTabToMongosh,
   finishRun,
   forgetRequest,
   layoutKeyFor,
@@ -14,6 +15,7 @@ import {
   openTab,
   resultFromEvaluation,
   restoreTabs,
+  revertTabToSql,
   savedTabsOf,
   setActiveTab,
   setLoadingMore,
@@ -164,6 +166,77 @@ describe('tab settings and saved text', () => {
     state = setTabText(state, 'a', 'SELECT 1');
     state = setTabView(state, 'a', 'json');
     expect(state.tabs.a?.language).toBe('sql');
+  });
+
+  it('has no SQL origin when it opens', () => {
+    expect(withTab('a').tabs.a?.sqlOrigin).toBeUndefined();
+  });
+
+  it('converts a tab to mongosh in one step and keeps the SQL as its origin', () => {
+    let state = setTabLanguage(withTab('a', 'SELECT * FROM orders'), 'a', 'sql');
+    state = setTabError(state, 'a', { code: 'VALIDATION', message: 'old' });
+    const origin = { sql: 'SELECT * FROM orders', mongosh: 'db.orders.find({})' };
+
+    state = convertTabToMongosh(state, 'a', origin);
+
+    expect(state.tabs.a).toMatchObject({
+      language: 'mongosh',
+      text: 'db.orders.find({})',
+      savedText: 'SELECT * FROM orders',
+      sqlOrigin: origin,
+      error: undefined,
+    });
+  });
+
+  it('ignores a conversion for an unknown tab', () => {
+    const state = withTab('a');
+    expect(convertTabToMongosh(state, 'missing', { sql: 'x', mongosh: 'y' })).toBe(state);
+  });
+
+  it('restores the SQL when the text still equals the converted mongosh', () => {
+    const origin = { sql: 'select 1 from  t', mongosh: 'db.t.find({})' };
+    let state = setTabLanguage(withTab('a', origin.sql), 'a', 'sql');
+    state = convertTabToMongosh(state, 'a', origin);
+
+    state = revertTabToSql(state, 'a');
+
+    expect(state.tabs.a).toMatchObject({ language: 'sql', text: origin.sql });
+    expect(state.tabs.a?.sqlOrigin).toBeUndefined();
+  });
+
+  it('keeps the text on the switch to SQL when it differs from the converted mongosh', () => {
+    const origin = { sql: 'SELECT * FROM t', mongosh: 'db.t.find({})' };
+    let state = convertTabToMongosh(setTabLanguage(withTab('a'), 'a', 'sql'), 'a', origin);
+    state = setTabText(state, 'a', 'db.t.find({}).limit(1)');
+
+    state = revertTabToSql(state, 'a');
+
+    expect(state.tabs.a).toMatchObject({ language: 'sql', text: 'db.t.find({}).limit(1)' });
+    expect(state.tabs.a?.sqlOrigin).toBeUndefined();
+  });
+
+  it('keeps the text on the switch to SQL for a tab without an origin', () => {
+    const state = revertTabToSql(withTab('a', 'db.t.find()'), 'a');
+    expect(state.tabs.a).toMatchObject({ language: 'sql', text: 'db.t.find()' });
+  });
+
+  it('ignores a switch to SQL for an unknown tab', () => {
+    const state = withTab('a');
+    expect(revertTabToSql(state, 'missing')).toBe(state);
+  });
+
+  it('does not save the SQL origin', () => {
+    const origin = { sql: 'SELECT * FROM t', mongosh: 'db.t.find({})' };
+    const state = convertTabToMongosh(setTabLanguage(withTab('a'), 'a', 'sql'), 'a', origin);
+    const saved = savedTabsOf(state, CONNECTION);
+    expect(saved.tabs[0]).toEqual({
+      id: 'a',
+      database: 'shop',
+      text: 'db.t.find({})',
+      batchSize: 50,
+      view: 'table',
+      language: 'mongosh',
+    });
   });
 
   it('is unsaved until the text is saved', () => {
