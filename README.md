@@ -1,157 +1,106 @@
 # Mongo GUI
 
-Mongo GUI is a desktop client for MongoDB. It runs mongosh-compatible queries in an
-editor, shows results in a grid, and draws explain plans, indexes, live monitoring
-and the profiler. It runs on Linux, Windows and macOS and is released under the MIT
-license.
+Mongo GUI is a desktop client for MongoDB. It installs as a normal app on Linux, Windows and
+macOS, with no server, no container and no browser tab to set up first.
 
-The monitoring dashboard is configurable. Pick panels from a catalogue of 30 server metrics,
-close, resize and reorder them, and the layout is saved for each connection.
+You run mongosh statements in an editor and read the results as a grid, a tree or JSON. The same
+window shows indexes, explain plans, the profiler, live server metrics and backups. The app is free
+and released under the MIT license.
 
-Everything the app stores on disk (saved connections, query history, favourites,
-settings) is encrypted with a key derived from a master password you type at launch.
-See [docs/security.md](docs/security.md).
+![Shell with connections, welcome and output panels](docs/screenshots/shell.png)
 
-The app follows the system theme or stays in light or dark, as set under Settings. The
-panel layout and the window size are saved, so the next launch opens where you left off.
+## Why Mongo GUI
+
+| Tool            | Licence    | Price                                                                                                           |
+| --------------- | ---------- | --------------------------------------------------------------------------------------------------------------- |
+| Mongo GUI       | MIT        | Free                                                                                                            |
+| MongoDB Compass | SSPL       | Free                                                                                                            |
+| Studio 3T       | Commercial | Community Edition is free for non-commercial use and connects to up to three clusters. Paid editions cost more. |
+| NoSQLBooster    | Commercial | Paid licence                                                                                                    |
+| Robo 3T         | GPL v3     | Free                                                                                                            |
+
+- NoSQLBooster and Studio 3T are commercial desktop clients. Their full editions need a paid licence.
+- MongoDB Compass is the official client. It is free, but the SSPL is source-available, not open source as the OSI defines it.
+- Robo 3T is free. Its last stable release, 1.4, embeds the MongoDB 4.2 shell, not mongosh.
+- Browser tools such as Mongo Express usually run in Docker. You start a container and open a browser tab before you see any data.
+
+Mongo GUI keeps your connections in an encrypted store behind a master password, and it locks that
+store when you step away. The next section covers how.
+
+## The encrypted store and the store lock
+
+Saved connections, with their credentials, plus query history, favourites and settings live in one
+encrypted store. A master password you type at launch unlocks it.
+
+- The app encrypts each record with AES-256-GCM. A key derived from the master password with scrypt unwraps the random data key.
+- The app never saves the master password and cannot recover it. If you lose it, the stored data is gone. "Reset store" on the unlock screen deletes everything in the store.
+- The app locks after 30 minutes without activity by default. Change the period under "Idle lock (minutes)" in Settings.
+- To lock at once, press Ctrl+L (Cmd+L on macOS), click "Lock" in the toolbar, or click "Lock now" in Settings.
+- Locking closes every open connection and clears the data key from memory.
+
+The lock does not stop code that runs as your user while the app is unlocked. Lock the app when you
+step away from the machine. See [docs/security.md](docs/security.md) for the threat model and the key
+hierarchy.
+
+![Unlock screen with the master password field](docs/screenshots/unlock.png)
 
 ## Features
 
-- Connections and vault keep saved connections, history and settings in one encrypted store, and connect by URI or form.
+**Connect**
+
+- Connect by URI or by a form. Saved connections go into the encrypted store.
 - Docker discovery finds MongoDB containers on the local machine and connects to them.
-- The shell runs mongosh statements with completion, multi-statement scripts and print output.
-- SQL mode runs a T-SQL subset against collections. A SQL tab shows the translated mongosh beside the editor, read only, and the Output panel prints it before the run. "Open in Mongo" switches the tab to it.
+- Replica sets show their members, lag and elections, and reconfigure after a dry run.
+- Sharded clusters show shards, sharded collections, chunks and the balancer.
+
+**Query**
+
+- The editor runs mongosh statements with completion for collections, fields and operators. It runs multi-statement scripts and prints their output.
+- SQL mode runs a T-SQL subset against collections. The tab shows the translated mongosh beside the editor, read only.
 - Results open as a grid, an expandable tree with inline edits, or read-only JSON.
-- Explain shows the plan of find, aggregate, count, distinct, update and delete as a stage tree with warnings.
-- Collection management covers databases, collections, indexes, JSON schema validators and documents.
-- The monitoring dashboard charts server metrics in panels you choose, and lists running operations.
-- The profiler shows slow operations, top query shapes and the profiling level of each database.
-- Import reads JSON and CSV through a field mapping wizard, and export writes JSON, NDJSON or CSV.
-- Schema analysis reports the types, presence and examples of the fields in sampled documents.
-- Users and roles manage users and custom roles with their privileges.
-- Replica set shows members, lag and elections, and reconfigures the set after a dry run.
-- Sharding shows shards, sharded collections, chunks and the balancer, and shards collections.
+- Explain shows the plan of find, aggregate, count, distinct, update and delete as a stage tree, with warnings.
+- Generate data inserts made-up documents with unique fields, a preview and cancel.
+
+**Manage**
+
+- Databases, collections, indexes, JSON schema validators and documents.
+- Users and roles, with their privileges.
+- GridFS buckets and files, with upload, download and metadata edits.
+- Change streams on a collection, a database or a deployment, with resume tokens.
+- Schema analysis reports the types, presence and examples of fields in sampled documents.
+- Import JSON or CSV through a field mapping wizard. Export JSON, NDJSON or CSV.
+- Backup and restore run the bundled MongoDB Database Tools. Each backup writes a JSON description file, and a restore warns about tools versions that could corrupt data.
+
+**Monitor**
+
+- A monitoring dashboard charts server metrics in panels you choose from a catalogue of 30. The layout is saved for each connection.
+- The running operations list shows what the server is doing now.
+- The profiler lists slow operations, the top query shapes and the profiling level of each database.
 - Diagnostics show the server log, parameters, serverStatus, host information and sessions.
-- GridFS browses buckets and files, uploads and downloads them, and edits their metadata.
-- Change streams watch a collection, a database or a deployment, with resume tokens.
-- Settings set the theme, idle lock, editor size and update checks.
-- Backup and restore with bundled MongoDB Database Tools, with archive or folder dumps in gzip, a JSON description file per backup, database rename on restore, version checks, and downloads of other tool versions.
-- Packaging builds installers for Linux, Windows and macOS, and the app checks GitHub for updates.
 
 ## Screenshots
 
-The screenshots show the app as of the 0.1.0 release, except the SQL mode screenshot, which shows
-the next release.
+The screenshots show version 0.1.0, except the SQL mode and backup screenshots, which show the next release.
 
 ![Query editor with the documents of a find shown as a grid](docs/screenshots/editor-table.png)
 
-The query editor runs mongosh statements with completion for collections, fields and
-operators. Each result opens as a grid, an expandable tree or read-only JSON, with paging,
-inline edits in the tree, and a history and favourites list in the Output panel.
+Results of a find open as a grid. The tree and JSON views show the same result.
 
-| Tree view with inline edit                                                    | JSON view in mongosh syntax                                                    | History with search and re-run                                   |
-| ----------------------------------------------------------------------------- | ------------------------------------------------------------------------------ | ---------------------------------------------------------------- |
-| ![Tree view of a document with type badges](docs/screenshots/editor-tree.png) | ![JSON view of the result in mongosh syntax](docs/screenshots/editor-json.png) | ![History panel listing past runs](docs/screenshots/history.png) |
+![SQL tab with the read-only Mongo query beside the editor and the result below](docs/screenshots/sql-mode.png)
 
-| Unlock                                        | Shell                                                                            |
-| --------------------------------------------- | -------------------------------------------------------------------------------- |
-| ![Unlock screen](docs/screenshots/unlock.png) | ![Shell with connections, welcome and output panels](docs/screenshots/shell.png) |
+A SQL tab shows the mongosh it runs, beside the editor.
 
-| Connection tree                                                                                           | Connection dialog                                                             |
-| --------------------------------------------------------------------------------------------------------- | ----------------------------------------------------------------------------- |
-| ![Connection tree with databases and collections expanded](docs/screenshots/connection-tree.png)          | ![New connection dialog in form mode](docs/screenshots/connection-dialog.png) |
-| ![Replica set node with the members, their states and the member menu](docs/screenshots/replica-tree.png) |                                                                               |
+![Explain panel with the summary, the plan tree and the $lookup sub-tree open](docs/screenshots/explain.png)
 
-| Tab menu                                                                           | Cell menu                                                                                        |
-| ---------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------ |
-| ![Tab menu of an editor tab with the close actions](docs/screenshots/tab-menu.png) | ![Cell menu of the table view with copy value, key and document](docs/screenshots/cell-menu.png) |
+![Live monitoring dashboard with stat tiles and charts](docs/screenshots/monitor.png)
 
-| Indexes with the edit index dialog                                                                  | Validation with a Monaco validator                                                | Documents                                                                                                         |
-| --------------------------------------------------------------------------------------------------- | --------------------------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------- |
-| ![Indexes panel with the edit index dialog open and the drop warning](docs/screenshots/indexes.png) | ![Validation panel with a JSON schema validator](docs/screenshots/validation.png) | ![Documents panel with the first documents of a collection and their row actions](docs/screenshots/documents.png) |
+![Backup dialog for the shop database with the folder, name and format fields](docs/screenshots/backup.png)
 
-| Profiler                                                                               | Top query shapes                                                        |
-| -------------------------------------------------------------------------------------- | ----------------------------------------------------------------------- |
-| ![Profiler panel with slow queries and the detail pane](docs/screenshots/profiler.png) | ![Profiler top query shapes view](docs/screenshots/profiler-shapes.png) |
+## Development
 
-| Explain of an aggregate with a $lookup sub-tree open                                                         |
-| ------------------------------------------------------------------------------------------------------------ |
-| ![Explain panel with the summary, the plan tree and the $lookup sub-tree open](docs/screenshots/explain.png) |
-
-| SQL tab with the Mongo query beside the editor and the result below                                             |
-| --------------------------------------------------------------------------------------------------------------- |
-| ![SQL tab with the read-only Mongo query beside the editor and the result below](docs/screenshots/sql-mode.png) |
-
-| Docker node in the connection tree                                                | Credentials for a protected container                                                             |
-| --------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------- |
-| ![Docker node listing local MongoDB containers](docs/screenshots/docker-tree.png) | ![Credentials dialog for a password-protected container](docs/screenshots/docker-credentials.png) |
-
-| Monitor dashboard                                                                     | Running operations                                                                                        |
-| ------------------------------------------------------------------------------------- | --------------------------------------------------------------------------------------------------------- |
-| ![Live monitoring dashboard with stat tiles and charts](docs/screenshots/monitor.png) | ![Running operations with a namespace search and a long-running command](docs/screenshots/operations.png) |
-
-| Shell in the light theme                                                                                 | Settings                                                            |
-| -------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------- |
-| ![Shell in the light theme with the tree expanded and a monitor panel](docs/screenshots/shell-light.png) | ![Settings screen with its sections](docs/screenshots/settings.png) |
-
-| Schema analysis of a sampled collection                                                                                         |
-| ------------------------------------------------------------------------------------------------------------------------------- |
-| ![Schema panel with a summary, type bars and a field table of paths, types, presence and examples](docs/screenshots/schema.png) |
-
-| Add panel picker, grouped by category                                                    |
-| ---------------------------------------------------------------------------------------- |
-| ![Add panel picker with panels grouped by category](docs/screenshots/monitor-picker.png) |
-
-| Users and roles of a database                                                                                          |
-| ---------------------------------------------------------------------------------------------------------------------- |
-| ![Users and roles panel with the users of a database and their roles](docs/screenshots/users.png)                      |
-| Replica set members, lag and elections                                                                                 |
-| ---------------------------------------------------------------------------------------------------------------------- |
-| ![Replica set panel with the members table, state badges, lag and the election list](docs/screenshots/replica-set.png) |
-
-| Server diagnostics with the log tab and its filters                                                        |
-| ---------------------------------------------------------------------------------------------------------- |
-| ![Diagnostics panel with the log tab, level, component and text filters](docs/screenshots/diagnostics.png) |
-
-| Import wizard, preview and field mapping                                                                | Export dialog                                                                     |
-| ------------------------------------------------------------------------------------------------------- | --------------------------------------------------------------------------------- |
-| ![Import wizard at the preview and mapping step](docs/screenshots/import.png)                           | ![Export dialog with a filter and the NDJSON format](docs/screenshots/export.png) |
-| ![Generate data dialog with fields, generators and the unique flag](docs/screenshots/generate-data.png) |                                                                                   |
-
-| GridFS file list with an upload in progress                                                                            |
-| ---------------------------------------------------------------------------------------------------------------------- |
-| ![GridFS panel with the files of a bucket, the metadata badges and an upload in progress](docs/screenshots/gridfs.png) |
-
-| Change stream on a collection with live events and the selected event                                                                               |
-| --------------------------------------------------------------------------------------------------------------------------------------------------- |
-| ![Change stream panel with the live event list, the state strip and the detail pane of a replace event](docs/screenshots/change-streams.png)        |
-| Sharding panel with the balancer, collections and chunks per shard                                                                                  |
-| --------------------------------------------------------------------------------------------------------------------------------------------------- |
-| ![Sharding panel with the balancer state, a collections table with chunk bars per shard and the Distribution action](docs/screenshots/sharding.png) |
-
-| Backup dialog for a database                                                                                | Restore dialog with a rename and a tools version warning                                                             |
-| ----------------------------------------------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------- |
-| ![Backup dialog for the shop database with the folder, name and format fields](docs/screenshots/backup.png) | ![Restore dialog with the source summary, a rename row and the tools mismatch warning](docs/screenshots/restore.png) |
-
-## Prerequisites
-
-- Node.js 24 (see `.nvmrc`)
-- pnpm 12
-
-## Scripts
-
-- `pnpm install` installs dependencies.
-- `pnpm dev` starts the Electron app with hot reload (electron-vite in `packages/app`).
-- `pnpm dev:ui` serves the UI in a browser against an in-memory mock backend. Add `?preset=unlocked` to the URL to start with fixture connections.
-- `pnpm build` builds the Electron main, preload and renderer bundles into `packages/app/out`.
-- `pnpm lint` runs ESLint over the repository.
-- `pnpm typecheck` builds all TypeScript project references with `tsc -b`.
-- `pnpm test` runs the unit tests.
-- `pnpm test:integration` runs the integration tests against MongoDB 4.4, 6.0 and 8.0 in Docker through Testcontainers.
-- `pnpm check` runs lint, typecheck and unit tests in that order.
-- `pnpm storybook` opens the component stories for `packages/ui`.
-- `pnpm format` rewrites files with Prettier. `pnpm format:check` only reports them.
-- `pnpm dist` builds unsigned installers for the current platform into `packages/app/release`.
+See [CONTRIBUTING.md](CONTRIBUTING.md) for the prerequisites, the scripts, the gates and the coding
+standards. `pnpm dev` starts the app with hot reload. `pnpm dev:ui` serves the UI in a browser
+against an in-memory mock backend.
 
 ## Packaging and releases
 
