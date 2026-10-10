@@ -1,3 +1,5 @@
+> This is the original build plan, kept for history. The guides in this folder and CONTRIBUTING.md at the root describe the shipped app.
+
 # Mongo GUI implementation plan
 
 A desktop MongoDB client in the spirit of NoSQLBooster: mongosh-compatible editor with
