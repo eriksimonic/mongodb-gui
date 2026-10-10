@@ -87,6 +87,30 @@ describe('writeSidecar', () => {
     expect(readdirSync(dir)).toEqual([]);
   });
 
+  it('writes when a short password only shows up by chance', () => {
+    const path = join(dir, 'x.json');
+    const sidecar = buildSidecar({
+      ...facts(),
+      source: { ...facts().source, uri: 'mongodb://127.0.0.1:27017/?authSource=admin' },
+      output: {
+        kind: 'directory',
+        dirName: 'dump',
+        gzip: false,
+        bytes: 3,
+        files: [{ path: 'shop/orders.bson', bytes: 3, sha256: `1234${'b'.repeat(60)}` }],
+      },
+    });
+    writeSidecar(path, sidecar, ['admin', 'mongo', 'mongodb', '1234']);
+    expect(existsSync(path)).toBe(true);
+  });
+
+  it('refuses a short password written as user info', () => {
+    const path = join(dir, 'x.json');
+    const sidecar = buildSidecar({ ...facts(), warnings: ['failed for root:admin@host'] });
+    expect(() => writeSidecar(path, sidecar, ['admin'])).toThrow(/credential/);
+    expect(existsSync(path)).toBe(false);
+  });
+
   it('ignores empty secrets', () => {
     writeSidecar(join(dir, 'x.json'), buildSidecar(facts()), ['']);
     expect(existsSync(join(dir, 'x.json'))).toBe(true);

@@ -33,12 +33,25 @@ export function buildSidecar(facts: SidecarFacts): BackupSidecar {
 }
 
 /**
+ * Secrets shorter than this are only matched in user info form. The same floor as redactPassword:
+ * a short password such as "admin" or "mongo" turns up in ordinary sidecar text by chance.
+ */
+const MIN_SECRET_LENGTH_TO_MATCH = 8;
+
+function leaks(text: string, secret: string): boolean {
+  if (secret === '') return false;
+  if (secret.length >= MIN_SECRET_LENGTH_TO_MATCH) return text.includes(secret);
+  return text.includes(`:${secret}@`);
+}
+
+/**
  * Writes the sidecar next to the backup. The text is checked first and nothing is written when it
- * holds any of the secrets (the password in both forms, the raw URI).
+ * holds any of the secrets (the password in both forms, the raw URI). A short password counts only
+ * when it appears as user info (":password@").
  */
 export function writeSidecar(path: string, sidecar: BackupSidecar, secrets: string[]): void {
   const text = `${JSON.stringify(sidecar, null, 2)}\n`;
-  if (secrets.some((secret) => secret !== '' && text.includes(secret))) {
+  if (secrets.some((secret) => leaks(text, secret))) {
     throw new AppErrorException(
       appError(
         'INTERNAL',
