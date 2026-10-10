@@ -1,4 +1,10 @@
-import type { CsvDelimiter, ExportFormat, ImportFormat, TransferProgress } from '@mongo-gui/core';
+import type {
+  CsvDelimiter,
+  ExportFormat,
+  ImportFormat,
+  TransferKind,
+  TransferProgress,
+} from '@mongo-gui/core';
 import { formatBytes, formatDuration } from '../../monitor/format';
 
 /** Format names for the selects. Labels are plain sentence case. */
@@ -52,6 +58,17 @@ export function defaultExportFileName(
 /** Rows the list shows: values are counted in data records, the same as the backend. */
 export function countLine(progress: TransferProgress): string {
   return `${progress.processed.toLocaleString('en-US')} processed`;
+}
+
+/**
+ * The progress count of a row. A GridFS job counts bytes, so it shows the bytes read of the file.
+ * Imports and exports count data records.
+ */
+export function progressLine(kind: TransferKind, progress: TransferProgress): string {
+  if (kind === 'gridfs-upload' || kind === 'gridfs-download') {
+    return bytesLine(progress) ?? `${formatBytes(progress.processed)} processed`;
+  }
+  return countLine(progress);
 }
 
 export function elapsedLine(progress: TransferProgress): string {

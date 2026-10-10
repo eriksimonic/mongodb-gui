@@ -45,3 +45,20 @@ export function profilerPanelId(connectionId: string, database: string): string 
 export function usersPanelId(connectionId: string, database: string): string {
   return `users:${catalogKey(connectionId, database)}`;
 }
+
+/** Tree key of the GridFS node under a database. Its value in `AppData.expanded` is the open flag. */
+export const GRIDFS_NODE_PREFIX = 'gfs:';
+
+export function gridfsNodeId(connectionId: string, database: string): string {
+  return `${GRIDFS_NODE_PREFIX}${catalogKey(connectionId, database)}`;
+}
+
+/** Tree key of one bucket under the GridFS node. */
+export function gridfsBucketNodeId(connectionId: string, database: string, bucket: string): string {
+  return `gfsb:${catalogKey(connectionId, database)}/${bucket}`;
+}
+
+/** Dockview panel id of a bucket's file panel. One panel per bucket. */
+export function gridfsPanelId(connectionId: string, database: string, bucket: string): string {
+  return `gridfs:${catalogKey(connectionId, database)}/${bucket}`;
+}

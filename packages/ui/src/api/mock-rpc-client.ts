@@ -51,6 +51,7 @@ import {
   mockMasterPassword,
 } from './mock-fixtures';
 import { createMockShell } from './mock-shell';
+import { createMockPicks } from './mock-picks';
 import { delay, fail, method } from './mock-support';
 import { createMockMonitor } from './mock-monitor';
 import {
@@ -60,6 +61,7 @@ import {
   mockSavePath,
 } from './mock-transfer';
 import { createMockProfiler } from './mock-profiler';
+import { createMockGridFs, MOCK_FOLDER_PATH } from './mock-gridfs';
 import { createMockExplain } from './mock-explain';
 import type { UiApi } from './ui-api';
 
@@ -88,6 +90,8 @@ export interface MockUiApiOptions {
   readonly replication?: boolean;
   /** `viewer` signs in with no user or role rights, so the users and roles controls read disabled. */
   readonly security?: 'admin' | 'viewer';
+  /** The file the mock open dialog returns. Defaults to the sample CSV. */
+  readonly dialogPath?: string;
 }
 
 const DEFAULT_UPDATE_STATE: UpdateState = { phase: 'idle', current: '0.1.0', canInstall: true };
@@ -322,6 +326,9 @@ export function createMockUiApi(options: MockUiApiOptions = {}): UiApi {
     emit,
     hasReplication: () => options.replication === true,
   });
+  // The picks the mock dialogs register. The mock transfer calls check them as the router does.
+  const picks = createMockPicks();
+  const dialogPath = options.dialogPath ?? MOCK_DIALOG_PATH;
   const transfers = createMockTransfers(
     emit,
     (database, collection) =>
@@ -468,6 +475,14 @@ export function createMockUiApi(options: MockUiApiOptions = {}): UiApi {
     now: () => Date.now(),
   });
 
+  const gridfs = createMockGridFs({
+    latencyMs,
+    guard,
+    picks,
+    startTransfer: (kind, database, bucket, path, onDone) =>
+      transfers.startGridFs(kind, database, bucket, path, onDone),
+  });
+
   function wrapCall<I extends z.ZodType, O extends z.ZodType>(
     definition: RpcCall<I, O>,
     run: (input: z.output<I>) => z.output<O> | Promise<z.output<O>>,
@@ -523,12 +538,19 @@ export function createMockUiApi(options: MockUiApiOptions = {}): UiApi {
     app: {
       openExternal: method(rpcContract.app.openExternal, latencyMs, () => undefined),
       versions: method(rpcContract.app.versions, latencyMs, () => ({ ...MOCK_VERSIONS })),
-      showOpenDialog: method(rpcContract.app.showOpenDialog, latencyMs, () => ({
-        path: MOCK_DIALOG_PATH,
-      })),
-      showSaveDialog: method(rpcContract.app.showSaveDialog, latencyMs, ({ filters }) => ({
-        path: mockSavePath(filters[0]?.extensions[0] ?? 'csv'),
-      })),
+      showOpenDialog: method(rpcContract.app.showOpenDialog, latencyMs, ({ directory }) => {
+        if (directory === true) {
+          picks.folder(MOCK_FOLDER_PATH);
+          return { path: MOCK_FOLDER_PATH };
+        }
+        picks.opened(dialogPath);
+        return { path: dialogPath };
+      }),
+      showSaveDialog: method(rpcContract.app.showSaveDialog, latencyMs, ({ filters }) => {
+        const path = mockSavePath(filters[0]?.extensions[0] ?? 'csv');
+        picks.saved(path);
+        return { path };
+      }),
       showItemInFolder: method(rpcContract.app.showItemInFolder, latencyMs, ({ path }) => {
         if (!transfers.wroteFile(path)) {
           throw fail('VALIDATION', 'Only a file exported in this session can be shown.');
@@ -538,16 +560,21 @@ export function createMockUiApi(options: MockUiApiOptions = {}): UiApi {
       writeExport: method(rpcContract.app.writeExport, latencyMs, () => undefined),
     },
     transfer: {
-      previewImport: method(rpcContract.transfer.previewImport, latencyMs, ({ connectionId }) => {
+      previewImport: method(rpcContract.transfer.previewImport, latencyMs, (input) => {
         requireUnlocked();
-        findConnection(connectionId);
+        findConnection(input.connectionId);
+        // A preview reads sample rows, so only a file the open dialog returned is read.
+        picks.requireOpened(input.path);
         return mockImportPreview();
       }),
       startImport: method(rpcContract.transfer.startImport, latencyMs, (input) => {
         requireUnlocked();
         requireConnected(input.connectionId);
         const { connectionId, ...request } = input;
-        return { transferId: transfers.startImport(connectionId, request) };
+        picks.requireOpened(request.path);
+        const transferId = transfers.startImport(connectionId, request);
+        picks.useOpened(request.path);
+        return { transferId };
       }),
       startExport: method(rpcContract.transfer.startExport, latencyMs, (input) => {
         requireUnlocked();
@@ -782,6 +809,7 @@ export function createMockUiApi(options: MockUiApiOptions = {}): UiApi {
     },
     management,
     security,
+    gridfs,
     settings: {
       get: method(rpcContract.settings.get, latencyMs, () => {
         requireUnlocked();

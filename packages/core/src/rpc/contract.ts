@@ -106,6 +106,22 @@ import {
 } from '../transfer/calls';
 import { ImportPreviewSchema, TransferProgressSchema } from '../transfer/types';
 import {
+  GridFsBucketListSchema,
+  GridFsDeleteCallSchema,
+  GridFsDeleteOutputSchema,
+  GridFsDropBucketCallSchema,
+  GridFsFileListSchema,
+  GridFsFileRefCallSchema,
+  GridFsListBucketsCallSchema,
+  GridFsListFilesCallSchema,
+  GridFsRenameCallSchema,
+  GridFsSetMetadataCallSchema,
+  GridFsStartDownloadCallSchema,
+  GridFsStartOutputSchema,
+  GridFsStartUploadCallSchema,
+} from '../gridfs/calls';
+import { GridFsFileSchema } from '../gridfs/types';
+import {
   ExplainResultSchema,
   ExplainRunCommandInputSchema,
   ExplainRunInputSchema,
@@ -372,6 +388,18 @@ export const rpcContract = {
     setAutoConnect: defineCall(z.object({ enabled: z.boolean() }), SettingsSchema),
     /** Starts or stops the 10 second poll that pushes `docker:containers` events. */
     watch: defineCall(z.object({ enabled: z.boolean() }), z.void()),
+  },
+  // GridFS. Uploads and downloads run as transfers and report through transfer:progress.
+  gridfs: {
+    listBuckets: defineCall(GridFsListBucketsCallSchema, GridFsBucketListSchema),
+    listFiles: defineCall(GridFsListFilesCallSchema, GridFsFileListSchema),
+    getFile: defineCall(GridFsFileRefCallSchema, GridFsFileSchema),
+    startUpload: defineCall(GridFsStartUploadCallSchema, GridFsStartOutputSchema),
+    startDownload: defineCall(GridFsStartDownloadCallSchema, GridFsStartOutputSchema),
+    deleteFiles: defineCall(GridFsDeleteCallSchema, GridFsDeleteOutputSchema),
+    renameFile: defineCall(GridFsRenameCallSchema, GridFsFileSchema),
+    setMetadata: defineCall(GridFsSetMetadataCallSchema, GridFsFileSchema),
+    dropBucket: defineCall(GridFsDropBucketCallSchema, z.void()),
   },
   transfer: {
     previewImport: defineCall(PreviewImportInputSchema, ImportPreviewSchema),

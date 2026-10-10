@@ -4,7 +4,7 @@ import { useEffect } from 'react';
 import { useAppStore } from '../../state/app-store-context';
 import { listTransfers, transferFraction, type TransferView } from '../../state/transfer-state';
 import { runReported } from '../notify-error';
-import { countLine, statusLine } from './transfer-model';
+import { progressLine, statusLine } from './transfer-model';
 
 /**
  * Imports and exports of this session, running ones first, with a cancel button for each one
@@ -41,14 +41,26 @@ function barColor(progress: TransferProgress): string {
   return progress.error === undefined ? 'blue' : 'red';
 }
 
-function TransferLine({ view }: { view: TransferView }) {
+/** The name of a transfer as the list shows it. GridFS jobs name their file and bucket. */
+function transferLabel(view: TransferView): string {
+  if (view.kind === 'import') {
+    return `Import into ${view.database}.${view.collection}`;
+  }
+  if (view.kind === 'export') {
+    return `Export ${view.database}.${view.collection}`;
+  }
+  const name = view.path.split(/[\\/]/).pop() ?? view.path;
+  return view.kind === 'gridfs-upload'
+    ? `Upload ${name} to ${view.database} · ${view.collection}`
+    : `Download ${name} from ${view.database} · ${view.collection}`;
+}
+
+/** One transfer with its progress bar and a cancel button while it runs. Also used by GridFS. */
+export function TransferLine({ view }: { view: TransferView }) {
   const cancelTransfer = useAppStore((state) => state.cancelTransfer);
   const progress = view.progress;
   const fraction = transferFraction(progress);
-  const label =
-    view.kind === 'import'
-      ? `Import into ${view.database}.${view.collection}`
-      : `Export ${view.database}.${view.collection}`;
+  const label = transferLabel(view);
   return (
     <Stack gap={4} data-testid={`transfer-${view.transferId}`}>
       <Group justify="space-between" wrap="nowrap">
@@ -74,7 +86,7 @@ function TransferLine({ view }: { view: TransferView }) {
       />
       <Group justify="space-between" wrap="nowrap">
         <Text size="xs" c="dimmed">
-          {countLine(progress)}
+          {progressLine(view.kind, progress)}
           {progress.failed > 0 ? `, ${progress.failed.toLocaleString('en-US')} failed` : ''}
         </Text>
         {progress.done ? null : (
@@ -90,5 +102,29 @@ function TransferLine({ view }: { view: TransferView }) {
         )}
       </Group>
     </Stack>
+  );
+}
+
+/** A finished GridFS job as one line: the file, the outcome and the bytes. */
+export function TransferSummaryLine({ view }: { view: TransferView }) {
+  return (
+    <Group
+      justify="space-between"
+      wrap="nowrap"
+      gap="sm"
+      data-testid={`transfer-${view.transferId}`}
+    >
+      <Text size="xs" truncate>
+        {transferLabel(view)}
+      </Text>
+      <Group gap="sm" wrap="nowrap">
+        <Text size="xs" c="dimmed" style={{ whiteSpace: 'nowrap' }}>
+          {statusLine(view.progress)}
+        </Text>
+        <Text size="xs" c="dimmed" style={{ whiteSpace: 'nowrap' }}>
+          {progressLine(view.kind, view.progress)}
+        </Text>
+      </Group>
+    </Group>
   );
 }

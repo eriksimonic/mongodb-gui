@@ -23,6 +23,7 @@ export function DatabaseContextMenu({
   const setManagementDialog = useAppStore((state) => state.setManagementDialog);
   const setTransferDialog = useAppStore((state) => state.setTransferDialog);
   const refreshDatabase = useAppStore((state) => state.refreshDatabase);
+  const setGridFsDialog = useAppStore((state) => state.setGridFsDialog);
   const profilerOpener = useProfilerOpener();
   const openEditor = useAppStore((state) => state.openEditor);
   const openPanel = usePanelOpener();
@@ -52,6 +53,11 @@ export function DatabaseContextMenu({
       kind: 'item',
       label: 'Users and roles',
       onSelect: () => openPanel({ kind: 'users', connectionId, database }),
+    },
+    {
+      kind: 'item',
+      label: 'New GridFS bucket',
+      onSelect: () => setGridFsDialog({ kind: 'newBucket', connectionId, database }),
     },
     {
       kind: 'item',

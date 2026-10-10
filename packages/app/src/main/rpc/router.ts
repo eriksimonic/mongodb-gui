@@ -1,6 +1,6 @@
-import { existsSync, mkdirSync, statSync } from 'node:fs';
+import { existsSync, mkdirSync, realpathSync, statSync } from 'node:fs';
 import { exportTargetProblem, replaceFile } from './export-file';
-import { dirname, join } from 'node:path';
+import { dirname, join, resolve } from 'node:path';
 import { randomUUID } from 'node:crypto';
 import {
   AppErrorException,
@@ -54,24 +54,31 @@ import {
   databaseStats,
   deleteByFilter,
   deleteDocuments,
+  deleteFiles,
+  dropBucket,
   dropCollection,
   estimatedDocumentCount,
   dropDatabase,
   dropIndex,
   findDocumentById,
+  getFile,
   getValidation,
   insertDocument,
   getProfilingLevel,
+  listBuckets,
   listCollections,
   listDatabases,
+  listFiles,
   listIndexBuilds,
   listIndexes,
   listProfileEntries,
   mapDriverError,
   previewImport,
   renameCollection,
+  renameFile,
   replaceDocument,
   sampleDocuments,
+  setFileMetadata,
   setIndexHidden,
   setValidation,
   updateDocumentFields,
@@ -636,8 +643,13 @@ export function createRouter(deps: RouterDeps): Router {
     }
   }
 
-  // Paths the user picked in a save dialog this session. An export may replace only these.
+  // Absolute paths the user picked this session. Cleared on a renderer reset.
+  // Save paths: an export may replace only these, and a download may write only to these.
   const savePaths = new Set<string>();
+  // Folders picked in a folder dialog: a download may write only directly inside these.
+  const folderPicks = new Set<string>();
+  // Files picked in an open dialog: an upload or an import reads only these, one use each.
+  const openedFiles = new Set<string>();
 
   const dialogs = (): NativeDialogs => {
     if (deps.dialogs === undefined) {
@@ -908,19 +920,25 @@ export function createRouter(deps: RouterDeps): Router {
     entry('transfer.previewImport', rpcContract.transfer.previewImport, async (input) => {
       const { connectionId, ...request } = input;
       requireConnectionProfile(connectionId);
-      return previewImport(request);
+      // A preview reads sample rows, so it reads only a picked file. It does not use up the pick.
+      return previewImport({ ...request, path: pickedFile(request.path, openedFiles) });
     }),
     entry('transfer.startImport', rpcContract.transfer.startImport, (input) => {
       const { connectionId, ...request } = input;
       requireConnectionProfile(connectionId);
-      return { transferId: transfers.startImport(connectionId, request) };
+      const path = pickedFile(request.path, openedFiles);
+      const transferId = transfers.startImport(connectionId, { ...request, path });
+      // Used up only once the transfer has started, so a failed start leaves the pick usable.
+      openedFiles.delete(path);
+      return { transferId };
     }),
     entry('transfer.startExport', rpcContract.transfer.startExport, (input) => {
       const { connectionId, ...request } = input;
       requireConnectionProfile(connectionId);
-      refuseMissingFolder(request.path);
-      refuseUnpickedFile(request.path, savePaths);
-      return { transferId: transfers.startExport(connectionId, request) };
+      const path = resolveRequestPath(request.path);
+      refuseMissingFolder(path);
+      refuseUnpickedFile(path, savePaths);
+      return { transferId: transfers.startExport(connectionId, { ...request, path }) };
     }),
     entry('transfer.cancel', rpcContract.transfer.cancel, (input) => {
       transfers.cancel(input.transferId);
@@ -929,6 +947,50 @@ export function createRouter(deps: RouterDeps): Router {
       transfers.status(input.transferId),
     ),
     entry('transfer.list', rpcContract.transfer.list, () => transfers.list()),
+
+    entry('gridfs.listBuckets', rpcContract.gridfs.listBuckets, (input) =>
+      driverCall(() => listBuckets(deps.connections.getClient(input.connectionId), input)),
+    ),
+    entry('gridfs.listFiles', rpcContract.gridfs.listFiles, (input) =>
+      driverCall(() => listFiles(deps.connections.getClient(input.connectionId), input)),
+    ),
+    entry('gridfs.getFile', rpcContract.gridfs.getFile, (input) =>
+      driverCall(() => getFile(deps.connections.getClient(input.connectionId), input)),
+    ),
+    entry('gridfs.startUpload', rpcContract.gridfs.startUpload, (input) => {
+      const { connectionId, ...request } = input;
+      requireConnectionProfile(connectionId);
+      const path = pickedFile(request.path, openedFiles);
+      const transferId = transfers.startGridFsUpload(connectionId, { ...request, path });
+      // Used up only once the transfer has started, so a failed start leaves the pick usable.
+      openedFiles.delete(path);
+      return { transferId };
+    }),
+    entry('gridfs.startDownload', rpcContract.gridfs.startDownload, (input) => {
+      const { connectionId, ...request } = input;
+      requireConnectionProfile(connectionId);
+      const path = resolveRequestPath(request.path);
+      refuseUnpickedDownload(path, savePaths, folderPicks);
+      if (request.overwrite !== true) {
+        // Checked before the transfer starts, so the caller gets the refusal as the call's error.
+        refuseExistingFile(path);
+      }
+      return { transferId: transfers.startGridFsDownload(connectionId, { ...request, path }) };
+    }),
+    entry('gridfs.deleteFiles', rpcContract.gridfs.deleteFiles, (input) =>
+      driverCall(() => deleteFiles(deps.connections.getClient(input.connectionId), input)),
+    ),
+    entry('gridfs.renameFile', rpcContract.gridfs.renameFile, (input) =>
+      driverCall(() => renameFile(deps.connections.getClient(input.connectionId), input)),
+    ),
+    entry('gridfs.setMetadata', rpcContract.gridfs.setMetadata, (input) =>
+      driverCall(() => setFileMetadata(deps.connections.getClient(input.connectionId), input)),
+    ),
+    entry('gridfs.dropBucket', rpcContract.gridfs.dropBucket, (input) =>
+      driverCall(() =>
+        dropBucket(deps.connections.getClient(input.connectionId), input.database, input.bucket),
+      ),
+    ),
     entry('updates.state', rpcContract.updates.state, () => updatesService().state()),
     entry('updates.check', rpcContract.updates.check, () => updatesService().check()),
     entry('updates.download', rpcContract.updates.download, () => updatesService().download()),
@@ -946,13 +1008,22 @@ export function createRouter(deps: RouterDeps): Router {
       await deps.openExternal(new URL(input.url).href);
     }),
     entry('app.versions', rpcContract.app.versions, () => appVersions()),
-    entry('app.showOpenDialog', rpcContract.app.showOpenDialog, (input) =>
-      dialogs().showOpenDialog(input),
-    ),
+    entry('app.showOpenDialog', rpcContract.app.showOpenDialog, async (input) => {
+      const picked = await dialogs().showOpenDialog(input);
+      if (picked.path !== undefined) {
+        if (input.directory === true) {
+          // The real location is recorded at pick time, so a later symlink change cannot widen it.
+          folderPicks.add(realFolder(picked.path) ?? resolve(picked.path));
+        } else {
+          openedFiles.add(resolve(picked.path));
+        }
+      }
+      return picked;
+    }),
     entry('app.showSaveDialog', rpcContract.app.showSaveDialog, async (input) => {
       const picked = await dialogs().showSaveDialog(input);
       if (picked.path !== undefined) {
-        savePaths.add(picked.path);
+        savePaths.add(resolve(picked.path));
       }
       return picked;
     }),
@@ -1050,6 +1121,9 @@ export function createRouter(deps: RouterDeps): Router {
 
   return {
     resetRenderer() {
+      savePaths.clear();
+      folderPicks.clear();
+      openedFiles.clear();
       for (const listener of [...rendererResets]) {
         try {
           listener();
@@ -1454,6 +1528,68 @@ function refuseUnpickedFile(path: string, picked: ReadonlySet<string>): void {
   if (existsSync(path) && !picked.has(path)) {
     throw new AppErrorException(
       appError('VALIDATION', 'The file exists. Choose it with Save as to replace it.'),
+    );
+  }
+}
+
+/**
+ * Refuses a `..` segment and returns the absolute path. The transfer receives this resolved path,
+ * never the request's text, so the kernel writes where the check looked.
+ */
+function resolveRequestPath(path: string): string {
+  if (path.split(/[\\/]/).includes('..')) {
+    throw new AppErrorException(appError('VALIDATION', 'A path may not contain ".." segments.'));
+  }
+  return resolve(path);
+}
+
+/**
+ * The real location of a folder, or undefined when it cannot be read. A folder that is a symlink
+ * is compared by where it points, so a link inside a picked folder cannot lead out of it.
+ */
+function realFolder(path: string): string | undefined {
+  try {
+    return realpathSync(path);
+  } catch {
+    return undefined;
+  }
+}
+
+/**
+ * A download writes only to a save path picked this session, or directly inside a folder picked
+ * this session. The folder is compared by its real location, so a symlink inside it is refused.
+ */
+function refuseUnpickedDownload(
+  target: string,
+  savedFiles: ReadonlySet<string>,
+  pickedFolders: ReadonlySet<string>,
+): void {
+  const folder = realFolder(dirname(target));
+  if (savedFiles.has(target) || (folder !== undefined && pickedFolders.has(folder))) {
+    return;
+  }
+  throw new AppErrorException(
+    appError('VALIDATION', 'Choose the folder or the save location in a dialog first.'),
+  );
+}
+
+/**
+ * The resolved path of a file the open dialog returned this session. Checking does not use the pick
+ * up, so the caller uses it only when the transfer starts.
+ */
+function pickedFile(path: string, openedFiles: ReadonlySet<string>): string {
+  const file = resolveRequestPath(path);
+  if (!openedFiles.has(file)) {
+    throw new AppErrorException(appError('VALIDATION', 'Choose the file in a dialog first.'));
+  }
+  return file;
+}
+
+/** A download without overwrite refuses an existing file, so the renderer can offer a replace. */
+function refuseExistingFile(path: string): void {
+  if (existsSync(path)) {
+    throw new AppErrorException(
+      appError('ALREADY_EXISTS', 'The file exists. Replace it to overwrite.'),
     );
   }
 }

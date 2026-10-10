@@ -136,6 +136,14 @@ export const GridFsFileRefSchema = z.object({
   idEjson: GridFsIdEjsonSchema,
 });
 
+export const GridFsSetMetadataInputSchema = z.object({
+  database: DatabaseNameSchema,
+  bucket: GridFsBucketNameSchema,
+  idEjson: GridFsIdEjsonSchema,
+  // Canonical or relaxed Extended JSON of one object. An empty object clears the metadata.
+  metadataEjson: z.string().min(1),
+});
+
 export const GridFsDropBucketInputSchema = z.object({
   database: DatabaseNameSchema,
   bucket: GridFsBucketNameSchema,
@@ -154,3 +162,4 @@ export type GridFsRenameInput = z.infer<typeof GridFsRenameInputSchema>;
 export type GridFsFileRef = z.infer<typeof GridFsFileRefSchema>;
 export type GridFsListBucketsInput = z.infer<typeof GridFsListBucketsInputSchema>;
 export type GridFsDropBucketInput = z.infer<typeof GridFsDropBucketInputSchema>;
+export type GridFsSetMetadataInput = z.infer<typeof GridFsSetMetadataInputSchema>;

@@ -14,6 +14,7 @@ import {
 } from 'dockview-react';
 import { ConnectionTree } from '../components/connections/ConnectionTree';
 import { DocumentsPanel } from '../components/management/DocumentsPanel';
+import { GridFsPanel } from '../components/gridfs/GridFsPanel';
 import { IndexesPanel } from '../components/management/IndexesPanel';
 import { UsersRolesPanel } from '../components/security/UsersRolesPanel';
 import { ValidationPanel } from '../components/management/ValidationPanel';
@@ -314,6 +315,22 @@ export function SchemaDockPanel({ params }: IDockviewPanelProps<CollectionPanelP
   return (
     <Box h="100%" style={{ overflow: 'hidden' }}>
       <SchemaPanel {...params} />
+    </Box>
+  );
+}
+
+/** Params of a GridFS bucket panel. The shell sets them when it opens the panel. */
+export interface GridFsDockPanelParams {
+  readonly connectionId: string;
+  readonly database: string;
+  readonly bucket: string;
+}
+
+/** Dock panel: the files of one GridFS bucket. */
+export function GridFsDockPanel({ params }: IDockviewPanelProps<GridFsDockPanelParams>) {
+  return (
+    <Box h="100%" style={{ overflow: 'hidden' }}>
+      <GridFsPanel {...params} />
     </Box>
   );
 }

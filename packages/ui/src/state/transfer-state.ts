@@ -4,7 +4,10 @@ import type { TransferKind, TransferProgress, TransferSummary } from '@mongo-gui
 export interface TransferView {
   readonly transferId: string;
   readonly kind: TransferKind;
+  /** Set for transfers this session started. The list from the backend does not carry it. */
+  readonly connectionId?: string;
   readonly database: string;
+  /** The collection, or the bucket of a GridFS transfer. */
   readonly collection: string;
   readonly path: string;
   readonly progress: TransferProgress;
@@ -46,20 +49,30 @@ export function applyTransferProgress(
   return { ...transfers, [event.transferId]: { ...view, progress: event.progress } };
 }
 
-/** Replaces the view with the list the backend holds. Transfers the list omits are dropped. */
-export function transfersFromList(list: readonly TransferSummary[]): TransfersState {
+/**
+ * Replaces the view with the list the backend holds. Transfers the list omits are dropped. The list
+ * does not carry the connection, so the connection a transfer started with is kept from `previous`.
+ */
+export function transfersFromList(
+  list: readonly TransferSummary[],
+  previous: TransfersState = {},
+): TransfersState {
   return Object.fromEntries(
-    list.map((summary) => [
-      summary.transferId,
-      {
-        transferId: summary.transferId,
-        kind: summary.kind,
-        database: summary.database,
-        collection: summary.collection,
-        path: summary.path,
-        progress: summary.progress,
-      },
-    ]),
+    list.map((summary) => {
+      const connectionId = previous[summary.transferId]?.connectionId;
+      return [
+        summary.transferId,
+        {
+          transferId: summary.transferId,
+          kind: summary.kind,
+          ...(connectionId === undefined ? {} : { connectionId }),
+          database: summary.database,
+          collection: summary.collection,
+          path: summary.path,
+          progress: summary.progress,
+        },
+      ];
+    }),
   );
 }
 

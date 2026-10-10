@@ -1,7 +1,7 @@
 import { randomUUID } from 'node:crypto';
 import { once } from 'node:events';
-import { createReadStream, createWriteStream } from 'node:fs';
-import { link, lstat, rename as moveEntry, rm, stat } from 'node:fs/promises';
+import { constants as fsConstants, createReadStream, createWriteStream } from 'node:fs';
+import { copyFile, link, lstat, rename as moveEntry, rm, stat } from 'node:fs/promises';
 import { basename, dirname, join } from 'node:path';
 import { Transform, type TransformCallback, type Writable } from 'node:stream';
 import { pipeline } from 'node:stream/promises';
@@ -21,6 +21,7 @@ import {
   GridFsFileRefSchema,
   GridFsListInputSchema,
   GridFsRenameInputSchema,
+  GridFsSetMetadataInputSchema,
   GridFsUploadInputSchema,
   type GridFsFile,
   type GridFsListFilter,
@@ -292,8 +293,9 @@ async function refuseExistingTarget(path: string, overwrite: boolean): Promise<v
   }
 }
 
-// Filesystems such as FAT, exFAT and some network shares refuse hard links. For those, the target
-// is checked and then renamed into place. That check is not atomic, so it is the fallback only.
+// Filesystems such as FAT, exFAT and some network shares refuse hard links. For those, the bytes
+// are copied with COPYFILE_EXCL, which creates the target only when it is missing, as a hard link
+// does. There is no check before the copy, so no window opens between a check and the move.
 const NO_HARD_LINK_CODES: ReadonlySet<unknown> = new Set([
   'EPERM',
   'ENOTSUP',
@@ -313,8 +315,20 @@ export async function linkExclusive(source: string, target: string): Promise<voi
     if (!NO_HARD_LINK_CODES.has(readField(error, 'code'))) {
       throw error;
     }
-    await refuseExistingTarget(target, false);
-    await moveEntry(source, target);
+    await copyExclusive(source, target);
+    await rm(source, { force: true });
+  }
+}
+
+// Copies the bytes to a new target. COPYFILE_EXCL fails with EEXIST when the target exists.
+async function copyExclusive(source: string, target: string): Promise<void> {
+  try {
+    await copyFile(source, target, fsConstants.COPYFILE_EXCL);
+  } catch (error) {
+    if (readField(error, 'code') === 'EEXIST') {
+      throw validationError('The target file already exists');
+    }
+    throw error;
   }
 }
 
@@ -415,6 +429,23 @@ export async function renameFile(client: MongoClient, request: unknown): Promise
       throw notFoundError();
     }
     return toGridFsFile({ ...doc, filename: input.filename });
+  } catch (error) {
+    throw new AppErrorException(toGridFsFailure(error));
+  }
+}
+
+// Replaces the metadata of a file with the object the user typed. The upload's content type lives
+// in metadata, so the caller sends the whole object, not a patch. Returns the file after the change.
+export async function setFileMetadata(client: MongoClient, request: unknown): Promise<GridFsFile> {
+  try {
+    const input = parseInput(GridFsSetMetadataInputSchema, request);
+    refuseReservedDatabase(input.database, 'edit files in');
+    const id = parseFileId(input.idEjson);
+    const metadata = parseEjsonDocument(input.metadataEjson, 'The metadata');
+    const files = filesCollection(client, input.database, input.bucket);
+    const doc = await requireFile(files, id);
+    await files.updateOne(idQuery(id), { $set: { metadata } });
+    return toGridFsFile({ ...doc, metadata });
   } catch (error) {
     throw new AppErrorException(toGridFsFailure(error));
   }

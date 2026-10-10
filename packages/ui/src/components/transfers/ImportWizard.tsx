@@ -117,7 +117,7 @@ export function ImportWizardBody({
   async function previewFile() {
     setError(undefined);
     if (!isAbsolutePath(draft.path)) {
-      setError({ code: 'VALIDATION', message: 'Choose a file or type its full path' });
+      setError({ code: 'VALIDATION', message: 'Choose a file' });
       return;
     }
     if (collectionIsNew && target === '') {
@@ -390,9 +390,9 @@ export function ChooseFileStep({
       <Group align="flex-end" wrap="nowrap">
         <TextInput
           label="File path"
-          placeholder="/home/you/orders.csv"
+          placeholder="Choose a file"
           value={draft.path}
-          onChange={(event) => onChange({ path: event.currentTarget.value })}
+          readOnly
           style={{ flex: 1 }}
         />
         <Button variant="default" onClick={onBrowse}>

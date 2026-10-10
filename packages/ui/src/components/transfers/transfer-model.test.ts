@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { cellText, statusLine } from './transfer-model';
+import { cellText, progressLine, statusLine } from './transfer-model';
 import { emptyProgress } from '../../state/transfer-state';
 
 describe('cellText', () => {
@@ -36,5 +36,32 @@ describe('statusLine', () => {
     expect(
       statusLine({ ...emptyProgress(), done: true, error: { code: 'VALIDATION', message: 'x' } }),
     ).toBe('Failed');
+  });
+});
+
+describe('progressLine', () => {
+  const MB = 1024 * 1024;
+
+  it('counts bytes for a GridFS job', () => {
+    const progress = {
+      ...emptyProgress(),
+      processed: 5 * MB,
+      bytesRead: 5 * MB,
+      bytesTotal: 5 * MB,
+    };
+    expect(progressLine('gridfs-download', progress)).toBe('5.0 MB of 5.0 MB');
+    expect(progressLine('gridfs-upload', progress)).toBe('5.0 MB of 5.0 MB');
+  });
+
+  it('counts records for an import or an export', () => {
+    const progress = { ...emptyProgress(), processed: 1200, bytesRead: 5 * MB, bytesTotal: 5 * MB };
+    expect(progressLine('import', progress)).toBe('1,200 processed');
+    expect(progressLine('export', progress)).toBe('1,200 processed');
+  });
+
+  it('falls back to the processed bytes when the total is not known', () => {
+    expect(progressLine('gridfs-upload', { ...emptyProgress(), processed: 2048 })).toBe(
+      '2.0 KB processed',
+    );
   });
 });

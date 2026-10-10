@@ -5,6 +5,7 @@ import type {
   DatabaseInfo,
   DockerMongoContainerSummary,
   DockerStatus,
+  GridFsBucket,
 } from '@mongo-gui/core';
 import type { Loadable } from '../../state/app-store';
 import {
@@ -13,16 +14,21 @@ import {
   connectionNodeId,
   containerNodeId,
   databaseNodeId,
+  gridfsBucketNodeId,
+  gridfsNodeId,
   monitorNodeId,
   operationsNodeId,
   profilerNodeId,
 } from '../../state/node-ids';
+import { bucketLabel } from '../gridfs/gridfs-model';
 
 export type TreeRowKind =
   | 'connection'
   | 'database'
   | 'collection'
   | 'profiler'
+  | 'gridfs'
+  | 'gridfs-bucket'
   | 'message'
   | 'docker'
   | 'container'
@@ -41,6 +47,8 @@ export interface TreeRow {
   readonly database: string | undefined;
   readonly collection: string | undefined;
   readonly collectionType: CollectionInfo['type'] | undefined;
+  /** Set on `gridfs-bucket` rows only. */
+  readonly bucket: string | undefined;
   readonly parentKey: string | undefined;
   readonly expandable: boolean;
   readonly expanded: boolean;
@@ -66,6 +74,8 @@ export interface TreeInput {
   readonly collections: Readonly<Record<string, Loadable<readonly CollectionInfo[]>>>;
   /** Omitted before the Docker state is read. The node then shows a checking line. */
   readonly docker?: DockerTreeInput | undefined;
+  /** GridFS buckets per database, keyed by `catalogKey`. Absent until the GridFS node loads them. */
+  readonly gridfs?: Readonly<Record<string, Loadable<readonly GridFsBucket[]>>> | undefined;
 }
 
 const DISCONNECTED: ConnectionStatus = { state: 'disconnected' };
@@ -80,6 +90,7 @@ function makeRow(init: RowInit): TreeRow {
     database: undefined,
     collection: undefined,
     collectionType: undefined,
+    bucket: undefined,
     parentKey: undefined,
     expandable: false,
     expanded: false,
@@ -198,7 +209,61 @@ function databaseRows(
     database,
     parentKey: key,
   });
-  return [row, profiler, ...collectionRows(input, connectionId, database, key, childDepth)];
+  const gridfsKey = gridfsNodeId(connectionId, database);
+  const gridfsExpanded = input.expanded[gridfsKey] === true;
+  const gridfs = makeRow({
+    key: gridfsKey,
+    kind: 'gridfs',
+    depth: childDepth,
+    label: 'GridFS',
+    connectionId,
+    database,
+    parentKey: key,
+    expandable: true,
+    expanded: gridfsExpanded,
+  });
+  const gridfsChildren = gridfsExpanded
+    ? gridfsBucketRows(input, connectionId, database, gridfsKey, childDepth + 1)
+    : [];
+  return [
+    row,
+    profiler,
+    gridfs,
+    ...gridfsChildren,
+    ...collectionRows(input, connectionId, database, key, childDepth),
+  ];
+}
+
+/** The buckets under an open GridFS node, or the line that says why there are none. */
+function gridfsBucketRows(
+  input: TreeInput,
+  connectionId: string,
+  database: string,
+  parentKey: string,
+  depth: number,
+): TreeRow[] {
+  const buckets = input.gridfs?.[catalogKey(connectionId, database)];
+  if (buckets === undefined || buckets.state === 'loading') {
+    return [messageRow(parentKey, connectionId, depth, 'Loading buckets')];
+  }
+  if (buckets.state === 'error') {
+    return [messageRow(parentKey, connectionId, depth, buckets.error.message, 'red')];
+  }
+  if (buckets.data.length === 0) {
+    return [messageRow(parentKey, connectionId, depth, 'No buckets')];
+  }
+  return buckets.data.map((bucket) =>
+    makeRow({
+      key: gridfsBucketNodeId(connectionId, database, bucket.name),
+      kind: 'gridfs-bucket',
+      depth,
+      label: bucketLabel(bucket),
+      connectionId,
+      database,
+      bucket: bucket.name,
+      parentKey,
+    }),
+  );
 }
 
 /** The collections of an open database, or the line that says why there are none. */

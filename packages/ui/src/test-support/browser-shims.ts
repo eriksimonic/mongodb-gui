@@ -22,11 +22,13 @@ const PROFILER_SCROLLER = 'mg-profiler-scroll';
 // Every other virtualised list takes the same viewport through this class.
 const VIRTUAL_SCROLLER = 'mg-virtual-scroll';
 const SCHEMA_SCROLLER = 'mg-schema-scroll';
+const GRIDFS_SCROLLER = 'mg-gridfs-scroll';
 function isViewport(element: Element): boolean {
   return (
     element.classList.contains(PROFILER_SCROLLER) ||
     element.classList.contains(SCHEMA_SCROLLER) ||
-    element.classList.contains(VIRTUAL_SCROLLER)
+    element.classList.contains(VIRTUAL_SCROLLER) ||
+    element.classList.contains(GRIDFS_SCROLLER)
   );
 }
 const originalRect = Element.prototype.getBoundingClientRect;

@@ -11,10 +11,19 @@ import { ImportWizardBody } from './ImportWizard';
 
 const SUMMARY_TIMEOUT_MS = 6000;
 
-async function connectedApi(): Promise<UiApi> {
-  const api = createMockUiApi({ preset: 'unlocked' });
+async function connectedApi(dialogPath?: string): Promise<UiApi> {
+  const api = createMockUiApi({
+    preset: 'unlocked',
+    ...(dialogPath === undefined ? {} : { dialogPath }),
+  });
   await api.rpc.connections.connect({ id: localConnectionId });
   return api;
+}
+
+/** Chooses a file with Browse. The path field is read only, so the dialog is the only way in. */
+async function browseFor(path: string) {
+  fireEvent.click(screen.getByRole('button', { name: 'Browse' }));
+  await waitFor(() => expect(screen.getByLabelText('File path')).toHaveValue(path));
 }
 
 /** Opens a Mantine select and picks one of its options. */
@@ -35,7 +44,7 @@ async function renderAtMapping(onClose = vi.fn()) {
     />,
     { api },
   );
-  fireEvent.change(screen.getByLabelText('File path'), { target: { value: MOCK_DIALOG_PATH } });
+  await browseFor(MOCK_DIALOG_PATH);
   fireEvent.click(screen.getByRole('button', { name: 'Next' }));
   await screen.findByRole('table', { name: 'Field mapping' });
   return { api, onClose };
@@ -73,12 +82,9 @@ describe('ImportWizard, step one: choose file', () => {
       />,
       { api },
     );
-    fireEvent.change(screen.getByLabelText('File path'), { target: { value: 'orders.csv' } });
     fireEvent.click(screen.getByRole('button', { name: 'Next' }));
 
-    expect(await screen.findByRole('alert')).toHaveTextContent(
-      'Choose a file or type its full path',
-    );
+    expect(await screen.findByRole('alert')).toHaveTextContent('Choose a file');
     expect(screen.queryByRole('table', { name: 'Field mapping' })).not.toBeInTheDocument();
   });
 
@@ -93,7 +99,7 @@ describe('ImportWizard, step one: choose file', () => {
       />,
       { api },
     );
-    fireEvent.change(screen.getByLabelText('File path'), { target: { value: MOCK_DIALOG_PATH } });
+    await browseFor(MOCK_DIALOG_PATH);
     fireEvent.click(screen.getByRole('button', { name: 'Next' }));
 
     expect(await screen.findByRole('alert')).toHaveTextContent('Name the new collection');
@@ -232,7 +238,7 @@ const NDJSON_PREVIEW: ImportPreview = {
 
 describe('ImportWizard, JSON input', () => {
   it('sends the fields whose type was not changed as auto and marks them as inferred', async () => {
-    const api = await connectedApi();
+    const api = await connectedApi('/mock/orders.ndjson');
     vi.spyOn(api.rpc.transfer, 'previewImport').mockResolvedValue(NDJSON_PREVIEW);
     const start = vi.spyOn(api.rpc.transfer, 'startImport');
     renderWithApp(
@@ -244,9 +250,7 @@ describe('ImportWizard, JSON input', () => {
       />,
       { api },
     );
-    fireEvent.change(screen.getByLabelText('File path'), {
-      target: { value: '/mock/orders.ndjson' },
-    });
+    await browseFor('/mock/orders.ndjson');
     fireEvent.click(screen.getByRole('button', { name: 'Next' }));
 
     await screen.findByRole('table', { name: 'Field mapping' });
@@ -266,7 +270,7 @@ describe('ImportWizard, JSON input', () => {
   });
 
   it('sends a field the user retyped with its own type', async () => {
-    const api = await connectedApi();
+    const api = await connectedApi('/mock/orders.ndjson');
     vi.spyOn(api.rpc.transfer, 'previewImport').mockResolvedValue(NDJSON_PREVIEW);
     const start = vi.spyOn(api.rpc.transfer, 'startImport');
     renderWithApp(
@@ -278,9 +282,7 @@ describe('ImportWizard, JSON input', () => {
       />,
       { api },
     );
-    fireEvent.change(screen.getByLabelText('File path'), {
-      target: { value: '/mock/orders.ndjson' },
-    });
+    await browseFor('/mock/orders.ndjson');
     fireEvent.click(screen.getByRole('button', { name: 'Next' }));
     await screen.findByRole('table', { name: 'Field mapping' });
 

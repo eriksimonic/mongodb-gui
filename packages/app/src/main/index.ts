@@ -160,7 +160,7 @@ const nativeDialogs: NativeDialogs = {
   async showOpenDialog(input) {
     const options: OpenDialogOptions = {
       title: input.title,
-      properties: ['openFile'],
+      properties: [input.directory === true ? 'openDirectory' : 'openFile'],
       filters: input.filters.map((filter) => ({
         name: filter.name,
         extensions: filter.extensions,
