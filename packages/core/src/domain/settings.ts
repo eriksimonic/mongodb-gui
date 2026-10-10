@@ -14,4 +14,5 @@ export const defaultSettings: Settings = {
   checkForUpdates: true,
   treeDensity: 'compact',
   editorLanguage: 'mongosh',
+  mongoToolsVersion: 'auto',
 };

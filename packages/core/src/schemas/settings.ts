@@ -15,6 +15,7 @@ export const SettingsSchema = z.object({
   checkForUpdates: z.boolean(),
   treeDensity: z.enum(['compact', 'comfortable']),
   editorLanguage: EditorLanguageSchema,
+  mongoToolsVersion: z.string().regex(/^(auto|\d{1,4}\.\d{1,4}\.\d{1,4})$/),
 });
 
 export const SettingsPatchSchema = SettingsSchema.partial();
