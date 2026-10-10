@@ -19,7 +19,9 @@ import {
   type RemoveShardInput,
   type RemoveShardStatus,
   type ShardCollectionInput,
+  type ShardCollectionSummary,
   type ShardDistribution,
+  summarizeShardCollection,
   type UpdateZoneKeyRangeInput,
 } from '@mongo-gui/core';
 import {
@@ -71,10 +73,32 @@ export async function enableSharding(client: MongoClient, input: unknown): Promi
   }
 }
 
+// The dry run. It checks the input and describes the server's steps without a server call.
+export function describeShardCollection(input: unknown): ShardCollectionSummary {
+  const parsed = parseInput<ShardCollectionInput>(ShardCollectionInputSchema, input);
+  refuseReservedDatabase(parsed.database, 'shard collections in');
+  return summarizeShardCollection({
+    database: parsed.database,
+    collection: parsed.collection,
+    key: parseShardKey(parsed.keyEjson),
+    unique: parsed.unique,
+    presplitHashedZones: parsed.presplitHashedZones,
+    numInitialChunks: parsed.numInitialChunks,
+  });
+}
+
 export async function shardCollection(client: MongoClient, input: unknown): Promise<void> {
   const parsed = parseInput<ShardCollectionInput>(ShardCollectionInputSchema, input);
   refuseReservedDatabase(parsed.database, 'shard collections in');
   const key = parseShardKey(parsed.keyEjson);
+  summarizeShardCollection({
+    database: parsed.database,
+    collection: parsed.collection,
+    key,
+    unique: parsed.unique,
+    presplitHashedZones: parsed.presplitHashedZones,
+    numInitialChunks: parsed.numInitialChunks,
+  });
   try {
     await client.db('admin').command({
       shardCollection: `${parsed.database}.${parsed.collection}`,
@@ -88,9 +112,11 @@ export async function shardCollection(client: MongoClient, input: unknown): Prom
   }
 }
 
-export async function startBalancer(client: MongoClient): Promise<void> {
+// Returns the balancer status after the start, so the panel shows the mode at once.
+export async function startBalancer(client: MongoClient): Promise<BalancerStatus> {
   try {
     await client.db('admin').command({ balancerStart: 1 });
+    return await readBalancerStatus(client);
   } catch (error) {
     throw toAppException(error);
   }

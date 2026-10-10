@@ -4,6 +4,7 @@ import { CreateCollectionDialog } from './CreateCollectionDialog';
 import { CreateDatabaseDialog } from './CreateDatabaseDialog';
 import { CreateIndexDialog } from './CreateIndexDialog';
 import { RenameCollectionDialog } from './RenameCollectionDialog';
+import { ShardCollectionDialog } from '../sharding/ShardCollectionDialog';
 
 export interface ManagementDialogsProps {
   /** Called once a database is dropped, so the shell can close the panels that show it. */
@@ -63,6 +64,15 @@ export function ManagementDialogs({ onDatabaseDropped }: ManagementDialogsProps)
           database={dialog.database}
           collection={dialog.collection}
           initialField={dialog.field}
+          onClose={onClose}
+        />
+      );
+    case 'shardCollection':
+      return (
+        <ShardCollectionDialog
+          connectionId={dialog.connectionId}
+          database={dialog.database}
+          collection={dialog.collection}
           onClose={onClose}
         />
       );

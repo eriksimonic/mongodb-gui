@@ -3,6 +3,7 @@ import { modals } from '@mantine/modals';
 import type { ConnectionProfileSummary, ConnectionStatus } from '@mongo-gui/core';
 import { useAppStore } from '../../state/app-store-context';
 import { usePanelOpener } from '../../state/panel-opener';
+import { shardingAvailability } from '../../sharding/sharding-availability';
 import { runReported } from '../notify-error';
 
 /** The database that holds the server's users and roles. */
@@ -33,6 +34,7 @@ export function ConnectionContextMenu({
   const loadedDatabases = useAppStore((state) => state.databases[connection.id]);
   const canConnect = status.state === 'disconnected' || status.state === 'error';
   const canDisconnect = status.state === 'connected' || status.state === 'connecting';
+  const sharding = shardingAvailability(status);
 
   function runAndClose(action: () => Promise<void>) {
     onClose();
@@ -86,6 +88,26 @@ export function ConnectionContextMenu({
           }}
         >
           Monitor
+        </Menu.Item>
+        <Menu.Item
+          disabled={!sharding.available}
+          rightSection={
+            sharding.available ? undefined : (
+              <Text size="xs" c="dimmed">
+                {sharding.reason}
+              </Text>
+            )
+          }
+          onClick={() => {
+            onClose();
+            openPanel({
+              kind: 'sharding',
+              connectionId: connection.id,
+              connectionName: connection.name,
+            });
+          }}
+        >
+          Sharding
         </Menu.Item>
         <Menu.Item
           disabled={status.state !== 'connected'}

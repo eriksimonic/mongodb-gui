@@ -146,6 +146,23 @@ import {
   SecurityRoleListInputSchema,
   SecurityUserListInputSchema,
 } from '../security/calls';
+import {
+  AddShardToZoneInputSchema,
+  BalancerWindowInputSchema,
+  BalancerStatusSchema,
+  EnableShardingInputSchema,
+  MoveChunkInputSchema,
+  RemoveShardFromZoneInputSchema,
+  RemoveShardInputSchema,
+  RemoveShardStatusSchema,
+  SetBalancerInputSchema,
+  ShardCollectionCallSchema,
+  ShardCollectionOutputSchema,
+  ShardDistributionSchema,
+  ShardingOverviewSchema,
+  ShardNamespaceSchema,
+  UpdateZoneKeyRangeInputSchema,
+} from '../sharding/types';
 import { defineCall, type RpcContract } from './define';
 
 const idParam = z.object({ id: z.uuid() });
@@ -314,6 +331,29 @@ export const rpcContract = {
     ),
     /** Built-in actions from core, grouped by category. Needs no connection. */
     privilegeActions: defineCall(z.void(), PrivilegeActionCatalogSchema),
+  },
+  // Sharding reads the config database through mongos. Mutations need a connected mongos.
+  // shardCollection returns the dry run summary, and the server runs only when confirmed is true.
+  sharding: {
+    overview: defineCall(connectionParam, ShardingOverviewSchema),
+    collectionDistribution: defineCall(
+      onConnection(z.object({ namespace: ShardNamespaceSchema })),
+      ShardDistributionSchema,
+    ),
+    setBalancer: defineCall(onConnection(SetBalancerInputSchema), BalancerStatusSchema),
+    setBalancerWindow: defineCall(onConnection(BalancerWindowInputSchema), z.void()),
+    clearBalancerWindow: defineCall(connectionParam, z.void()),
+    enableSharding: defineCall(onConnection(EnableShardingInputSchema), z.void()),
+    shardCollection: defineCall(
+      onConnection(ShardCollectionCallSchema),
+      ShardCollectionOutputSchema,
+    ),
+    moveChunk: defineCall(onConnection(MoveChunkInputSchema), z.void()),
+    addShardToZone: defineCall(onConnection(AddShardToZoneInputSchema), z.void()),
+    removeShardFromZone: defineCall(onConnection(RemoveShardFromZoneInputSchema), z.void()),
+    updateZoneKeyRange: defineCall(onConnection(UpdateZoneKeyRangeInputSchema), z.void()),
+    /** A dry run unless confirmDraining is true. The result names the databases and chunks left. */
+    removeShard: defineCall(onConnection(RemoveShardInputSchema), RemoveShardStatusSchema),
   },
   // The sample is read by the shell runtime and the total from the server's metadata.
   schema: {

@@ -176,13 +176,28 @@ describe.each(CLUSTER_IMAGES)('sharding on %s', (image) => {
     expect(unsupported.message).toContain('customerId');
   });
 
+  it('refuses a unique hashed key before the server sees it', async () => {
+    const error = await captureError(() =>
+      shardCollection(mongos, {
+        database: DATABASE,
+        collection: 'hashed_unique',
+        keyEjson: '{"customerId": "hashed"}',
+        unique: true,
+      }),
+    );
+    expect(error.code).toBe('VALIDATION');
+    expect((await getShardingOverview(mongos)).collections.map((item) => item.ns)).not.toContain(
+      `${DATABASE}.hashed_unique`,
+    );
+  });
+
   it('shows the balancer mode and the balancer window', async () => {
     const stopped = await stopBalancer(mongos);
     expect(stopped.mode).toBe('off');
     expect(stopped.inBalancerRound).toBe(false);
     expect((await getShardingOverview(mongos)).balancer?.mode).toBe('off');
 
-    await startBalancer(mongos);
+    expect((await startBalancer(mongos)).mode).toBe('full');
     expect((await getShardingOverview(mongos)).balancer?.mode).toBe('full');
 
     await setBalancerWindow(mongos, { start: '01:00', stop: '05:00' });

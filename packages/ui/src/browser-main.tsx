@@ -15,7 +15,12 @@ const preset =
 const profilerRowsParam = Number(new URLSearchParams(window.location.search).get('profilerRows'));
 const profilerRows =
   Number.isInteger(profilerRowsParam) && profilerRowsParam > 0 ? profilerRowsParam : undefined;
-const api = createMockUiApi({ preset, latencyMs: 120, profilerRows });
+// ?sharding=cluster makes the local connection report a sharded topology with the seeded cluster.
+const sharding =
+  new URLSearchParams(window.location.search).get('sharding') === 'cluster'
+    ? 'cluster'
+    : 'standalone';
+const api = createMockUiApi({ preset, latencyMs: 120, profilerRows, sharding });
 
 createRoot(container).render(
   <StrictMode>

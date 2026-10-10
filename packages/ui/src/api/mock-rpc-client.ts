@@ -62,6 +62,7 @@ import {
 } from './mock-transfer';
 import { createMockProfiler } from './mock-profiler';
 import { createMockGridFs, MOCK_FOLDER_PATH } from './mock-gridfs';
+import { createShardingCalls, fixtureCluster, type MockCluster } from './mock-sharding';
 import { createMockExplain } from './mock-explain';
 import type { UiApi } from './ui-api';
 
@@ -92,6 +93,8 @@ export interface MockUiApiOptions {
   readonly security?: 'admin' | 'viewer';
   /** The file the mock open dialog returns. Defaults to the sample CSV. */
   readonly dialogPath?: string;
+  /** `cluster` makes the local connection report a sharded topology with a seeded two-shard cluster. */
+  readonly sharding?: 'cluster' | 'standalone';
 }
 
 const DEFAULT_UPDATE_STATE: UpdateState = { phase: 'idle', current: '0.1.0', canInstall: true };
@@ -113,6 +116,8 @@ interface MockState {
   builds: Map<string, MockBuild[]>;
   /** Users and custom roles per connection id. Created on first use. */
   security: Map<string, MockSecurity>;
+  /** Sharded clusters per connection id, created on first use by the sharding calls. */
+  clusters: Map<string, MockCluster>;
   dockerAvailable: boolean;
   dockerContainers: DockerMongoContainerSummary[];
   updateStates: readonly UpdateState[];
@@ -143,6 +148,7 @@ function initialState(preset: MockPreset): MockState {
     catalogs: new Map(),
     builds: new Map(),
     security: new Map(),
+    clusters: new Map(),
     dockerAvailable: true,
     dockerContainers: fixtureDockerContainers(),
     updateStates: [DEFAULT_UPDATE_STATE],
@@ -220,11 +226,11 @@ function summarise(profile: ConnectionProfile): ConnectionProfileSummary {
   return { ...profile, uriRedacted: redactUri(profile.uri) };
 }
 
-function connectedStatus(): ConnectionStatus {
+function connectedStatus(topology: 'standalone' | 'sharded' = 'standalone'): ConnectionStatus {
   return {
     state: 'connected',
     serverVersion: SERVER_VERSION,
-    topology: 'standalone',
+    topology,
     hosts: ['localhost:27017'],
   };
 }
@@ -475,6 +481,28 @@ export function createMockUiApi(options: MockUiApiOptions = {}): UiApi {
     now: () => Date.now(),
   });
 
+  // A cluster exists only while the connection reports a sharded topology.
+  function clusterOf(connectionId: string): MockCluster | undefined {
+    const status = statusOf(connectionId);
+    if (status.state !== 'connected' || status.topology !== 'sharded') {
+      return undefined;
+    }
+    let cluster = state.clusters.get(connectionId);
+    if (cluster === undefined) {
+      cluster = fixtureCluster();
+      state.clusters.set(connectionId, cluster);
+    }
+    return cluster;
+  }
+
+  const sharding = createShardingCalls({
+    latencyMs,
+    guard,
+    clusterOf,
+    catalogOf,
+    emit,
+  });
+
   const gridfs = createMockGridFs({
     latencyMs,
     guard,
@@ -697,7 +725,9 @@ export function createMockUiApi(options: MockUiApiOptions = {}): UiApi {
         setStatus(id, { state: 'connecting' });
         await delay(latencyMs);
         const status: ConnectionStatus = isReachable(profile.uri)
-          ? connectedStatus()
+          ? connectedStatus(
+              id === localConnectionId && options.sharding === 'cluster' ? 'sharded' : 'standalone',
+            )
           : { state: 'error', error: authError() };
         setStatus(id, status);
         return status;
@@ -809,6 +839,7 @@ export function createMockUiApi(options: MockUiApiOptions = {}): UiApi {
     },
     management,
     security,
+    sharding,
     gridfs,
     settings: {
       get: method(rpcContract.settings.get, latencyMs, () => {
