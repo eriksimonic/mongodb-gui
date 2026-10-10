@@ -278,7 +278,11 @@ function ChangesBody({ panelId, panel }: ChangesBodyProps) {
             overflow: 'auto',
           }}
         >
-          <ChangeDetail row={selected} onResumeFrom={(key) => void resumeFrom(panelId, key)} />
+          <ChangeDetail
+            row={selected}
+            resumeDisabled={phase === 'opening'}
+            onResumeFrom={(key) => void resumeFrom(panelId, key)}
+          />
         </Box>
       </Flex>
     </Stack>

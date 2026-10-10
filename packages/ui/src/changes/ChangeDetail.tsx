@@ -17,10 +17,12 @@ export interface ChangeDetailProps {
   readonly row: ChangeRow | undefined;
   /** Restarts the watch after this row. */
   readonly onResumeFrom: (key: string) => void;
+  /** True while a watch is opening. A restart then would race the start in flight. */
+  readonly resumeDisabled: boolean;
 }
 
 /** The selected event: its facts, its document in a tree, and its resume token. */
-export function ChangeDetail({ row, onResumeFrom }: ChangeDetailProps) {
+export function ChangeDetail({ row, onResumeFrom, resumeDisabled }: ChangeDetailProps) {
   if (row === undefined) {
     return (
       <Text size="sm" c="dimmed" p={8}>
@@ -28,12 +30,13 @@ export function ChangeDetail({ row, onResumeFrom }: ChangeDetailProps) {
       </Text>
     );
   }
-  return <EventDetail row={row} onResumeFrom={onResumeFrom} />;
+  return <EventDetail row={row} onResumeFrom={onResumeFrom} resumeDisabled={resumeDisabled} />;
 }
 
 function EventDetail({
   row,
   onResumeFrom,
+  resumeDisabled,
 }: Omit<ChangeDetailProps, 'row'> & { readonly row: ChangeRow }) {
   const { event } = row;
   const documents = useMemo<JsonObject[]>(() => {
@@ -81,7 +84,12 @@ function EventDetail({
         </Text>
         <Group gap={6}>
           <CopyText label="Copy token" text={event.resumeTokenEjson} />
-          <Button size="xs" variant="light" onClick={() => onResumeFrom(row.key)}>
+          <Button
+            size="xs"
+            variant="light"
+            disabled={resumeDisabled}
+            onClick={() => onResumeFrom(row.key)}
+          >
             Resume from here
           </Button>
         </Group>

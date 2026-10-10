@@ -5,10 +5,12 @@ import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 import {
   AppErrorException,
   appError,
+  type ChangeWatchState,
   type ConnectionStatus,
   type RpcEvent,
   type RpcResult,
 } from '@mongo-gui/core';
+import type { ChangeWatch } from '@mongo-gui/mongo-adapter';
 import {
   createAppServices,
   createRouter,
@@ -107,5 +109,49 @@ describe('change stream routes', () => {
     expect(codeOf(await router.handle('changes.resume', { watchId: WATCH_ID }))).toBe('NOT_FOUND');
     expect(codeOf(await router.handle('changes.state', { watchId: WATCH_ID }))).toBe('NOT_FOUND');
     expect(codeOf(await router.handle('changes.stop', { watchId: WATCH_ID }))).toBe('NOT_FOUND');
+  });
+});
+
+describe('change stream state errors', () => {
+  it('redacts a URI in the error of a watch state before it reaches the renderer', async () => {
+    const dir = mkdtempSync(join(tmpdir(), 'changes-state-'));
+    const services = createAppServices({ userDataDir: dir, kdf: FAST_KDF, failureDelayMs: 0 });
+    const secretMessage = 'Connection failed for mongodb://u:secretpw@h:1/db';
+    const fakeWatch: ChangeWatch = {
+      pause() {},
+      resume() {},
+      async close() {},
+      state: () => ({
+        phase: 'error',
+        eventsSeen: 0,
+        eventsDropped: 0,
+        openedAt: '2026-10-10T10:00:00.000Z',
+        error: appError('NOT_CONNECTED', secretMessage),
+      }),
+    };
+    const router = createRouter({
+      ...services,
+      connections: registry(),
+      onEvent: () => undefined,
+      openWatch: () => fakeWatch,
+    });
+    try {
+      const started = await router.handle('changes.start', {
+        connectionId: CONNECTION_ID,
+        target: TARGET,
+        options: {},
+      });
+      const watchId = started.ok ? (started.value as { watchId: string }).watchId : '';
+
+      const state = await router.handle('changes.state', { watchId });
+
+      expect(state.ok).toBe(true);
+      const text = JSON.stringify(state);
+      expect(text).not.toContain('secretpw');
+      expect(text).toContain('***');
+    } finally {
+      await services.dispose();
+      rmSync(dir, { recursive: true, force: true });
+    }
   });
 });

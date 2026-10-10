@@ -49,6 +49,8 @@ export interface ChangesPanelState {
   readonly order: ChangeOrder;
   readonly filter: string;
   readonly selectedKey: string | undefined;
+  /** Counts starts and stops. A start whose number is no longer current has been superseded. */
+  readonly generation: number;
 }
 
 export interface ChangesState {
@@ -104,6 +106,7 @@ function initialPanel(
     order: 'newest',
     filter: '',
     selectedKey: undefined,
+    generation: 0,
   };
 }
 
@@ -228,7 +231,13 @@ export function createChangesStore(api: UiApi): ChangesStore {
           patch(panelId, { pipelineError, resumeTokenError });
           return;
         }
+        const generation = panel.generation + 1;
+        patch(panelId, { generation });
         await stopWatch(panelId);
+        // Another start or a stop may have run during the stop. Then this start is superseded.
+        if (panelOf(panelId)?.generation !== generation) {
+          return;
+        }
         patch(panelId, {
           pipelineError: undefined,
           resumeTokenError: undefined,
@@ -243,15 +252,17 @@ export function createChangesStore(api: UiApi): ChangesStore {
             target: panel.target,
             options: optionsOf(panel),
           });
-          if (get().panels[panelId] === undefined) {
-            // The panel closed while the start was in flight, so the new watch has no owner.
+          if (panelOf(panelId)?.generation !== generation) {
+            // Superseded, stopped or closed while the start was in flight. The watch has no owner.
             await rpc.changes.stop({ watchId }).catch(() => undefined);
             return;
           }
           patch(panelId, { watchId });
           await syncState(panelId, watchId);
         } catch (error) {
-          patch(panelId, { phase: 'error', error: toAppError(error) });
+          if (panelOf(panelId)?.generation === generation) {
+            patch(panelId, { phase: 'error', error: toAppError(error) });
+          }
         }
       },
 
@@ -282,6 +293,11 @@ export function createChangesStore(api: UiApi): ChangesStore {
       },
 
       async stop(panelId) {
+        const panel = panelOf(panelId);
+        if (panel !== undefined) {
+          // Supersedes a start still in flight, so its watch is stopped when it arrives.
+          patch(panelId, { generation: panel.generation + 1 });
+        }
         await stopWatch(panelId);
       },
 

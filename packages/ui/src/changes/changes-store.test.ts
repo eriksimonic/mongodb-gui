@@ -120,6 +120,47 @@ describe('changes store', () => {
     expect(panel?.watchId).toBe('watch-2');
   });
 
+  it('keeps one live watch when two restarts overlap, and stops the one that was superseded', async () => {
+    const { api, changes } = fakeApi();
+    const store = openStore(api);
+    await store.getState().start(PANEL);
+    store.getState().applyEvent(batch('watch-1', 1, 3));
+    const answers: ((value: { watchId: string }) => void)[] = [];
+    changes.start.mockImplementation(
+      () => new Promise<{ watchId: string }>((resolve) => answers.push(resolve)),
+    );
+
+    const first = store.getState().resumeFrom(PANEL, 'watch-1:2');
+    await vi.waitFor(() => expect(answers).toHaveLength(1));
+    const second = store.getState().resumeFrom(PANEL, 'watch-1:2');
+    await vi.waitFor(() => expect(answers).toHaveLength(2));
+    answers[0]?.({ watchId: 'watch-a' });
+    answers[1]?.({ watchId: 'watch-b' });
+    await Promise.all([first, second]);
+
+    expect(store.getState().panels[PANEL]?.watchId).toBe('watch-b');
+    expect(changes.stop).toHaveBeenCalledWith({ watchId: 'watch-a' });
+    expect(changes.stop).not.toHaveBeenCalledWith({ watchId: 'watch-b' });
+  });
+
+  it('stops a start that resolves after the panel was stopped', async () => {
+    const { api, changes } = fakeApi();
+    const store = openStore(api);
+    let answer: ((value: { watchId: string }) => void) | undefined;
+    changes.start.mockImplementation(
+      () => new Promise<{ watchId: string }>((resolve) => (answer = resolve)),
+    );
+
+    const starting = store.getState().start(PANEL);
+    await vi.waitFor(() => expect(answer).toBeDefined());
+    await store.getState().stop(PANEL);
+    answer?.({ watchId: 'watch-late' });
+    await starting;
+
+    expect(store.getState().panels[PANEL]?.watchId).toBeUndefined();
+    expect(changes.stop).toHaveBeenCalledWith({ watchId: 'watch-late' });
+  });
+
   it('stops the watch when the panel closes', async () => {
     const { api, changes } = fakeApi();
     const store = openStore(api);

@@ -236,6 +236,8 @@ export interface RouterDeps {
   readonly dialogs?: NativeDialogs;
   /** The transfer functions. Tests inject a fake. Defaults to the adapter. */
   readonly transferAdapter?: TransferAdapter;
+  /** Opens a change watch. Tests inject a fake watch. Defaults to the adapter. */
+  readonly openWatch?: typeof openChangeWatch;
 }
 
 /** The driver client type, named without importing the driver into the main process. */
@@ -276,6 +278,12 @@ interface ActiveChangeWatch {
   readonly flush: () => void;
   /** Sends a 'resuming' phase before the watch resumes and reports 'live' itself. */
   resuming(): void;
+}
+
+/** A watch state with its error redacted, so no URI reaches the page. */
+function sanitizedWatchState(state: ChangeWatchState): ChangeWatchState {
+  const { error, ...rest } = state;
+  return error === undefined ? rest : { ...rest, error: sanitize(error) };
 }
 
 /** The state the renderer sees. Errors are redacted, so no URI reaches the page. */
@@ -459,7 +467,8 @@ export function createRouter(deps: RouterDeps): Router {
         deps.onEvent({ type: 'changes:event', watchId, events });
       }
     };
-    const watch = openChangeWatch(client, target, options, {
+    const open = deps.openWatch ?? openChangeWatch;
+    const watch = open(client, target, options, {
       onEvent(event) {
         pending.push(event);
         if (pending.length >= CHANGE_EVENT_BATCH_LIMIT) {
@@ -1103,7 +1112,7 @@ export function createRouter(deps: RouterDeps): Router {
       await active.watch.close();
     }),
     entry('changes.state', rpcContract.changes.state, (input) =>
-      changeWatchOf(input.watchId).watch.state(),
+      sanitizedWatchState(changeWatchOf(input.watchId).watch.state()),
     ),
     entry('docker.status', rpcContract.docker.status, () => docker().status()),
     entry('docker.list', rpcContract.docker.list, () => docker().list()),
