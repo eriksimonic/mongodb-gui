@@ -10,6 +10,11 @@ All notable changes to Mongo GUI are listed here, newest first.
   passphrase of at least 10 characters. Each export uses a new salt and IV.
 - Imports a connections file after its passphrase is typed. Name collisions can skip, rename or
   replace the existing connection, and the connection tree reloads.
+- "Open documents" on a collection, and a double-click on a collection in the tree, open an editor
+  tab that runs `find({})` on the collection. The Documents panel stays available as "Manage
+  documents".
+- Right-click a dock tab to close it, close the other tabs, close the tabs to its left or right,
+  or close all tabs. The connections, welcome and output panels stay open.
 
 ## 0.1.0 - 2026-10-10
 

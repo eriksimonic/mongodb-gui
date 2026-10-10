@@ -9,10 +9,12 @@ import {
 import { useEffect, useState } from 'react';
 import {
   DockviewDefaultTab,
+  type DockviewApi,
   type IDockviewPanelHeaderProps,
   type IDockviewPanelProps,
 } from 'dockview-react';
 import { ConnectionTree } from '../components/connections/ConnectionTree';
+import { TreeMenu, type TreeMenuEntry } from '../components/connections/TreeMenu';
 import { DocumentsPanel } from '../components/management/DocumentsPanel';
 import { GridFsPanel } from '../components/gridfs/GridFsPanel';
 import { IndexesPanel } from '../components/management/IndexesPanel';
@@ -35,6 +37,7 @@ import { OperationsPanel } from '../monitor/OperationsPanel';
 import { useAppStore } from '../state/app-store-context';
 import { runReported } from '../components/notify-error';
 import { idleLockHint, recentConnections } from './welcome-model';
+import { isFixedPanel, panelsToClose, type TabCloseMode } from './tab-close';
 
 /** The params every collection panel gets from the dock. */
 export interface CollectionPanelParams {
@@ -111,6 +114,73 @@ export function EditorDockPanel({ params }: IDockviewPanelProps<EditorPanelParam
 /** Tab for the three fixed panels. Same as dockview's default tab without the close button. */
 export function FixedTab(props: IDockviewPanelHeaderProps) {
   return <DockviewDefaultTab {...props} hideClose />;
+}
+
+/**
+ * Tab for every other panel. The right-click menu closes this tab, the others in its group, the
+ * tabs to one side, or all tabs. Each close goes through `removePanel`, as the close button does.
+ */
+export function ClosableTab(props: IDockviewPanelHeaderProps) {
+  const [position, setPosition] = useState<{ readonly x: number; readonly y: number } | undefined>(
+    undefined,
+  );
+  const dock = props.containerApi;
+  const panelId = props.api.id;
+  return (
+    <div
+      style={{ display: 'contents' }}
+      onContextMenu={(event) => {
+        event.preventDefault();
+        setPosition({ x: event.clientX, y: event.clientY });
+      }}
+    >
+      <DockviewDefaultTab {...props} />
+      {position === undefined ? null : (
+        <TreeMenu
+          entries={tabMenuEntries(dock, panelId)}
+          position={position}
+          onClose={() => setPosition(undefined)}
+        />
+      )}
+    </div>
+  );
+}
+
+function tabMenuEntries(dock: DockviewApi, panelId: string): TreeMenuEntry[] {
+  const groupIds = dock.getPanel(panelId)?.group.panels.map((panel) => panel.id) ?? [];
+  const allIds = dock.panels.map((panel) => panel.id);
+  const pick = (mode: TabCloseMode, ids: readonly string[]) => () =>
+    closeTabs(dock, panelsToClose(ids, panelId, mode, isFixedPanel));
+  const sideCount = (mode: 'left' | 'right') =>
+    panelsToClose(groupIds, panelId, mode, isFixedPanel).length;
+  return [
+    { kind: 'item', label: 'Close', onSelect: pick('this', groupIds) },
+    { kind: 'item', label: 'Close others', onSelect: pick('others', groupIds) },
+    {
+      kind: 'item',
+      label: 'Close tabs to the left',
+      disabled: sideCount('left') === 0,
+      onSelect: pick('left', groupIds),
+    },
+    {
+      kind: 'item',
+      label: 'Close tabs to the right',
+      disabled: sideCount('right') === 0,
+      onSelect: pick('right', groupIds),
+    },
+    { kind: 'divider' },
+    { kind: 'item', label: 'Close all tabs', onSelect: pick('all', allIds) },
+  ];
+}
+
+/** Removes the panels the tab menu picked. Each removal runs the dock's remove handling. */
+function closeTabs(dock: DockviewApi, ids: readonly string[]): void {
+  for (const id of ids) {
+    const panel = dock.getPanel(id);
+    if (panel !== undefined) {
+      dock.removePanel(panel);
+    }
+  }
 }
 
 /** Left panel: the connection tree. */

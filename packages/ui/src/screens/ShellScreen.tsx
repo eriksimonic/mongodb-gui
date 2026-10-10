@@ -65,6 +65,7 @@ import {
   DocumentsDockPanel,
   EditorDockPanel,
   ExplainDockPanel,
+  ClosableTab,
   FixedTab,
   GridFsDockPanel,
   IndexesDockPanel,
@@ -772,6 +773,7 @@ export function ShellScreen() {
                     theme={MONGO_THEME}
                     components={PANEL_COMPONENTS}
                     tabComponents={TAB_COMPONENTS}
+                    defaultTabComponent={ClosableTab}
                     onReady={(event) => {
                       dockApi.current = event.api;
                       setDock(event.api);
