@@ -34,7 +34,9 @@ import {
   type SchemaReport,
   type SetProfilingLevelInput,
   type TailProfileOptions,
+  privilegeActionCatalog,
   type UpdateState,
+  type UserInfo,
 } from '@mongo-gui/core';
 import {
   ConnectionManager,
@@ -78,6 +80,19 @@ import {
   tailProfileEntries,
   toCanonicalEjson,
   type ProfileTail,
+  changePassword,
+  connectionStatus,
+  createRole,
+  createUser,
+  dropRole,
+  dropUser,
+  grantRoles,
+  listRoles,
+  listUsers,
+  redactPassword,
+  revokeRoles,
+  updateRole,
+  userManagementCapabilities,
 } from '@mongo-gui/mongo-adapter';
 import {
   createDockerEngineClient,
@@ -533,6 +548,59 @@ export function createRouter(deps: RouterDeps): Router {
     ];
   }
 
+  /**
+   * A users and roles call. Passwords come in through the input and are masked in any error text
+   * before the response leaves. Nothing else from the input reaches the response or the log.
+   */
+  function secured<C extends RpcCall>(
+    method: string,
+    call: C,
+    run: (client: ClientOf, input: CallInput<C>) => Promise<unknown>,
+    secretsOf: (input: CallInput<C>) => readonly string[] = () => [],
+  ): [string, Operation] {
+    return entry(method, call, (input) => {
+      const { connectionId } = input as ConnectionScoped;
+      return maskedCall(secretsOf(input), () =>
+        driverCall(() => run(deps.connections.getClient(connectionId), input)),
+      );
+    });
+  }
+
+  function securityOperations(): [string, Operation][] {
+    const s = rpcContract.security;
+    return [
+      secured('security.listUsers', s.listUsers, async (client, input) =>
+        (await listUsers(client, input.database)).map(withEjsonCustomData),
+      ),
+      secured(
+        'security.createUser',
+        s.createUser,
+        async (client, input) => withEjsonCustomData(await createUser(client, input)),
+        (input) => (input.password === undefined ? [] : [input.password]),
+      ),
+      secured(
+        'security.changePassword',
+        s.changePassword,
+        (client, input) => changePassword(client, input),
+        (input) => [input.password],
+      ),
+      secured('security.grantRoles', s.grantRoles, (client, input) => grantRoles(client, input)),
+      secured('security.revokeRoles', s.revokeRoles, (client, input) => revokeRoles(client, input)),
+      secured('security.dropUser', s.dropUser, (client, input) => dropUser(client, input)),
+      secured('security.listRoles', s.listRoles, (client, input) =>
+        listRoles(client, input.database),
+      ),
+      secured('security.createRole', s.createRole, (client, input) => createRole(client, input)),
+      secured('security.updateRole', s.updateRole, (client, input) => updateRole(client, input)),
+      secured('security.dropRole', s.dropRole, (client, input) => dropRole(client, input)),
+      secured('security.session', s.session, (client) => connectionStatus(client)),
+      secured('security.capabilities', s.capabilities, (client, input) =>
+        userManagementCapabilities(client, input.database),
+      ),
+      entry('security.privilegeActions', s.privilegeActions, () => privilegeActionCatalog()),
+    ];
+  }
+
   const docker = (): DockerRuntime => {
     if (deps.docker === undefined) {
       throw new AppErrorException(appError('INTERNAL', 'Docker support is not available.'));
@@ -727,6 +795,7 @@ export function createRouter(deps: RouterDeps): Router {
     entry('explain.run', rpcContract.explain.run, (input) => explainStatement(input)),
     entry('explain.runCommand', rpcContract.explain.runCommand, (input) => explainCommand(input)),
     ...managementOperations(),
+    ...securityOperations(),
 
     entry('monitor.start', rpcContract.monitor.start, (input) =>
       monitor.start(input.connectionId, input.intervalMs),
@@ -1395,6 +1464,40 @@ function isDirectory(path: string): boolean {
   } catch {
     return false;
   }
+}
+
+/** Runs a call whose error text may carry secrets. AppErrors are masked, others pass through. */
+async function maskedCall<T>(secrets: readonly string[], action: () => Promise<T>): Promise<T> {
+  try {
+    return await action();
+  } catch (error) {
+    if (error instanceof AppErrorException) {
+      throw new AppErrorException(maskError(error.error, secrets));
+    }
+    throw error;
+  }
+}
+
+function maskError(error: AppError, secrets: readonly string[]): AppError {
+  const mask = (text: string): string =>
+    secrets.reduce((value, secret) => redactPassword(value, secret), redactPassword(text));
+  const { detail, cause, ...rest } = error;
+  return {
+    ...rest,
+    message: mask(rest.message),
+    ...(detail === undefined ? {} : { detail: mask(detail) }),
+    ...(cause === undefined ? {} : { cause: mask(cause) }),
+  };
+}
+
+/** Custom data leaves the main process as canonical EJSON, so BSON types survive the IPC hop. */
+function withEjsonCustomData(user: UserInfo): UserInfo {
+  if (user.customData === undefined) {
+    return user;
+  }
+  const { customData, ...rest } = user;
+  const canonical = toCanonicalEjson(customData);
+  return canonical === undefined ? rest : { ...rest, customData: canonical };
 }
 
 function failure(error: AppError): RpcResult {

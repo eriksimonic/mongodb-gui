@@ -15,6 +15,7 @@ import {
 import { ConnectionTree } from '../components/connections/ConnectionTree';
 import { DocumentsPanel } from '../components/management/DocumentsPanel';
 import { IndexesPanel } from '../components/management/IndexesPanel';
+import { UsersRolesPanel } from '../components/security/UsersRolesPanel';
 import { ValidationPanel } from '../components/management/ValidationPanel';
 import { ExplainPanel } from '../explain/ExplainPanel';
 import { ProfilerPanel } from '../profiler/ProfilerPanel';
@@ -280,6 +281,21 @@ export function IndexesDockPanel({ params }: IDockviewPanelProps<CollectionPanel
   return (
     <Box h="100%" style={{ overflow: 'auto' }}>
       <IndexesPanel {...params} />
+    </Box>
+  );
+}
+
+/** Params of a users and roles panel. The shell sets them when it opens the panel. */
+export interface UsersPanelParams {
+  readonly connectionId: string;
+  readonly database: string;
+}
+
+/** Dock panel: users and custom roles of one database. */
+export function UsersDockPanel({ params }: IDockviewPanelProps<UsersPanelParams>) {
+  return (
+    <Box h="100%" style={{ overflow: 'auto' }}>
+      <UsersRolesPanel connectionId={params.connectionId} database={params.database} />
     </Box>
   );
 }

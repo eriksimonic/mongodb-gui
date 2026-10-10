@@ -1,5 +1,6 @@
 import { useProfilerOpener } from '../../profiler/profiler-opener';
 import { useAppStore } from '../../state/app-store-context';
+import { usePanelOpener } from '../../state/panel-opener';
 import { TreeMenu, type TreeMenuEntry } from './TreeMenu';
 
 interface MenuPlacement {
@@ -24,6 +25,7 @@ export function DatabaseContextMenu({
   const refreshDatabase = useAppStore((state) => state.refreshDatabase);
   const profilerOpener = useProfilerOpener();
   const openEditor = useAppStore((state) => state.openEditor);
+  const openPanel = usePanelOpener();
   const entries: TreeMenuEntry[] = [
     {
       kind: 'item',
@@ -45,6 +47,11 @@ export function DatabaseContextMenu({
       kind: 'item',
       label: 'Open profiler',
       onSelect: () => profilerOpener?.open(connectionId, database),
+    },
+    {
+      kind: 'item',
+      label: 'Users and roles',
+      onSelect: () => openPanel({ kind: 'users', connectionId, database }),
     },
     {
       kind: 'item',

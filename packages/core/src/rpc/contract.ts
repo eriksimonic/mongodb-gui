@@ -110,6 +110,26 @@ import {
   ExplainRunCommandInputSchema,
   ExplainRunInputSchema,
 } from '../explain/rpc-schemas';
+import {
+  ChangePasswordInputSchema,
+  CreateRoleInputSchema,
+  CreateUserInputSchema,
+  DropRoleInputSchema,
+  DropUserInputSchema,
+  GrantRolesInputSchema,
+  RevokeRolesInputSchema,
+  RoleInfoSchema,
+  UpdateRoleInputSchema,
+  UserInfoSchema,
+  AuthStatusSchema,
+  UserManagementCapabilitiesSchema,
+} from '../security/types';
+import {
+  PrivilegeActionCatalogSchema,
+  SecurityCapabilitiesInputSchema,
+  SecurityRoleListInputSchema,
+  SecurityUserListInputSchema,
+} from '../security/calls';
 import { defineCall, type RpcContract } from './define';
 
 const idParam = z.object({ id: z.uuid() });
@@ -256,6 +276,28 @@ export const rpcContract = {
     ),
     findDocumentById: defineCall(onConnection(FindDocumentByIdInputSchema), z.string().nullable()),
     sampleDocuments: defineCall(onConnection(SampleDocumentsInputSchema), z.array(z.string())),
+  },
+  // Users and roles. A password is accepted as input and never returned. Every call runs against
+  // the connection's server, and the signed-in user's rights decide what the server allows.
+  security: {
+    listUsers: defineCall(onConnection(SecurityUserListInputSchema), z.array(UserInfoSchema)),
+    createUser: defineCall(onConnection(CreateUserInputSchema), UserInfoSchema),
+    changePassword: defineCall(onConnection(ChangePasswordInputSchema), z.void()),
+    grantRoles: defineCall(onConnection(GrantRolesInputSchema), z.void()),
+    revokeRoles: defineCall(onConnection(RevokeRolesInputSchema), z.void()),
+    dropUser: defineCall(onConnection(DropUserInputSchema), z.void()),
+    listRoles: defineCall(onConnection(SecurityRoleListInputSchema), z.array(RoleInfoSchema)),
+    createRole: defineCall(onConnection(CreateRoleInputSchema), RoleInfoSchema),
+    updateRole: defineCall(onConnection(UpdateRoleInputSchema), z.void()),
+    dropRole: defineCall(onConnection(DropRoleInputSchema), z.void()),
+    /** The users the connection authenticated as, with their roles. Used to warn before self-revokes. */
+    session: defineCall(connectionParam, AuthStatusSchema),
+    capabilities: defineCall(
+      onConnection(SecurityCapabilitiesInputSchema),
+      UserManagementCapabilitiesSchema,
+    ),
+    /** Built-in actions from core, grouped by category. Needs no connection. */
+    privilegeActions: defineCall(z.void(), PrivilegeActionCatalogSchema),
   },
   // The sample is read by the shell runtime and the total from the server's metadata.
   schema: {

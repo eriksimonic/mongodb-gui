@@ -40,3 +40,8 @@ export function profilerNodeId(connectionId: string, database: string): string {
 export function profilerPanelId(connectionId: string, database: string): string {
   return `profiler:${catalogKey(connectionId, database)}`;
 }
+
+/** The dock id of a database's users and roles panel. */
+export function usersPanelId(connectionId: string, database: string): string {
+  return `users:${catalogKey(connectionId, database)}`;
+}

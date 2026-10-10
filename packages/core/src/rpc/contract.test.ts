@@ -21,6 +21,7 @@ describe('rpcContract', () => {
         'monitor',
         'profiler',
         'schema',
+        'security',
         'settings',
         'transfer',
         'shell',
