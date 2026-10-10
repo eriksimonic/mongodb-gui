@@ -7,6 +7,7 @@ import type {
   DockerMongoContainerSummary,
 } from '@mongo-gui/core';
 import { useAppStore } from '../../state/app-store-context';
+import { BackupMenuItems } from '../backup/BackupMenuItems';
 import { runReported } from '../notify-error';
 import { DockerContainerDetails } from './DockerContainerDetails';
 
@@ -78,6 +79,11 @@ export function DockerContainerContextMenu({
         >
           Disconnect
         </Menu.Item>
+        <BackupMenuItems
+          connectionId={profile?.id}
+          connected={status?.state === 'connected'}
+          onClose={onClose}
+        />
         <Menu.Item disabled={profile === undefined} onClick={copyRedactedUri}>
           Copy URI (redacted)
         </Menu.Item>

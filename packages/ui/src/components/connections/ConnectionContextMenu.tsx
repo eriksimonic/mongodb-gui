@@ -5,7 +5,7 @@ import { useChangesOpener } from '../../changes/changes-opener';
 import { useAppStore } from '../../state/app-store-context';
 import { usePanelOpener } from '../../state/panel-opener';
 import { shardingAvailability } from '../../sharding/sharding-availability';
-import { useBackupDialogs } from '../backup/backup-dialog-store';
+import { BackupMenuItems } from '../backup/BackupMenuItems';
 import { runReported } from '../notify-error';
 
 /** The database that holds the server's users and roles. */
@@ -44,13 +44,6 @@ export function ConnectionContextMenu({
   const canOpenReplicaSet =
     status.state === 'connected' &&
     (status.topology === 'replicaSet' || status.topology === 'unknown');
-
-  const notConnectedReason =
-    status.state === 'connected' ? undefined : (
-      <Text size="xs" c="dimmed">
-        Not connected
-      </Text>
-    );
 
   function runAndClose(action: () => Promise<void>) {
     onClose();
@@ -178,26 +171,11 @@ export function ConnectionContextMenu({
         >
           Users and roles
         </Menu.Item>
-        <Menu.Item
-          disabled={status.state !== 'connected'}
-          rightSection={notConnectedReason}
-          onClick={() => {
-            onClose();
-            useBackupDialogs.getState().open({ kind: 'backup', connectionId: connection.id });
-          }}
-        >
-          Back up…
-        </Menu.Item>
-        <Menu.Item
-          disabled={status.state !== 'connected'}
-          rightSection={notConnectedReason}
-          onClick={() => {
-            onClose();
-            useBackupDialogs.getState().open({ kind: 'restore', connectionId: connection.id });
-          }}
-        >
-          Restore…
-        </Menu.Item>
+        <BackupMenuItems
+          connectionId={connection.id}
+          connected={status.state === 'connected'}
+          onClose={onClose}
+        />
         <Menu.Item
           onClick={() => {
             onClose();
