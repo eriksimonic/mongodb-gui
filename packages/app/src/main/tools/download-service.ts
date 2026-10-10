@@ -266,24 +266,27 @@ async function streamToFile(
   const total = Number.isFinite(length) && length > 0 ? length : undefined;
   if (total !== undefined && total > SIZE_CAP) throw tooLarge();
   const out = createWriteStream(path, { mode: 0o600 });
+  // Listens from the start: an open or write error (ENOSPC, EACCES) can come while the loop
+  // waits for the body or for 'drain', and an 'error' with no listener crashes main.
+  const failed = new Promise<never>((_resolve, reject) => out.once('error', reject));
+  failed.catch(() => undefined);
   const hash = createHash('sha256');
   const reader = response.body.getReader();
   let bytes = 0;
   try {
     for (;;) {
-      const { done, value } = await reader.read();
+      const { done, value } = await Promise.race([reader.read(), failed]);
       if (done) break;
       if (signal.aborted) throw cancelError();
       bytes += value.byteLength;
       if (bytes > SIZE_CAP) throw tooLarge();
       hash.update(value);
-      if (!out.write(value)) await new Promise<void>((resolve) => out.once('drain', resolve));
+      if (!out.write(value)) {
+        await Promise.race([new Promise<void>((resolve) => out.once('drain', resolve)), failed]);
+      }
       onProgress(bytes, total);
     }
-    await new Promise<void>((resolve, reject) => {
-      out.once('error', reject);
-      out.end(resolve);
-    });
+    await Promise.race([new Promise<void>((resolve) => out.end(resolve)), failed]);
   } catch (error) {
     out.destroy();
     await reader.cancel().catch(() => undefined);

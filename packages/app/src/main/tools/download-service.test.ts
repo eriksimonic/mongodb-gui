@@ -1,5 +1,5 @@
 import { createHash } from 'node:crypto';
-import { mkdir, mkdtemp, readdir, readFile, rm } from 'node:fs/promises';
+import { mkdir, mkdtemp, readdir, readFile, rm, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
@@ -209,6 +209,26 @@ describe('createToolsDownloads', () => {
     await downloads.start(VERSION);
     await settle();
     expect(last()).toMatchObject({ phase: 'error', error: { code: 'VALIDATION' } });
+  });
+
+  it('reports a file that cannot be written while the body is still streaming', async () => {
+    let release!: () => void;
+    const gate = new Promise<void>((resolve) => {
+      release = resolve;
+    });
+    const downloads = make(async () => {
+      // A file in place of the folder makes the partial file fail to open.
+      await rm(roots.downloaded, { recursive: true, force: true });
+      await writeFile(roots.downloaded, '');
+      return response(split(archive()), gate);
+    });
+    await downloads.start(VERSION);
+    try {
+      await settle();
+      expect(last()?.phase).toBe('error');
+    } finally {
+      release();
+    }
   });
 
   it('maps a network failure to CONNECTION_FAILED', async () => {
