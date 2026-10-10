@@ -64,14 +64,21 @@ import {
   listDatabases,
   listIndexBuilds,
   listIndexes,
+  getReplicaSetConfig,
+  getReplicaSetStatus,
+  applyReconfig,
+  freeze,
+  initiate,
   listProfileEntries,
   mapDriverError,
   previewImport,
+  planReconfig,
   renameCollection,
   replaceDocument,
   sampleDocuments,
   setIndexHidden,
   setValidation,
+  stepDown,
   updateDocumentFields,
   profileCollectionInfo,
   setProfilingLevel,
@@ -113,6 +120,7 @@ import {
   type SamplerFactory,
 } from './monitor-service';
 import { createTransferService, type TransferAdapter } from './transfer-service';
+import { createReplicationPlans } from './replication-plans';
 
 /** Native file dialogs and the shell reveal. The main window's dialogs live in index.ts. */
 export interface NativeDialogs {
@@ -300,6 +308,7 @@ export function createRouter(deps: RouterDeps): Router {
   let active: StoreHandles = { store: deps.store, repos: deps.repos };
   const repos = (): RouterRepos => active.repos;
   const profiler = deps.profiler ?? adapterProfilerPort;
+  const replicationPlans = createReplicationPlans();
   // At most one tail per connection and database, keyed by both.
   const tails = new Map<string, ActiveTail>();
   // Per-renderer cleanups. Tails register first; other services join the same registry.
@@ -750,6 +759,45 @@ export function createRouter(deps: RouterDeps): Router {
       monitor.setInterval(input.connectionId, input.intervalMs),
     ),
 
+    entry('replication.getStatus', rpcContract.replication.getStatus, (input) =>
+      driverCall(() => getReplicaSetStatus(deps.connections.getClient(input.connectionId))),
+    ),
+    entry('replication.getConfig', rpcContract.replication.getConfig, (input) =>
+      driverCall(() => getReplicaSetConfig(deps.connections.getClient(input.connectionId))),
+    ),
+    entry('replication.planReconfig', rpcContract.replication.planReconfig, (input) =>
+      driverCall(async () => {
+        const client = deps.connections.getClient(input.connectionId);
+        const status = await getReplicaSetStatus(client);
+        const config = await getReplicaSetConfig(client);
+        const plan = planReconfig(config, input.change, status);
+        return { planId: replicationPlans.store(input.connectionId, plan), plan };
+      }),
+    ),
+    entry('replication.applyReconfig', rpcContract.replication.applyReconfig, (input) =>
+      driverCall(async () => {
+        const plan = replicationPlans.take(input.connectionId, input.planId, input.expectedVersion);
+        await applyReconfig(deps.connections.getClient(input.connectionId), plan);
+      }),
+    ),
+    entry('replication.stepDown', rpcContract.replication.stepDown, (input) =>
+      driverCall(async () => ({
+        primary: await stepDown(deps.connections.getClient(input.connectionId), {
+          stepDownSeconds: input.stepDownSeconds,
+        }),
+      })),
+    ),
+    entry('replication.freeze', rpcContract.replication.freeze, (input) =>
+      driverCall(() => freeze(deps.connections.getClient(input.connectionId), input.seconds)),
+    ),
+    entry('replication.initiate', rpcContract.replication.initiate, (input) =>
+      driverCall(() =>
+        initiate(deps.connections.getClient(input.connectionId), {
+          setName: input.setName,
+          members: input.members,
+        }),
+      ),
+    ),
     entry('layout.get', rpcContract.layout.get, (input) => ({
       value: repos().layout.get(input.key) ?? null,
     })),

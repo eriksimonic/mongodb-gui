@@ -1,7 +1,7 @@
 import { createContext, useContext } from 'react';
 
 /** Panels a connection can open in the centre group. */
-export type PanelKind = 'monitor' | 'operations';
+export type PanelKind = 'monitor' | 'operations' | 'replication';
 
 export interface PanelRequest {
   readonly kind: PanelKind;

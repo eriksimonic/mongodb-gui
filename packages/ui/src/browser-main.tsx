@@ -15,7 +15,16 @@ const preset =
 const profilerRowsParam = Number(new URLSearchParams(window.location.search).get('profilerRows'));
 const profilerRows =
   Number.isInteger(profilerRowsParam) && profilerRowsParam > 0 ? profilerRowsParam : undefined;
-const api = createMockUiApi({ preset, latencyMs: 120, profilerRows });
+// ?replset=member makes the local connection a three-member set. ?replset=uninitiated makes it a
+// standalone started with --replSet that has no configuration yet.
+const replsetParam = new URLSearchParams(window.location.search).get('replset');
+const api = createMockUiApi({
+  preset,
+  latencyMs: 120,
+  profilerRows,
+  replication: replsetParam === 'member',
+  replSetUninitiated: replsetParam === 'uninitiated',
+});
 
 createRoot(container).render(
   <StrictMode>

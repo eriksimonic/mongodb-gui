@@ -36,6 +36,7 @@ export * from './profiler/types';
 export * from './redact';
 export * from './replication/normalise';
 export * from './replication/types';
+export * from './replication/rpc-schemas';
 export * from './rpc/bridge';
 export * from './rpc/channels';
 export * from './rpc/client';

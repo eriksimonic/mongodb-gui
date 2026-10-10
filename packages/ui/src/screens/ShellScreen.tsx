@@ -34,7 +34,7 @@ import { UpdateBanner } from '../components/updates/UpdateBanner';
 import { ProfilerOpenerContext, type ProfilerOpener } from '../profiler/profiler-opener';
 import type { AppData, PanelRequest } from '../state/app-store';
 import { useAppStore, useAppStoreApi } from '../state/app-store-context';
-import { PanelOpenerContext, type OpenPanel } from '../state/panel-opener';
+import { PanelOpenerContext, type OpenPanel, type PanelKind } from '../state/panel-opener';
 import { profilerPanelId } from '../state/node-ids';
 import { databasePanelIds, restoredCollectionRequest, stalePanelIds } from './collection-panels';
 import { createLayoutSaver, loadDockLayout, restoreDockLayout } from './dock-layout';
@@ -49,6 +49,7 @@ import {
   OperationsPanelView,
   OutputPanel,
   ProfilerDockPanel,
+  ReplicationDockPanel,
   SchemaDockPanel,
   ValidationDockPanel,
   WelcomePanel,
@@ -61,6 +62,7 @@ const PANEL_COMPONENTS = {
   profiler: ProfilerDockPanel,
   monitor: MonitorPanel,
   operations: OperationsPanelView,
+  replication: ReplicationDockPanel,
   indexes: IndexesDockPanel,
   validation: ValidationDockPanel,
   documents: DocumentsDockPanel,
@@ -177,6 +179,12 @@ function openProfilerPanel(api: DockviewApi, connectionId: string, database: str
   });
 }
 
+const SUFFIX_BY_KIND: Readonly<Record<PanelKind, string>> = {
+  monitor: 'monitor',
+  operations: 'operations',
+  replication: 'replica set',
+};
+
 /**
  * Opens a connection's monitor or operations panel in the centre group. A panel that is already
  * open is brought to the front, so each connection has at most one of each.
@@ -188,7 +196,7 @@ function openConnectionPanel(api: DockviewApi, request: Parameters<OpenPanel>[0]
     existing.api.setActive();
     return;
   }
-  const suffix = request.kind === 'monitor' ? 'monitor' : 'operations';
+  const suffix = SUFFIX_BY_KIND[request.kind];
   const centre = api.getPanel('welcome') === undefined ? undefined : 'welcome';
   api.addPanel({
     id,

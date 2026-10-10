@@ -110,6 +110,18 @@ import {
   ExplainRunCommandInputSchema,
   ExplainRunInputSchema,
 } from '../explain/rpc-schemas';
+import {
+  ReplicationApplyInputSchema,
+  ReplicationConfigOutputSchema,
+  ReplicationConnectionInputSchema,
+  ReplicationFreezeInputSchema,
+  ReplicationInitiateInputSchema,
+  ReplicationPlanInputSchema,
+  ReplicationPlanOutputSchema,
+  ReplicationStatusOutputSchema,
+  ReplicationStepDownInputSchema,
+  ReplicationStepDownOutputSchema,
+} from '../replication/rpc-schemas';
 import { defineCall, type RpcContract } from './define';
 
 const idParam = z.object({ id: z.uuid() });
@@ -256,6 +268,17 @@ export const rpcContract = {
     ),
     findDocumentById: defineCall(onConnection(FindDocumentByIdInputSchema), z.string().nullable()),
     sampleDocuments: defineCall(onConnection(SampleDocumentsInputSchema), z.array(z.string())),
+  },
+  // Reads and changes a replica set through the connection. Only the node a connection points at
+  // takes step-down and freeze. A plan lives in the main process until it is applied or expires.
+  replication: {
+    getStatus: defineCall(ReplicationConnectionInputSchema, ReplicationStatusOutputSchema),
+    getConfig: defineCall(ReplicationConnectionInputSchema, ReplicationConfigOutputSchema),
+    planReconfig: defineCall(ReplicationPlanInputSchema, ReplicationPlanOutputSchema),
+    applyReconfig: defineCall(ReplicationApplyInputSchema, z.void()),
+    stepDown: defineCall(ReplicationStepDownInputSchema, ReplicationStepDownOutputSchema),
+    freeze: defineCall(ReplicationFreezeInputSchema, z.void()),
+    initiate: defineCall(ReplicationInitiateInputSchema, z.void()),
   },
   // The sample is read by the shell runtime and the total from the server's metadata.
   schema: {

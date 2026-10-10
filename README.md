@@ -70,6 +70,10 @@ inline edits in the tree, and a history and favourites list in the Output panel.
 | ---------------------------------------------------------------------------------------- |
 | ![Add panel picker with panels grouped by category](docs/screenshots/monitor-picker.png) |
 
+| Replica set members, lag and elections                                                                                 |
+| ---------------------------------------------------------------------------------------------------------------------- |
+| ![Replica set panel with the members table, state badges, lag and the election list](docs/screenshots/replica-set.png) |
+
 | Import wizard, preview and field mapping                                      | Export dialog                                                                     |
 | ----------------------------------------------------------------------------- | --------------------------------------------------------------------------------- |
 | ![Import wizard at the preview and mapping step](docs/screenshots/import.png) | ![Export dialog with a filter and the NDJSON format](docs/screenshots/export.png) |
