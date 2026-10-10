@@ -128,6 +128,10 @@ export function CreateIndexDialog({
   }
 
   async function submit() {
+    // Enter in a field submits the form even while a save runs. A second run could drop twice.
+    if (busy) {
+      return;
+    }
     if (!request.ok) {
       setError(request.message);
       return;

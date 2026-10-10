@@ -13,7 +13,7 @@ import {
   type IndexInfo,
   type SetIndexHiddenInput,
 } from '@mongo-gui/core';
-import { listIndexes } from '../catalog';
+import { HELD_INDEX_OPTIONS, listIndexes } from '../catalog';
 import {
   definedEntry,
   readArray,
@@ -114,11 +114,8 @@ export function defaultIndexName(keys: Record<string, unknown>): string {
 }
 
 function toIndexOptions(options: CreateIndexInput['options']): Record<string, unknown> {
-  // The extra options go in first, so the named options below win over any clash.
   const result: Record<string, unknown> =
-    options.extraOptionsEjson === undefined
-      ? {}
-      : { ...parseEjsonDocument(options.extraOptionsEjson, 'The extra index options') };
+    options.extraOptionsEjson === undefined ? {} : extraIndexOptions(options.extraOptionsEjson);
   if (options.unique !== undefined) {
     result.unique = options.unique;
   }
@@ -153,6 +150,17 @@ function toIndexOptions(options: CreateIndexInput['options']): Record<string, un
     );
   }
   return result;
+}
+
+// The extra options carry only what the named options cannot. An extra key, name or other held
+// option would override the explicit one, so it is refused.
+function extraIndexOptions(text: string): Record<string, unknown> {
+  const extras = parseEjsonDocument(text, 'The extra index options');
+  const clash = Object.keys(extras).find((key) => HELD_INDEX_OPTIONS.includes(key));
+  if (clash !== undefined) {
+    throw validationError(`The extra index options cannot set ${clash}`);
+  }
+  return { ...extras };
 }
 
 function toBuildRow(row: unknown, scope: string | undefined): BuildRow[] {

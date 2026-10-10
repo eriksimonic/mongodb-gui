@@ -331,7 +331,8 @@ function numericValue(value: unknown): number | undefined {
 }
 
 // The options that toIndexInfo maps to their own fields. Every other option is an extra.
-const HELD_INDEX_OPTIONS: readonly string[] = [
+// createIndex refuses extra options that name one of these.
+export const HELD_INDEX_OPTIONS: readonly string[] = [
   'v',
   'key',
   'name',
