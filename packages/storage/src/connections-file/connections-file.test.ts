@@ -4,6 +4,10 @@ import { exportConnections, importConnections } from './connections-file';
 
 const PASSPHRASE = 'export passphrase 1';
 const WRONG = 'another passphrase';
+// The lowest cost a connections file accepts. A derivation at the default cost takes 128 MiB and
+// about 150 ms on a fast idle machine, and this file derives 16 keys. Only the envelope test needs
+// the default cost.
+const CHEAP_KDF = { N: 2 ** 14, r: 8, p: 1 };
 
 const profiles: ConnectionProfile[] = [
   {
@@ -47,7 +51,7 @@ function messageOf(action: () => unknown): string {
 
 describe('connections file', () => {
   it('round trips the profiles, credentials included', () => {
-    const bytes = exportConnections(profiles, PASSPHRASE);
+    const bytes = exportConnections(profiles, PASSPHRASE, CHEAP_KDF);
     expect(importConnections(bytes, PASSPHRASE)).toEqual(profiles);
     expect(bytes.toString('utf8')).not.toContain('s3cret');
   });
@@ -64,22 +68,22 @@ describe('connections file', () => {
   });
 
   it('uses a fresh salt and IV for every export', () => {
-    const first = envelope(exportConnections(profiles, PASSPHRASE));
-    const second = envelope(exportConnections(profiles, PASSPHRASE));
+    const first = envelope(exportConnections(profiles, PASSPHRASE, CHEAP_KDF));
+    const second = envelope(exportConnections(profiles, PASSPHRASE, CHEAP_KDF));
     expect((first.kdf as { salt: string }).salt).not.toBe((second.kdf as { salt: string }).salt);
     expect((first.cipher as { iv: string }).iv).not.toBe((second.cipher as { iv: string }).iv);
     expect(first.payload).not.toBe(second.payload);
   });
 
   it('refuses a wrong passphrase with the damaged-file message', () => {
-    const bytes = exportConnections(profiles, PASSPHRASE);
+    const bytes = exportConnections(profiles, PASSPHRASE, CHEAP_KDF);
     expect(messageOf(() => importConnections(bytes, WRONG))).toBe(
       'Wrong passphrase or damaged file.',
     );
   });
 
   it('refuses a tampered payload byte', () => {
-    const bytes = exportConnections(profiles, PASSPHRASE);
+    const bytes = exportConnections(profiles, PASSPHRASE, CHEAP_KDF);
     const tampered = rewrite(bytes, (file) => {
       const payload = Buffer.from(file.payload as string, 'base64');
       payload[0] = (payload[0] ?? 0) ^ 0x01;
@@ -91,7 +95,7 @@ describe('connections file', () => {
   });
 
   it('refuses a changed header field because the header is authenticated', () => {
-    const bytes = exportConnections(profiles, PASSPHRASE);
+    const bytes = exportConnections(profiles, PASSPHRASE, CHEAP_KDF);
     const tampered = rewrite(bytes, (file) => {
       const kdf = file.kdf as { salt: string };
       const salt = Buffer.from(kdf.salt, 'base64');
@@ -104,7 +108,7 @@ describe('connections file', () => {
   });
 
   it('refuses an unknown version with a message that names both versions', () => {
-    const bytes = exportConnections(profiles, PASSPHRASE);
+    const bytes = exportConnections(profiles, PASSPHRASE, CHEAP_KDF);
     const future = rewrite(bytes, (file) => {
       file.version = 2;
     });
@@ -114,7 +118,7 @@ describe('connections file', () => {
   });
 
   it('refuses a file with another format', () => {
-    const bytes = exportConnections(profiles, PASSPHRASE);
+    const bytes = exportConnections(profiles, PASSPHRASE, CHEAP_KDF);
     const other = rewrite(bytes, (file) => {
       file.format = 'mongo-gui-backup';
     });
@@ -124,7 +128,7 @@ describe('connections file', () => {
   });
 
   it('refuses a truncated file as damaged', () => {
-    const bytes = exportConnections(profiles, PASSPHRASE);
+    const bytes = exportConnections(profiles, PASSPHRASE, CHEAP_KDF);
     const truncated = bytes.subarray(0, Math.floor(bytes.length / 2));
     expect(messageOf(() => importConnections(truncated, PASSPHRASE))).toBe(
       'The connections file is damaged.',
@@ -132,7 +136,7 @@ describe('connections file', () => {
   });
 
   it('refuses a scrypt cost above the bound before deriving a key', () => {
-    const bytes = exportConnections(profiles, PASSPHRASE);
+    const bytes = exportConnections(profiles, PASSPHRASE, CHEAP_KDF);
     const expensive = rewrite(bytes, (file) => {
       (file.kdf as { N: number }).N = 2 ** 30;
     });
@@ -146,7 +150,7 @@ describe('connections file', () => {
     expect(messageOf(() => exportConnections(profiles, short))).toBe(
       'The passphrase must be at least 10 characters.',
     );
-    const bytes = exportConnections(profiles, PASSPHRASE);
+    const bytes = exportConnections(profiles, PASSPHRASE, CHEAP_KDF);
     expect(messageOf(() => importConnections(bytes, short))).not.toContain(short);
   });
 });

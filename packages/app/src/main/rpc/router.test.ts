@@ -1376,7 +1376,10 @@ describe('file picks', () => {
   });
 });
 
-describe('connection files', () => {
+// Every export and import here derives a key at the production scrypt cost (128 MiB), up to three
+// per test. That took 0.7 s per test under a full local run and can pass the 5 s default on a
+// slower CI runner, so this block gets a longer limit.
+describe('connection files', { timeout: 30_000 }, () => {
   let harness: Harness | undefined;
   let base = '';
   const picks: { open: string | undefined; save: string | undefined } = {
