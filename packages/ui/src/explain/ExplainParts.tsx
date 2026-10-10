@@ -10,6 +10,7 @@ import {
 } from '@mongo-gui/core';
 import { notifyError } from '../components/notify-error';
 import { createIndexLine } from './explain-model';
+import { sortWarnings } from './stage-view';
 
 const INTEGER_LOCALE = 'en-US';
 const RATIO_DIGITS = 1;
@@ -90,7 +91,10 @@ export interface ExplainWarningsProps {
   readonly onSelect: (stageName: string) => void;
 }
 
-/** One row per warning. A row with a stage selects that stage in the tree when clicked. */
+/**
+ * One row per warning, the most severe first. A row with a stage selects that stage in the tree
+ * when clicked. The advice is the catalogue text for the stage.
+ */
 export function ExplainWarnings({ warnings, onSelect }: ExplainWarningsProps) {
   if (warnings.length === 0) {
     return (
@@ -104,7 +108,7 @@ export function ExplainWarnings({ warnings, onSelect }: ExplainWarningsProps) {
       <Text fw={600} size="sm">
         Warnings
       </Text>
-      {warnings.map((warning, index) => {
+      {sortWarnings(warnings).map((warning, index) => {
         const stageName = warning.stageName;
         return (
           <button
@@ -123,7 +127,12 @@ export function ExplainWarnings({ warnings, onSelect }: ExplainWarningsProps) {
               {warning.severity}
             </Badge>
             <Code>{warning.code}</Code>
-            <span className="mg-explain-warning-message">{warning.message}</span>
+            <span className="mg-explain-warning-message">
+              {warning.message}
+              {warning.advice === undefined ? null : (
+                <span className="mg-explain-warning-advice">{warning.advice}</span>
+              )}
+            </span>
             {stageName === undefined ? null : (
               <span className="mg-explain-warning-stage">Stage {stageName}</span>
             )}

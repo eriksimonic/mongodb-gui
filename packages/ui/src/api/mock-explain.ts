@@ -48,6 +48,8 @@ interface MockShape {
   readonly command: 'find' | 'aggregate' | 'update' | 'other';
   readonly sorted: boolean;
   readonly usesIndexedField: boolean;
+  /** An aggregate with a $lookup, which has an inner pipeline sub-tree. */
+  readonly lookup: boolean;
 }
 
 const UPDATE_STATEMENT = /\.(updateOne|updateMany|update|replaceOne|deleteOne|deleteMany|remove)\(/;
@@ -65,6 +67,7 @@ function shapeOfStatement(code: string): MockShape {
     command,
     sorted: /\.sort\(/.test(code),
     usesIndexedField: /customerId/.test(code),
+    lookup: /\$lookup/.test(code),
   };
 }
 
@@ -91,13 +94,14 @@ function shapeOfCommand(commandEjson: string): MockShape {
     command,
     sorted: 'sort' in parsed,
     usesIndexedField: commandEjson.includes('customerId'),
+    lookup: commandEjson.includes('$lookup'),
   };
 }
 
 /** The fixture case that stands in for a shape. Every case exists at every verbosity. */
 function caseFor(shape: MockShape): string {
   if (shape.command === 'aggregate') {
-    return 'aggregate-group';
+    return shape.lookup ? 'lookup-pipeline' : 'aggregate-group';
   }
   if (shape.command === 'update') {
     return 'update-multi';

@@ -4,7 +4,10 @@ import {
   errorExplainPanel,
   loadingExplainPanel,
   mockExplainPanel,
+  mockExplainPanelFromRaw,
+  rawFixture,
   refusedExplainPanel,
+  withFailedShard,
 } from '../api/explain-fixture-panels';
 import { connectedMockApi } from '../api/connected-mock';
 import type { UiApi } from '../api/ui-api';
@@ -159,4 +162,153 @@ const rejected = mockExplainPanel({
 export const RejectedPlans: Story = {
   args: { panelId: rejected.id },
   decorators: [withPanel(rejected)],
+};
+
+/** One story per fixture family, so each shape can be checked by eye in both themes. */
+function familyPanel(id: string, fixture: string, code: string): ExplainPanelState {
+  return mockExplainPanel({
+    id: `explain:${id}`,
+    connectionId: localConnectionId,
+    database: 'shop',
+    code,
+    fixture,
+    collection: 'orders',
+  });
+}
+
+const ixscanFetch = familyPanel(
+  'ixscan-fetch',
+  '8.0.17/ixscan-sort',
+  `db.orders.find({ customerId: 7 }).sort({ createdAt: -1 })`,
+);
+
+/** An index scan with a fetch. The fetch shows the examined to returned ratio. */
+export const IxscanWithFetch: Story = {
+  args: { panelId: ixscanFetch.id },
+  decorators: [withPanel(ixscanFetch)],
+};
+
+const sortSpill = familyPanel(
+  'sort-spill',
+  '8.0.17/sort-spill',
+  `db.orders.find({}).sort({ total: -1, createdAt: 1 })`,
+);
+
+/** A sort that spills to disk. The spill counters are highlighted. */
+export const SortSpilling: Story = {
+  args: { panelId: sortSpill.id },
+  decorators: [withPanel(sortSpill)],
+};
+
+const groupSpill = familyPanel(
+  'group-spill',
+  '8.0.17/group-spill',
+  `db.orders.aggregate([{ $group: { _id: '$items.sku', total: { $sum: '$total' } } }])`,
+);
+
+/** A group that spills to disk, on the slot-based engine. */
+export const GroupSpilling: Story = {
+  args: { panelId: groupSpill.id },
+  decorators: [withPanel(groupSpill)],
+};
+
+const lookupPipeline = familyPanel(
+  'lookup-pipeline',
+  '8.0.17/lookup-pipeline',
+  `db.orders.aggregate([{ $lookup: { from: 'customers', localField: 'customerId', foreignField: '_id', pipeline: [{ $match: { active: true } }], as: 'customer' } }])`,
+);
+
+/** A $lookup with an inner pipeline. The inner pipeline is an open sub-tree under its label. */
+export const LookupInnerPipeline: Story = {
+  args: { panelId: lookupPipeline.id },
+  decorators: [withPanel(lookupPipeline)],
+};
+
+const facet = familyPanel(
+  'facet',
+  '8.0.17/facet',
+  `db.orders.aggregate([{ $facet: { byStatus: [{ $group: { _id: '$status', n: { $sum: 1 } } }], empty: [], total: [{ $count: 'n' }] } }])`,
+);
+
+/** A $facet with one branch per name. The empty branch shows as a pass-through node. */
+export const FacetBranches: Story = {
+  args: { panelId: facet.id },
+  decorators: [withPanel(facet)],
+};
+
+const unionWith = familyPanel(
+  'union-with',
+  '8.0.17/union-with',
+  `db.orders.aggregate([{ $unionWith: { coll: 'archived_orders', pipeline: [{ $match: { status: 'paid' } }] } }])`,
+);
+
+/** A $unionWith. Each input is a sub-tree labelled with its collection. */
+export const UnionWith: Story = {
+  args: { panelId: unionWith.id },
+  decorators: [withPanel(unionWith)],
+};
+
+const shardedError = mockExplainPanelFromRaw({
+  id: 'explain:sharded-error',
+  connectionId: localConnectionId,
+  database: 'shop',
+  code: FIND,
+  collection: 'orders',
+  raw: withFailedShard(
+    rawFixture('sharded/find-sort', 'executionStats'),
+    'shard02 is not reachable',
+  ),
+});
+
+/** A sharded find where one shard failed. The failed shard shows its error in red. */
+export const ShardedWithErrorShard: Story = {
+  args: { panelId: shardedError.id },
+  decorators: [withPanel(shardedError)],
+};
+
+const textSearch = familyPanel(
+  'text',
+  '8.0.17/text-search',
+  `db.orders.find({ $text: { $search: 'gift card' } })`,
+);
+
+/** A text search. The TEXT_MATCH stage shows its own metrics. */
+export const TextSearch: Story = {
+  args: { panelId: textSearch.id },
+  decorators: [withPanel(textSearch)],
+};
+
+const geo = familyPanel(
+  'geo',
+  '8.0.17/geo-2dsphere',
+  `db.orders.aggregate([{ $geoNear: { near: { type: 'Point', coordinates: [14.5, 46.05] }, distanceField: 'dist' } }])`,
+);
+
+/** A geo near query on a 2dsphere index. */
+export const GeoNear: Story = {
+  args: { panelId: geo.id },
+  decorators: [withPanel(geo)],
+};
+
+const express = familyPanel('express', '8.0.17/express-unique', `db.orders.find({ _id: 7 })`);
+
+/** A query the 8.0 express path answers without the classic planner. */
+export const ExpressPath: Story = {
+  args: { panelId: express.id },
+  decorators: [withPanel(express)],
+};
+
+const unknownShape = mockExplainPanelFromRaw({
+  id: 'explain:unknown-shape',
+  connectionId: localConnectionId,
+  database: 'shop',
+  code: FIND,
+  collection: 'orders',
+  raw: { ok: 1, weirdShape: { nested: [1, 2, { deep: true }] } },
+});
+
+/** A document with no plan. The Raw tab still shows it, with search and copy. */
+export const UnknownShape: Story = {
+  args: { panelId: unknownShape.id },
+  decorators: [withPanel(unknownShape)],
 };

@@ -130,6 +130,20 @@ export function stageIdByName(root: PlanStage, name: string): string | undefined
   return stageEntries(root).find((entry) => entry.stage.name === name)?.id;
 }
 
+/**
+ * The collapsed keys to drop so a stage shows: its ancestors and the labelled groups under them.
+ * Groups are dropped by prefix, so opening a parent's group also opens its siblings.
+ */
+export function revealKeys(collapsed: ReadonlySet<string>, id: string): ReadonlySet<string> {
+  const ancestors = ancestorIds(id);
+  return new Set(
+    [...collapsed].filter(
+      (key) =>
+        !ancestors.some((ancestor) => key === ancestor || key.startsWith(groupKeyPrefix(ancestor))),
+    ),
+  );
+}
+
 /** The ids of the stages above a stage id, from the root down. */
 export function ancestorIds(id: string): string[] {
   const parts = id.split('.');
@@ -149,11 +163,34 @@ export type PlanRow =
       readonly hasChildren: boolean;
       readonly expanded: boolean;
     }
-  | { readonly kind: 'shard'; readonly id: string; readonly depth: number; readonly shard: string };
+  | {
+      readonly kind: 'group';
+      /** The collapse key of the group, which the collapsed set holds when the group is closed. */
+      readonly id: string;
+      /** The stage the group hangs under. */
+      readonly parentId: string;
+      readonly depth: number;
+      readonly label: string;
+      readonly expanded: boolean;
+    };
+
+/**
+ * The collapse key of a labelled group. The group is the run of children that starts at `index`
+ * under the stage `parentId`.
+ */
+export function groupKey(parentId: string, index: number): string {
+  return `${groupKeyPrefix(parentId)}${index}`;
+}
+
+/** The prefix shared by the keys of every labelled group under one stage. */
+export function groupKeyPrefix(parentId: string): string {
+  return `${parentId}#group:`;
+}
 
 /**
  * The rows of a plan that are on screen, in display order. A collapsed stage hides its
- * descendants. A sharded plan puts a heading row before each shard subtree.
+ * descendants. Each run of siblings that share a label (a shard, a $facet branch, a $lookup inner
+ * pipeline) gets a heading row that opens and closes the run.
  */
 export function planRows(
   root: PlanStage,
@@ -168,17 +205,41 @@ export function planRows(
     if (!expanded) {
       return;
     }
-    let currentShard: string | undefined;
-    stage.children.forEach((child, index) => {
-      const childId = `${id}.${index}`;
-      // Only the merge stage above the shard subtrees gets headings. Stages inside a subtree carry
-      // their shard name too, so they are not headed again.
-      if (stage.shard === undefined && child.shard !== undefined && child.shard !== currentShard) {
-        rows.push({ kind: 'shard', id: `${childId}#shard`, depth: depth + 1, shard: child.shard });
+    const children = stage.children;
+    let index = 0;
+    while (index < children.length) {
+      const child = children[index];
+      if (child?.label === undefined) {
+        if (child !== undefined) {
+          visit(child, `${id}.${index}`, depth + 1);
+        }
+        index += 1;
+        continue;
       }
-      currentShard = child.shard;
-      visit(child, childId, depth + 1);
-    });
+      let end = index + 1;
+      while (end < children.length && children[end]?.label === child.label) {
+        end += 1;
+      }
+      const key = groupKey(id, index);
+      const open = !collapsed.has(key);
+      rows.push({
+        kind: 'group',
+        id: key,
+        parentId: id,
+        depth: depth + 1,
+        label: child.label,
+        expanded: open,
+      });
+      if (open) {
+        for (let member = index; member < end; member += 1) {
+          const sibling = children[member];
+          if (sibling !== undefined) {
+            visit(sibling, `${id}.${member}`, depth + 1);
+          }
+        }
+      }
+      index = end;
+    }
   };
   visit(root, prefix, 0);
   return rows;
