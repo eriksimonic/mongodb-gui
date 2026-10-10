@@ -11,5 +11,5 @@ vitest-report.json
 playwright-report/
 e2e/output/
 *.tsbuildinfo
-.claude/
+.claude/settings.local.json
 packages/app/release/
