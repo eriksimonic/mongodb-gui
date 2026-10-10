@@ -116,7 +116,18 @@ export async function getServerStatusTree(client: MongoClient): Promise<ServerSt
     }
     raw[section] = value;
   }
-  return { at: new Date().toISOString(), rawJson: relaxedJson(raw), stripped };
+  return {
+    at: new Date().toISOString(),
+    rawJson: relaxedJson(raw),
+    canonicalJson: stringifyEjson(raw),
+    stripped,
+  };
+}
+
+// The tree as a plain object in canonical EJSON. A Date becomes { "$date": { "$numberLong" } }.
+export function serverStatusDocument(tree: ServerStatusTree): PlainObject {
+  const value: unknown = JSON.parse(tree.canonicalJson);
+  return isPlainObject(value) ? value : {};
 }
 
 export async function getConnPoolStats(client: MongoClient): Promise<ConnPoolStats> {

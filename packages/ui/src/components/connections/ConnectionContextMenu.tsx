@@ -91,6 +91,19 @@ export function ConnectionContextMenu({
           disabled={status.state !== 'connected'}
           onClick={() => {
             onClose();
+            openPanel({
+              kind: 'diagnostics',
+              connectionId: connection.id,
+              connectionName: connection.name,
+            });
+          }}
+        >
+          Diagnostics
+        </Menu.Item>
+        <Menu.Item
+          disabled={status.state !== 'connected'}
+          onClick={() => {
+            onClose();
             setManagementDialog({ kind: 'createDatabase', connectionId: connection.id });
           }}
         >

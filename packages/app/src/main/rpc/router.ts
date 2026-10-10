@@ -11,6 +11,7 @@ import {
   normaliseExplain,
   rewriteForExplain,
   redactUri,
+  redactUriText,
   rpcContract,
   toAppError,
   type AppError,
@@ -19,6 +20,12 @@ import {
   type ConnectionProfile,
   type ConnectionProfileInput,
   type DialogResult,
+  type LogLine,
+  type ServerLog,
+  type ServerParameter,
+  redactDiagnosticRecord,
+  redactDiagnosticValue,
+  isSecretKey,
   type OpenDialogInput,
   type SaveDialogInput,
   type ExplainResult,
@@ -82,6 +89,20 @@ import {
   type ProfileTail,
   changePassword,
   connectionStatus,
+  getBuildInfo,
+  getCollStats,
+  getCommandLineOptions,
+  getConnPoolStats,
+  getDbStats,
+  getHostInfo,
+  getParameters,
+  getServerLog,
+  getServerStatusTree,
+  getTop,
+  killAllSessionsByUser,
+  killSessions,
+  listSessions,
+  serverStatusDocument,
   createRole,
   createUser,
   dropRole,
@@ -601,6 +622,56 @@ export function createRouter(deps: RouterDeps): Router {
     ];
   }
 
+  /**
+   * Server logs, parameters, host and build facts, sessions and the other diagnostics. Secret fields
+   * are masked and URIs redacted before a reply leaves. The kill calls report no catalog change.
+   */
+  function diagnosticsOperations(): [string, Operation][] {
+    const d = rpcContract.diagnostics;
+    return [
+      readOnly('diagnostics.getLog', d.getLog, async (client, input) =>
+        redactLog(await getServerLog(client, input.kind)),
+      ),
+      readOnly('diagnostics.cmdLineOpts', d.cmdLineOpts, async (client) => {
+        const options = await getCommandLineOptions(client);
+        return {
+          argv: options.argv.map((arg) => redactUriText(arg)),
+          parsed: toCanonicalEjson(redactDiagnosticValue(options.parsed)),
+        };
+      }),
+      readOnly('diagnostics.parameters', d.parameters, async (client) =>
+        (await getParameters(client)).map(redactParameter),
+      ),
+      readOnly('diagnostics.hostInfo', d.hostInfo, (client) => getHostInfo(client)),
+      readOnly('diagnostics.buildInfo', d.buildInfo, (client) => getBuildInfo(client)),
+      readOnly('diagnostics.serverStatus', d.serverStatus, async (client) => {
+        const tree = await getServerStatusTree(client);
+        return {
+          at: tree.at,
+          stripped: tree.stripped,
+          document: redactDiagnosticRecord(serverStatusDocument(tree)),
+        };
+      }),
+      readOnly('diagnostics.top', d.top, (client) => getTop(client)),
+      readOnly('diagnostics.dbStats', d.dbStats, (client, input) =>
+        getDbStats(client, input.database),
+      ),
+      readOnly('diagnostics.collStats', d.collStats, (client, input) =>
+        getCollStats(client, input.database, input.collection),
+      ),
+      readOnly('diagnostics.connPoolStats', d.connPoolStats, (client) => getConnPoolStats(client)),
+      readOnly('diagnostics.listSessions', d.listSessions, (client, input) =>
+        listSessions(client, { allUsers: input.allUsers === true }),
+      ),
+      readOnly('diagnostics.killSessions', d.killSessions, (client, input) =>
+        killSessions(client, input.ids),
+      ),
+      readOnly('diagnostics.killAllSessionsByUser', d.killAllSessionsByUser, (client, input) =>
+        killAllSessionsByUser(client, input.users),
+      ),
+    ];
+  }
+
   const docker = (): DockerRuntime => {
     if (deps.docker === undefined) {
       throw new AppErrorException(appError('INTERNAL', 'Docker support is not available.'));
@@ -796,6 +867,7 @@ export function createRouter(deps: RouterDeps): Router {
     entry('explain.runCommand', rpcContract.explain.runCommand, (input) => explainCommand(input)),
     ...managementOperations(),
     ...securityOperations(),
+    ...diagnosticsOperations(),
 
     entry('monitor.start', rpcContract.monitor.start, (input) =>
       monitor.start(input.connectionId, input.intervalMs),
@@ -1363,6 +1435,40 @@ function tailKey(connectionId: string, database: string): string {
  * Profile entries carry BSON values in command, locks, storage and raw. They are sent in
  * canonical extended JSON, so the renderer gets plain data with $oid and $date markers.
  */
+/** The text the log viewer shows: secrets masked, URIs redacted, attributes in canonical EJSON. */
+function redactLog(log: ServerLog): ServerLog {
+  return { ...log, lines: log.lines.map(redactLogLine) };
+}
+
+function redactLogLine(line: LogLine): LogLine {
+  const { attributes, ...rest } = line;
+  return {
+    ...rest,
+    message: redactUriText(line.message),
+    raw: redactUriText(line.raw),
+    ...(attributes === undefined
+      ? {}
+      : { attributes: toCanonicalEjson(redactDiagnosticValue(attributes)) }),
+  };
+}
+
+const PARAMETER_MASK = '***';
+
+function redactParameter(parameter: ServerParameter): ServerParameter {
+  if (isSecretKey(parameter.name)) {
+    return {
+      name: parameter.name,
+      value: PARAMETER_MASK,
+      valueEjson: JSON.stringify(PARAMETER_MASK),
+    };
+  }
+  if (typeof parameter.value !== 'string') {
+    return parameter;
+  }
+  const value = redactUriText(parameter.value);
+  return { name: parameter.name, value, valueEjson: JSON.stringify(value) };
+}
+
 function canonicalEntry(entry: ProfileEntry): ProfileEntry {
   return {
     ...entry,

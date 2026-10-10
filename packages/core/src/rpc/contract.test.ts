@@ -12,6 +12,7 @@ describe('rpcContract', () => {
         'collections',
         'connections',
         'databases',
+        'diagnostics',
         'docker',
         'explain',
         'favourites',

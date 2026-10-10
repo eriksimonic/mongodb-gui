@@ -40,6 +40,7 @@ import {
 } from './mock-catalog';
 import { createManagementCalls } from './mock-management';
 import { createSecurityCalls, fixtureSecurity, type MockSecurity } from './mock-security';
+import { createDiagnosticsCalls } from './mock-diagnostics';
 import {
   fixtureConnections,
   DOCKER_PROFILE_ID,
@@ -459,6 +460,20 @@ export function createMockUiApi(options: MockUiApiOptions = {}): UiApi {
     viewer: options.security === 'viewer',
   });
 
+  const diagnostics = createDiagnosticsCalls({
+    latencyMs,
+    guard,
+    now: () => Date.now(),
+    dbStats: (connectionId, database) => databaseStats(findDatabaseOrFail(connectionId, database)),
+    collStats: (connectionId, database, collection) => {
+      const found = requireCollectionFor(findDatabaseOrFail(connectionId, database), collection);
+      if (found.info.type === 'view') {
+        throw fail('COMMAND_FAILED', 'Views have no storage statistics', collection);
+      }
+      return collectionStats(database, found);
+    },
+  });
+
   const management = createManagementCalls({
     latencyMs,
     guard,
@@ -782,6 +797,7 @@ export function createMockUiApi(options: MockUiApiOptions = {}): UiApi {
     },
     management,
     security,
+    diagnostics,
     settings: {
       get: method(rpcContract.settings.get, latencyMs, () => {
         requireUnlocked();
