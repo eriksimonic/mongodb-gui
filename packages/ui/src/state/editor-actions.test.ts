@@ -264,6 +264,49 @@ describe('editor actions: tabs', () => {
     });
   });
 
+  it('opens a query tab for a collection, sets its text and runs it', async () => {
+    const api = await connectedMockApi();
+    const store = await storeOn(api);
+    const current = store
+      .getState()
+      .openEditor({ connectionId: localConnectionId, database: 'shop' });
+    store.getState().setEditorText(current, 'db.orders.countDocuments()');
+
+    await store.getState().openCollectionQuery({
+      connectionId: localConnectionId,
+      database: 'analytics',
+      collection: 'bson_samples',
+    });
+
+    const { tabs, activeId } = store.getState().editors;
+    expect(tabs[current]?.text).toBe('db.orders.countDocuments()');
+    expect(activeId === undefined ? undefined : tabs[activeId]).toMatchObject({
+      database: 'analytics',
+      text: 'db.bson_samples.find({})',
+      result: { type: 'Cursor', collection: 'bson_samples' },
+    });
+  });
+
+  it('reuses an empty tab on the same connection for a collection query', async () => {
+    const api = await connectedMockApi();
+    const store = await storeOn(api);
+    const empty = store
+      .getState()
+      .openEditor({ connectionId: localConnectionId, database: 'shop' });
+
+    await store.getState().openCollectionQuery({
+      connectionId: localConnectionId,
+      database: 'analytics',
+      collection: 'bson_samples',
+    });
+
+    expect(store.getState().editors.order).toEqual([empty]);
+    expect(store.getState().editors.tabs[empty]).toMatchObject({
+      database: 'analytics',
+      text: 'db.bson_samples.find({})',
+    });
+  });
+
   it('stops Load all at the limit, asking for no more than the documents left', async () => {
     const api = await connectedMockApi();
     const store = await storeOn(api);

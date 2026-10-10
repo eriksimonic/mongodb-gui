@@ -48,6 +48,7 @@ import {
   type EditorsState,
   type ResultView,
 } from './editors';
+import { collectionQueryStatement } from './collection-query';
 
 /** Batch size of "Load all". Each call reads this many documents, up to LOAD_ALL_LIMIT in all. */
 const LOAD_ALL_BATCH = 500;
@@ -73,6 +74,12 @@ export interface SaveFavouriteInput extends CodeTarget {
   readonly folder?: string | undefined;
   /** The tab to mark saved, when the code came from one. */
   readonly tabId?: string | undefined;
+}
+
+export interface CollectionTarget {
+  readonly connectionId: string;
+  readonly database: string;
+  readonly collection: string;
 }
 
 export interface FieldEdit {
@@ -304,6 +311,28 @@ export function createEditorActions(access: EditorStoreAccess) {
     }
   }
 
+  async function rerunStatement(target: CodeTarget): Promise<void> {
+    const state = access.get().editors;
+    const active = state.activeId === undefined ? undefined : state.tabs[state.activeId];
+    let id: string;
+    if (
+      active !== undefined &&
+      active.connectionId === target.connectionId &&
+      active.text.trim() === ''
+    ) {
+      id = active.id;
+      update((current) => setTabDatabase(current, id, target.database));
+    } else {
+      id = openEditor({
+        connectionId: target.connectionId,
+        database: target.database,
+        newTab: true,
+      });
+    }
+    update((current) => setTabText(current, id, target.code));
+    await runEditor(id, target.code);
+  }
+
   return {
     openEditor,
 
@@ -444,26 +473,18 @@ export function createEditorActions(access: EditorStoreAccess) {
      * Runs the code from history or favourites. It goes into a new tab, so the text of the current
      * tab stays. An empty current tab on the same connection takes the code instead.
      */
-    async rerunStatement(target: CodeTarget): Promise<void> {
-      const state = access.get().editors;
-      const active = state.activeId === undefined ? undefined : state.tabs[state.activeId];
-      let id: string;
-      if (
-        active !== undefined &&
-        active.connectionId === target.connectionId &&
-        active.text.trim() === ''
-      ) {
-        id = active.id;
-        update((current) => setTabDatabase(current, id, target.database));
-      } else {
-        id = openEditor({
-          connectionId: target.connectionId,
-          database: target.database,
-          newTab: true,
-        });
-      }
-      update((current) => setTabText(current, id, target.code));
-      await runEditor(id, target.code);
+    rerunStatement,
+
+    /**
+     * Opens a query tab for a collection and runs `find({})` on it. The tab rules are those of
+     * `rerunStatement`.
+     */
+    openCollectionQuery(target: CollectionTarget): Promise<void> {
+      return rerunStatement({
+        connectionId: target.connectionId,
+        database: target.database,
+        code: collectionQueryStatement(target.collection),
+      });
     },
 
     /**
