@@ -35,7 +35,7 @@ test('master password, connection tree and lock, end to end', async () => {
       await window.getByLabel('Confirm master password', { exact: true }).fill(MASTER_PASSWORD);
       await window.getByRole('button', { name: 'Create vault' }).click();
       await expect(window.getByRole('button', { name: 'Lock', exact: true })).toBeVisible();
-      await expect(window.getByText('No connections yet.')).toBeVisible();
+      await expect(window.getByText('No connections yet.', { exact: true })).toBeVisible();
       await captureStep(window, SPEC, '02-shell-empty');
     });
 

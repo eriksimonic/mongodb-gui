@@ -261,9 +261,16 @@ function createMainWindow(): void {
     registerIpc(router, window);
   }
 
-  window.once('ready-to-show', () => {
-    window.show();
-  });
+  // ready-to-show does not fire on every display. On a Wayland desktop it never fired in testing,
+  // the window stayed hidden, and nothing painted. The first finished load shows the window too.
+  // Whichever event comes first wins.
+  const showWindow = (): void => {
+    if (!window.isDestroyed() && !window.isVisible()) {
+      window.show();
+    }
+  };
+  window.once('ready-to-show', showWindow);
+  window.webContents.once('did-finish-load', showWindow);
 
   // Bounds are read from the encrypted store, so they apply once the vault is open. The restore
   // after unlock covers the usual case, where the window opens at the locked screen first.
