@@ -47,6 +47,21 @@ export interface DraftFromInspectionInput {
   readonly preference?: string | undefined;
 }
 
+/**
+ * The tools a restore starts with: the version that made the backup when it is installed, else
+ * the preference, else ''.
+ */
+export function defaultRestoreTools(
+  inspection: Pick<BackupInspection, 'sidecar' | 'prelude'>,
+  installedVersions: readonly string[],
+  preference: string | undefined,
+): string {
+  const dumpTools = inspection.sidecar?.tools.version ?? inspection.prelude?.toolsVersion;
+  return dumpTools !== undefined && installedVersions.includes(dumpTools)
+    ? dumpTools
+    : (preference ?? '');
+}
+
 export function draftFromInspection(
   inspection: Pick<BackupInspection, 'namespaces' | 'sidecar' | 'prelude'>,
   input: DraftFromInspectionInput,
@@ -56,11 +71,7 @@ export function draftFromInspection(
     collection,
   }));
   const databases = [...new Set(contents.map((namespace) => namespace.database))];
-  const dumpTools = inspection.sidecar?.tools.version ?? inspection.prelude?.toolsVersion;
-  const toolsVersion =
-    dumpTools !== undefined && input.installedVersions.includes(dumpTools)
-      ? dumpTools
-      : (input.preference ?? '');
+  const toolsVersion = defaultRestoreTools(inspection, input.installedVersions, input.preference);
   const [only] = databases;
   const renameTo =
     input.targetDatabase !== undefined && databases.length === 1 && only !== undefined

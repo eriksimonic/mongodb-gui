@@ -33,6 +33,7 @@ import type { BackupProblem } from './backup-model';
 import { RestoreContentsTree } from './RestoreContentsTree';
 import { RestoreSourceSummary } from './RestoreSourceSummary';
 import {
+  defaultRestoreTools,
   draftFromInspection,
   includeFrom,
   isCollectionChecked,
@@ -199,18 +200,22 @@ export function RestoreDialogBody({
   // Options the form disables are dropped from what is checked and sent.
   const effective = useMemo<RestoreDraft | undefined>(
     () =>
-      draft === undefined
+      draft === undefined || inspection === undefined
         ? undefined
         : {
             ...draft,
-            // A backup can be picked before the tools list arrives.
-            toolsVersion: draft.toolsVersion === '' ? (tools?.resolved ?? '') : draft.toolsVersion,
+            // A backup can be picked before the tools list arrives, so the default is applied
+            // here again once the list is known.
+            toolsVersion:
+              draft.toolsVersion === ''
+                ? defaultRestoreTools(inspection, installed, tools?.resolved)
+                : draft.toolsVersion,
             oplogReplay: draft.oplogReplay && oplogReason === undefined,
             oplogLimit: draft.oplogReplay && oplogReason === undefined ? draft.oplogLimit : '',
             restoreDbUsersAndRoles: draft.restoreDbUsersAndRoles && usersReason === undefined,
             preserveUUID: draft.preserveUUID && draft.drop,
           },
-    [draft, tools, oplogReason, usersReason],
+    [draft, inspection, installed, tools, oplogReason, usersReason],
   );
 
   const problems = useMemo(

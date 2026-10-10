@@ -131,6 +131,31 @@ describe('RestoreDialog', () => {
     expect(screen.queryByRole('button', { name: 'Download 100.12.1' })).toBeNull();
   });
 
+  it('picks the backup tools version when the tools list arrives after the backup', async () => {
+    const api = createMockUiApi({ preset: 'unlocked' });
+    await api.rpc.connections.connect({ id: localConnectionId });
+    const real = api.rpc.backup.describeServer.bind(api.rpc.backup);
+    let release!: () => void;
+    const gate = new Promise<void>((resolve) => {
+      release = resolve;
+    });
+    vi.spyOn(api.rpc.backup, 'describeServer').mockImplementation(async (input) => {
+      await gate;
+      return real(input);
+    });
+    renderWithApp(
+      <RestoreDialogBody connectionId={localConnectionId} onClose={() => undefined} />,
+      { api },
+    );
+    await chooseArchive();
+    release();
+    await waitFor(() =>
+      expect(screen.getByRole('textbox', { name: 'Tools version' })).toHaveValue(
+        '100.12.1 (Downloaded)',
+      ),
+    );
+  });
+
   it('labels the footer button from the dry run checkbox', async () => {
     await renderDialog();
     await chooseArchive();
