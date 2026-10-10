@@ -6,6 +6,13 @@ All notable changes to Mongo GUI are listed here, newest first.
 
 ### Added
 
+- "Generate data" on a collection inserts made-up documents from a seeded set of generators
+  (identifiers, numbers, dates, names, emails, file paths and lorem text), with unique fields,
+  a preview, progress and cancel. A unique field that its generator cannot fill is refused before
+  the first write.
+- Connecting to a password-protected MongoDB container without credentials in its environment
+  opens a dialog for a user name, password and authentication database. The app tests the
+  credentials and saves them with the container's connection.
 - "Only problematic" in the profiler filter row hides slow query rows without a COLLSCAN, an
   in-memory sort or a high examined-to-returned ratio. It filters the loaded rows in the app.
 - Right-click on a table cell offers "Copy value", "Copy key" and "Copy document".
@@ -16,6 +23,10 @@ All notable changes to Mongo GUI are listed here, newest first.
 - The Explain panel's Raw view fills the panel height.
 - A connection with `directConnection=true` to a replica set member shows the set name and
   "direct" in the connection tree, in the status tooltip and in the monitor header.
+- A replica set node under each replica set connection lists the members with their state.
+  "Connect directly" on a member saves and opens a direct connection to that host.
+- Right-click a user in the Users and roles panel for "Copy as connection string".
+- Double-clicking a collection whose query tab is already open brings that tab to the front.
 - Exports selected connections to a file encrypted with AES-256-GCM under a scrypt key from a
   passphrase of at least 10 characters. Each export uses a new salt and IV.
 - Imports a connections file after its passphrase is typed. Name collisions can skip, rename or
@@ -37,6 +48,9 @@ All notable changes to Mongo GUI are listed here, newest first.
 
 ### Fixed
 
+- The Indexes panel and the profiler show the index types, collation and text weights of an index,
+  a dash for a missing ratio or size, a SORT badge, durations from one second in seconds, and the
+  date of older profiler entries, and offer every namespace in the loaded entries.
 - Typing `db.` lists every collection of the database, including on slow or remote servers. The
   editor no longer depends on the shell's short collection lookup.
 - Completion requests no longer hide the completions of the next keystroke, and a slow field sample

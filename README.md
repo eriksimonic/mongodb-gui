@@ -54,9 +54,10 @@ inline edits in the tree, and a history and favourites list in the Output panel.
 | --------------------------------------------- | -------------------------------------------------------------------------------- |
 | ![Unlock screen](docs/screenshots/unlock.png) | ![Shell with connections, welcome and output panels](docs/screenshots/shell.png) |
 
-| Connection tree                                                                                  | Connection dialog                                                             |
-| ------------------------------------------------------------------------------------------------ | ----------------------------------------------------------------------------- |
-| ![Connection tree with databases and collections expanded](docs/screenshots/connection-tree.png) | ![New connection dialog in form mode](docs/screenshots/connection-dialog.png) |
+| Connection tree                                                                                           | Connection dialog                                                             |
+| --------------------------------------------------------------------------------------------------------- | ----------------------------------------------------------------------------- |
+| ![Connection tree with databases and collections expanded](docs/screenshots/connection-tree.png)          | ![New connection dialog in form mode](docs/screenshots/connection-dialog.png) |
+| ![Replica set node with the members, their states and the member menu](docs/screenshots/replica-tree.png) |                                                                               |
 
 | Tab menu                                                                           | Cell menu                                                                                        |
 | ---------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------ |
@@ -74,9 +75,9 @@ inline edits in the tree, and a history and favourites list in the Output panel.
 | ------------------------------------------------------------------------------------------------------------ |
 | ![Explain panel with the summary, the plan tree and the $lookup sub-tree open](docs/screenshots/explain.png) |
 
-| Docker node in the connection tree                                                |
-| --------------------------------------------------------------------------------- |
-| ![Docker node listing local MongoDB containers](docs/screenshots/docker-tree.png) |
+| Docker node in the connection tree                                                | Credentials for a protected container                                                             |
+| --------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------- |
+| ![Docker node listing local MongoDB containers](docs/screenshots/docker-tree.png) | ![Credentials dialog for a password-protected container](docs/screenshots/docker-credentials.png) |
 
 | Monitor dashboard                                                                     | Running operations                                                                                        |
 | ------------------------------------------------------------------------------------- | --------------------------------------------------------------------------------------------------------- |
@@ -105,9 +106,10 @@ inline edits in the tree, and a history and favourites list in the Output panel.
 | ---------------------------------------------------------------------------------------------------------- |
 | ![Diagnostics panel with the log tab, level, component and text filters](docs/screenshots/diagnostics.png) |
 
-| Import wizard, preview and field mapping                                      | Export dialog                                                                     |
-| ----------------------------------------------------------------------------- | --------------------------------------------------------------------------------- |
-| ![Import wizard at the preview and mapping step](docs/screenshots/import.png) | ![Export dialog with a filter and the NDJSON format](docs/screenshots/export.png) |
+| Import wizard, preview and field mapping                                                                | Export dialog                                                                     |
+| ------------------------------------------------------------------------------------------------------- | --------------------------------------------------------------------------------- |
+| ![Import wizard at the preview and mapping step](docs/screenshots/import.png)                           | ![Export dialog with a filter and the NDJSON format](docs/screenshots/export.png) |
+| ![Generate data dialog with fields, generators and the unique flag](docs/screenshots/generate-data.png) |                                                                                   |
 
 | GridFS file list with an upload in progress                                                                            |
 | ---------------------------------------------------------------------------------------------------------------------- |
