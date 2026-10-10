@@ -80,6 +80,28 @@ export function filenameProblem(name: string): string | undefined {
   return result.success ? undefined : (result.error.issues[0]?.message ?? 'Enter a file name');
 }
 
+const WINDOWS_DEVICE_NAME = /^(con|prn|aux|nul|com[1-9]|lpt[1-9])$/i;
+
+/**
+ * The name a folder download writes. The server filename is reduced to its last segment on either
+ * separator, so it cannot climb out of the folder. A name that is empty, only dots, has a NUL byte
+ * or is a Windows device name falls back to the file id.
+ */
+export function downloadFileName(filename: string, idEjson: string): string {
+  const name = filename.split(/[\\/]/).pop() ?? '';
+  const stem = name.split('.')[0] ?? '';
+  if (name === '' || /^\.+$/.test(name) || name.includes('\0') || WINDOWS_DEVICE_NAME.test(stem)) {
+    return fallbackFileName(idEjson);
+  }
+  return name;
+}
+
+/** The file id as a name: the hex of an ObjectId, otherwise the id with unsafe characters replaced. */
+function fallbackFileName(idEjson: string): string {
+  const oid = /"\$oid"\s*:\s*"([0-9a-fA-F]+)"/.exec(idEjson)?.[1];
+  return oid ?? (idEjson.replace(/[^A-Za-z0-9_-]/g, '_') || 'file');
+}
+
 /** Joins a folder from a folder dialog and a filename, using the separator the folder uses. */
 export function joinFolderPath(folder: string, name: string): string {
   if (folder.endsWith('/') || folder.endsWith('\\')) {

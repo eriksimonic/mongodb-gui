@@ -3,6 +3,7 @@ import { describe, expect, it } from 'vitest';
 import {
   filenameProblem,
   formatBytes,
+  downloadFileName,
   joinFolderPath,
   metadataFieldCount,
   parseMetadataDraft,
@@ -66,6 +67,39 @@ describe('joinFolderPath', () => {
     expect(joinFolderPath('/mock/downloads', 'a.pdf')).toBe('/mock/downloads/a.pdf');
     expect(joinFolderPath('/mock/downloads/', 'a.pdf')).toBe('/mock/downloads/a.pdf');
     expect(joinFolderPath('C:\\files', 'a.pdf')).toBe('C:\\files\\a.pdf');
+  });
+});
+
+describe('downloadFileName', () => {
+  const ID = '{"$oid":"5f2c9a1e"}';
+
+  it.each([
+    ['../../x', 'x'],
+    ['..\\x', 'x'],
+    ['/etc/x', 'x'],
+    ['a/b\\c.pdf', 'c.pdf'],
+    ['receipt-1001.pdf', 'receipt-1001.pdf'],
+  ])('reduces %j to its last segment: %s', (filename, expected) => {
+    expect(downloadFileName(filename, ID)).toBe(expected);
+  });
+
+  it.each(['', '.', '..', '...', 'CON', 'con.txt', 'NUL', 'LPT1.log', 'COM9', 'a\u0000b.pdf'])(
+    'falls back to the file id for %j',
+    (filename) => {
+      expect(downloadFileName(filename, ID)).toBe('5f2c9a1e');
+    },
+  );
+
+  it('keeps a folder download inside the folder', () => {
+    const name = downloadFileName('../../escape.txt', ID);
+    expect(joinFolderPath('/mock/downloads', name)).toBe('/mock/downloads/escape.txt');
+    expect(joinFolderPath('C:\\files', downloadFileName('..\\..\\escape.txt', ID))).toBe(
+      'C:\\files\\escape.txt',
+    );
+  });
+
+  it('replaces unsafe characters in a non-ObjectId id', () => {
+    expect(downloadFileName('', '{"uuid":"a:b"}')).toBe('__uuid___a_b__');
   });
 });
 

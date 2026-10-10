@@ -4,7 +4,7 @@ import { useEffect } from 'react';
 import { useAppStore } from '../../state/app-store-context';
 import { listTransfers, transferFraction, type TransferView } from '../../state/transfer-state';
 import { runReported } from '../notify-error';
-import { countLine, statusLine } from './transfer-model';
+import { progressLine, statusLine } from './transfer-model';
 
 /**
  * Imports and exports of this session, running ones first, with a cancel button for each one
@@ -86,7 +86,7 @@ export function TransferLine({ view }: { view: TransferView }) {
       />
       <Group justify="space-between" wrap="nowrap">
         <Text size="xs" c="dimmed">
-          {countLine(progress)}
+          {progressLine(view.kind, progress)}
           {progress.failed > 0 ? `, ${progress.failed.toLocaleString('en-US')} failed` : ''}
         </Text>
         {progress.done ? null : (
@@ -102,5 +102,29 @@ export function TransferLine({ view }: { view: TransferView }) {
         )}
       </Group>
     </Stack>
+  );
+}
+
+/** A finished GridFS job as one line: the file, the outcome and the bytes. */
+export function TransferSummaryLine({ view }: { view: TransferView }) {
+  return (
+    <Group
+      justify="space-between"
+      wrap="nowrap"
+      gap="sm"
+      data-testid={`transfer-${view.transferId}`}
+    >
+      <Text size="xs" truncate>
+        {transferLabel(view)}
+      </Text>
+      <Group gap="sm" wrap="nowrap">
+        <Text size="xs" c="dimmed" style={{ whiteSpace: 'nowrap' }}>
+          {statusLine(view.progress)}
+        </Text>
+        <Text size="xs" c="dimmed" style={{ whiteSpace: 'nowrap' }}>
+          {progressLine(view.kind, view.progress)}
+        </Text>
+      </Group>
+    </Group>
   );
 }

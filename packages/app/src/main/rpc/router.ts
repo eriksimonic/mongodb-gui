@@ -1,5 +1,5 @@
 import { existsSync, mkdirSync, statSync } from 'node:fs';
-import { dirname, join } from 'node:path';
+import { dirname, join, resolve } from 'node:path';
 import { randomUUID } from 'node:crypto';
 import {
   AppErrorException,
@@ -574,11 +574,13 @@ export function createRouter(deps: RouterDeps): Router {
     }
   }
 
-  // Paths the user picked in a save dialog this session. An export may replace only these.
+  // Absolute paths the user picked this session. Cleared on a renderer reset.
+  // Save paths: an export may replace only these, and a download may write only to these.
   const savePaths = new Set<string>();
-  // Folders the user picked in a folder dialog this session. A download may replace a file inside
-  // one of them, because the user confirmed that file in the dialog.
+  // Folders picked in a folder dialog: a download may write only directly inside these.
   const folderPicks = new Set<string>();
+  // Files picked in an open dialog: an upload or an import reads only these, one use each.
+  const openedFiles = new Set<string>();
 
   const dialogs = (): NativeDialogs => {
     if (deps.dialogs === undefined) {
@@ -859,6 +861,7 @@ export function createRouter(deps: RouterDeps): Router {
     entry('transfer.startImport', rpcContract.transfer.startImport, (input) => {
       const { connectionId, ...request } = input;
       requireConnectionProfile(connectionId);
+      takePickedFile(request.path, openedFiles);
       return { transferId: transfers.startImport(connectionId, request) };
     }),
     entry('transfer.startExport', rpcContract.transfer.startExport, (input) => {
@@ -888,14 +891,14 @@ export function createRouter(deps: RouterDeps): Router {
     entry('gridfs.startUpload', rpcContract.gridfs.startUpload, (input) => {
       const { connectionId, ...request } = input;
       requireConnectionProfile(connectionId);
+      takePickedFile(request.path, openedFiles);
       return { transferId: transfers.startGridFsUpload(connectionId, request) };
     }),
     entry('gridfs.startDownload', rpcContract.gridfs.startDownload, (input) => {
       const { connectionId, ...request } = input;
       requireConnectionProfile(connectionId);
-      if (request.overwrite === true) {
-        refuseUnpickedOverwrite(request.path, savePaths, folderPicks);
-      } else {
+      refuseUnpickedDownload(request.path, savePaths, folderPicks);
+      if (request.overwrite !== true) {
         // Checked before the transfer starts, so the caller gets the refusal as the call's error.
         refuseExistingFile(request.path);
       }
@@ -934,15 +937,19 @@ export function createRouter(deps: RouterDeps): Router {
     entry('app.versions', rpcContract.app.versions, () => appVersions()),
     entry('app.showOpenDialog', rpcContract.app.showOpenDialog, async (input) => {
       const picked = await dialogs().showOpenDialog(input);
-      if (input.directory === true && picked.path !== undefined) {
-        folderPicks.add(picked.path);
+      if (picked.path !== undefined) {
+        if (input.directory === true) {
+          folderPicks.add(resolve(picked.path));
+        } else {
+          openedFiles.add(resolve(picked.path));
+        }
       }
       return picked;
     }),
     entry('app.showSaveDialog', rpcContract.app.showSaveDialog, async (input) => {
       const picked = await dialogs().showSaveDialog(input);
       if (picked.path !== undefined) {
-        savePaths.add(picked.path);
+        savePaths.add(resolve(picked.path));
       }
       return picked;
     }),
@@ -1027,6 +1034,9 @@ export function createRouter(deps: RouterDeps): Router {
 
   return {
     resetRenderer() {
+      savePaths.clear();
+      folderPicks.clear();
+      openedFiles.clear();
       for (const listener of [...rendererResets]) {
         try {
           listener();
@@ -1436,20 +1446,28 @@ function refuseUnpickedFile(path: string, picked: ReadonlySet<string>): void {
 }
 
 /**
- * A download with overwrite replaces only a file the user chose this session: one picked in a save
- * dialog, or one inside a folder picked in a folder dialog.
+ * A download writes only to a save path or inside a folder the user picked this session, with or
+ * without overwrite. The target is resolved first, so `..` segments cannot climb out of the folder.
  */
-function refuseUnpickedOverwrite(
+function refuseUnpickedDownload(
   path: string,
   savedFiles: ReadonlySet<string>,
   pickedFolders: ReadonlySet<string>,
 ): void {
-  if (!existsSync(path) || savedFiles.has(path) || pickedFolders.has(dirname(path))) {
+  const target = resolve(path);
+  if (savedFiles.has(target) || pickedFolders.has(dirname(target))) {
     return;
   }
   throw new AppErrorException(
-    appError('VALIDATION', 'The file exists. Choose it in a dialog to replace it.'),
+    appError('VALIDATION', 'Choose the folder or the save location in a dialog first.'),
   );
+}
+
+/** An upload or an import reads only a file the open dialog returned, and each pick is used once. */
+function takePickedFile(path: string, openedFiles: Set<string>): void {
+  if (!openedFiles.delete(resolve(path))) {
+    throw new AppErrorException(appError('VALIDATION', 'Choose the file in a dialog first.'));
+  }
 }
 
 /** A download without overwrite refuses an existing file, so the renderer can offer a replace. */

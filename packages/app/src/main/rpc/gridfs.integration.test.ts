@@ -70,6 +70,21 @@ describe('GridFS through the router against a real MongoDB 8.0.17 server', () =>
   let services: AppServices | undefined;
   let dir = '';
   let connectionId = '';
+  // The paths the mocked dialogs return. The renderer always picks before it starts a transfer.
+  let openPick: string | undefined;
+  let savePick: string | undefined;
+
+  /** Picks a file in the open dialog, as the renderer does before an upload. */
+  async function pickOpen(path: string): Promise<void> {
+    openPick = path;
+    await router.handle('app.showOpenDialog', { title: 'Choose a file', filters: [] });
+  }
+
+  /** Picks a save path in the save dialog, as the renderer does before a download. */
+  async function pickSave(path: string): Promise<void> {
+    savePick = path;
+    await router.handle('app.showSaveDialog', { title: 'Save file', filters: [] });
+  }
   const events: RpcEvent[] = [];
 
   beforeAll(async () => {
@@ -87,8 +102,8 @@ describe('GridFS through the router against a real MongoDB 8.0.17 server', () =>
         events.push(event);
       },
       dialogs: {
-        showOpenDialog: async () => ({}),
-        showSaveDialog: async () => ({}),
+        showOpenDialog: async () => (openPick === undefined ? {} : { path: openPick }),
+        showSaveDialog: async () => (savePick === undefined ? {} : { path: savePick }),
         showItemInFolder: () => undefined,
       },
     });
@@ -116,6 +131,7 @@ describe('GridFS through the router against a real MongoDB 8.0.17 server', () =>
       writeFileSync(source, randomBytes(FILE_BYTES));
       const sourceHash = sha256Of(source);
 
+      await pickOpen(source);
       // Upload streams the file into the bucket and reports its progress as a transfer.
       const uploaded = valueOf(
         await router.handle('gridfs.startUpload', {
@@ -150,6 +166,17 @@ describe('GridFS through the router against a real MongoDB 8.0.17 server', () =>
       expect(file?.length).toBe(FILE_BYTES);
       const ref = { connectionId, database: DATABASE, bucket: BUCKET, idEjson: file?.idEjson };
 
+      await pickSave(target);
+      // A download to a path the user did not pick is refused, even with overwrite.
+      expect(
+        errorCodeOf(
+          await router.handle('gridfs.startDownload', {
+            ...ref,
+            path: join(dir, 'unpicked.bin'),
+            overwrite: true,
+          }),
+        ),
+      ).toBe('VALIDATION');
       // Download writes a new file. The bytes must match the upload.
       const downloaded = valueOf(
         await router.handle('gridfs.startDownload', { ...ref, path: target }),

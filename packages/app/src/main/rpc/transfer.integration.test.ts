@@ -70,6 +70,15 @@ describe('transfers through the router against a real MongoDB 8.0 server', () =>
   const showItemInFolder = vi.fn<(path: string) => void>();
   // The path the save dialog returns next. Undefined means the user cancelled.
   let savePick: string | undefined;
+  // The file the mocked open dialog returns. An import reads only a file the dialog returned.
+  let openPick: string | undefined;
+
+  /** Picks the file in the open dialog and starts the import, the order the renderer uses. */
+  async function startImportOf(input: { path: string } & Record<string, unknown>) {
+    openPick = input.path;
+    await router.handle('app.showOpenDialog', { title: 'Choose a file', filters: [] });
+    return router.handle('transfer.startImport', input);
+  }
 
   beforeAll(async () => {
     mongo = await startMongo(IMAGE);
@@ -86,7 +95,7 @@ describe('transfers through the router against a real MongoDB 8.0 server', () =>
         events.push(event);
       },
       dialogs: {
-        showOpenDialog: async () => ({}),
+        showOpenDialog: async () => (openPick === undefined ? {} : { path: openPick }),
         showSaveDialog: async () => (savePick === undefined ? {} : { path: savePick }),
         showItemInFolder,
       },
@@ -164,7 +173,7 @@ describe('transfers through the router against a real MongoDB 8.0 server', () =>
       expect(preview.sampleRows).toHaveLength(5);
 
       const imported = valueOf(
-        await router.handle('transfer.startImport', {
+        await startImportOf({
           connectionId,
           database: DATABASE,
           collection: COPY,
@@ -205,7 +214,7 @@ describe('transfers through the router against a real MongoDB 8.0 server', () =>
       writeFileSync(path, `${lines.join('\n')}\n`);
 
       const started = valueOf(
-        await router.handle('transfer.startImport', {
+        await startImportOf({
           connectionId,
           database: DATABASE,
           collection: 'bulk',
@@ -313,7 +322,7 @@ describe('transfers through the router against a real MongoDB 8.0 server', () =>
       const options = importOptionsFor(draft, 'ndjson', mappingRowsFrom(preview));
       expect(options.mappings?.every((mapping) => mapping.type === 'auto')).toBe(true);
       const imported = valueOf(
-        await router.handle('transfer.startImport', {
+        await startImportOf({
           connectionId,
           database: DATABASE,
           collection: 'typed_copy',
@@ -417,7 +426,7 @@ describe('transfers through the router against a real MongoDB 8.0 server', () =>
     'a renderer reset cancels the transfers the page started',
     async () => {
       const started = valueOf(
-        await router.handle('transfer.startImport', {
+        await startImportOf({
           connectionId,
           database: DATABASE,
           collection: 'bulk_reset',

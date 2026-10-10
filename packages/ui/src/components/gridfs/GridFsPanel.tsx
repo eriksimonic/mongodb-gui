@@ -13,8 +13,8 @@ import { useUiApi } from '../../api/ui-api';
 import { toAppError } from '@mongo-gui/core';
 import { useAppStore } from '../../state/app-store-context';
 import type { Loadable } from '../../state/app-store';
-import { listTransfers } from '../../state/transfer-state';
-import { TransferLine } from '../transfers/TransfersPanel';
+import { isRunning, listTransfers } from '../../state/transfer-state';
+import { TransferLine, TransferSummaryLine } from '../transfers/TransfersPanel';
 import { errorText, runReported } from '../notify-error';
 import {
   DeleteFilesDialog,
@@ -27,6 +27,7 @@ import { GridFsFileTable } from './GridFsFileTable';
 import {
   LIMIT_OPTIONS,
   SORT_OPTIONS,
+  downloadFileName,
   joinFolderPath,
   selectedFiles,
   toggleSelected,
@@ -135,6 +136,8 @@ export function GridFsPanel({ connectionId, database, bucket }: GridFsPanelProps
 
   const chosen = selectedFiles(rows, selected);
   const drawerFile = rows.find((file) => file.idEjson === drawerId);
+  // Running jobs sit above the table. Finished ones are single lines below it, so they do not push
+  // the file list down.
   const jobs = listTransfers(transfers).filter(
     (view) =>
       (view.kind === 'gridfs-upload' || view.kind === 'gridfs-download') &&
@@ -142,6 +145,8 @@ export function GridFsPanel({ connectionId, database, bucket }: GridFsPanelProps
       view.collection === bucket &&
       (view.connectionId === undefined || view.connectionId === connectionId),
   );
+  const runningJobs = jobs.filter(isRunning);
+  const finishedJobs = jobs.filter((view) => !isRunning(view));
 
   async function download(list: readonly GridFsFile[]): Promise<void> {
     const [single] = list;
@@ -174,7 +179,7 @@ export function GridFsPanel({ connectionId, database, bucket }: GridFsPanelProps
     }
     const existing: { file: GridFsFile; path: string }[] = [];
     for (const file of list) {
-      const path = joinFolderPath(folder.path, file.filename);
+      const path = joinFolderPath(folder.path, downloadFileName(file.filename, file.idEjson));
       try {
         await startGridFsDownload({ connectionId, database, bucket, idEjson: file.idEjson, path });
       } catch (error) {
@@ -355,9 +360,9 @@ export function GridFsPanel({ connectionId, database, bucket }: GridFsPanelProps
           {notice}
         </Alert>
       )}
-      {jobs.length === 0 ? null : (
+      {runningJobs.length === 0 ? null : (
         <Stack gap="xs" aria-label="Transfers of this bucket">
-          {jobs.map((view) => (
+          {runningJobs.map((view) => (
             <TransferLine key={view.transferId} view={view} />
           ))}
         </Stack>
@@ -394,6 +399,13 @@ export function GridFsPanel({ connectionId, database, bucket }: GridFsPanelProps
           onDelete={(file) => deleteFiles([file])}
         />
       ) : null}
+      {finishedJobs.length === 0 ? null : (
+        <Stack gap={2} aria-label="Finished transfers of this bucket">
+          {finishedJobs.map((view) => (
+            <TransferSummaryLine key={view.transferId} view={view} />
+          ))}
+        </Stack>
+      )}
       {drawerFile === undefined ? null : (
         <GridFsFileDrawer
           file={drawerFile}

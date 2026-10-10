@@ -52,6 +52,22 @@ describe('linkExclusive', () => {
     expect(await readFile(target, 'utf8')).toBe('old bytes');
   });
 
+  it('does not replace a target that appears after the hard link is refused', async () => {
+    // Simulates another writer creating the target in the window a check-then-rename would leave.
+    const source = join(dir, 'race-source.part');
+    const target = join(dir, 'race-target.bin');
+    await writeFile(source, 'download bytes');
+    vi.mocked(link).mockImplementationOnce(async () => {
+      await writeFile(target, 'other writer bytes');
+      throw withCode('EPERM');
+    });
+
+    await expect(linkExclusive(source, target)).rejects.toMatchObject({
+      error: { code: 'VALIDATION' },
+    });
+    expect(await readFile(target, 'utf8')).toBe('other writer bytes');
+  });
+
   it('reports EEXIST from the hard link as an existing target', async () => {
     const source = join(dir, 'eexist-source.part');
     const target = join(dir, 'eexist-target.bin');

@@ -25,6 +25,7 @@ import {
   createRepos,
   createRouter,
   type ConnectionRegistry,
+  type NativeDialogs,
   type Router,
   type StoreHandles,
 } from './router';
@@ -104,7 +105,7 @@ interface Harness {
   dispose(): void;
 }
 
-function buildHarness(logger?: Logger, docker?: DockerRuntime): Harness {
+function buildHarness(logger?: Logger, docker?: DockerRuntime, dialogs?: NativeDialogs): Harness {
   const dir = mkdtempSync(join(tmpdir(), 'router-'));
   const lockListeners = new Set<() => void>();
   const vault = new Vault({
@@ -147,6 +148,7 @@ function buildHarness(logger?: Logger, docker?: DockerRuntime): Harness {
     },
     ...(logger === undefined ? {} : { log: logger }),
     ...(docker === undefined ? {} : { docker }),
+    ...(dialogs === undefined ? {} : { dialogs }),
   });
   return {
     router,
@@ -1050,5 +1052,179 @@ describe('layout calls', () => {
     );
 
     expect(expectValue(await router.handle('layout.get', { key }))).toEqual({ value: null });
+  });
+});
+
+describe('file picks', () => {
+  let harness: Harness | undefined;
+  let base = '';
+  // What the mocked dialogs return next. Undefined means the user cancelled.
+  const picks: { open: string | undefined; folder: string | undefined; save: string | undefined } =
+    { open: undefined, folder: undefined, save: undefined };
+
+  async function setUp(): Promise<{ router: Router; connectionId: string }> {
+    base = mkdtempSync(join(tmpdir(), 'picks-'));
+    harness = buildHarness(undefined, undefined, {
+      showOpenDialog: async (input) => {
+        const path = input.directory === true ? picks.folder : picks.open;
+        return path === undefined ? {} : { path };
+      },
+      showSaveDialog: async () => (picks.save === undefined ? {} : { path: picks.save }),
+      showItemInFolder: () => undefined,
+    });
+    const { router } = harness;
+    expectValue(await router.handle('vault.initialise', { password: PASSWORD }));
+    const created = expectValue(await router.handle('connections.create', profileInput)) as {
+      id: string;
+    };
+    return { router, connectionId: created.id };
+  }
+
+  function downloadInput(connectionId: string, path: string, overwrite = false) {
+    return {
+      connectionId,
+      database: 'shop',
+      bucket: 'receipts',
+      idEjson: '{"$oid":"5f2c9a1e0000000000000001"}',
+      path,
+      overwrite,
+    };
+  }
+
+  afterEach(() => {
+    harness?.dispose();
+    harness = undefined;
+    picks.open = undefined;
+    picks.folder = undefined;
+    picks.save = undefined;
+    if (base !== '') {
+      rmSync(base, { recursive: true, force: true });
+      base = '';
+    }
+  });
+
+  it.each([
+    ['../../escape.txt', 'a path that climbs out of the picked folder'],
+    ['../sibling/x.bin', 'a sibling of the picked folder'],
+    ['/etc/x', 'an absolute path outside the picked folder'],
+  ])('refuses a download to %s (%s), with and without overwrite', async (name) => {
+    const { router, connectionId } = await setUp();
+    picks.folder = join(base, 'out');
+    expectValue(
+      await router.handle('app.showOpenDialog', { title: 't', filters: [], directory: true }),
+    );
+    for (const overwrite of [false, true]) {
+      const error = expectError(
+        await router.handle(
+          'gridfs.startDownload',
+          downloadInput(connectionId, join(base, 'out', name), overwrite),
+        ),
+        'VALIDATION',
+      );
+      expect(error.message).toBe('Choose the folder or the save location in a dialog first.');
+    }
+  });
+
+  it('allows a download directly inside the picked folder', async () => {
+    const { router, connectionId } = await setUp();
+    picks.folder = join(base, 'out');
+    expectValue(
+      await router.handle('app.showOpenDialog', { title: 't', filters: [], directory: true }),
+    );
+    // The pick check passes; the call then stops at the connection, which this harness never opens.
+    expectError(
+      await router.handle(
+        'gridfs.startDownload',
+        downloadInput(connectionId, join(base, 'out', 'a.pdf')),
+      ),
+      'NOT_CONNECTED',
+    );
+  });
+
+  it('allows a download to the save path picked in the save dialog only', async () => {
+    const { router, connectionId } = await setUp();
+    picks.save = join(base, 'report.bin');
+    expectValue(await router.handle('app.showSaveDialog', { title: 't', filters: [] }));
+    expectError(
+      await router.handle(
+        'gridfs.startDownload',
+        downloadInput(connectionId, join(base, 'report.bin'), true),
+      ),
+      'NOT_CONNECTED',
+    );
+    expectError(
+      await router.handle(
+        'gridfs.startDownload',
+        downloadInput(connectionId, join(base, 'other.bin'), true),
+      ),
+      'VALIDATION',
+    );
+  });
+
+  it('refuses an upload or an import of a file the open dialog did not return', async () => {
+    const { router, connectionId } = await setUp();
+    const upload = {
+      connectionId,
+      database: 'shop',
+      bucket: 'receipts',
+      path: join(base, 'secret.env'),
+    };
+    const importInput = {
+      connectionId,
+      database: 'shop',
+      collection: 'copy',
+      path: join(base, 'secret.env'),
+      options: { format: 'ndjson', mode: 'insert', batchSize: 10, stopOnError: false },
+    };
+    expectError(await router.handle('gridfs.startUpload', upload), 'VALIDATION');
+    expectError(await router.handle('transfer.startImport', importInput), 'VALIDATION');
+  });
+
+  it('uses each open-dialog pick once for an upload', async () => {
+    const { router, connectionId } = await setUp();
+    picks.open = join(base, 'invoice.bin');
+    expectValue(await router.handle('app.showOpenDialog', { title: 't', filters: [] }));
+    const upload = { connectionId, database: 'shop', bucket: 'receipts', path: picks.open };
+    expectError(await router.handle('gridfs.startUpload', upload), 'NOT_CONNECTED');
+    expectError(await router.handle('gridfs.startUpload', upload), 'VALIDATION');
+  });
+
+  it('forgets every pick when the renderer resets', async () => {
+    const { router, connectionId } = await setUp();
+    picks.open = join(base, 'in.ndjson');
+    picks.folder = join(base, 'out');
+    picks.save = join(base, 'save.bin');
+    expectValue(await router.handle('app.showOpenDialog', { title: 't', filters: [] }));
+    expectValue(
+      await router.handle('app.showOpenDialog', { title: 't', filters: [], directory: true }),
+    );
+    expectValue(await router.handle('app.showSaveDialog', { title: 't', filters: [] }));
+
+    router.resetRenderer();
+
+    expectError(
+      await router.handle('transfer.startImport', {
+        connectionId,
+        database: 'shop',
+        collection: 'copy',
+        path: join(base, 'in.ndjson'),
+        options: { format: 'ndjson', mode: 'insert', batchSize: 10, stopOnError: false },
+      }),
+      'VALIDATION',
+    );
+    expectError(
+      await router.handle(
+        'gridfs.startDownload',
+        downloadInput(connectionId, join(base, 'out', 'a.pdf')),
+      ),
+      'VALIDATION',
+    );
+    expectError(
+      await router.handle(
+        'gridfs.startDownload',
+        downloadInput(connectionId, join(base, 'save.bin'), true),
+      ),
+      'VALIDATION',
+    );
   });
 });
