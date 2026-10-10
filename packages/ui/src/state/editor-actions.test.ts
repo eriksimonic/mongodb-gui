@@ -264,6 +264,50 @@ describe('editor actions: tabs', () => {
     });
   });
 
+  it('stops Load all at the limit, asking for no more than the documents left', async () => {
+    const api = await connectedMockApi();
+    const store = await storeOn(api);
+    const id = store
+      .getState()
+      .openEditor({ connectionId: localConnectionId, database: 'analytics' });
+    const cursorDocuments = (count: number) =>
+      JSON.stringify({
+        documents: Array.from({ length: count }, (_, n) => ({ n })),
+        cursorHasMore: true,
+      });
+    vi.spyOn(api.rpc.shell, 'evaluate').mockResolvedValue({
+      requestId: 'first',
+      result: {
+        type: 'Cursor',
+        printableEjson: cursorDocuments(1),
+        hasMore: true,
+        cursorRequestId: 'cursor',
+      },
+    } as unknown as Awaited<ReturnType<typeof api.rpc.shell.evaluate>>);
+    const requested: number[] = [];
+    vi.spyOn(api.rpc.shell, 'next').mockImplementation((input) => {
+      const size = input.batchSize ?? 0;
+      requested.push(size);
+      return Promise.resolve({
+        requestId: 'cursor',
+        result: {
+          type: 'Cursor',
+          printableEjson: cursorDocuments(size),
+          hasMore: true,
+          cursorRequestId: 'cursor',
+        },
+      } as unknown as Awaited<ReturnType<typeof api.rpc.shell.next>>);
+    });
+    await store.getState().runEditor(id, 'db.bson_samples.find()');
+
+    await store.getState().loadAllEditor(id);
+
+    expect(store.getState().editors.tabs[id]?.result?.documents).toHaveLength(5000);
+    expect(requested.reduce((sum, size) => sum + size, 0)).toBe(4999);
+    expect(requested.at(-1)).toBe(499);
+    expect(requested.every((size) => size <= 500)).toBe(true);
+  });
+
   it('closes a tab and makes the next one active', async () => {
     const api = await connectedMockApi();
     const store = await storeOn(api);

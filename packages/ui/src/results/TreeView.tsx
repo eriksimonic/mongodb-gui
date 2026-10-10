@@ -392,9 +392,12 @@ export function TreeView({
   );
 }
 
-/** A field a user may edit or remove. The document itself and its _id are fixed. */
+/**
+ * A field a user may edit or remove. The document and its _id are fixed, and so is every part of a
+ * compound _id, because changing one part changes the identity of the document.
+ */
 function isEditableField(row: TreeRow): boolean {
-  return row.path !== '' && row.path !== '_id';
+  return row.path !== '' && row.path !== '_id' && !row.path.startsWith('_id.');
 }
 
 /** The value column. Containers show their summary, and the full text on hover. */

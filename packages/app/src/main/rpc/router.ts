@@ -1,5 +1,5 @@
 import { existsSync, mkdirSync, statSync } from 'node:fs';
-import { writeNewFile } from './export-file';
+import { exportTargetProblem, replaceFile } from './export-file';
 import { dirname, join } from 'node:path';
 import { randomUUID } from 'node:crypto';
 import {
@@ -870,10 +870,13 @@ export function createRouter(deps: RouterDeps): Router {
       if (!savePaths.has(input.path)) {
         throw new AppErrorException(appError('VALIDATION', 'Choose the file with Save as first.'));
       }
+      // The pick is good for one write. A refused write needs a new pick.
       savePaths.delete(input.path);
-      if (!writeNewFile(input.path, input.content)) {
-        throw new AppErrorException(appError('VALIDATION', 'The file exists. Choose a new name.'));
+      const problem = exportTargetProblem(input.path);
+      if (problem !== undefined) {
+        throw new AppErrorException(appError('VALIDATION', problem));
       }
+      replaceFile(input.path, input.content);
     }),
     entry('app.showItemInFolder', rpcContract.app.showItemInFolder, (input) => {
       // Only a file this session exported is revealed, so the renderer cannot open arbitrary paths.

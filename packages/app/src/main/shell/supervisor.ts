@@ -66,9 +66,10 @@ export const DEFAULT_TIMINGS: SupervisorTimings = {
 // rest are dropped.
 const MAX_RESPONSES_PER_REQUEST = 100;
 
-// A use() call or the `use <db>` shell command in submitted code. Either changes the database
-// without the supervisor's knowledge.
-const USE_CALL = /(^|[^\w$.])use(\s*\(|\s+[\w$"'])/;
+// Code that can change the database without the supervisor's knowledge: a use() call or the
+// `use <db>` shell command, an assignment to db, and getSiblingDB. The supervisor forgets the
+// database after such code, so the next request switches explicitly.
+const CHANGES_DATABASE = /(^|[^\w$.])(use(\s*\(|\s+[\w$"'])|db\s*=(?!=))|\bgetSiblingDB\s*\(/;
 
 export interface RuntimeSupervisorOptions {
   // The built shell runtime bundle that each process runs.
@@ -238,9 +239,7 @@ export class RuntimeSupervisor {
         return failed(requestId, cancelledError(), started);
       }
       slot.cursorOwner = undefined;
-      // A script may call use() itself, which the supervisor cannot see. Forget the database, so
-      // the next request switches explicitly.
-      if (USE_CALL.test(input.code)) {
+      if (CHANGES_DATABASE.test(input.code)) {
         slot.database = undefined;
       }
       const outcome = await this.exchange(

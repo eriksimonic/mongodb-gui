@@ -16,10 +16,12 @@ export type EditorUiEvent =
 export const editorUiEvents = createUiEventBus<EditorUiEvent>();
 
 /**
- * The text an insert adds at the cursor. Code that follows other text starts on a new line, so a
- * newline comes first unless the editor is empty or already ends with one.
+ * The text an insert adds in place of the selection. `before` and `after` are the text on either
+ * side of the cursor. Code that follows text on its line starts a new line, and code that is
+ * followed by text on its line ends one.
  */
-export function insertionText(currentText: string, code: string): string {
-  const needsBreak = currentText !== '' && !currentText.endsWith('\n');
-  return needsBreak ? `\n${code}` : code;
+export function insertionText(before: string, after: string, code: string): string {
+  const lead = before !== '' && !before.endsWith('\n') ? '\n' : '';
+  const tail = after !== '' && !after.startsWith('\n') ? '\n' : '';
+  return `${lead}${code}${tail}`;
 }

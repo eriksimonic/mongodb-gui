@@ -1,6 +1,7 @@
 import { useComputedColorScheme } from '@mantine/core';
 import Editor, { type OnMount } from '@monaco-editor/react';
 import { useEffect, useRef } from 'react';
+import type * as Monaco from 'monaco-editor/editor/editor.api';
 import { editorUiEvents, insertionText } from './editor-events';
 import {
   clearCompletionSource,
@@ -15,6 +16,33 @@ import type { MongoshEditorProps, RunRequest } from './MongoshEditor';
  * The Monaco editor for one tab. Loaded lazily by MongoshEditor, so Monaco is not evaluated until
  * an editor opens. Ctrl+Enter runs the selection or the statement, and Ctrl+Shift+Enter runs all.
  */
+/** The text before the selection start and after its end, for an insert. */
+function textAround(
+  model: Monaco.editor.ITextModel | null,
+  selection: Monaco.Selection,
+): { before: string; after: string } {
+  if (model === null) {
+    return { before: '', after: '' };
+  }
+  const start = selection.getStartPosition();
+  const end = selection.getEndPosition();
+  const last = model.getLineCount();
+  return {
+    before: model.getValueInRange({
+      startLineNumber: 1,
+      startColumn: 1,
+      endLineNumber: start.lineNumber,
+      endColumn: start.column,
+    }),
+    after: model.getValueInRange({
+      startLineNumber: end.lineNumber,
+      startColumn: end.column,
+      endLineNumber: last,
+      endColumn: model.getLineMaxColumn(last),
+    }),
+  };
+}
+
 /** The editor action each toolbar command runs. */
 const COMMAND_ACTIONS = {
   run: 'mongo-gui.run',
@@ -116,7 +144,8 @@ export function MongoshMonaco({
       }
       const selection = editor.getSelection();
       if (selection !== null) {
-        const text = insertionText(editor.getValue(), event.text);
+        const { before, after } = textAround(editor.getModel(), selection);
+        const text = insertionText(before, after, event.text);
         editor.executeEdits('mongo-gui.insert', [
           { range: selection, text, forceMoveMarkers: true },
         ]);

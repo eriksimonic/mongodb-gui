@@ -357,7 +357,7 @@ export const rpcContract = {
     showSaveDialog: defineCall(SaveDialogInputSchema, DialogResultSchema),
     /** Reveals a file this session exported. Other paths are refused by the router. */
     showItemInFolder: defineCall(ShowItemInFolderInputSchema, z.void()),
-    /** Writes text to a file the user picked with showSaveDialog. An existing file is never replaced. */
+    /** Replaces the file the user picked with showSaveDialog with text. The pick is good for one write. */
     writeExport: defineCall(WriteExportInputSchema, z.void()),
   },
 } satisfies RpcContract;

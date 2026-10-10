@@ -139,6 +139,28 @@ describe('shell namespace through the router against MongoDB 8.0', () => {
   );
 
   it(
+    'runs the next evaluation on its own database after db is reassigned',
+    async () => {
+      valueOf(
+        await call('shell.evaluate', {
+          connectionId,
+          database: DATABASE,
+          code: 'db = db.getSiblingDB("other")',
+        }),
+      );
+      const outcome = valueOf(
+        await call('shell.evaluate', {
+          connectionId,
+          database: DATABASE,
+          code: 'db.getName()',
+        }),
+      ) as { result?: { printableEjson: string } };
+      expect(outcome.result?.printableEjson).toBe('"shop"');
+    },
+    CALL_TIMEOUT_MS,
+  );
+
+  it(
     'keeps the open cursor when a completion runs between pages',
     async () => {
       const first = valueOf(
