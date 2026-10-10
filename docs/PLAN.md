@@ -384,6 +384,7 @@ anything; UI halves follow their adapter merge.
 - **P8-7 change streams watcher.** Watch a collection, database or deployment with an
   optional pipeline and full-document option; live event list with pause, filter and a
   detail pane; resume token shown; stops on panel close and renderer reset.
+  Delivered in P8-7a (adapter) and P8-7b (contract, router, dev mock, panel).
 
 Order: P0 then P1 strictly sequential at the package level (P1-1 first, then P1-2,
 P1-3 and P1-5 in parallel, then P1-4, then P1-6). P2 follows P1. After P2, phases 3 and 4

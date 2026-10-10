@@ -177,6 +177,12 @@ import {
   ReplicationStepDownOutputSchema,
 } from '../replication/rpc-schemas';
 import {
+  ChangeWatchIdInputSchema,
+  ChangeWatchStartInputSchema,
+  ChangeWatchStartedSchema,
+} from '../changes/calls';
+import { ChangeWatchStateSchema } from '../changes/types';
+import {
   CollectionTargetSchema,
   CommandLineReplySchema,
   DatabaseTargetSchema,
@@ -479,6 +485,15 @@ export const rpcContract = {
       }),
       z.void(),
     ),
+  },
+  // Change streams on a deployment, a database or a collection. Events arrive through changes:event
+  // and the phase through changes:state. Every watch ends when its connection closes or the page reloads.
+  changes: {
+    start: defineCall(ChangeWatchStartInputSchema, ChangeWatchStartedSchema),
+    pause: defineCall(ChangeWatchIdInputSchema, z.void()),
+    resume: defineCall(ChangeWatchIdInputSchema, z.void()),
+    stop: defineCall(ChangeWatchIdInputSchema, z.void()),
+    state: defineCall(ChangeWatchIdInputSchema, ChangeWatchStateSchema),
   },
   docker: {
     status: defineCall(z.void(), DockerStatusSchema),

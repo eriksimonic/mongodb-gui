@@ -9,6 +9,7 @@ describe('rpcContract', () => {
     expect(Object.keys(rpcContract).sort()).toEqual(
       [
         'app',
+        'changes',
         'collections',
         'connections',
         'databases',
@@ -33,6 +34,24 @@ describe('rpcContract', () => {
         'vault',
       ].sort(),
     );
+  });
+
+  it('checks change stream watch ids and refuses both resume options at once', () => {
+    const { changes } = rpcContract;
+    const watchId = '5c7d9e1f-2a3b-4c5d-8e9f-0a1b2c3d4e5f';
+    const target = { kind: 'collection', database: 'shop', collection: 'orders' };
+    expect(changes.pause.input.safeParse({ watchId }).success).toBe(true);
+    expect(changes.stop.input.safeParse({ watchId: 'watch' }).success).toBe(false);
+    expect(
+      changes.start.input.safeParse({
+        connectionId: CONNECTION_ID,
+        target,
+        options: { resumeAfterEjson: '{"_data":"1"}', startAtOperationTimeEjson: '{}' },
+      }).success,
+    ).toBe(false);
+    expect(
+      changes.start.input.safeParse({ connectionId: CONNECTION_ID, target, options: {} }).success,
+    ).toBe(true);
   });
 
   it('applies a replica set plan by id and version, and defaults the step-down to 60 seconds', () => {

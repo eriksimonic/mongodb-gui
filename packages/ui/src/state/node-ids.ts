@@ -1,3 +1,6 @@
+import type { ChangeTarget } from '@mongo-gui/core';
+import { targetKeyOf } from '../changes/changes-model';
+
 /** Node id of a connection in the tree and in `AppData.expanded`. */
 export function connectionNodeId(connectionId: string): string {
   return `conn:${connectionId}`;
@@ -80,4 +83,9 @@ export function gridfsBucketNodeId(connectionId: string, database: string, bucke
 /** Dockview panel id of a bucket's file panel. One panel per bucket. */
 export function gridfsPanelId(connectionId: string, database: string, bucket: string): string {
   return `gridfs:${catalogKey(connectionId, database)}/${bucket}`;
+}
+
+/** Dockview panel id of a change stream panel. One panel per deployment, database or collection. */
+export function changesPanelId(connectionId: string, target: ChangeTarget): string {
+  return `changes:${connectionId}:${targetKeyOf(target)}`;
 }

@@ -1,6 +1,7 @@
 import { Box, Menu, Text } from '@mantine/core';
 import { modals } from '@mantine/modals';
 import type { ConnectionProfileSummary, ConnectionStatus } from '@mongo-gui/core';
+import { useChangesOpener } from '../../changes/changes-opener';
 import { useAppStore } from '../../state/app-store-context';
 import { usePanelOpener } from '../../state/panel-opener';
 import { shardingAvailability } from '../../sharding/sharding-availability';
@@ -31,6 +32,7 @@ export function ConnectionContextMenu({
   const setManagementDialog = useAppStore((state) => state.setManagementDialog);
   const openPanel = usePanelOpener();
   const openEditor = useAppStore((state) => state.openEditor);
+  const changesOpener = useChangesOpener();
   const loadedDatabases = useAppStore((state) => state.databases[connection.id]);
   const canConnect = status.state === 'disconnected' || status.state === 'error';
   const canDisconnect = status.state === 'connected' || status.state === 'connecting';
@@ -94,6 +96,15 @@ export function ConnectionContextMenu({
           }}
         >
           Monitor
+        </Menu.Item>
+        <Menu.Item
+          disabled={status.state !== 'connected'}
+          onClick={() => {
+            onClose();
+            changesOpener?.open(connection.id, { kind: 'deployment' });
+          }}
+        >
+          Watch changes
         </Menu.Item>
         <Menu.Item
           disabled={!sharding.available}

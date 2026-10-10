@@ -12,7 +12,8 @@ import {
   IconServer,
   IconSettings,
 } from '@tabler/icons-react';
-import type { RpcClient } from '@mongo-gui/core';
+import type { ChangeTarget, RpcClient } from '@mongo-gui/core';
+import { targetLabelOf } from '../changes/changes-model';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import {
   DockviewReact,
@@ -45,6 +46,7 @@ import {
   type UsersPanelRequest,
 } from '../state/panel-opener';
 import {
+  changesPanelId,
   collectionStatsPanelId,
   databaseStatsPanelId,
   diagnosticsPanelId,
@@ -54,9 +56,11 @@ import {
 } from '../state/node-ids';
 import { GridFsBucketDialogs } from '../components/gridfs/GridFsBucketDialogs';
 import { GridFsOpenerContext, type GridFsOpener } from '../components/gridfs/gridfs-opener';
+import { ChangesOpenerContext, type ChangesOpener } from '../changes/changes-opener';
 import { databasePanelIds, restoredCollectionRequest, stalePanelIds } from './collection-panels';
 import { createLayoutSaver, loadDockLayout, restoreDockLayout } from './dock-layout';
 import {
+  ChangesDockPanel,
   ConnectionsPanel,
   DocumentsDockPanel,
   EditorDockPanel,
@@ -96,6 +100,7 @@ const PANEL_COMPONENTS = {
   schema: SchemaDockPanel,
   users: UsersDockPanel,
   gridfs: GridFsDockPanel,
+  changes: ChangesDockPanel,
   diagnostics: DiagnosticsDockPanel,
   dbStats: DatabaseStatsDockPanel,
   collStats: CollectionStatsDockPanel,
@@ -353,6 +358,26 @@ function openExplainPanel(api: DockviewApi, id: string, title: string): void {
 }
 
 /**
+ * Adds the change stream panel of a deployment, database or collection next to the welcome panel,
+ * or focuses it when it is open.
+ */
+function openChangesPanel(api: DockviewApi, connectionId: string, target: ChangeTarget): void {
+  const id = changesPanelId(connectionId, target);
+  const existing = api.getPanel(id);
+  if (existing !== undefined) {
+    existing.api.setActive();
+    return;
+  }
+  api.addPanel({
+    id,
+    component: 'changes',
+    title: `${targetLabelOf(target)} changes`,
+    params: { panelId: id, connectionId, target },
+    position: { referencePanel: 'welcome', direction: 'within' },
+  });
+}
+
+/**
  * Adds the file panel of a GridFS bucket next to the welcome panel, or focuses it when it is open.
  * One panel per bucket, titled "<database> · <bucket>".
  */
@@ -511,6 +536,16 @@ export function ShellScreen() {
         openConnectionPanel(dockApi.current, request);
     }
   }, []);
+  const changesOpener = useMemo<ChangesOpener>(
+    () => ({
+      open(connectionId, target) {
+        if (dockApi.current !== undefined) {
+          openChangesPanel(dockApi.current, connectionId, target);
+        }
+      },
+    }),
+    [],
+  );
   const gridfsOpener = useMemo<GridFsOpener>(
     () => ({
       open(connectionId, database, bucket) {
@@ -668,129 +703,131 @@ export function ShellScreen() {
     <PanelOpenerContext.Provider value={openPanel}>
       <ProfilerOpenerContext.Provider value={profilerOpener}>
         <GridFsOpenerContext.Provider value={gridfsOpener}>
-          <Flex direction="column" h="100vh" style={{ overflow: 'hidden' }}>
-            <Group
-              h={40}
-              px={8}
-              justify="space-between"
-              wrap="nowrap"
-              gap={8}
-              style={{ borderBottom: '1px solid var(--mg-border)', flex: '0 0 auto' }}
-            >
-              <Group gap={8} wrap="nowrap">
-                <IconDatabase size={18} color="var(--mantine-color-blue-5)" aria-hidden="true" />
-                <Text fw={600} size="sm">
-                  Mongo GUI
-                </Text>
-                <Button
-                  variant="light"
-                  leftSection={<IconPlus size={14} />}
-                  onClick={() => setDialog({ kind: 'create' })}
-                >
-                  New connection
-                </Button>
-                <Button
-                  variant="default"
-                  leftSection={<IconServer size={14} />}
-                  onClick={() => setManagerOpen(true)}
-                >
-                  Connections
-                </Button>
-                <UpdateBanner />
+          <ChangesOpenerContext.Provider value={changesOpener}>
+            <Flex direction="column" h="100vh" style={{ overflow: 'hidden' }}>
+              <Group
+                h={40}
+                px={8}
+                justify="space-between"
+                wrap="nowrap"
+                gap={8}
+                style={{ borderBottom: '1px solid var(--mg-border)', flex: '0 0 auto' }}
+              >
+                <Group gap={8} wrap="nowrap">
+                  <IconDatabase size={18} color="var(--mantine-color-blue-5)" aria-hidden="true" />
+                  <Text fw={600} size="sm">
+                    Mongo GUI
+                  </Text>
+                  <Button
+                    variant="light"
+                    leftSection={<IconPlus size={14} />}
+                    onClick={() => setDialog({ kind: 'create' })}
+                  >
+                    New connection
+                  </Button>
+                  <Button
+                    variant="default"
+                    leftSection={<IconServer size={14} />}
+                    onClick={() => setManagerOpen(true)}
+                  >
+                    Connections
+                  </Button>
+                  <UpdateBanner />
+                </Group>
+                <Group gap={8} wrap="nowrap">
+                  <Menu position="bottom-end" withinPortal>
+                    <Menu.Target>
+                      <Button variant="default" leftSection={<IconHelp size={14} />}>
+                        Help
+                      </Button>
+                    </Menu.Target>
+                    <Menu.Dropdown>
+                      <Menu.Item
+                        leftSection={<IconKeyboard size={14} />}
+                        onClick={() => setShortcutsOpen(true)}
+                      >
+                        Keyboard shortcuts
+                      </Menu.Item>
+                    </Menu.Dropdown>
+                  </Menu>
+                  <Button
+                    variant="default"
+                    leftSection={<IconSettings size={14} />}
+                    onClick={() => setSettingsOpen(true)}
+                  >
+                    Settings
+                  </Button>
+                  <Button
+                    variant="default"
+                    leftSection={<IconLock size={14} />}
+                    onClick={() => void runReported(() => lock())}
+                  >
+                    Lock
+                  </Button>
+                </Group>
               </Group>
-              <Group gap={8} wrap="nowrap">
-                <Menu position="bottom-end" withinPortal>
-                  <Menu.Target>
-                    <Button variant="default" leftSection={<IconHelp size={14} />}>
-                      Help
-                    </Button>
-                  </Menu.Target>
-                  <Menu.Dropdown>
-                    <Menu.Item
-                      leftSection={<IconKeyboard size={14} />}
-                      onClick={() => setShortcutsOpen(true)}
-                    >
-                      Keyboard shortcuts
-                    </Menu.Item>
-                  </Menu.Dropdown>
-                </Menu>
-                <Button
-                  variant="default"
-                  leftSection={<IconSettings size={14} />}
-                  onClick={() => setSettingsOpen(true)}
-                >
-                  Settings
-                </Button>
-                <Button
-                  variant="default"
-                  leftSection={<IconLock size={14} />}
-                  onClick={() => void runReported(() => lock())}
-                >
-                  Lock
-                </Button>
-              </Group>
-            </Group>
-            <Box style={{ flex: 1, minHeight: 0 }}>
-              <div style={{ height: '100%' }}>
-                <DockviewReact
-                  theme={MONGO_THEME}
-                  components={PANEL_COMPONENTS}
-                  tabComponents={TAB_COMPONENTS}
-                  onReady={(event) => {
-                    dockApi.current = event.api;
-                    setDock(event.api);
-                    event.api.onDidRemovePanel((panel) => {
-                      collectionPanels.current.delete(panel.id);
-                      stopSamplerWhenUnused(event.api, panel.id, stopMonitor);
-                      // Closing an editor tab removes it from the store, which the sync effect then sees.
-                      if (editorPanels.current.delete(panel.id)) {
-                        store.getState().closeEditor(panel.id);
-                      }
-                      if (panel.id.startsWith('explain:')) {
-                        closeExplainPanel(panel.id);
-                      }
-                    });
-                    void initialiseLayout(
-                      event,
-                      rpc,
-                      saver,
-                      () => dockApi.current === event.api,
-                      collectionPanels.current,
-                    );
-                    event.api.onDidActivePanelChange(({ panel }) => {
-                      if (panel !== undefined && editorPanels.current.has(panel.id)) {
-                        store.getState().activateEditor(panel.id);
-                      }
-                    });
-                  }}
+              <Box style={{ flex: 1, minHeight: 0 }}>
+                <div style={{ height: '100%' }}>
+                  <DockviewReact
+                    theme={MONGO_THEME}
+                    components={PANEL_COMPONENTS}
+                    tabComponents={TAB_COMPONENTS}
+                    onReady={(event) => {
+                      dockApi.current = event.api;
+                      setDock(event.api);
+                      event.api.onDidRemovePanel((panel) => {
+                        collectionPanels.current.delete(panel.id);
+                        stopSamplerWhenUnused(event.api, panel.id, stopMonitor);
+                        // Closing an editor tab removes it from the store, which the sync effect then sees.
+                        if (editorPanels.current.delete(panel.id)) {
+                          store.getState().closeEditor(panel.id);
+                        }
+                        if (panel.id.startsWith('explain:')) {
+                          closeExplainPanel(panel.id);
+                        }
+                      });
+                      void initialiseLayout(
+                        event,
+                        rpc,
+                        saver,
+                        () => dockApi.current === event.api,
+                        collectionPanels.current,
+                      );
+                      event.api.onDidActivePanelChange(({ panel }) => {
+                        if (panel !== undefined && editorPanels.current.has(panel.id)) {
+                          store.getState().activateEditor(panel.id);
+                        }
+                      });
+                    }}
+                  />
+                </div>
+              </Box>
+              {dialog.kind === 'closed' ? null : (
+                <ConnectionDialog
+                  key={dialog.kind === 'edit' ? dialog.connectionId : 'create'}
+                  connectionId={dialog.kind === 'edit' ? dialog.connectionId : undefined}
+                  onClose={() => setDialog({ kind: 'closed' })}
                 />
-              </div>
-            </Box>
-            {dialog.kind === 'closed' ? null : (
-              <ConnectionDialog
-                key={dialog.kind === 'edit' ? dialog.connectionId : 'create'}
-                connectionId={dialog.kind === 'edit' ? dialog.connectionId : undefined}
-                onClose={() => setDialog({ kind: 'closed' })}
+              )}
+              <ManagementDialogs
+                onDatabaseDropped={(connectionId, database) => {
+                  if (dockApi.current !== undefined) {
+                    closeDatabasePanels(
+                      dockApi.current,
+                      collectionPanels.current,
+                      connectionId,
+                      database,
+                    );
+                  }
+                }}
               />
-            )}
-            <ManagementDialogs
-              onDatabaseDropped={(connectionId, database) => {
-                if (dockApi.current !== undefined) {
-                  closeDatabasePanels(
-                    dockApi.current,
-                    collectionPanels.current,
-                    connectionId,
-                    database,
-                  );
-                }
-              }}
-            />
-            <GridFsBucketDialogs />
-            <ConnectionManager />
-            <SettingsModal />
-            <ShortcutsModal />
-            <TransferModals />
-          </Flex>
+              <GridFsBucketDialogs />
+              <ConnectionManager />
+              <SettingsModal />
+              <ShortcutsModal />
+              <TransferModals />
+            </Flex>
+          </ChangesOpenerContext.Provider>
         </GridFsOpenerContext.Provider>
       </ProfilerOpenerContext.Provider>
     </PanelOpenerContext.Provider>
