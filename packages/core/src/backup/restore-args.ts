@@ -3,7 +3,8 @@ import type { DatabaseRename, RestoreOptions } from './options';
 
 export interface RestoreArgsInput {
   readonly configPath: string;
-  // The inspected archive file or dump folder.
+  // The inspected archive file or dump folder. For a database folder, main passes a link to it
+  // inside a private folder, because mongorestore validates every folder name in the parent.
   readonly source: string;
   readonly inspection: Pick<BackupInspection, 'kind' | 'layout' | 'gzip'>;
   readonly options: RestoreOptions;

@@ -1,6 +1,6 @@
 import type { ChildProcess } from 'node:child_process';
 import { createReadStream, createWriteStream, existsSync } from 'node:fs';
-import { rename, rm, stat } from 'node:fs/promises';
+import { mkdir, rename, rm, stat, symlink } from 'node:fs/promises';
 import { basename, join } from 'node:path';
 import { Transform, type TransformCallback } from 'node:stream';
 import { pipeline } from 'node:stream/promises';
@@ -595,7 +595,7 @@ export function createBackupService<Client>(deps: BackupServiceDeps<Client>): Ba
         throw new AppErrorException(appError('CANCELLED', 'The restore was cancelled.'));
       const args = restoreArgs({
         configPath: config.path,
-        source: inspection.path,
+        source: await restoreSource(config.dir, inspection, deps.platform),
         inspection,
         options,
       });
@@ -806,4 +806,26 @@ export function createBackupService<Client>(deps: BackupServiceDeps<Client>): Ba
       await all;
     },
   };
+}
+
+/**
+ * The path restoreArgs gets for the backup. A database folder restores through its parent, and
+ * mongorestore rejects the whole run when any folder in that parent is not a valid database
+ * name. So the parent becomes a private folder that holds only a link to the picked folder,
+ * under the same name. The link goes away with the config folder.
+ */
+async function restoreSource(
+  configDir: string,
+  inspection: BackupInspection,
+  platform: NodeJS.Platform,
+): Promise<string> {
+  if (inspection.kind !== 'directory' || inspection.layout !== 'database') {
+    return inspection.path;
+  }
+  const parent = join(configDir, 'dump');
+  await mkdir(parent, { mode: 0o700 });
+  const link = join(parent, basename(inspection.path.replace(/[\\/]+$/, '')));
+  // A junction needs no extra rights on Windows. Other systems ignore the type.
+  await symlink(inspection.path, link, platform === 'win32' ? 'junction' : 'dir');
+  return link;
 }

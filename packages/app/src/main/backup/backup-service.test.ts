@@ -7,6 +7,7 @@ import {
   mkdtempSync,
   readdirSync,
   readFileSync,
+  realpathSync,
   writeFileSync,
 } from 'node:fs';
 import { rm } from 'node:fs/promises';
@@ -764,6 +765,37 @@ describe('backup service restore', () => {
     expect(t.events).toEqual([]);
     await t.service.startRestore({ ...restoreInput(), confirmation: 'Shop' });
     expect((await t.finalEvent()).error).toBeUndefined();
+  });
+
+  it('restores a database folder from a private folder that holds only a link to it', async () => {
+    const parent = join(root, 'Downloads');
+    const picked = join(parent, 'shop');
+    mkdirSync(picked, { recursive: true });
+    writeFileSync(join(picked, 'orders.bson'), '');
+    // mongorestore rejects a folder name that is not a valid database name.
+    mkdirSync(join(parent, 'My Files'));
+    let seen: { dir: string; entries: string[]; target: string } | undefined;
+    const t = setup(
+      (child) => {
+        const dir = argValue(child.args, '--dir');
+        if (dir !== undefined) {
+          seen = { dir, entries: readdirSync(dir), target: realpathSync(join(dir, 'shop')) };
+        }
+        child.exit(0);
+      },
+      {
+        inspect: async () =>
+          inspection({ path: picked, kind: 'directory', layout: 'database', gzip: false }),
+      },
+    );
+    await t.service.startRestore({ ...restoreInput(), source: picked });
+    expect((await t.finalEvent()).error).toBeUndefined();
+    expect(seen?.dir).not.toBe(parent);
+    expect(seen?.entries).toEqual(['shop']);
+    expect(seen?.target).toBe(realpathSync(picked));
+    expect(t.children[0]?.args).toContain('--nsInclude=shop.*');
+    expect(t.tempConfigsLeft()).toEqual([]);
+    expect(readdirSync(picked)).toEqual(['orders.bson']);
   });
 
   it('refuses option problems before anything runs', async () => {
