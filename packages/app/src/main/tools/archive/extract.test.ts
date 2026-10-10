@@ -60,7 +60,10 @@ describe('extractToolsArchive', () => {
 
     expect(written).toEqual(['bin/mongodump', 'bin/mongorestore', 'LICENSE.md']);
     expect(await readFile(join(dir, 'bin/mongodump'), 'utf8')).toBe('dump');
-    expect((await stat(join(dir, 'bin/mongodump'))).mode & 0o777).toBe(0o755);
+    // Windows keeps no execute bit, so the mode check runs only where POSIX modes exist.
+    if (process.platform !== 'win32') {
+      expect((await stat(join(dir, 'bin/mongodump'))).mode & 0o777).toBe(0o755);
+    }
     await expect(stat(join(dir, 'bin/bsondump'))).rejects.toThrow();
   });
 
