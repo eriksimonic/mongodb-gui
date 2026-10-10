@@ -19,6 +19,8 @@ export {
   type ExplainCommandResult,
   wrapWriteCommand,
 } from './explain/run-explain';
+export { openChangeWatch, type ChangeWatch, type ChangeWatchHandlers } from './changes/watcher';
+export { parsePipeline, toChangeEvent } from './changes/helpers';
 export { mapDriverError } from './errors';
 export { exportCollection } from './transfer/export';
 export { dropBucket, listBuckets } from './gridfs/buckets';
