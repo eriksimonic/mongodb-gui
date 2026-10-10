@@ -335,7 +335,9 @@ describe('assessRestore', () => {
   });
 
   it('warns when the dump tools version is unknown', () => {
-    const findings = assessRestore(restoreFacts({ dump: dump({ toolsVersion: undefined }) }));
+    const unknownTools = dump();
+    delete unknownTools.toolsVersion;
+    const findings = assessRestore(restoreFacts({ dump: unknownTools }));
     expect(only(findings, 'tools-version-unknown').severity).toBe('warning');
   });
 

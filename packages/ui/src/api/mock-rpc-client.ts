@@ -246,6 +246,7 @@ function mergeSettings(current: Settings, patch: SettingsPatch): Settings {
     checkForUpdates: patch.checkForUpdates ?? current.checkForUpdates,
     treeDensity: patch.treeDensity ?? current.treeDensity,
     editorLanguage: patch.editorLanguage ?? current.editorLanguage,
+    mongoToolsVersion: patch.mongoToolsVersion ?? current.mongoToolsVersion,
   };
 }
 
