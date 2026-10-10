@@ -732,6 +732,25 @@ describe('backup service restore', () => {
     t.service.cancel(jobId);
   });
 
+  it('starts when the include leaves out an encrypted collection', async () => {
+    const t = setup(restoreWithFailures, {
+      inspect: async () =>
+        inspection({
+          namespaces: [
+            { database: 'shop', collection: 'orders', type: 'collection', documents: 10 },
+            { database: 'shop', collection: 'cards', type: 'collection', encrypted: true },
+          ],
+        }),
+    });
+    await expect(
+      t.service.startRestore(restoreInput({ include: ['shop.orders'] })),
+    ).resolves.toEqual(expect.any(String));
+    await expect(t.service.startRestore(restoreInput())).rejects.toMatchObject({
+      error: { code: 'VALIDATION' },
+    });
+    await t.finalEvent();
+  });
+
   it('refuses a confirmable block until the connection name is typed', async () => {
     const older = sidecarFor(sha256);
     older.source.serverVersion = '7.0.12';

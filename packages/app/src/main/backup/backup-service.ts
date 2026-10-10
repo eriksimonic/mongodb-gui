@@ -15,6 +15,7 @@ import {
   dumpArgs,
   dumpOptionProblems,
   dumpRunScopes,
+  includedNamespaces,
   newId,
   normaliseRestoreOptions,
   restoreArgs,
@@ -215,18 +216,6 @@ function dumpFacts(inspection: BackupInspection): DumpFacts {
     ...(toolsVersion === undefined ? {} : { toolsVersion }),
     namespaces: inspection.namespaces,
   };
-}
-
-/** The namespaces of a backup a restore selects, before renames. */
-function selectedNamespaces(
-  inspection: BackupInspection,
-  include: readonly string[] | undefined,
-): BackupInspection['namespaces'] {
-  if (include === undefined) return inspection.namespaces;
-  const selectors = new Set(include);
-  return inspection.namespaces.filter(
-    (ns) => selectors.has(`${ns.database}.*`) || selectors.has(`${ns.database}.${ns.collection}`),
-  );
 }
 
 /** The databases a restore writes to, after renames. */
@@ -563,7 +552,7 @@ export function createBackupService<Client>(deps: BackupServiceDeps<Client>): Ba
   async function runRestore(job: Job, plan: RestorePlan): Promise<void> {
     const { input, options, endpoint, tools, inspection } = plan;
     const startedAt = deps.now();
-    const selected = selectedNamespaces(inspection, options.include);
+    const selected = includedNamespaces(inspection.namespaces, options.include);
     const totalDocuments =
       inspection.sidecar === undefined
         ? undefined

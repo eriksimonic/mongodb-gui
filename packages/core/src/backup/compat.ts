@@ -4,7 +4,8 @@ import type { BackupNamespaceInfo, BackupServerInfo } from './server-info';
 import { compareVersions, firstToolsFor, majorMinor } from './versions';
 
 export type CompatServer = Pick<BackupServerInfo, 'serverVersion' | 'fcv' | 'topology'>;
-export type CompatNamespace = Pick<BackupNamespaceInfo, 'database' | 'type' | 'encrypted'>;
+export type CompatNamespace = Pick<BackupNamespaceInfo, 'database' | 'type' | 'encrypted'> &
+  Partial<Pick<BackupNamespaceInfo, 'collection'>>;
 
 export interface CompatTools {
   selected: string;
@@ -248,8 +249,26 @@ function includesDatabase(include: readonly string[] | undefined, database: stri
   return include === undefined || include.some((selector) => selector.startsWith(`${database}.`));
 }
 
+/**
+ * The namespaces a restore include list selects, before renames. Undefined selects all. A
+ * namespace without a collection name counts when any selector names its database.
+ */
+export function includedNamespaces<T extends { database: string; collection?: string }>(
+  namespaces: readonly T[],
+  include: readonly string[] | undefined,
+): T[] {
+  if (include === undefined) return [...namespaces];
+  const selectors = new Set(include);
+  return namespaces.filter((ns) =>
+    ns.collection === undefined
+      ? includesDatabase(include, ns.database)
+      : selectors.has(`${ns.database}.*`) || selectors.has(`${ns.database}.${ns.collection}`),
+  );
+}
+
 export function assessRestore(facts: RestoreFacts): Finding[] {
   const { dump, target, tools, options } = facts;
+  const selected = includedNamespaces(dump.namespaces, options.include);
   const findings: Finding[] = [];
   const add = (item: Finding | undefined) => {
     if (item) findings.push(item);
@@ -275,7 +294,7 @@ export function assessRestore(facts: RestoreFacts): Finding[] {
   add(toolsVersionFindings(dump, tools));
 
   if (
-    dump.namespaces.some((ns) => ns.type === 'timeseries') &&
+    selected.some((ns) => ns.type === 'timeseries') &&
     (sourceNew || targetNew) &&
     isBelow(tools.selected, TIMESERIES_TOOLS)
   ) {
@@ -285,7 +304,7 @@ export function assessRestore(facts: RestoreFacts): Finding[] {
       }),
     );
   }
-  if (dump.namespaces.some((ns) => ns.encrypted)) {
+  if (selected.some((ns) => ns.encrypted)) {
     add(finding('encrypted-collections', 'strong', ENCRYPTED_MESSAGE));
   }
   if (target.topology === 'sharded' && (options.preserveUUID || options.oplogReplay)) {

@@ -372,6 +372,39 @@ describe('assessRestore', () => {
     expect(only(findings, 'encrypted-collections').severity).toBe('strong');
   });
 
+  it('leaves out encrypted and time series namespaces the include skips', () => {
+    const findings = assessRestore(
+      restoreFacts({
+        dump: dump({
+          serverVersion: '9.0.1',
+          namespaces: [
+            { database: 'app', collection: 'orders', type: 'collection' },
+            { database: 'app', collection: 'secrets', type: 'collection', encrypted: true },
+            { database: 'metrics', collection: 'cpu', type: 'timeseries' },
+          ],
+        }),
+        tools: { selected: '100.15.0', installed: ['100.15.0'], available: ['100.15.0'] },
+        options: { include: ['app.orders'], drop: false, oplogReplay: false, preserveUUID: false },
+      }),
+    );
+    expect(codes(findings)).not.toContain('encrypted-collections');
+    expect(codes(findings)).not.toContain('timeseries-old-tools');
+  });
+
+  it('keeps encrypted namespaces a database selector includes', () => {
+    const findings = assessRestore(
+      restoreFacts({
+        dump: dump({
+          namespaces: [
+            { database: 'app', collection: 'secrets', type: 'collection', encrypted: true },
+          ],
+        }),
+        options: { include: ['app.*'], drop: false, oplogReplay: false, preserveUUID: false },
+      }),
+    );
+    expect(codes(findings)).toContain('encrypted-collections');
+  });
+
   it('marks preserveUUID or oplog replay on a sharded target strong', () => {
     const findings = assessRestore(
       restoreFacts({
