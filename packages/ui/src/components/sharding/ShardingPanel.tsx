@@ -25,11 +25,16 @@ function isPanelTab(value: string | null): value is PanelTab {
   return TABS.some((tab) => tab === value);
 }
 
+/** A window whose end is before its start runs past midnight, and the text says so. */
+function windowText(window: BalancerWindow): string {
+  const wraps = window.stop < window.start;
+  return `${window.start} to ${window.stop}${wraps ? ' (wraps midnight)' : ''}`;
+}
+
 /** The text after the balancer badge says whether a round runs and what the window is. */
 function balancerDetail(inRound: boolean, window: BalancerWindow | undefined): string {
   const round = inRound ? 'a round is running' : undefined;
-  const hours =
-    window === undefined ? 'no balancer window' : `window ${window.start} to ${window.stop}`;
+  const hours = window === undefined ? 'no balancer window' : `window ${windowText(window)}`;
   return [round, hours].filter((part) => part !== undefined).join(', ');
 }
 

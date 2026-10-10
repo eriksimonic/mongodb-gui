@@ -38,7 +38,15 @@ type Client = ReturnType<ConnectionRegistry['getClient']>;
 const CONNECTION_ID = '3f2b8c1e-5d4a-4b7e-9c1f-2a6d8e0b7f10';
 const UNKNOWN_CONNECTION_ID = '7d1e9f04-2b3c-4d5e-8f60-a1b2c3d4e5f6';
 const FAST_KDF = { N: 2 ** 10, r: 8, p: 1 };
-const CLIENT = { marker: 'fake client' } as unknown as Client;
+// The dry run reads an empty collection with no indexes, so no warning is added.
+const CLIENT = {
+  db: () => ({
+    collection: () => ({
+      estimatedDocumentCount: async () => 0,
+      indexes: async () => [],
+    }),
+  }),
+} as unknown as Client;
 
 function value(result: RpcResult): unknown {
   if (!result.ok) {

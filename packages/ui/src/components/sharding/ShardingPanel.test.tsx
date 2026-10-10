@@ -25,7 +25,7 @@ describe('ShardingPanel', () => {
     renderWithApp(<ShardingPanel connectionId={localConnectionId} />, { api });
 
     expect(await screen.findByText('Balancer on')).toBeInTheDocument();
-    expect(screen.getByText('window 23:00 to 06:00')).toBeInTheDocument();
+    expect(screen.getByText('window 23:00 to 06:00 (wraps midnight)')).toBeInTheDocument();
     const shard = await rowOf('rs-b/localhost:27019');
     expect(within(shard).getByText('shard-b')).toBeInTheDocument();
     expect(within(shard).getByText('eu')).toBeInTheDocument();

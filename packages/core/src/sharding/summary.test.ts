@@ -42,6 +42,12 @@ describe('summarizeShardCollection', () => {
     ).toThrow(AppErrorException);
   });
 
+  it('refuses more than one hashed field', () => {
+    expect(() =>
+      summarizeShardCollection({ ...base, key: { customerId: 'hashed', deviceId: 'hashed' } }),
+    ).toThrow('The shard key can contain at most one hashed field.');
+  });
+
   it('refuses presplit or initial chunks on a ranged key', () => {
     expect(() =>
       summarizeShardCollection({ ...base, key: { region: 1 }, presplitHashedZones: true }),

@@ -633,7 +633,7 @@ export function createRouter(deps: RouterDeps): Router {
       entry('sharding.shardCollection', s.shardCollection, (input) =>
         driverCall(async () => {
           const client = deps.connections.getClient(input.connectionId);
-          const summary = describeShardCollection(input);
+          const summary = await describeShardCollection(client, input);
           if (!input.confirmed) {
             return { applied: false, summary };
           }

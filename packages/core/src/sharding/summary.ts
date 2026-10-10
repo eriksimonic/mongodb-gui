@@ -24,9 +24,13 @@ export function shardKeyText(key: Readonly<Record<string, unknown>>): string {
  * the server would refuse, so the dry run names the problem before any write.
  */
 export function summarizeShardCollection(plan: ShardCollectionPlan): ShardCollectionSummary {
-  const hashed = Object.values(plan.key).includes('hashed');
+  const hashedFields = Object.values(plan.key).filter((value) => value === 'hashed').length;
+  const hashed = hashedFields > 0;
   const unique = plan.unique === true;
   const presplit = plan.presplitHashedZones === true;
+  if (hashedFields > 1) {
+    throw refusal('The shard key can contain at most one hashed field.');
+  }
   if (unique && hashed) {
     throw refusal('A hashed shard key cannot be unique. Choose a ranged key or drop unique.');
   }
@@ -67,6 +71,7 @@ export function summarizeShardCollection(plan: ShardCollectionPlan): ShardCollec
     presplitHashedZones: presplit,
     ...(plan.numInitialChunks === undefined ? {} : { numInitialChunks: plan.numInitialChunks }),
     steps,
+    warnings: [],
   };
 }
 

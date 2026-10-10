@@ -199,6 +199,8 @@ export const ShardCollectionSummarySchema = z.object({
   presplitHashedZones: z.boolean(),
   numInitialChunks: z.number().int().positive().optional(),
   steps: z.array(z.string().min(1)),
+  /** Problems the server would hit that do not refuse the dry run, such as a missing supporting index. */
+  warnings: z.array(z.string().min(1)),
 });
 
 /** The dry run result always carries the summary. applied is true only after a confirmed call. */

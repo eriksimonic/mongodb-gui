@@ -241,11 +241,11 @@ export function ShardCollectionDialog({
         </Group>
         {preview === undefined ? null : (
           <Stack gap={4} aria-label="Preview">
-            {preview.signature === signature ? null : (
-              <Alert color="yellow" variant="light">
-                The key or options changed. Preview again before applying.
+            {preview.summary.warnings.map((warning) => (
+              <Alert key={warning} color="yellow" variant="light">
+                {warning}
               </Alert>
-            )}
+            ))}
             <Text size="sm" fw={500}>
               What the server will do
             </Text>

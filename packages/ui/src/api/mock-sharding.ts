@@ -128,6 +128,8 @@ function overviewOf(cluster: MockCluster, catalog: MockDatabase[]): ShardingOver
   };
 }
 
+// Mirrors the adapter's key rules: no empty or $-prefixed field names, 1, -1 or "hashed" values,
+// and at most one hashed field.
 function parseKey(keyEjson: string): ShardKey {
   let parsed: unknown;
   try {
@@ -140,6 +142,15 @@ function parseKey(keyEjson: string): ShardKey {
     .safeParse(parsed);
   if (!result.success) {
     throw fail('VALIDATION', 'The shard key value must be 1, -1 or "hashed"');
+  }
+  const fields = Object.keys(result.data);
+  if (fields.length === 0) {
+    throw fail('VALIDATION', 'The shard key needs at least one field');
+  }
+  for (const field of fields) {
+    if (field === '' || field.startsWith('$')) {
+      throw fail('VALIDATION', `The shard key field name ${JSON.stringify(field)} is not allowed`);
+    }
   }
   return result.data;
 }

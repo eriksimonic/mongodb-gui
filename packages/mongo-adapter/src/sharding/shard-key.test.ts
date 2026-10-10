@@ -15,6 +15,12 @@ function captureError(action: () => unknown): AppError {
 }
 
 describe('parseShardKey', () => {
+  it('refuses more than one hashed field', () => {
+    expect(() => parseShardKey('{"a":"hashed","b":"hashed"}')).toThrow(
+      'The shard key can contain at most one hashed field.',
+    );
+  });
+
   it('accepts hashed, ascending and descending fields', () => {
     expect(parseShardKey('{"customerId":"hashed"}')).toEqual({ customerId: 'hashed' });
     expect(parseShardKey('{"region":1,"createdAt":-1}')).toEqual({ region: 1, createdAt: -1 });
