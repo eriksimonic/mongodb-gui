@@ -2,8 +2,13 @@ import {
   AppErrorException,
   appError,
   toDockerContainerSummary,
+  type AppError,
   type ConnectionProfile,
+  type ConnectionProfileInput,
   type ConnectionStatus,
+  type ConnectionTestResult,
+  type DockerConnectWithCredentialsInput,
+  type DockerCredentialsRequired,
   type DockerMongoContainer,
   type DockerMongoContainerSummary,
   type DockerStatus,
@@ -36,6 +41,8 @@ export interface DockerRepos {
 export interface DockerConnections {
   connect(profile: ConnectionProfile): Promise<ConnectionStatus>;
   disconnect(connectionId: string): Promise<void>;
+  /** Opens a client without saving anything. Used to check credentials before a profile is written. */
+  test(profile: ConnectionProfileInput): Promise<ConnectionTestResult>;
 }
 
 export interface DockerRuntimeDeps {
@@ -51,16 +58,21 @@ export interface DockerRuntimeDeps {
   readonly pollIntervalMs?: number;
 }
 
-export interface DockerConnectResult {
+export interface DockerConnectedResult {
   readonly connectionId: string;
   readonly status: ConnectionStatus;
 }
+
+/** Connected, or credentials are needed from the user. Both come from the same connect call. */
+export type DockerConnectResult = DockerConnectedResult | DockerCredentialsRequired;
 
 /** The Docker features the router exposes. Created once per app session. */
 export interface DockerRuntime {
   status(): Promise<DockerStatus>;
   list(): Promise<DockerMongoContainerSummary[]>;
   connect(containerId: string): Promise<DockerConnectResult>;
+  /** Tests the user and password first. A failed test throws its AppError and saves nothing. */
+  connectWithCredentials(input: DockerConnectWithCredentialsInput): Promise<DockerConnectedResult>;
   disconnect(containerId: string): Promise<void>;
   setAutoConnect(enabled: boolean): Settings;
   /** Starts or stops the poll. Each change pushes a `docker:containers` event. */
@@ -165,9 +177,52 @@ export function createDockerRuntime(deps: DockerRuntimeDeps): DockerRuntime {
       if (status.state !== 'connected' && endpoint.forwarded) {
         await deps.forwarders.release(container.id);
       }
+      const hasEnvCredentials = envHasCredentials(container);
+      if (status.state === 'error' && needsCredentials(status.error, hasEnvCredentials)) {
+        return {
+          kind: 'credentialsRequired',
+          containerId: container.id,
+          host: endpoint.host,
+          port: endpoint.port,
+          hint: hasEnvCredentials ? 'envFound' : 'noEnv',
+        };
+      }
       return { connectionId: profile.id, status };
     } catch (error) {
       // A failure after the forwarder started would leave it running with no owner.
+      if (endpoint.forwarded) {
+        await deps.forwarders.release(container.id).catch(() => undefined);
+      }
+      throw error;
+    }
+  }
+
+  async function connectWithCredentials(
+    input: DockerConnectWithCredentialsInput,
+  ): Promise<DockerConnectedResult> {
+    const container = await resolveContainer(input.containerId);
+    if (container.state !== 'running') {
+      throw new AppErrorException(appError('COMMAND_FAILED', 'The container is not running.'));
+    }
+    const endpoint = await endpointFor(container);
+    try {
+      const uri = buildCredentialsUri(endpoint, input);
+      const tested = await deps.connections.test({
+        name: container.name,
+        uri,
+        source: 'docker',
+        dockerContainerId: container.id,
+      });
+      if (!tested.ok) {
+        throw new AppErrorException(tested.error);
+      }
+      const profile = saveProfile(container, uri);
+      const status = await deps.connections.connect(profile);
+      if (status.state !== 'connected' && endpoint.forwarded) {
+        await deps.forwarders.release(container.id);
+      }
+      return { connectionId: profile.id, status };
+    } catch (error) {
       if (endpoint.forwarded) {
         await deps.forwarders.release(container.id).catch(() => undefined);
       }
@@ -234,6 +289,8 @@ export function createDockerRuntime(deps: DockerRuntimeDeps): DockerRuntime {
     },
 
     connect,
+
+    connectWithCredentials,
 
     async disconnect(containerId) {
       const profile = findProfile(containerId);
@@ -326,6 +383,35 @@ export function buildUri(container: DockerMongoContainer, endpoint: Endpoint): s
   const host = endpoint.host.includes(IPV6_HOST_MARKER) ? `[${endpoint.host}]` : endpoint.host;
   const query = auth === '' ? 'directConnection=true' : 'directConnection=true&authSource=admin';
   return `mongodb://${auth}${host}:${endpoint.port}/?${query}`;
+}
+
+/**
+ * Builds a URI from credentials the user typed. The user and password are percent-encoded, and
+ * the authentication database comes from the dialog.
+ */
+function buildCredentialsUri(
+  endpoint: Endpoint,
+  credentials: DockerConnectWithCredentialsInput,
+): string {
+  const auth = `${encodeURIComponent(credentials.username)}:${encodeURIComponent(credentials.password)}@`;
+  const host = endpoint.host.includes(IPV6_HOST_MARKER) ? `[${endpoint.host}]` : endpoint.host;
+  const authSource = encodeURIComponent(credentials.authSource);
+  return `mongodb://${auth}${host}:${endpoint.port}/?directConnection=true&authSource=${authSource}`;
+}
+
+function envHasCredentials(container: DockerMongoContainer): boolean {
+  return container.env.username !== undefined && container.env.password !== undefined;
+}
+
+/**
+ * An auth failure means the server wants credentials. Code 13 (Unauthorized) counts only when no
+ * credentials were sent, because with credentials it means the user lacks a privilege.
+ */
+function needsCredentials(error: AppError, hasEnvCredentials: boolean): boolean {
+  if (error.code === 'AUTH_FAILED') {
+    return true;
+  }
+  return !hasEnvCredentials && error.codeName === 'Unauthorized';
 }
 
 function errorText(error: unknown): string {
