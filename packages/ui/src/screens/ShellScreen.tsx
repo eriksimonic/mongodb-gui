@@ -24,6 +24,7 @@ import {
 } from 'dockview-react';
 import { ConnectionDialog } from '../components/connections/ConnectionDialog';
 import { ConnectionManager } from '../components/connections/ConnectionManager';
+import { DockerCredentialsDialog } from '../components/connections/DockerCredentialsDialog';
 import { useUiApi } from '../api/ui-api';
 import { ManagementDialogs } from '../components/management/ManagementDialogs';
 import { runReported } from '../components/notify-error';
@@ -31,6 +32,7 @@ import { SettingsModal } from '../components/settings/SettingsModal';
 import { ShortcutsModal } from '../shortcuts/ShortcutsModal';
 import { shellHotkeys } from '../shortcuts/shortcuts';
 import { TransferModals } from '../components/transfers/TransferModals';
+import { GenerateDataDialog } from '../components/generate/GenerateDataDialog';
 import { UpdateBanner } from '../components/updates/UpdateBanner';
 import { ProfilerOpenerContext, type ProfilerOpener } from '../profiler/profiler-opener';
 import type { AppData, PanelRequest } from '../state/app-store';
@@ -501,6 +503,7 @@ export function ShellScreen() {
   const editorOrder = useAppStore((state) => state.editors.order);
   const editorTabs = useAppStore((state) => state.editors.tabs);
   const activeEditor = useAppStore((state) => state.editors.activeId);
+  const editorFocus = useAppStore((state) => state.editors.focusRevision);
   // The editor panels this shell opened, by tab id. Their state lives in the store.
   const editorPanels = useRef(new Set<string>());
   const explainPanels = useAppStore((state) => state.explainPanels);
@@ -670,12 +673,13 @@ export function ShellScreen() {
     }
   }, [dock, editorOrder, editorTabs, connections]);
 
-  // Brings the active tab's panel to the front when the store changes the active tab.
+  // Brings the active tab's panel to the front when the store activates a tab, including the one
+  // that is already active, because another panel kind may have the focus meanwhile.
   useEffect(() => {
     if (dock !== undefined && activeEditor !== undefined) {
       dock.getPanel(activeEditor)?.api.setActive();
     }
-  }, [dock, activeEditor]);
+  }, [dock, activeEditor, editorFocus]);
 
   // Ctrl+N opens a new editor on the selected connection, and on the selected database when there is one.
   useEffect(() => {
@@ -818,6 +822,7 @@ export function ShellScreen() {
                   onClose={() => setDialog({ kind: 'closed' })}
                 />
               )}
+              <DockerCredentialsDialog />
               <ManagementDialogs
                 onDatabaseDropped={(connectionId, database) => {
                   if (dockApi.current !== undefined) {
@@ -835,6 +840,7 @@ export function ShellScreen() {
               <SettingsModal />
               <ShortcutsModal />
               <TransferModals />
+              <GenerateDataDialog />
             </Flex>
           </ChangesOpenerContext.Provider>
         </GridFsOpenerContext.Provider>

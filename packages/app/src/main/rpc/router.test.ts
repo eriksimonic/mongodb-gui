@@ -240,6 +240,30 @@ describe('vault calls', () => {
     expect(events).toContainEqual({ type: 'vault:locked' });
   });
 
+  it('derives a direct connection to one member from a saved profile', async () => {
+    harness = buildHarness();
+    const { router } = harness;
+    expectValue(await router.handle('vault.initialise', { password: PASSWORD }));
+    const parent = expectValue(
+      await router.handle('connections.create', {
+        name: 'Perf',
+        uri: 'mongodb://admin:admin@a:27117,b:27118/?replicaSet=rs0&authSource=admin',
+        color: '#ff0000',
+      }),
+    ) as { id: string };
+
+    const direct = expectValue(
+      await router.handle('connections.createDirect', { id: parent.id, host: 'b:27118' }),
+    ) as { id: string; name: string; uri: string; color?: string };
+
+    expect(direct.id).not.toBe(parent.id);
+    expect(direct.name).toBe('Perf · b:27118');
+    expect(direct.uri).toBe(
+      'mongodb://admin:admin@b:27118/?authSource=admin&directConnection=true',
+    );
+    expect(direct.color).toBe('#ff0000');
+  });
+
   it('resets the vault and store, then initialises again on a fresh store', async () => {
     harness = buildHarness();
     const { router } = harness;
@@ -772,6 +796,10 @@ function fakeDocker(): DockerRuntime & { readonly calls: string[] } {
     },
     async connect(containerId) {
       calls.push(`connect:${containerId}`);
+      return { connectionId: '3f2b8c1e-5d4a-4b7e-9c1f-2a6d8e0b7f10', status: CONNECTED };
+    },
+    async connectWithCredentials(input) {
+      calls.push(`connectWithCredentials:${input.containerId}`);
       return { connectionId: '3f2b8c1e-5d4a-4b7e-9c1f-2a6d8e0b7f10', status: CONNECTED };
     },
     async disconnect(containerId) {

@@ -58,6 +58,8 @@ import {
   privilegeActionCatalog,
   type UpdateState,
   type UserInfo,
+  directConnectionName,
+  directUriFor,
 } from '@mongo-gui/core';
 import {
   ConnectionManager,
@@ -152,6 +154,7 @@ import {
   getShardDistribution,
   getShardingOverview,
   moveChunk,
+  objectIdFromHex,
   removeShardFromZone,
   removeShardStatus,
   setBalancerWindow,
@@ -196,6 +199,7 @@ import {
   type SamplerFactory,
 } from './monitor-service';
 import { createTransferService, type TransferAdapter } from './transfer-service';
+import { createGenerateService } from './generate-service';
 import { createReplicationPlans } from './replication-plans';
 
 /** Native file dialogs and the shell reveal. The main window's dialogs live in index.ts. */
@@ -1004,6 +1008,21 @@ export function createRouter(deps: RouterDeps): Router {
     entry('connections.create', rpcContract.connections.create, (input) =>
       repos().connections.create(input),
     ),
+    entry('connections.createDirect', rpcContract.connections.createDirect, (input) => {
+      const parent = repos().connections.get(input.id);
+      return repos().connections.create({
+        ...(parent.color === undefined ? {} : { color: parent.color }),
+        ...(parent.tls === undefined ? {} : { tls: parent.tls }),
+        ...(parent.readPreference === undefined ? {} : { readPreference: parent.readPreference }),
+        ...(parent.connectTimeoutMs === undefined
+          ? {}
+          : { connectTimeoutMs: parent.connectTimeoutMs }),
+        name: directConnectionName(parent.name, input.host),
+        uri: directUriFor(parent.uri, input.host),
+        source: 'manual',
+        dockerContainerId: undefined,
+      });
+    }),
     entry('connections.update', rpcContract.connections.update, (input) =>
       repos().connections.update(input.id, definedFields(input.patch)),
     ),
@@ -1019,7 +1038,15 @@ export function createRouter(deps: RouterDeps): Router {
       const profile = repos().connections.get(input.id);
       // A docker profile is rebuilt from its container, because its forwarder port changes.
       if (profile.source === 'docker' && profile.dockerContainerId !== undefined) {
-        return (await docker().connect(profile.dockerContainerId)).status;
+        const result = await docker().connect(profile.dockerContainerId);
+        // The tree reads a status here. The dialog opens from docker.connect, so this reports the error.
+        if ('kind' in result) {
+          return {
+            state: 'error',
+            error: appError('AUTH_FAILED', 'The server needs a user name and password.'),
+          };
+        }
+        return result.status;
       }
       return deps.connections.connect(profile);
     }),
@@ -1344,6 +1371,9 @@ export function createRouter(deps: RouterDeps): Router {
     entry('docker.connect', rpcContract.docker.connect, (input) =>
       docker().connect(input.containerId),
     ),
+    entry('docker.connectWithCredentials', rpcContract.docker.connectWithCredentials, (input) =>
+      docker().connectWithCredentials(input),
+    ),
     entry('docker.disconnect', rpcContract.docker.disconnect, (input) =>
       docker().disconnect(input.containerId),
     ),
@@ -1383,6 +1413,12 @@ export function createRouter(deps: RouterDeps): Router {
       transfers.status(input.transferId),
     ),
     entry('transfer.list', rpcContract.transfer.list, () => transfers.list()),
+    entry('generate.start', rpcContract.generate.start, (input) => ({
+      jobId: generate.start(input),
+    })),
+    entry('generate.cancel', rpcContract.generate.cancel, (input) => {
+      generate.cancel(input.jobId);
+    }),
 
     entry('gridfs.listBuckets', rpcContract.gridfs.listBuckets, (input) =>
       driverCall(() => listBuckets(deps.connections.getClient(input.connectionId), input)),
@@ -1493,6 +1529,16 @@ export function createRouter(deps: RouterDeps): Router {
     emit: deps.onEvent,
   });
 
+  const generate = createGenerateService({
+    getClient: (connectionId) => deps.connections.getClient(connectionId),
+    emit: deps.onEvent,
+    toObjectId: objectIdFromHex,
+  });
+  // Generate jobs end with the page that started them, as transfers do.
+  rendererResets.add(() => {
+    generate.cancelAll();
+  });
+
   const monitor = createMonitorService({
     getClient: (connectionId) => deps.connections.getClient(connectionId),
     createSampler: deps.createSampler ?? defaultSamplerFactory,
@@ -1522,6 +1568,7 @@ export function createRouter(deps: RouterDeps): Router {
     // A transfer reads or writes through the client of its connection, so it ends with the connection.
     if (status.state !== 'connected') {
       transfers.cancelConnection(connectionId);
+      generate.cancelConnection(connectionId);
     }
     // A runtime serves only an open connection, so any other state ends its process.
     if (status.state !== 'connected') {

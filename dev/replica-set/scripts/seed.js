@@ -4,14 +4,24 @@ const TARGET = 1000000;
 const BATCH = 10000;
 const REPORT_EVERY = 100000;
 
-const coll = db.getSiblingDB("perf").events;
+const coll = db.getSiblingDB('perf').events;
 
-const TYPES = ["view", "click", "purchase", "signup"];
-const COUNTRIES = ["US", "DE", "GB", "FR", "SI", "NL", "SE", "IT", "ES", "JP"];
-const DEVICES = ["ios", "android", "web"];
+const TYPES = ['view', 'click', 'purchase', 'signup'];
+const COUNTRIES = ['US', 'DE', 'GB', 'FR', 'SI', 'NL', 'SE', 'IT', 'ES', 'JP'];
+const DEVICES = ['ios', 'android', 'web'];
 const TAGS = [
-  "sale", "new", "promo", "beta", "vip", "mobile",
-  "desktop", "returning", "trial", "partner", "email", "organic",
+  'sale',
+  'new',
+  'promo',
+  'beta',
+  'vip',
+  'mobile',
+  'desktop',
+  'returning',
+  'trial',
+  'partner',
+  'email',
+  'organic',
 ];
 const NOW = Date.now();
 const YEAR_MS = 365 * 24 * 3600 * 1000;
@@ -58,5 +68,10 @@ if (toInsert === 0) {
 
 coll.createIndex({ userId: 1 });
 coll.createIndex({ createdAt: -1 });
-print(`Indexes: ${coll.getIndexes().map((i) => i.name).join(", ")}`);
+print(
+  `Indexes: ${coll
+    .getIndexes()
+    .map((i) => i.name)
+    .join(', ')}`,
+);
 print(`Final count: ${coll.countDocuments({})}`);

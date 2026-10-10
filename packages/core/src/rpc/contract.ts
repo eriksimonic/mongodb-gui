@@ -85,7 +85,9 @@ import {
   SetProfilingLevelInputSchema,
 } from '../profiler/types';
 import {
+  DockerConnectWithCredentialsInputSchema,
   DockerContainerIdSchema,
+  DockerCredentialsRequiredSchema,
   DockerMongoContainerSummarySchema,
   DockerStatusSchema,
 } from '../docker/types';
@@ -208,6 +210,11 @@ import {
   SessionListSchema,
   TopEntrySchema,
 } from '../diagnostics/types';
+import {
+  GenerateCancelInputSchema,
+  GenerateStartInputSchema,
+  GenerateStartOutputSchema,
+} from '../generate/spec';
 import { defineCall, type RpcContract } from './define';
 
 const idParam = z.object({ id: z.uuid() });
@@ -282,6 +289,14 @@ export const rpcContract = {
     list: defineCall(z.void(), z.array(ConnectionProfileSummarySchema)),
     get: defineCall(idParam, ConnectionProfileSchema),
     create: defineCall(ConnectionProfileInputSchema, ConnectionProfileSchema),
+    /**
+     * Creates a profile that connects directly to one member of the deployment `id` names. The
+     * new URI keeps the credentials and options of the parent and sets `directConnection=true`.
+     */
+    createDirect: defineCall(
+      z.object({ id: z.uuid(), host: z.string().min(1) }),
+      ConnectionProfileSchema,
+    ),
     update: defineCall(
       z.object({ id: z.uuid(), patch: ConnectionProfileInputSchema.partial() }),
       ConnectionProfileSchema,
@@ -297,6 +312,12 @@ export const rpcContract = {
     previewImport: defineCall(PreviewConnectionsImportInputSchema, ConnectionsImportPreviewSchema),
     /** Decrypts the file and creates its connections. The open-dialog pick is used up on success. */
     importFromFile: defineCall(ImportConnectionsInputSchema, ConnectionsImportResultSchema),
+  },
+  // Generate data. The job inserts batches in the main process and reports through generate:progress.
+  generate: {
+    /** Starts a job and returns its id. The job runs until it finishes, fails or is cancelled. */
+    start: defineCall(GenerateStartInputSchema, GenerateStartOutputSchema),
+    cancel: defineCall(GenerateCancelInputSchema, z.void()),
   },
   databases: {
     list: defineCall(connectionParam, z.array(DatabaseInfoSchema)),
@@ -511,8 +532,17 @@ export const rpcContract = {
   docker: {
     status: defineCall(z.void(), DockerStatusSchema),
     list: defineCall(z.void(), z.array(DockerMongoContainerSummarySchema)),
+    /** Returns credentialsRequired when the server rejects the container's own credentials or none. */
     connect: defineCall(
       z.object({ containerId: DockerContainerIdSchema }),
+      z.union([
+        z.object({ connectionId: z.uuid(), status: ConnectionStatusSchema }),
+        DockerCredentialsRequiredSchema,
+      ]),
+    ),
+    /** Tests a URI with the given user, then saves the docker profile and connects it. */
+    connectWithCredentials: defineCall(
+      DockerConnectWithCredentialsInputSchema,
       z.object({ connectionId: z.uuid(), status: ConnectionStatusSchema }),
     ),
     disconnect: defineCall(z.object({ containerId: DockerContainerIdSchema }), z.void()),

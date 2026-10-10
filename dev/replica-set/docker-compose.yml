@@ -3,7 +3,7 @@ name: mongo-gui-perf
 services:
   keyfile:
     image: alpine:3.20
-    restart: "no"
+    restart: 'no'
     command:
       - sh
       - -c
@@ -23,23 +23,23 @@ services:
       - --replSet
       - rs0
       - --port
-      - "27117"
+      - '27117'
       - --bind_ip_all
       - --keyFile
       - /etc/mongo/keyfile
       - --wiredTigerCacheSizeGB
-      - "0.25"
+      - '0.25'
       - --setParameter
       - diagnosticDataCollectionEnabled=false
-    cpus: "0.5"
+    cpus: '0.5'
     mem_limit: 512m
     deploy:
       resources:
         limits:
-          cpus: "0.5"
+          cpus: '0.5'
           memory: 512M
     ports:
-      - "127.0.0.1:27117:27117"
+      - '127.0.0.1:27117:27117'
     volumes:
       - keyfile:/etc/mongo:ro
       - rs1-data:/data/db
@@ -56,23 +56,23 @@ services:
       - --replSet
       - rs0
       - --port
-      - "27118"
+      - '27118'
       - --bind_ip_all
       - --keyFile
       - /etc/mongo/keyfile
       - --wiredTigerCacheSizeGB
-      - "0.25"
+      - '0.25'
       - --setParameter
       - diagnosticDataCollectionEnabled=false
-    cpus: "0.5"
+    cpus: '0.5'
     mem_limit: 512m
     deploy:
       resources:
         limits:
-          cpus: "0.5"
+          cpus: '0.5'
           memory: 512M
     ports:
-      - "127.0.0.1:27118:27118"
+      - '127.0.0.1:27118:27118'
     volumes:
       - keyfile:/etc/mongo:ro
       - rs2-data:/data/db
@@ -88,23 +88,23 @@ services:
       - --replSet
       - rs0
       - --port
-      - "27119"
+      - '27119'
       - --bind_ip_all
       - --keyFile
       - /etc/mongo/keyfile
       - --wiredTigerCacheSizeGB
-      - "0.25"
+      - '0.25'
       - --setParameter
       - diagnosticDataCollectionEnabled=false
-    cpus: "0.5"
+    cpus: '0.5'
     mem_limit: 512m
     deploy:
       resources:
         limits:
-          cpus: "0.5"
+          cpus: '0.5'
           memory: 512M
     ports:
-      - "127.0.0.1:27119:27119"
+      - '127.0.0.1:27119:27119'
     volumes:
       - keyfile:/etc/mongo:ro
       - rs3-data:/data/db
