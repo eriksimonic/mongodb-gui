@@ -68,14 +68,25 @@ export function createCompletionSource(options: CompletionSourceOptions): Comple
       const database = options.database();
       const context = completionContext(code, offset);
       const fieldsApply = context.collection !== undefined && !context.memberOfCollection;
+      // The runtime completes one line. The folded statement up to the cursor is that line, so
+      // a statement that spans lines still names its collection.
+      const line = context.head + context.prefix;
       const [runtime, fields] = await Promise.all([
         options.rpc.shell
-          .complete({ connectionId: options.connectionId, database, code, position: offset })
+          .complete({
+            connectionId: options.connectionId,
+            database,
+            code: line,
+            position: line.length,
+          })
           .then((response) => runtimeCompletions(response.items, context.head))
           .catch((): EditorCompletion[] => []),
         fieldsApply
           ? sampleOf(database, context.collection ?? '').then((sample) =>
-              fieldCompletions(sample, context.objectKey),
+              fieldCompletions(sample, context.objectKey, {
+                parent: context.fieldParent,
+                quoted: context.quotedKey,
+              }),
             )
           : Promise.resolve<EditorCompletion[]>([]),
       ]);

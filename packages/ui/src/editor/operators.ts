@@ -236,3 +236,123 @@ export function methodLabel(method: MethodEntry): string {
   );
   return `${method.name}(${params.join(', ')})`;
 }
+
+export interface ConstructorEntry {
+  readonly name: string;
+  readonly doc: string;
+  /** Snippet inserted for the constructor. `$1` is where the caret lands. */
+  readonly snippet: string;
+}
+
+/** BSON constructors that mongosh accepts in a value position. */
+export const BSON_CONSTRUCTORS: readonly ConstructorEntry[] = [
+  {
+    name: 'ISODate',
+    doc: 'A date from an ISO 8601 string. Empty for now.',
+    snippet: 'ISODate("$1")',
+  },
+  {
+    name: 'ObjectId',
+    doc: 'An ObjectId from 24 hex characters. Empty for a new id.',
+    snippet: 'ObjectId("$1")',
+  },
+  {
+    name: 'Date',
+    doc: 'A date. As a constructor with new, otherwise a string.',
+    snippet: 'new Date("$1")',
+  },
+  { name: 'Long', doc: 'A 64-bit integer from a string or number.', snippet: 'Long("$1")' },
+  {
+    name: 'NumberLong',
+    doc: 'A 64-bit integer. The legacy name of Long.',
+    snippet: 'NumberLong("$1")',
+  },
+  { name: 'Int32', doc: 'A 32-bit integer.', snippet: 'Int32($1)' },
+  {
+    name: 'NumberInt',
+    doc: 'A 32-bit integer. The legacy name of Int32.',
+    snippet: 'NumberInt($1)',
+  },
+  { name: 'Double', doc: 'A double from a number.', snippet: 'Double($1)' },
+  { name: 'Decimal128', doc: 'A 128-bit decimal from a string.', snippet: 'Decimal128("$1")' },
+  {
+    name: 'NumberDecimal',
+    doc: 'A 128-bit decimal. The legacy name of Decimal128.',
+    snippet: 'NumberDecimal("$1")',
+  },
+  { name: 'UUID', doc: 'A UUID from its string form. Empty for a new one.', snippet: 'UUID("$1")' },
+  {
+    name: 'Timestamp',
+    doc: 'An internal timestamp from seconds and an increment.',
+    snippet: 'Timestamp({ t: $1, i: 1 })',
+  },
+  {
+    name: 'BinData',
+    doc: 'Binary data from a subtype and base64 text.',
+    snippet: 'BinData(0, "$1")',
+  },
+  {
+    name: 'RegExp',
+    doc: 'A regular expression from a pattern and flags.',
+    snippet: 'RegExp("$1")',
+  },
+  { name: 'MinKey', doc: 'Sorts before every other value.', snippet: 'MinKey()' },
+  { name: 'MaxKey', doc: 'Sorts after every other value.', snippet: 'MaxKey()' },
+  {
+    name: 'DBRef',
+    doc: 'A reference to a document in another collection.',
+    snippet: 'DBRef("$1", ObjectId(""))',
+  },
+];
+
+/** Methods of the cursor that find and aggregate return, in the order they usually chain. */
+export const CURSOR_METHODS: readonly MethodEntry[] = [
+  {
+    name: 'sort',
+    params: [{ name: 'spec' }],
+    doc: 'Orders the documents. 1 ascending, -1 descending.',
+  },
+  { name: 'limit', params: [{ name: 'count' }], doc: 'Returns at most this many documents.' },
+  { name: 'skip', params: [{ name: 'count' }], doc: 'Skips this many documents first.' },
+  { name: 'project', params: [{ name: 'spec' }], doc: 'Keeps or drops fields. 1 keeps, 0 drops.' },
+  { name: 'count', params: [], doc: 'The number of documents the cursor would return.' },
+  { name: 'toArray', params: [], doc: 'Reads every document into an array.' },
+  { name: 'forEach', params: [{ name: 'callback' }], doc: 'Runs a function on each document.' },
+  { name: 'map', params: [{ name: 'callback' }], doc: 'Maps each document through a function.' },
+  { name: 'hint', params: [{ name: 'index' }], doc: 'Forces an index by name or key spec.' },
+  { name: 'collation', params: [{ name: 'collation' }], doc: 'Compares strings with a locale.' },
+  {
+    name: 'explain',
+    params: [{ name: 'verbosity', optional: true }],
+    doc: 'The plan instead of the documents.',
+  },
+  { name: 'batchSize', params: [{ name: 'size' }], doc: 'Documents per batch from the server.' },
+  {
+    name: 'maxTimeMS',
+    params: [{ name: 'ms' }],
+    doc: 'Fails the query after this many milliseconds.',
+  },
+  {
+    name: 'allowDiskUse',
+    params: [{ name: 'allow', optional: true }],
+    doc: 'Lets a sort spill to disk.',
+  },
+  {
+    name: 'comment',
+    params: [{ name: 'text' }],
+    doc: 'Tags the query in the logs and the profiler.',
+  },
+  { name: 'min', params: [{ name: 'spec' }], doc: 'Lower index bound, inclusive.' },
+  { name: 'max', params: [{ name: 'spec' }], doc: 'Upper index bound, exclusive.' },
+  { name: 'returnKey', params: [], doc: 'Returns only the index keys.' },
+  { name: 'showRecordId', params: [], doc: 'Adds the record id to each document.' },
+  { name: 'readPref', params: [{ name: 'mode' }], doc: 'The read preference for this cursor.' },
+  { name: 'tailable', params: [], doc: 'Keeps the cursor open on a capped collection.' },
+  { name: 'noCursorTimeout', params: [], doc: 'Keeps the server from closing an idle cursor.' },
+  { name: 'pretty', params: [], doc: 'Formats the output. Has no effect in this app.' },
+  { name: 'hasNext', params: [], doc: 'True when another document is available.' },
+  { name: 'next', params: [], doc: 'The next document.' },
+  { name: 'itcount', params: [], doc: 'Iterates the cursor and counts the documents.' },
+  { name: 'size', params: [], doc: 'The count after skip and limit.' },
+  { name: 'close', params: [], doc: 'Closes the cursor on the server.' },
+];

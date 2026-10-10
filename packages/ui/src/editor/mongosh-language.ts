@@ -2,14 +2,19 @@
 import './monaco-setup';
 import type * as Monaco from 'monaco-editor/editor/editor.api';
 import type { EditorCompletion } from './completion-model';
-import { mergeCompletions, completionContext, operatorsFor } from './completion-model';
+import {
+  mergeCompletions,
+  completionContext,
+  operatorsFor,
+  staticCompletionsFor,
+} from './completion-model';
 import type { CompletionSource } from './completion-source';
 import { signatureAt } from './signature';
 
 export const MONGOSH_LANGUAGE = 'mongosh';
 
 /** How long completion waits after the last keystroke before it asks the backend. */
-export const COMPLETION_DEBOUNCE_MS = 150;
+export const COMPLETION_DEBOUNCE_MS = 40;
 
 const SHELL_GLOBALS = [
   'db',
@@ -195,7 +200,9 @@ export function completionSourceOf(uri: string): CompletionSource | undefined {
 
 /**
  * Asks the editor's source after the debounce. A newer request, or a cancelled token, drops this
- * one, so only the last request of a burst reaches the backend.
+ * one, so only the last request of a burst reaches the backend. A dropped request answers with an
+ * incomplete empty list: a final empty list would make Monaco close the session and stop asking
+ * for the rest of the word, which is what happened when two letters arrived within the debounce.
  */
 async function provideCompletions(
   monaco: typeof Monaco,
@@ -207,7 +214,7 @@ async function provideCompletions(
   await delay(COMPLETION_DEBOUNCE_MS);
   const source = sources.get(model.uri.toString());
   if (token.isCancellationRequested || request !== latestRequest || source === undefined) {
-    return { suggestions: [] };
+    return { suggestions: [], incomplete: true };
   }
   const controller = new AbortController();
   const subscription = token.onCancellationRequested(() => controller.abort());
@@ -216,7 +223,7 @@ async function provideCompletions(
   const remote = await source.complete(code, offset, controller.signal);
   subscription.dispose();
   if (token.isCancellationRequested || request !== latestRequest) {
-    return { suggestions: [] };
+    return { suggestions: [], incomplete: true };
   }
   const word = model.getWordUntilPosition(position);
   const range = new monaco.Range(
@@ -226,8 +233,18 @@ async function provideCompletions(
     word.endColumn,
   );
   const context = completionContext(code, offset);
-  const items = mergeCompletions(context.prefix, [remote, operatorsFor(context)]);
-  return { suggestions: items.map((item) => toSuggestion(monaco, item, range)) };
+  const items = mergeCompletions(context.prefix, [
+    remote,
+    staticCompletionsFor(context),
+    operatorsFor(context),
+  ]);
+  return {
+    suggestions: items.map((item) => toSuggestion(monaco, item, range)),
+    // Always incomplete, so Monaco asks again on each keystroke instead of filtering a list
+    // that an earlier trigger character produced for another position. The debounce above
+    // keeps a fast burst down to one backend call.
+    incomplete: true,
+  };
 }
 
 function toSuggestion(
@@ -239,6 +256,9 @@ function toSuggestion(
     label: item.label,
     kind: kindOf(monaco, item.kind),
     insertText: item.insertText ?? item.label,
+    ...(item.snippet === true
+      ? { insertTextRules: monaco.languages.CompletionItemInsertTextRule.InsertAsSnippet }
+      : {}),
     ...(item.detail === undefined ? {} : { detail: item.detail }),
     ...(item.doc === undefined ? {} : { documentation: item.doc }),
     range,
