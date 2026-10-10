@@ -1280,6 +1280,10 @@ export function createAppStore(api: UiApi, initial: Partial<AppData> = {}): AppS
           void get().refreshDockerStatus();
           return;
         }
+        // Tool downloads belong to the tools store, which has no connection.
+        if (event.type === 'tools:download') {
+          return;
+        }
         // Change events belong to the change streams store.
         if (event.type === 'changes:event' || event.type === 'changes:state') {
           return;

@@ -675,6 +675,46 @@ export function createMockUiApi(options: MockUiApiOptions = {}): UiApi {
   }
 
   const rpc: RpcClient = {
+    backup: {
+      describeServer: method(rpcContract.backup.describeServer, latencyMs, () => {
+        throw fail('INTERNAL', 'Backup and restore are not available in the mock yet.');
+      }),
+      start: method(rpcContract.backup.start, latencyMs, () => {
+        throw fail('INTERNAL', 'Backup and restore are not available in the mock yet.');
+      }),
+      inspect: method(rpcContract.backup.inspect, latencyMs, () => {
+        throw fail('INTERNAL', 'Backup and restore are not available in the mock yet.');
+      }),
+      startRestore: method(rpcContract.backup.startRestore, latencyMs, () => {
+        throw fail('INTERNAL', 'Backup and restore are not available in the mock yet.');
+      }),
+      cancel: method(rpcContract.backup.cancel, latencyMs, () => {
+        throw fail('INTERNAL', 'Backup and restore are not available in the mock yet.');
+      }),
+    },
+    tools: {
+      list: method(rpcContract.tools.list, latencyMs, () => ({
+        platform: { os: 'linux' as const, arch: 'x64' as const },
+        bundledSupported: true,
+        installs: [],
+        preference: 'auto' as const,
+      })),
+      available: method(rpcContract.tools.available, latencyMs, () => {
+        throw fail('INTERNAL', 'Tool downloads are not available in the mock yet.');
+      }),
+      download: method(rpcContract.tools.download, latencyMs, () => {
+        throw fail('INTERNAL', 'Tool downloads are not available in the mock yet.');
+      }),
+      cancelDownload: method(rpcContract.tools.cancelDownload, latencyMs, () => {
+        throw fail('INTERNAL', 'Tool downloads are not available in the mock yet.');
+      }),
+      remove: method(rpcContract.tools.remove, latencyMs, () => {
+        throw fail('INTERNAL', 'Tool downloads are not available in the mock yet.');
+      }),
+      licence: method(rpcContract.tools.licence, latencyMs, () => {
+        throw fail('INTERNAL', 'Tool downloads are not available in the mock yet.');
+      }),
+    },
     updates: {
       state: method(rpcContract.updates.state, latencyMs, () => currentUpdate()),
       check: method(rpcContract.updates.check, latencyMs, () => advanceUpdate()),

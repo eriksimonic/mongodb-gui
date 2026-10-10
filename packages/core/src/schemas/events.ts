@@ -9,6 +9,9 @@ import { ConnectionStatusSchema } from './connection';
 import { TransferIdSchema, TransferKindSchema } from '../transfer/calls';
 import { TransferProgressSchema } from '../transfer/types';
 import { ShellRuntimeStateSchema } from '../shell/rpc-schemas';
+import { BackupJobKindSchema } from '../backup/options';
+import { BackupProgressSchema } from '../backup/progress';
+import { ToolsDownloadProgressSchema, ToolsVersionSchema } from '../tools/types';
 import { GenerateProgressSchema } from '../generate/spec';
 
 export const RpcEventSchema = z.discriminatedUnion('type', [
@@ -83,5 +86,20 @@ export const RpcEventSchema = z.discriminatedUnion('type', [
     connectionId: z.uuid(),
     jobId: z.uuid(),
     progress: GenerateProgressSchema,
+  }),
+  // Progress of one backup or restore job.
+  z.object({
+    type: z.literal('backup:progress'),
+    connectionId: z.uuid(),
+    jobId: z.uuid(),
+    kind: BackupJobKindSchema,
+    progress: BackupProgressSchema,
+  }),
+  // Progress of one download of the MongoDB tools.
+  z.object({
+    type: z.literal('tools:download'),
+    downloadId: z.uuid(),
+    version: ToolsVersionSchema,
+    progress: ToolsDownloadProgressSchema,
   }),
 ]);

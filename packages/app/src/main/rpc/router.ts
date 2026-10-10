@@ -1420,6 +1420,18 @@ export function createRouter(deps: RouterDeps): Router {
       generate.cancel(input.jobId);
     }),
 
+    entry('backup.describeServer', rpcContract.backup.describeServer, notWired),
+    entry('backup.start', rpcContract.backup.start, notWired),
+    entry('backup.inspect', rpcContract.backup.inspect, notWired),
+    entry('backup.startRestore', rpcContract.backup.startRestore, notWired),
+    entry('backup.cancel', rpcContract.backup.cancel, notWired),
+    entry('tools.list', rpcContract.tools.list, notWired),
+    entry('tools.available', rpcContract.tools.available, notWired),
+    entry('tools.download', rpcContract.tools.download, notWired),
+    entry('tools.cancelDownload', rpcContract.tools.cancelDownload, notWired),
+    entry('tools.remove', rpcContract.tools.remove, notWired),
+    entry('tools.licence', rpcContract.tools.licence, notWired),
+
     entry('gridfs.listBuckets', rpcContract.gridfs.listBuckets, (input) =>
       driverCall(() => listBuckets(deps.connections.getClient(input.connectionId), input)),
     ),
@@ -2239,6 +2251,11 @@ function withEjsonCustomData(user: UserInfo): UserInfo {
   const { customData, ...rest } = user;
   const canonical = toCanonicalEjson(customData);
   return canonical === undefined ? rest : { ...rest, customData: canonical };
+}
+
+/** Placeholder for the backup and restore calls until the services are wired in. */
+function notWired(): never {
+  throw new AppErrorException(appError('INTERNAL', 'Backup and restore are not wired yet.'));
 }
 
 function failure(error: AppError): RpcResult {
