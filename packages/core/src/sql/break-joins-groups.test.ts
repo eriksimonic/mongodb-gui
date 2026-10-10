@@ -624,7 +624,7 @@ describe('grouping over joins', () => {
         lookupC,
         unwindC,
         "{ $group: { _id: '$status', customers: { $addToSet: '$c._id' } } }",
-        "{ $project: { _id: 0, status: '$_id', customers: { $size: '$customers' } } }",
+        "{ $project: { _id: 0, status: '$_id', customers: { $size: { $filter: { input: '$customers', cond: { $ne: ['$$this', null] } } } } } }",
       ]),
     );
   });
@@ -1565,8 +1565,8 @@ describe('round 2: grouping over joins', () => {
         lookupC,
         unwindC,
         "{ $group: { _id: '$status', customers: { $addToSet: '$c.name' } } }",
-        "{ $match: { $expr: { $gt: [{ $size: '$customers' }, 1] } } }",
-        "{ $project: { _id: 0, status: '$_id', customers: { $size: '$customers' } } }",
+        "{ $match: { $expr: { $gt: [{ $size: { $filter: { input: '$customers', cond: { $ne: ['$$this', null] } } } }, 1] } } }",
+        "{ $project: { _id: 0, status: '$_id', customers: { $size: { $filter: { input: '$customers', cond: { $ne: ['$$this', null] } } } } } }",
       ]),
     );
   });
@@ -1683,7 +1683,7 @@ describe('round 2: grouping over joins', () => {
         lookupC,
         unwindC,
         "{ $group: { _id: '$status', count_c_name: { $addToSet: '$c.name' } } }",
-        "{ $addFields: { count_c_name: { $size: '$count_c_name' } } }",
+        "{ $addFields: { count_c_name: { $size: { $filter: { input: '$count_c_name', cond: { $ne: ['$$this', null] } } } } } }",
         '{ $sort: { count_c_name: -1 } }',
         "{ $project: { _id: 0, status: '$_id' } }",
       ]),

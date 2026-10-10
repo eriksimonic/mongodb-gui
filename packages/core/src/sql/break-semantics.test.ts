@@ -80,9 +80,11 @@ describe('NULL handling', () => {
     );
   });
 
-  it('COALESCE with three arguments is one $ifNull', () => {
+  it('COALESCE with three arguments nests $ifNull', () => {
     expect(run('SELECT COALESCE(a, b, 0) AS v FROM orders')).toBe(
-      pipeline('orders', ["{ $project: { _id: 0, v: { $ifNull: ['$a', '$b', 0] } } }"]),
+      pipeline('orders', [
+        "{ $project: { _id: 0, v: { $ifNull: ['$a', { $ifNull: ['$b', 0] }] } } }",
+      ]),
     );
   });
 
@@ -844,7 +846,7 @@ describe('COUNT(column) versus COUNT(*)', () => {
     expect(run('SELECT COUNT(DISTINCT email) AS n FROM orders')).toBe(
       pipeline('orders', [
         "{ $group: { _id: null, n: { $addToSet: '$email' } } }",
-        "{ $project: { _id: 0, n: { $size: '$n' } } }",
+        "{ $project: { _id: 0, n: { $size: { $filter: { input: '$n', cond: { $ne: ['$$this', null] } } } } } }",
       ]),
     );
   });
@@ -937,7 +939,7 @@ describe('HAVING', () => {
     expect(run('SELECT status FROM orders GROUP BY status HAVING COUNT(DISTINCT city) > 1')).toBe(
       pipeline('orders', [
         "{ $group: { _id: '$status', having_1: { $addToSet: '$city' } } }",
-        "{ $match: { $expr: { $gt: [{ $size: '$having_1' }, 1] } } }",
+        "{ $match: { $expr: { $gt: [{ $size: { $filter: { input: '$having_1', cond: { $ne: ['$$this', null] } } } }, 1] } } }",
         "{ $project: { _id: 0, status: '$_id' } }",
       ]),
     );
@@ -1208,9 +1210,11 @@ describe('round 2: NULL handling', () => {
     );
   });
 
-  it('COALESCE with four arguments is one $ifNull', () => {
+  it('COALESCE with four arguments nests $ifNull', () => {
     expect(run('SELECT COALESCE(a, b, c, 0) AS v FROM orders')).toBe(
-      pipeline('orders', ["{ $project: { _id: 0, v: { $ifNull: ['$a', '$b', '$c', 0] } } }"]),
+      pipeline('orders', [
+        "{ $project: { _id: 0, v: { $ifNull: ['$a', { $ifNull: ['$b', { $ifNull: ['$c', 0] }] }] } } }",
+      ]),
     );
   });
 
@@ -2014,7 +2018,7 @@ describe('round 2: COUNT(column) versus COUNT(*)', () => {
     ).toBe(
       pipeline('orders', [
         "{ $group: { _id: '$status', n: { $addToSet: '$city' } } }",
-        "{ $project: { _id: 0, status: '$_id', n: { $size: '$n' } } }",
+        "{ $project: { _id: 0, status: '$_id', n: { $size: { $filter: { input: '$n', cond: { $ne: ['$$this', null] } } } } } }",
         '{ $sort: { n: -1 } }',
       ]),
     );

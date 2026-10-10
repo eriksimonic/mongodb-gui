@@ -946,9 +946,17 @@ function callExpr(call: CallExpression, ctx: ExprContext): MongoValue {
     case 'ISNULL':
       checkArity(call, 2, 2);
       return { $ifNull: args() };
-    case 'COALESCE':
+    case 'COALESCE': {
       checkArity(call, 2, Number.POSITIVE_INFINITY);
-      return { $ifNull: args() };
+      // MongoDB 4.4 accepts exactly two operands in $ifNull, so a longer list nests.
+      const values = args();
+      return values
+        .slice(0, -1)
+        .reduceRight<MongoValue>(
+          (rest, value) => ({ $ifNull: [value, rest] }),
+          values.at(-1) as MongoValue,
+        );
+    }
     case 'NULLIF': {
       checkArity(call, 2, 2);
       const [a, b] = args() as [MongoValue, MongoValue];
@@ -1754,8 +1762,16 @@ function groupedStages(statement: SelectStatement, scope: Scope): Shape {
     accumulators.push(accumulator);
     return accumulator;
   };
+  // COUNT(DISTINCT x) ignores NULL in SQL, and $addToSet keeps an explicit null, so the size
+  // counts the set without it.
   const accumulatorRef = (accumulator: Accumulator): MongoValue =>
-    accumulator.distinct ? { $size: `$${accumulator.name}` } : `$${accumulator.name}`;
+    accumulator.distinct
+      ? {
+          $size: {
+            $filter: { input: `$${accumulator.name}`, cond: { $ne: ['$$this', null] } },
+          },
+        }
+      : `$${accumulator.name}`;
   const grouped: ExprContext = {
     scope,
     column: (column) => {

@@ -715,7 +715,7 @@ describe('functions', () => {
   it('maps ISNULL and COALESCE to $ifNull', () => {
     expect(exprOf(call('ISNULL', [col('a'), lit(0)]))).toEqual({ $ifNull: ['$a', 0] });
     expect(exprOf(call('COALESCE', [col('a'), col('b'), lit(0)]))).toEqual({
-      $ifNull: ['$a', '$b', 0],
+      $ifNull: ['$a', { $ifNull: ['$b', 0] }],
     });
   });
 
@@ -1766,7 +1766,13 @@ describe('GROUP BY and aggregates', () => {
     });
     expect(translateStatement(statement).args[0]).toEqual([
       { $group: { _id: '$status', cities: { $addToSet: '$city' } } },
-      { $project: { _id: 0, status: '$_id', cities: { $size: '$cities' } } },
+      {
+        $project: {
+          _id: 0,
+          status: '$_id',
+          cities: { $size: { $filter: { input: '$cities', cond: { $ne: ['$$this', null] } } } },
+        },
+      },
     ]);
   });
 
@@ -2049,7 +2055,16 @@ describe('HAVING', () => {
     });
     expect(translateStatement(statement).args[0]).toEqual([
       { $group: { _id: '$status', having_1: { $addToSet: '$city' } } },
-      { $match: { $expr: { $gt: [{ $size: '$having_1' }, 1] } } },
+      {
+        $match: {
+          $expr: {
+            $gt: [
+              { $size: { $filter: { input: '$having_1', cond: { $ne: ['$$this', null] } } } },
+              1,
+            ],
+          },
+        },
+      },
       { $project: { _id: 0, status: '$_id' } },
     ]);
   });
@@ -2863,7 +2878,13 @@ describe('regression: ORDER BY on a hidden COUNT(DISTINCT)', () => {
     });
     expect(translateStatement(statement).args[0]).toEqual([
       { $group: { _id: '$status', count_city: { $addToSet: '$city' } } },
-      { $addFields: { count_city: { $size: '$count_city' } } },
+      {
+        $addFields: {
+          count_city: {
+            $size: { $filter: { input: '$count_city', cond: { $ne: ['$$this', null] } } },
+          },
+        },
+      },
       { $sort: { count_city: -1 } },
       { $project: { _id: 0, status: '$_id' } },
     ]);
@@ -2881,7 +2902,13 @@ describe('regression: ORDER BY on a hidden COUNT(DISTINCT)', () => {
         $group: { _id: '$status', having_1: { $sum: 1 }, count_city: { $addToSet: '$city' } },
       },
       { $match: { having_1: { $gt: 1 } } },
-      { $addFields: { count_city: { $size: '$count_city' } } },
+      {
+        $addFields: {
+          count_city: {
+            $size: { $filter: { input: '$count_city', cond: { $ne: ['$$this', null] } } },
+          },
+        },
+      },
       { $sort: { count_city: 1 } },
       { $project: { _id: 0, status: '$_id' } },
     ]);
@@ -2898,7 +2925,13 @@ describe('regression: ORDER BY on a hidden COUNT(DISTINCT)', () => {
     });
     expect(translateStatement(statement).args[0]).toEqual([
       { $group: { _id: '$status', n: { $addToSet: '$city' } } },
-      { $project: { _id: 0, status: '$_id', n: { $size: '$n' } } },
+      {
+        $project: {
+          _id: 0,
+          status: '$_id',
+          n: { $size: { $filter: { input: '$n', cond: { $ne: ['$$this', null] } } } },
+        },
+      },
       { $sort: { n: -1 } },
     ]);
   });
@@ -2912,8 +2945,21 @@ describe('regression: ORDER BY on a hidden COUNT(DISTINCT)', () => {
     });
     expect(translateStatement(statement).args[0]).toEqual([
       { $group: { _id: '$status', having_1: { $addToSet: '$city' } } },
-      { $match: { $expr: { $gt: [{ $size: '$having_1' }, 1] } } },
-      { $addFields: { having_1: { $size: '$having_1' } } },
+      {
+        $match: {
+          $expr: {
+            $gt: [
+              { $size: { $filter: { input: '$having_1', cond: { $ne: ['$$this', null] } } } },
+              1,
+            ],
+          },
+        },
+      },
+      {
+        $addFields: {
+          having_1: { $size: { $filter: { input: '$having_1', cond: { $ne: ['$$this', null] } } } },
+        },
+      },
       { $sort: { having_1: -1 } },
       { $project: { _id: 0, status: '$_id' } },
     ]);
@@ -2928,7 +2974,13 @@ describe('regression: ORDER BY on a hidden COUNT(DISTINCT)', () => {
     });
     expect(translateStatement(statement).args[0]).toEqual([
       { $group: { _id: '$status', count_city: { $addToSet: '$city' } } },
-      { $addFields: { count_city: { $size: '$count_city' } } },
+      {
+        $addFields: {
+          count_city: {
+            $size: { $filter: { input: '$count_city', cond: { $ne: ['$$this', null] } } },
+          },
+        },
+      },
       { $sort: { count_city: -1 } },
       { $project: { _id: 0, status: '$_id', n: { $add: ['$count_city', 1] } } },
     ]);
@@ -2952,7 +3004,14 @@ describe('regression: ORDER BY on a hidden COUNT(DISTINCT)', () => {
         },
       },
       {
-        $addFields: { count_city: { $size: '$count_city' }, count_zip: { $size: '$count_zip' } },
+        $addFields: {
+          count_city: {
+            $size: { $filter: { input: '$count_city', cond: { $ne: ['$$this', null] } } },
+          },
+          count_zip: {
+            $size: { $filter: { input: '$count_zip', cond: { $ne: ['$$this', null] } } },
+          },
+        },
       },
       { $sort: { count_city: -1, count_zip: 1 } },
       { $project: { _id: 0, status: '$_id' } },

@@ -368,7 +368,7 @@ describe('translateSql computed columns and functions', () => {
     ],
     [
       'SELECT COALESCE(a, b, 0) AS v FROM orders',
-      ["{ $project: { _id: 0, v: { $ifNull: ['$a', '$b', 0] } } }"],
+      ["{ $project: { _id: 0, v: { $ifNull: ['$a', { $ifNull: ['$b', 0] }] } } }"],
     ],
     [
       'SELECT NULLIF(a, 0) AS v FROM orders',
@@ -544,7 +544,7 @@ describe('translateSql aggregates, GROUP BY, HAVING and DISTINCT', () => {
       'SELECT COUNT(DISTINCT city) AS n FROM orders',
       [
         "{ $group: { _id: null, n: { $addToSet: '$city' } } }",
-        "{ $project: { _id: 0, n: { $size: '$n' } } }",
+        "{ $project: { _id: 0, n: { $size: { $filter: { input: '$n', cond: { $ne: ['$$this', null] } } } } } }",
       ],
     ],
     [
@@ -1465,7 +1465,7 @@ describe('regression: reported defects end to end', () => {
         customers,
         "{ $unwind: '$c' }",
         "{ $group: { _id: '$status', count_c_name: { $addToSet: '$c.name' } } }",
-        "{ $addFields: { count_c_name: { $size: '$count_c_name' } } }",
+        "{ $addFields: { count_c_name: { $size: { $filter: { input: '$count_c_name', cond: { $ne: ['$$this', null] } } } } } }",
         '{ $sort: { count_c_name: -1 } }',
         "{ $project: { _id: 0, status: '$_id' } }",
       ]),

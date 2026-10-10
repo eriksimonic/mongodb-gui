@@ -91,7 +91,7 @@ A value in a list that is not a constant also moves the condition into `$expr`. 
 | SQL                                                               | MongoDB form                                                                |
 | ----------------------------------------------------------------- | --------------------------------------------------------------------------- |
 | `ISNULL(a, b)`                                                    | `$ifNull: [a, b]`                                                           |
-| `COALESCE(a, b, ...)`                                             | `$ifNull` with the arguments                                                |
+| `COALESCE(a, b, ...)`                                             | nested `$ifNull` pairs, two operands each so MongoDB 4.4 accepts them       |
 | `NULLIF(a, b)`                                                    | `$cond` that gives null when `$eq` of a and b holds, else a                 |
 | `IIF(c, t, f)`                                                    | `$cond: [c, t, f]`                                                          |
 | `GETDATE()`, `GETUTCDATE()`, `SYSDATETIME()`, `CURRENT_TIMESTAMP` | `new Date()` in a filter or write, `$$NOW` in an aggregate                  |
@@ -110,7 +110,7 @@ A value in a list that is not a constant also moves the condition into `$expr`. 
 | `CAST(x AS type)`, `CONVERT(type, x [, style])`                   | A conversion operator, or the folded value when x is a constant (see below) |
 | `COUNT(*)`                                                        | `$sum: 1`                                                                   |
 | `COUNT(col)`                                                      | `$sum` of 1 for each document where col is not null                         |
-| `COUNT(DISTINCT col)`                                             | `$addToSet`, then `$size` of the set                                        |
+| `COUNT(DISTINCT col)`                                             | `$addToSet`, then `$size` of the set without null                           |
 | `SUM(x)`, `AVG(x)`, `MIN(x)`, `MAX(x)`                            | `$sum`, `$avg`, `$min`, `$max`                                              |
 
 The aggregate functions are allowed only in a grouped query, which is a query with GROUP BY or with an aggregate in the list, HAVING or ORDER BY. `SUM`, `AVG`, `MIN` and `MAX` with DISTINCT are refused. A string literal in a date position, such as the second argument of DATEDIFF, is read as a date.
@@ -265,6 +265,8 @@ Syntax and input:
 
 ## Differences from SQL Server
 
+- `ROUND` rounds a half away from zero in SQL Server. MongoDB's `$round` rounds a half to the
+  nearest even number, so `ROUND(2.5, 0)` gives 3 in SQL Server and 2 in MongoDB.
 - `= NULL` matches the documents where the field is null or missing, which is the `IS NULL` form. `<> NULL` is `IS NOT NULL`. SQL Server matches no row for either comparison. `IS NULL` also matches missing fields.
 - `<>`, `!=` and `NOT` match documents where the field is null or missing. SQL Server leaves out rows where the column is NULL.
 - `/` on two integers returns a fraction, because `$divide` does not truncate. `5 / 2` gives 2.5, and SQL Server gives 2.
