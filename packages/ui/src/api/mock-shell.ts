@@ -221,16 +221,19 @@ export function createMockShell(
       code: string;
       position: number;
     }): CompletionItem[] {
-      const before = input.code.slice(0, input.position);
-      if (new RegExp(`db\\.${IDENTIFIER}\\.\\w*$`).test(before)) {
-        return COMPLETION_METHODS.map((text) => ({ text, kind: 'method' }));
+      // Like the runtime, each text is the whole line before the cursor with the completion
+      // applied, not just the completion.
+      const line = lineBefore(input.code, input.position);
+      const head = line.slice(0, line.length - (/\w*$/.exec(line)?.[0].length ?? 0));
+      if (new RegExp(`db\\.${IDENTIFIER}\\.$`).test(head)) {
+        return COMPLETION_METHODS.map((method) => ({ text: `${head}${method}`, kind: 'method' }));
       }
-      if (/db\.\w*$/.test(before)) {
+      if (/db\.$/.test(head)) {
         const names =
           catalogOf(input.connectionId)
             .find((item) => item.name === input.database)
             ?.collections.map((item) => item.info.name) ?? [];
-        return names.map((text) => ({ text, kind: 'collection' }));
+        return names.map((name) => ({ text: `${head}${name}`, kind: 'collection' }));
       }
       return [];
     },
@@ -335,6 +338,11 @@ function int32Text(value: number): string {
 // follow.
 function batchText(documents: readonly unknown[], hasMore: boolean): string {
   return JSON.stringify({ cursorHasMore: hasMore, documents });
+}
+
+function lineBefore(code: string, position: number): string {
+  const before = code.slice(0, position);
+  return before.slice(before.lastIndexOf('\n') + 1);
 }
 
 function unquote(arg: string): string {

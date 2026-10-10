@@ -235,7 +235,7 @@ function FieldRow({ row, rowIndex, target, onToggle, style }: FieldRowProps) {
           {field.path}
         </Text>
         {field.isIdLike === true ? (
-          <Badge size="xs" variant="light" color="gray" ml={6}>
+          <Badge tt="none" size="xs" variant="light" color="gray" ml={6}>
             id
           </Badge>
         ) : null}

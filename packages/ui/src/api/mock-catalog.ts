@@ -4,7 +4,11 @@ import type {
   IndexInfo,
   ValidationRules,
 } from '@mongo-gui/core';
+import { bsonSampleDocuments } from './mock-bson-fixtures';
 import { localConnectionId, stagingConnectionId } from './mock-fixtures';
+
+/** Documents in the shop's bson_samples collection, which holds every BSON type. */
+export const BSON_SAMPLE_COUNT = 12;
 
 /** A document as the mock stores it. Values use plain JSON, with `$oid` and friends for BSON. */
 export type MockDocument = Record<string, unknown>;
@@ -149,6 +153,7 @@ interface CollectionSeed {
   readonly options?: CollectionInfo['options'];
   readonly indexes?: readonly IndexInfo[];
   readonly validator?: MockDocument;
+  readonly documents?: readonly MockDocument[];
 }
 
 function collectionOf(seed: CollectionSeed): MockCollection {
@@ -159,7 +164,8 @@ function collectionOf(seed: CollectionSeed): MockCollection {
   }
   return {
     info,
-    documents: type === 'view' ? [] : documentsFor(seed.name, seed.count),
+    documents:
+      type === 'view' ? [] : (seed.documents?.slice() ?? documentsFor(seed.name, seed.count)),
     indexes: [idIndex(), ...(seed.indexes ?? [])],
     validator: seed.validator ?? {},
     validationLevel: 'strict',
@@ -230,6 +236,11 @@ const localDatabases: readonly {
     name: 'analytics',
     sizeOnDisk: 524_288,
     collections: [
+      {
+        name: 'bson_samples',
+        count: BSON_SAMPLE_COUNT,
+        documents: bsonSampleDocuments(BSON_SAMPLE_COUNT),
+      },
       {
         name: 'events',
         count: 5400,

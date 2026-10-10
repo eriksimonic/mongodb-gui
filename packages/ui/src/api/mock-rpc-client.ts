@@ -155,6 +155,7 @@ function initialState(preset: MockPreset): MockState {
     statuses: new Map([[DOCKER_PROFILE_ID, connectedStatus()]]),
     history: fixtureHistory(),
     favourites: fixtureFavourites(),
+    layout: new Map(),
   };
 }
 
@@ -510,6 +511,8 @@ export function createMockUiApi(options: MockUiApiOptions = {}): UiApi {
           throw fail('VALIDATION', 'Only a file exported in this session can be shown.');
         }
       }),
+      // The mock has no disk. The export is accepted and nothing is written.
+      writeExport: method(rpcContract.app.writeExport, latencyMs, () => undefined),
     },
     transfer: {
       previewImport: method(rpcContract.transfer.previewImport, latencyMs, ({ connectionId }) => {
@@ -839,6 +842,12 @@ export function createMockUiApi(options: MockUiApiOptions = {}): UiApi {
       ),
     },
     history: {
+      append: method(rpcContract.history.append, latencyMs, (input) => {
+        requireUnlocked();
+        const entry: HistoryEntry = { ...input, id: newId() };
+        state.history = [entry, ...state.history];
+        return entry;
+      }),
       list: method(rpcContract.history.list, latencyMs, ({ connectionId, search, limit }) => {
         requireUnlocked();
         const needle = search?.toLowerCase();

@@ -66,6 +66,11 @@ export const DEFAULT_TIMINGS: SupervisorTimings = {
 // rest are dropped.
 const MAX_RESPONSES_PER_REQUEST = 100;
 
+// Code that can change the database without the supervisor's knowledge: a use() call or the
+// `use <db>` shell command, an assignment to db, and getSiblingDB. The supervisor forgets the
+// database after such code, so the next request switches explicitly.
+const CHANGES_DATABASE = /(^|[^\w$.])(use(\s*\(|\s+[\w$"'])|db\s*=(?!=))|\bgetSiblingDB\s*\(/;
+
 export interface RuntimeSupervisorOptions {
   // The built shell runtime bundle that each process runs.
   readonly entryPath: string;
@@ -169,6 +174,9 @@ interface Slot {
   readonly cancelledQueued: Set<string>;
   // Id of the request whose evaluation opened the current cursor. "next" is valid only for it.
   cursorOwner: string | undefined;
+  // Database the runtime's `db` points at, as far as this supervisor knows. A `use` clears the
+  // runtime's cursor, so the switch is skipped when the database is already the one asked for.
+  database: string | undefined;
   // Times of crash restarts inside the crash window.
   restarts: number[];
 }
@@ -231,6 +239,9 @@ export class RuntimeSupervisor {
         return failed(requestId, cancelledError(), started);
       }
       slot.cursorOwner = undefined;
+      if (CHANGES_DATABASE.test(input.code)) {
+        slot.database = undefined;
+      }
       const outcome = await this.exchange(
         slot,
         {
@@ -449,6 +460,7 @@ export class RuntimeSupervisor {
       activeIds: new Set(),
       cancelledQueued: new Set(),
       cursorOwner: undefined,
+      database: undefined,
       restarts: [],
     };
     this.slots.set(connectionId, slot);
@@ -837,6 +849,7 @@ export class RuntimeSupervisor {
     slot.child = null;
     slot.ready = false;
     slot.cursorOwner = undefined;
+    slot.database = undefined;
     const waiter = slot.readyWaiter;
     slot.readyWaiter = undefined;
     waiter?.reject(new AppErrorException(error));
@@ -869,8 +882,12 @@ export class RuntimeSupervisor {
     }, this.timings.stopGraceMs);
   }
 
-  // Switches the runtime to the requested database before a request that depends on it.
+  // Switches the runtime to the requested database before a request that depends on it. A switch
+  // that is not needed is skipped, because the switch clears the runtime's open cursor.
   private async useDatabase(slot: Slot, database: string): Promise<AppError | undefined> {
+    if (slot.database === database) {
+      return undefined;
+    }
     const outcome = await this.exchange(
       slot,
       {
@@ -889,7 +906,12 @@ export class RuntimeSupervisor {
       return outcome.abort;
     }
     const failure = find(outcome.responses, 'error');
-    return failure?.error;
+    if (outcome.abort !== undefined || failure !== undefined) {
+      slot.database = undefined;
+      return outcome.abort ?? failure?.error;
+    }
+    slot.database = database;
+    return undefined;
   }
 
   private setState(slot: Slot, state: ShellRuntimeState): void {

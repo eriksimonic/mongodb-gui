@@ -64,12 +64,12 @@ export function ExplainSummaryBar({ tree }: { readonly tree: PlanTree }) {
       </dl>
       <Group gap={4}>
         {summary.inMemorySort ? (
-          <Badge color="orange" variant="light">
+          <Badge tt="none" color="orange" variant="light">
             Sort in memory
           </Badge>
         ) : null}
         {summary.covered === true ? (
-          <Badge color="teal" variant="light">
+          <Badge tt="none" color="teal" variant="light">
             Covered
           </Badge>
         ) : null}
@@ -119,7 +119,7 @@ export function ExplainWarnings({ warnings, onSelect }: ExplainWarningsProps) {
               }
             }}
           >
-            <Badge color={SEVERITY_COLOR[warning.severity]} variant="light" size="sm">
+            <Badge tt="none" color={SEVERITY_COLOR[warning.severity]} variant="light" size="sm">
               {warning.severity}
             </Badge>
             <Code>{warning.code}</Code>

@@ -105,7 +105,7 @@ function ExplainPanelBody({ panel }: { readonly panel: ExplainPanelState }) {
             </Text>
           ) : null}
           {outcome.state === 'ready' && outcome.result.tree.engine !== 'unknown' ? (
-            <Badge variant="outline" color="gray" size="sm">
+            <Badge tt="none" variant="outline" color="gray" size="sm">
               {outcome.result.tree.engine}
             </Badge>
           ) : null}

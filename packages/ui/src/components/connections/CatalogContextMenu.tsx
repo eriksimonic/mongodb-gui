@@ -23,7 +23,13 @@ export function DatabaseContextMenu({
   const setTransferDialog = useAppStore((state) => state.setTransferDialog);
   const refreshDatabase = useAppStore((state) => state.refreshDatabase);
   const profilerOpener = useProfilerOpener();
+  const openEditor = useAppStore((state) => state.openEditor);
   const entries: TreeMenuEntry[] = [
+    {
+      kind: 'item',
+      label: 'Open editor',
+      onSelect: () => openEditor({ connectionId, database }),
+    },
     {
       kind: 'item',
       label: 'New collection',

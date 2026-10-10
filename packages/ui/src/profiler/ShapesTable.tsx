@@ -56,7 +56,7 @@ export function ShapesTable({ shapes, onSelect }: ShapesTableProps) {
             <Table.Td>{shape.p95Millis}</Table.Td>
             <Table.Td>{shape.ns}</Table.Td>
             <Table.Td>
-              <Badge variant="light" size="xs" color="gray">
+              <Badge tt="none" variant="light" size="xs" color="gray">
                 {shape.op}
               </Badge>
             </Table.Td>
@@ -80,6 +80,7 @@ export function ShapesTable({ shapes, onSelect }: ShapesTableProps) {
                 ) : (
                   shape.planSummaries.map((plan) => (
                     <Badge
+                      tt="none"
                       key={plan}
                       size="xs"
                       variant="light"

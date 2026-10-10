@@ -28,7 +28,12 @@ import {
   MonitorStartInputSchema,
   MonitorStopInputSchema,
 } from '../schemas/monitor';
-import { FavouriteInputSchema, FavouriteSchema, HistoryEntrySchema } from '../schemas/history';
+import {
+  FavouriteInputSchema,
+  FavouriteSchema,
+  HistoryAppendInputSchema,
+  HistoryEntrySchema,
+} from '../schemas/history';
 import { VaultStatusSchema } from '../schemas/vault';
 import {
   ShellCancelInputSchema,
@@ -93,6 +98,7 @@ import {
   SaveDialogInputSchema,
   ShowItemInFolderInputSchema,
   StartExportInputSchema,
+  WriteExportInputSchema,
   StartImportInputSchema,
   StartTransferOutputSchema,
   TransferIdInputSchema,
@@ -276,6 +282,7 @@ export const rpcContract = {
       }),
       z.array(HistoryEntrySchema),
     ),
+    append: defineCall(HistoryAppendInputSchema, HistoryEntrySchema),
     clear: defineCall(z.void(), z.void()),
   },
   favourites: {
@@ -352,5 +359,7 @@ export const rpcContract = {
     showSaveDialog: defineCall(SaveDialogInputSchema, DialogResultSchema),
     /** Reveals a file this session exported. Other paths are refused by the router. */
     showItemInFolder: defineCall(ShowItemInFolderInputSchema, z.void()),
+    /** Replaces the file the user picked with showSaveDialog with text. The pick is good for one write. */
+    writeExport: defineCall(WriteExportInputSchema, z.void()),
   },
 } satisfies RpcContract;

@@ -17,6 +17,8 @@ export interface DocumentEditorDialogProps {
   /** The `_id` as EJSON. Required when editing, because replace needs it. */
   readonly idEjson?: string | undefined;
   readonly onClose: () => void;
+  /** Called with the saved EJSON after an edit is written. Other modes do not call it. */
+  readonly onSaved?: ((documentEjson: string) => void) | undefined;
 }
 
 const TITLES: Readonly<Record<DocumentEditorMode, string>> = {
@@ -43,6 +45,7 @@ export function DocumentEditorDialog({
   initialText,
   idEjson,
   onClose,
+  onSaved,
 }: DocumentEditorDialogProps) {
   const { rpc } = useUiApi();
   const [text, setText] = useState(initialText);
@@ -69,6 +72,7 @@ export function DocumentEditorDialog({
           idEjson,
           documentEjson: text,
         });
+        onSaved?.(text);
       } else {
         await rpc.management.insertDocument({
           connectionId,

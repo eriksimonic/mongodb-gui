@@ -33,3 +33,12 @@
   --dv-floating-titlebar-background-color: var(--mg-surface-1);
   --dv-border-radius: 0;
 }
+
+/* The editor toolbar keeps every control at its own width and scrolls sideways when narrow. */
+.mg-editor-toolbar {
+  overflow-x: auto;
+}
+
+.mg-editor-toolbar > * {
+  flex-shrink: 0;
+}

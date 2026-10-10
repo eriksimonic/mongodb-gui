@@ -286,17 +286,17 @@ function StageRowBody({ row, metric, max, hot, onToggle }: StageRowBodyProps) {
         )}
         <span className="mg-explain-stage-name">{stage.name}</span>
         {stage.index === undefined ? null : (
-          <Badge variant="outline" color="gray" size="sm">
+          <Badge tt="none" variant="outline" color="gray" size="sm">
             {stage.index}
           </Badge>
         )}
         {stage.shard === undefined ? null : (
-          <Badge variant="light" color="violet" size="sm">
+          <Badge tt="none" variant="light" color="violet" size="sm">
             {stage.shard}
           </Badge>
         )}
         {hot ? (
-          <Badge variant="light" color="red" size="sm">
+          <Badge tt="none" variant="light" color="red" size="sm">
             Hot
           </Badge>
         ) : null}

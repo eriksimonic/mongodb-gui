@@ -67,10 +67,13 @@ export function removeUserDataDir(userDataDir: string): Promise<void> {
 }
 
 /** Launches the built app from packages/app/out against the given profile directory. */
-export async function launchApp(userDataDir: string): Promise<AppSession> {
+export async function launchApp(
+  userDataDir: string,
+  extraArgs: readonly string[] = [],
+): Promise<AppSession> {
   const app = await electron.launch({
     executablePath: electronBinary(),
-    args: [mainEntry, '--no-sandbox'],
+    args: [mainEntry, '--no-sandbox', ...extraArgs],
     env: {
       ...process.env,
       MONGO_GUI_USER_DATA: userDataDir,

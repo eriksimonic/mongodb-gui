@@ -13,12 +13,14 @@ import {
   type IDockviewPanelProps,
 } from 'dockview-react';
 import { ConnectionTree } from '../components/connections/ConnectionTree';
-import { TransfersPanel } from '../components/transfers/TransfersPanel';
 import { DocumentsPanel } from '../components/management/DocumentsPanel';
 import { IndexesPanel } from '../components/management/IndexesPanel';
 import { ValidationPanel } from '../components/management/ValidationPanel';
 import { ExplainPanel } from '../explain/ExplainPanel';
 import { ProfilerPanel } from '../profiler/ProfilerPanel';
+import { EditorView } from '../components/editor/EditorView';
+
+export { OutputPanel } from '../components/editor/OutputPanel';
 import { SchemaPanel } from '../schema/SchemaPanel';
 import { MonitorDashboard } from '../monitor/MonitorDashboard';
 import { OperationsPanel } from '../monitor/OperationsPanel';
@@ -56,6 +58,16 @@ export function ExplainDockPanel({ params }: IDockviewPanelProps<ExplainPanelPar
 /** A profiler panel of one database. Closing the tab drops its state and stops its tail. */
 export function ProfilerDockPanel({ params }: IDockviewPanelProps<ProfilerPanelParams>) {
   return <ProfilerPanel connectionId={params.connectionId} database={params.database} />;
+}
+
+/** Params of an editor panel. The tab's state lives in the store, so only its id is passed. */
+export interface EditorPanelParams {
+  readonly tabId: string;
+}
+
+/** A query editor tab. Closing the tab removes the editor from the store. */
+export function EditorDockPanel({ params }: IDockviewPanelProps<EditorPanelParams>) {
+  return <EditorView tabId={params.tabId} />;
 }
 
 /** Tab for the three fixed panels. Same as dockview's default tab without the close button. */
@@ -261,15 +273,6 @@ function usePanelVisible(api: IDockviewPanelProps['api']): boolean {
     };
   }, [api]);
   return visible;
-}
-
-/** Bottom panel. Command output will appear here. Transfers are listed until then. */
-export function OutputPanel() {
-  return (
-    <Box p={8} h="100%" style={{ overflow: 'auto' }}>
-      <TransfersPanel />
-    </Box>
-  );
 }
 
 /** Dock panel: indexes of one collection. */

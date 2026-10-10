@@ -26,6 +26,8 @@ export function ConnectionContextMenu({
   const setDialog = useAppStore((state) => state.setDialog);
   const setManagementDialog = useAppStore((state) => state.setManagementDialog);
   const openPanel = usePanelOpener();
+  const openEditor = useAppStore((state) => state.openEditor);
+  const loadedDatabases = useAppStore((state) => state.databases[connection.id]);
   const canConnect = status.state === 'disconnected' || status.state === 'error';
   const canDisconnect = status.state === 'connected' || status.state === 'connecting';
 
@@ -90,6 +92,16 @@ export function ConnectionContextMenu({
           }}
         >
           New database
+        </Menu.Item>
+        <Menu.Item
+          onClick={() => {
+            onClose();
+            const first =
+              loadedDatabases?.state === 'ready' ? loadedDatabases.data[0]?.name : undefined;
+            openEditor({ connectionId: connection.id, database: first ?? 'admin', newTab: true });
+          }}
+        >
+          Open editor
         </Menu.Item>
         <Menu.Item
           onClick={() => {

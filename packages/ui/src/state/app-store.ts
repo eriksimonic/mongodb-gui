@@ -58,6 +58,8 @@ export const DOCK_LAYOUT_KEY = 'dockview:main';
 
 /** Why the vault last locked. The unlock screen explains an idle lock. */
 export type LockReason = 'manual' | 'idle';
+import { EMPTY_EDITORS, savedTabsOf, type EditorsState } from './editors';
+import { createEditorActions, type EditorActions } from './editor-actions';
 import {
   applyTransferProgress,
   registerTransfer,
@@ -200,6 +202,8 @@ export interface AppData {
   readonly layoutRevision: number;
   /** The updater state, pushed by the backend and read on start. */
   readonly updates: UpdateState;
+  /** Editor tabs, their results and output, and the shell runtime state of each connection. */
+  readonly editors: EditorsState;
   /** Imports and exports this session started, with their latest progress. */
   readonly transfers: TransfersState;
   readonly transferDialog: TransferDialogState;
@@ -209,7 +213,7 @@ export interface AppData {
   readonly explainFocus: { readonly id: string; readonly serial: number } | undefined;
 }
 
-export interface AppActions extends ExplainActions {
+export interface AppActions extends EditorActions, ExplainActions {
   refreshVault(): Promise<void>;
   initialise(password: string): Promise<void>;
   unlock(password: string): Promise<void>;
@@ -313,6 +317,7 @@ const SESSION_RESET: Pick<
   | 'validationField'
   | 'settingsOpen'
   | 'settings'
+  | 'editors'
   | 'transfers'
   | 'transferDialog'
   | 'explainPanels'
@@ -334,6 +339,7 @@ const SESSION_RESET: Pick<
   validationField: undefined,
   settingsOpen: false,
   settings: undefined,
+  editors: EMPTY_EDITORS,
   transfers: {},
   transferDialog: { kind: 'closed' },
   explainPanels: {},
@@ -417,9 +423,15 @@ export function createAppStore(api: UiApi, initial: Partial<AppData> = {}): AppS
   // Changes made before the saved layout was read. They replay on top of it once it loads.
   const pendingDashboardChanges = new Map<string, LayoutChange[]>();
 
-  return createStore<AppState>()((set, get) => {
+  const store = createStore<AppState>()((set, get) => {
+    const editorActions = createEditorActions({
+      rpc,
+      get: () => get(),
+      update: (update) => set((state) => ({ editors: update(state.editors) })),
+    });
     function clearSession(): void {
       set(SESSION_RESET);
+      editorActions.forgetRestored();
     }
 
     /** Stores the settings the UI reads and keeps the cached copy for the locked screens. */
@@ -523,6 +535,7 @@ export function createAppStore(api: UiApi, initial: Partial<AppData> = {}): AppS
       theme: cached.theme,
       idleLockMinutes: cached.idleLockMinutes,
       ...initial,
+      ...editorActions,
       ...createExplainActions(rpc, set, get),
 
       async refreshVault() {
@@ -582,6 +595,9 @@ export function createAppStore(api: UiApi, initial: Partial<AppData> = {}): AppS
         try {
           const data = await rpc.connections.list();
           set({ connections: { state: 'ready', data } });
+          for (const connection of data) {
+            void editorActions.restoreEditors(connection.id);
+          }
         } catch (error) {
           set({ connections: { state: 'error', error: toAppError(error) } });
         }
@@ -990,6 +1006,14 @@ export function createAppStore(api: UiApi, initial: Partial<AppData> = {}): AppS
       },
 
       applyEvent(event) {
+        if (event.type === 'shell:print') {
+          editorActions.printLine(event.requestId, event.text);
+          return;
+        }
+        if (event.type === 'shell:state') {
+          editorActions.setRuntimeState(event.connectionId, event.state);
+          return;
+        }
         if (event.type === 'updates:state') {
           set({ updates: event.state });
           return;
@@ -1056,5 +1080,41 @@ export function createAppStore(api: UiApi, initial: Partial<AppData> = {}): AppS
         }
       },
     };
+  });
+  persistEditorTabs(store);
+  return store;
+}
+
+const PERSIST_DELAY_MS = 500;
+
+/**
+ * Saves the tabs of each connection whose saved part changed. Saves wait a short time, so typing
+ * sends one write per pause rather than one per key.
+ */
+function persistEditorTabs(store: AppStore): void {
+  const timers = new Map<string, ReturnType<typeof setTimeout>>();
+  store.subscribe((state, previous) => {
+    if (state.editors === previous.editors) {
+      return;
+    }
+    const connectionIds = new Set([
+      ...Object.values(state.editors.tabs).map((tab) => tab.connectionId),
+      ...Object.values(previous.editors.tabs).map((tab) => tab.connectionId),
+    ]);
+    for (const connectionId of connectionIds) {
+      const now = JSON.stringify(savedTabsOf(state.editors, connectionId));
+      const before = JSON.stringify(savedTabsOf(previous.editors, connectionId));
+      if (now === before) {
+        continue;
+      }
+      clearTimeout(timers.get(connectionId));
+      timers.set(
+        connectionId,
+        setTimeout(() => {
+          timers.delete(connectionId);
+          void store.getState().persistEditors(connectionId);
+        }, PERSIST_DELAY_MS),
+      );
+    }
   });
 }

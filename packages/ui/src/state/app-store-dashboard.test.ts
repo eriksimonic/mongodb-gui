@@ -151,10 +151,13 @@ describe('dashboard store', () => {
       ],
     } as const;
     let resolveRead: (result: { value: unknown }) => void = () => undefined;
-    vi.spyOn(api.rpc.layout, 'get').mockReturnValueOnce(
-      new Promise((resolve) => {
-        resolveRead = resolve;
-      }),
+    const pendingRead = new Promise<{ value: unknown }>((resolve) => {
+      resolveRead = resolve;
+    });
+    // Other features (the editor tabs) read their own layout keys; only the dashboard read is held.
+    const readLayout = api.rpc.layout.get.bind(api.rpc.layout);
+    vi.spyOn(api.rpc.layout, 'get').mockImplementation((input) =>
+      input.key === dashboardLayoutKey(localConnectionId) ? pendingRead : readLayout(input),
     );
     const store = await unlockedStore(api);
 

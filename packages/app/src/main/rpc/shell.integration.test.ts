@@ -139,6 +139,61 @@ describe('shell namespace through the router against MongoDB 8.0', () => {
   );
 
   it(
+    'runs the next evaluation on its own database after db is reassigned',
+    async () => {
+      valueOf(
+        await call('shell.evaluate', {
+          connectionId,
+          database: DATABASE,
+          code: 'db = db.getSiblingDB("other")',
+        }),
+      );
+      const outcome = valueOf(
+        await call('shell.evaluate', {
+          connectionId,
+          database: DATABASE,
+          code: 'db.getName()',
+        }),
+      ) as { result?: { printableEjson: string } };
+      expect(outcome.result?.printableEjson).toBe('"shop"');
+    },
+    CALL_TIMEOUT_MS,
+  );
+
+  it(
+    'keeps the open cursor when a completion runs between pages',
+    async () => {
+      const first = valueOf(
+        await call('shell.evaluate', {
+          connectionId,
+          database: DATABASE,
+          code: 'db.orders.find({}).sort({ n: 1 })',
+          batchSize: 25,
+        }),
+      ) as { requestId: string; result?: { hasMore: boolean } };
+      expect(first.result?.hasMore).toBe(true);
+
+      // Completing in the same database must not run use(), which would clear the cursor.
+      const completed = valueOf(
+        await call('shell.complete', {
+          connectionId,
+          database: DATABASE,
+          code: 'db.orders.fi',
+          position: 'db.orders.fi'.length,
+        }),
+      ) as { items: { text: string }[] };
+      expect(completed.items.map((item) => item.text)).toContain('db.orders.find');
+
+      const second = valueOf(
+        await call('shell.next', { connectionId, requestId: first.requestId, batchSize: 25 }),
+      ) as { result?: { printableEjson: string; hasMore: boolean } };
+      expect(documentsOf(second.result?.printableEjson ?? '[]')).toHaveLength(25);
+      expect(second.result?.hasMore).toBe(true);
+    },
+    CALL_TIMEOUT_MS,
+  );
+
+  it(
     'streams print output as shell:print events tagged with the request id',
     async () => {
       const requestId = '6f1b2c3d-4e5f-4a6b-8c7d-9e0f1a2b3c4d';

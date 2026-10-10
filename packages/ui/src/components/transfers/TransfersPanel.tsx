@@ -56,7 +56,7 @@ function TransferLine({ view }: { view: TransferView }) {
           {label}
         </Text>
         {progress.error?.code === 'CANCELLED' ? (
-          <Badge color="gray" variant="light" size="sm">
+          <Badge tt="none" color="gray" variant="light" size="sm">
             Cancelled
           </Badge>
         ) : (

@@ -66,6 +66,15 @@ export const DialogResultSchema = z.object({ path: AbsolutePathSchema.optional()
 
 export const ShowItemInFolderInputSchema = z.object({ path: AbsolutePathSchema });
 
+/** Largest text one result export writes. A result page is far below it. */
+export const WRITE_EXPORT_MAX_CHARS = 64 * 1024 * 1024;
+
+// Text for a file the user picked with the save dialog. The main process writes it only to a new file.
+export const WriteExportInputSchema = z.object({
+  path: AbsolutePathSchema,
+  content: z.string().max(WRITE_EXPORT_MAX_CHARS),
+});
+
 export type PreviewImportInput = z.infer<typeof PreviewImportInputSchema>;
 export type StartImportInput = z.infer<typeof StartImportInputSchema>;
 export type StartExportInput = z.infer<typeof StartExportInputSchema>;
