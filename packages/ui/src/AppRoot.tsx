@@ -6,6 +6,7 @@ import type { AppData } from './state/app-store';
 import { AppStoreProvider } from './state/AppStoreProvider';
 import { useAppStore } from './state/app-store-context';
 import { ProfilerStoreProvider } from './profiler/ProfilerStoreProvider';
+import { ChangesStoreProvider } from './changes/ChangesStoreProvider';
 
 export interface AppRootProps {
   readonly api: UiApi;
@@ -19,7 +20,9 @@ export function AppRoot({ api, initialState, children }: AppRootProps) {
     <UiApiProvider api={api}>
       <AppStoreProvider initialState={initialState}>
         <ThemedProviders>
-          <ProfilerStoreProvider>{children}</ProfilerStoreProvider>
+          <ProfilerStoreProvider>
+            <ChangesStoreProvider>{children}</ChangesStoreProvider>
+          </ProfilerStoreProvider>
         </ThemedProviders>
       </AppStoreProvider>
     </UiApiProvider>

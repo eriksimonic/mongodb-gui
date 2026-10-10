@@ -1175,6 +1175,10 @@ export function createAppStore(api: UiApi, initial: Partial<AppData> = {}): AppS
           void get().refreshDockerStatus();
           return;
         }
+        // Change events belong to the change streams store.
+        if (event.type === 'changes:event' || event.type === 'changes:state') {
+          return;
+        }
         // Auto connect creates profiles without a call from the UI, so the list is refreshed here.
         const connections = get().connections;
         const known =

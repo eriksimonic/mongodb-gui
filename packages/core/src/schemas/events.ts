@@ -2,6 +2,7 @@ import { z } from 'zod';
 import { DockerMongoContainerSummarySchema } from '../docker/types';
 import { MonitorSampleSchema } from '../monitor/schemas';
 import { ProfileEntrySchema } from '../profiler/types';
+import { ChangeEventsPushSchema, ChangeWatchPushStateSchema } from '../changes/calls';
 import { UpdateStateSchema } from '../updates/types';
 import { AppErrorSchema } from './errors';
 import { ConnectionStatusSchema } from './connection';
@@ -46,6 +47,13 @@ export const RpcEventSchema = z.discriminatedUnion('type', [
     connectionId: z.uuid(),
     database: z.string().min(1),
     error: AppErrorSchema,
+  }),
+  // Events of one change watch, in arrival order, at most CHANGE_EVENT_BATCH_LIMIT per push.
+  z.object({ type: z.literal('changes:event') }).extend(ChangeEventsPushSchema.shape),
+  z.object({
+    type: z.literal('changes:state'),
+    watchId: z.uuid(),
+    state: ChangeWatchPushStateSchema,
   }),
   z.object({
     type: z.literal('docker:containers'),

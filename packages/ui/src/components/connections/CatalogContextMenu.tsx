@@ -1,3 +1,4 @@
+import { useChangesOpener } from '../../changes/changes-opener';
 import { useProfilerOpener } from '../../profiler/profiler-opener';
 import { useAppStore } from '../../state/app-store-context';
 import { usePanelOpener } from '../../state/panel-opener';
@@ -25,6 +26,7 @@ export function DatabaseContextMenu({
   const refreshDatabase = useAppStore((state) => state.refreshDatabase);
   const setGridFsDialog = useAppStore((state) => state.setGridFsDialog);
   const profilerOpener = useProfilerOpener();
+  const changesOpener = useChangesOpener();
   const openEditor = useAppStore((state) => state.openEditor);
   const openPanel = usePanelOpener();
   const entries: TreeMenuEntry[] = [
@@ -48,6 +50,11 @@ export function DatabaseContextMenu({
       kind: 'item',
       label: 'Open profiler',
       onSelect: () => profilerOpener?.open(connectionId, database),
+    },
+    {
+      kind: 'item',
+      label: 'Watch changes',
+      onSelect: () => changesOpener?.open(connectionId, { kind: 'database', database }),
     },
     {
       kind: 'item',
@@ -92,6 +99,7 @@ export function CollectionContextMenu({
   const setManagementDialog = useAppStore((state) => state.setManagementDialog);
   const setTransferDialog = useAppStore((state) => state.setTransferDialog);
   const refreshDatabase = useAppStore((state) => state.refreshDatabase);
+  const changesOpener = useChangesOpener();
   const target = { connectionId, database, collection };
   const entries: TreeMenuEntry[] = [
     {
@@ -113,6 +121,12 @@ export function CollectionContextMenu({
       kind: 'item',
       label: 'Analyse schema',
       onSelect: () => requestPanel({ panel: 'schema', ...target }),
+    },
+    {
+      kind: 'item',
+      label: 'Watch changes',
+      onSelect: () =>
+        changesOpener?.open(connectionId, { kind: 'collection', database, collection }),
     },
     {
       kind: 'item',

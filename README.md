@@ -85,6 +85,10 @@ inline edits in the tree, and a history and favourites list in the Output panel.
 | ---------------------------------------------------------------------------------------------------------------------- |
 | ![GridFS panel with the files of a bucket, the metadata badges and an upload in progress](docs/screenshots/gridfs.png) |
 
+| Change stream on a collection with live events and the selected event                                                                        |
+| -------------------------------------------------------------------------------------------------------------------------------------------- |
+| ![Change stream panel with the live event list, the state strip and the detail pane of a replace event](docs/screenshots/change-streams.png) |
+
 ## Prerequisites
 
 - Node.js 24 (see `.nvmrc`)

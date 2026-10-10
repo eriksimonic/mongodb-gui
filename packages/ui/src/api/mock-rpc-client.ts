@@ -62,6 +62,7 @@ import {
   mockSavePath,
 } from './mock-transfer';
 import { createMockProfiler } from './mock-profiler';
+import { createMockChanges } from './mock-changes';
 import { createMockGridFs, MOCK_FOLDER_PATH } from './mock-gridfs';
 import { createMockReplication } from './mock-replication';
 import { createMockExplain } from './mock-explain';
@@ -363,6 +364,7 @@ export function createMockUiApi(options: MockUiApiOptions = {}): UiApi {
     state.statuses.set(connectionId, status);
     if (status.state !== 'connected') {
       monitor.stopConnection(connectionId);
+      changes.stopConnection(connectionId);
       shell.clearConnection(connectionId);
     }
     emit({ type: 'connection:status', connectionId, status });
@@ -520,6 +522,14 @@ export function createMockUiApi(options: MockUiApiOptions = {}): UiApi {
 
   const explain = createMockExplain({ wrap: wrapCall, requireUnlocked, requireConnected });
 
+  const changes = createMockChanges({
+    latencyMs,
+    requireUnlocked,
+    requireConnected,
+    catalogOf,
+    emit,
+  });
+
   const replication = createMockReplication({
     latencyMs,
     guard,
@@ -654,6 +664,7 @@ export function createMockUiApi(options: MockUiApiOptions = {}): UiApi {
         if (state.vault === 'unlocked') {
           state.vault = 'locked';
           monitor.stopAll();
+          changes.stopAll();
           disconnectAll();
           emit({ type: 'vault:locked' });
         }
@@ -973,6 +984,7 @@ export function createMockUiApi(options: MockUiApiOptions = {}): UiApi {
       }),
     },
     profiler,
+    changes,
     explain,
     replication: replication.rpc,
     docker: {
