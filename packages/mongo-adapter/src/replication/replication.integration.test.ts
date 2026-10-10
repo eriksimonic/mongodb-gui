@@ -1,4 +1,5 @@
 import type { MongoClient } from 'mongodb';
+import { getContainerRuntimeClient } from 'testcontainers';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { AppErrorException, ReplicaSetStatusSchema, type ReplicaSetStatus } from '@mongo-gui/core';
 import { CONTAINER_STARTUP_TIMEOUT_MS } from '../test/mongo-container';
@@ -305,8 +306,13 @@ describe.each(IMAGES)('replica set administration on %s', (image) => {
       if (downNode === undefined) {
         throw new Error(`no container for ${down.name}`);
       }
-      // Keep the stopped container, so it can restart later.
-      await downNode.container.stop({ remove: false });
+      // Stop the container through the engine client, so it can restart later. Testcontainers'
+      // stop({ remove: false }) would mark the container as stopped for good, and the stop at the
+      // end of the suite would then skip the restarted container and leave it running.
+      const runtime = await getContainerRuntimeClient();
+      await runtime.container.stop(runtime.container.getById(downNode.container.getId()), {
+        timeout: 0,
+      });
       await waitUntil(
         async () =>
           withPrimary(async (client) => {

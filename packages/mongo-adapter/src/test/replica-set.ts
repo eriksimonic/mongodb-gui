@@ -78,11 +78,20 @@ export async function startReplicaSet(image: string, size: number): Promise<Repl
   const aliases = Array.from({ length: size }, (_, index) => `${prefix}-${index}`);
   const nodes: MongoNode[] = [];
   try {
-    nodes.push(
-      ...(await Promise.all(
-        aliases.map((alias) => startMongoNode(image, { replSet: true, network, alias })),
-      )),
+    // allSettled, so the members that did start are in nodes and get stopped if another fails.
+    // CI runs without Ryuk, so a member left out here would keep running until the job ends.
+    const settled = await Promise.allSettled(
+      aliases.map((alias) => startMongoNode(image, { replSet: true, network, alias })),
     );
+    for (const result of settled) {
+      if (result.status === 'fulfilled') {
+        nodes.push(result.value);
+      }
+    }
+    const failed = settled.find((result) => result.status === 'rejected');
+    if (failed !== undefined) {
+      throw failed.reason;
+    }
     const [first] = nodes;
     if (first === undefined) {
       throw new Error('the replica set has no members');
