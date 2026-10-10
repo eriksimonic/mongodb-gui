@@ -367,6 +367,8 @@ export function createBackupService<Client>(deps: BackupServiceDeps<Client>): Ba
     let config: TempConfig | undefined;
     let error: AppError | undefined;
     let result: BackupResult | undefined;
+    // Set once the dump is complete on disk. A later failure keeps the files.
+    let dumpComplete = false;
     send.now();
     try {
       config = await writeTempConfig(deps.tmpRoot, toolsConfigYaml(endpoint.uri));
@@ -477,6 +479,7 @@ export function createBackupService<Client>(deps: BackupServiceDeps<Client>): Ba
       if (signal.aborted)
         throw new AppErrorException(appError('CANCELLED', 'The backup was cancelled.'));
 
+      dumpComplete = true;
       tracker.phase('writing-sidecar');
       send.now();
       const mongodumpSha256 = await hashFile(tools.mongodump, () => undefined);
@@ -536,10 +539,18 @@ export function createBackupService<Client>(deps: BackupServiceDeps<Client>): Ba
       error = signal.aborted
         ? appError('CANCELLED', 'The backup was cancelled.')
         : toAppError(failure, endpoint.secrets);
-      // The output did not exist at start, so whatever is there now is this job's.
-      await rm(partialPath, { force: true }).catch(() => undefined);
-      await rm(plan.outputPath, { recursive: true, force: true }).catch(() => undefined);
-      if (archive) await rm(plan.sidecarPath, { force: true }).catch(() => undefined);
+      if (dumpComplete && !signal.aborted) {
+        // The dump itself is fine; only the sidecar failed. Keep the files and say so.
+        error = {
+          ...error,
+          message: `The backup finished at ${plan.outputPath}, but its description file could not be written: ${error.message}`,
+        };
+      } else {
+        // The output did not exist at start, so whatever is there now is this job's.
+        await rm(partialPath, { force: true }).catch(() => undefined);
+        await rm(plan.outputPath, { recursive: true, force: true }).catch(() => undefined);
+        if (archive) await rm(plan.sidecarPath, { force: true }).catch(() => undefined);
+      }
     } finally {
       await config?.dispose();
     }

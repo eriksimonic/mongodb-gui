@@ -346,6 +346,23 @@ describe('backup service dump', () => {
     t.assertNoSecrets();
   });
 
+  it('keeps a finished archive when its sidecar cannot be written', async () => {
+    const outputPath = join(folder, 'shop-backup.archive.gz');
+    const t = setup((child) => {
+      // A folder in the sidecar's place makes the sidecar write fail after the dump.
+      mkdirSync(`${outputPath}.json`);
+      archiveDump(child);
+    });
+    await t.service.startDump(dumpInput());
+    const last = await t.finalEvent();
+
+    expect(last).toMatchObject({ done: true, cancelled: false });
+    expect(last.error?.message).toContain(`The backup finished at ${outputPath}`);
+    expect(readFileSync(outputPath)).toEqual(ARCHIVE_BYTES);
+    expect(t.tempConfigsLeft()).toEqual([]);
+    t.assertNoSecrets();
+  });
+
   it('passes the config file and never the URI on the command line', async () => {
     let config = '';
     const t = setup((child) => {
