@@ -24,6 +24,7 @@ import {
   type FindingCode,
   type ReadPreferenceMode,
   type ToolsListOutput,
+  type ToolsVersion,
   type WireCompressor,
 } from '@mongo-gui/core';
 import { useEffect, useMemo, useRef, useState } from 'react';
@@ -313,6 +314,18 @@ export function BackupDialogBody({
         merged = { ...merged, name: defaultBackupName(connectionName, named, now) };
       }
       return merged;
+    });
+  }
+
+  // A finished download is missing from the list loaded on open. Reload it before selecting the
+  // version, so the picker has an item for it and the findings count it as installed.
+  function toolsDownloaded(version: ToolsVersion) {
+    void runReported(async () => {
+      try {
+        setTools(await rpc.tools.list());
+      } finally {
+        patch({ toolsVersion: version });
+      }
     });
   }
 
@@ -607,6 +620,7 @@ export function BackupDialogBody({
         onChange={(version) => {
           patch({ toolsVersion: version });
         }}
+        onDownloaded={toolsDownloaded}
       />
       {namespaces.length === 0 ? null : (
         <Text size="sm" c="dimmed" data-testid="estimate">
@@ -627,6 +641,7 @@ export function BackupDialogBody({
         onUseTools={(version) => {
           patch({ toolsVersion: version });
         }}
+        onDownloaded={toolsDownloaded}
       />
       {loadProblem === undefined ? null : (
         <Alert color="red" role="alert">

@@ -19,6 +19,7 @@ import {
   type BackupServerInfo,
   type FindingCode,
   type ToolsListOutput,
+  type ToolsVersion,
 } from '@mongo-gui/core';
 import { useEffect, useMemo, useState } from 'react';
 import { useUiApi } from '../../api/ui-api';
@@ -260,6 +261,18 @@ export function RestoreDialogBody({
 
   function patch(next: Partial<RestoreDraft>) {
     setDraft((current) => (current === undefined ? current : { ...current, ...next }));
+  }
+
+  // A finished download is missing from the list loaded on open. Reload it before selecting the
+  // version, so the picker has an item for it and the findings count it as installed.
+  function toolsDownloaded(version: ToolsVersion) {
+    void runReported(async () => {
+      try {
+        setTools(await rpc.tools.list());
+      } finally {
+        patch({ toolsVersion: version });
+      }
+    });
   }
 
   function start() {
@@ -535,6 +548,7 @@ export function RestoreDialogBody({
             onChange={(version) => {
               patch({ toolsVersion: version });
             }}
+            onDownloaded={toolsDownloaded}
           />
           <CompatibilityFindings
             findings={findings}
@@ -550,6 +564,7 @@ export function RestoreDialogBody({
             onUseTools={(version) => {
               patch({ toolsVersion: version });
             }}
+            onDownloaded={toolsDownloaded}
           />
         </>
       )}

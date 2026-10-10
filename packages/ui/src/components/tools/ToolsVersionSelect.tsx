@@ -9,6 +9,8 @@ interface ToolsVersionSelectProps {
   readonly installs: readonly ToolsInstall[];
   readonly value: string | null;
   readonly onChange: (version: ToolsVersion) => void;
+  /** Called instead of onChange once a download is done, so the caller can reload its list. */
+  readonly onDownloaded?: ((version: ToolsVersion) => void) | undefined;
   readonly label?: SelectProps['label'];
   readonly disabled?: boolean | undefined;
 }
@@ -18,6 +20,7 @@ export function ToolsVersionSelect({
   installs,
   value,
   onChange,
+  onDownloaded,
   label = 'Tools version',
   disabled,
 }: ToolsVersionSelectProps) {
@@ -56,7 +59,7 @@ export function ToolsVersionSelect({
       <DownloadToolsModal
         opened={downloading}
         onClose={() => setDownloading(false)}
-        onDone={onChange}
+        onDone={onDownloaded ?? onChange}
       />
     </>
   );

@@ -1,5 +1,5 @@
 // @vitest-environment jsdom
-import { fireEvent, screen, waitFor } from '@testing-library/react';
+import { fireEvent, screen, waitFor, within } from '@testing-library/react';
 import { describe, expect, it, vi } from 'vitest';
 import { createMockUiApi, type MockUiApiOptions } from '../../api/mock-rpc-client';
 import { localConnectionId } from '../../api/mock-fixtures';
@@ -39,6 +39,23 @@ describe('BackupDialog', () => {
     expect(screen.getByRole('button', { name: 'Start backup' })).toBeDisabled();
     expect(screen.getByTestId('estimate')).toHaveTextContent(
       /About .* documents in \d+ collections/,
+    );
+  });
+
+  it('lists and selects a version downloaded from the tools picker', async () => {
+    await renderDialog();
+    fireEvent.click(screen.getByRole('textbox', { name: 'Tools version' }));
+    fireEvent.click(await screen.findByRole('option', { name: 'Download another version…' }));
+    const dialog = await screen.findByRole('dialog', { name: 'Download MongoDB Database Tools' });
+    fireEvent.click(await within(dialog).findByRole('textbox', { name: 'Version' }));
+    fireEvent.click(await screen.findByRole('option', { name: '100.15.0' }));
+    fireEvent.click(within(dialog).getByRole('button', { name: 'Download' }));
+    await waitFor(
+      () =>
+        expect(screen.getByRole('textbox', { name: 'Tools version' })).toHaveValue(
+          '100.15.0 (Downloaded)',
+        ),
+      { timeout: 4000 },
     );
   });
 

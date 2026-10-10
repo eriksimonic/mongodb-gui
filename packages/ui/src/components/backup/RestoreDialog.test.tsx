@@ -1,5 +1,5 @@
 // @vitest-environment jsdom
-import { fireEvent, screen, waitFor } from '@testing-library/react';
+import { fireEvent, screen, waitFor, within } from '@testing-library/react';
 import { describe, expect, it, vi } from 'vitest';
 import { createMockUiApi, type MockUiApiOptions } from '../../api/mock-rpc-client';
 import { localConnectionId } from '../../api/mock-fixtures';
@@ -110,6 +110,25 @@ describe('RestoreDialog', () => {
     await chooseArchive();
     fireEvent.click(await screen.findByRole('button', { name: 'Download 100.12.1' }));
     expect(await screen.findByText('Download MongoDB Database Tools')).toBeInTheDocument();
+  });
+
+  it('lists and selects the version a finding downloaded', async () => {
+    await renderDialog({ preset: 'unlocked', tools: 'mismatch' });
+    await chooseArchive();
+    fireEvent.click(await screen.findByRole('button', { name: 'Download 100.12.1' }));
+    const dialog = await screen.findByRole('dialog', { name: 'Download MongoDB Database Tools' });
+    await waitFor(() =>
+      expect(within(dialog).getByRole('textbox', { name: 'Version' })).toHaveValue('100.12.1'),
+    );
+    fireEvent.click(within(dialog).getByRole('button', { name: 'Download' }));
+    await waitFor(
+      () =>
+        expect(screen.getByRole('textbox', { name: 'Tools version' })).toHaveValue(
+          '100.12.1 (Downloaded)',
+        ),
+      { timeout: 4000 },
+    );
+    expect(screen.queryByRole('button', { name: 'Download 100.12.1' })).toBeNull();
   });
 
   it('labels the footer button from the dry run checkbox', async () => {

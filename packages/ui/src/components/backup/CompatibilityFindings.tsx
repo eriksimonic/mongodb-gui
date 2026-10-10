@@ -23,6 +23,8 @@ export interface CompatibilityFindingsProps {
   readonly onConfirmationChange: (value: string) => void;
   /** Called for the "Use X" action, and once a download started from "Download X" is done. */
   readonly onUseTools: (version: ToolsVersion) => void;
+  /** Called instead of onUseTools once a download is done, so the caller can reload its list. */
+  readonly onDownloaded?: ((version: ToolsVersion) => void) | undefined;
   /** The end of the confirmation label. Backup has no confirmable block, so restore sets it. */
   readonly confirmAction?: string;
 }
@@ -36,6 +38,7 @@ export function CompatibilityFindings({
   confirmation,
   onConfirmationChange,
   onUseTools,
+  onDownloaded,
   confirmAction = 'restore anyway',
 }: CompatibilityFindingsProps) {
   const [downloadVersion, setDownloadVersion] = useState<ToolsVersion | undefined>(undefined);
@@ -109,7 +112,7 @@ export function CompatibilityFindings({
         }}
         onDone={(version) => {
           setDownloadVersion(undefined);
-          onUseTools(version);
+          (onDownloaded ?? onUseTools)(version);
         }}
       />
     </Stack>
