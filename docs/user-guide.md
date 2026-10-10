@@ -183,6 +183,7 @@ Right-click a database or collection to see its menu. The collection menu offers
 
 Double-click a collection to open the same query tab as "Open documents". A collection name that
 is not a plain identifier, such as `daily-totals`, runs as `db.getCollection("daily-totals").find({})`.
+So does a name that starts with `_`, contains `$` or matches a `db` method, such as `stats`.
 If the active tab on the same connection is empty, the query replaces its text. Otherwise the query
 opens a new tab.
 

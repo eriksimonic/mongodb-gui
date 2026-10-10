@@ -1,4 +1,14 @@
-import { Box, Group, Paper, SimpleGrid, Stack, Text, ThemeIcon, Title } from '@mantine/core';
+import {
+  Box,
+  Group,
+  Paper,
+  Portal,
+  SimpleGrid,
+  Stack,
+  Text,
+  ThemeIcon,
+  Title,
+} from '@mantine/core';
 import {
   IconBrandDocker,
   IconKeyboard,
@@ -136,11 +146,15 @@ export function ClosableTab(props: IDockviewPanelHeaderProps) {
     >
       <DockviewDefaultTab {...props} />
       {position === undefined ? null : (
-        <TreeMenu
-          entries={tabMenuEntries(dock, panelId)}
-          position={position}
-          onClose={() => setPosition(undefined)}
-        />
+        // The tab strip is a containing block for fixed elements and clips them, so the menu's
+        // anchor goes to the body, where `position: fixed` matches the pointer.
+        <Portal>
+          <TreeMenu
+            entries={tabMenuEntries(dock, panelId)}
+            position={position}
+            onClose={() => setPosition(undefined)}
+          />
+        </Portal>
       )}
     </div>
   );
