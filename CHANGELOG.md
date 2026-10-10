@@ -48,6 +48,10 @@ All notable changes to Mongo GUI are listed here, newest first.
 
 ### Fixed
 
+- Completion offers the BSON constructors (`ISODate`, `ObjectId`, `Long`, `UUID` and others)
+  where a value starts, the cursor methods after a `find` or `aggregate` chain, fields after a
+  dotted parent and inside quoted keys, and keeps its context in a statement that spans lines.
+  Typing two letters quickly no longer closes the suggestion list for the rest of the word.
 - The Indexes panel and the profiler show the index types, collation and text weights of an index,
   a dash for a missing ratio or size, a SORT badge, durations from one second in seconds, and the
   date of older profiler entries, and offer every namespace in the loaded entries.

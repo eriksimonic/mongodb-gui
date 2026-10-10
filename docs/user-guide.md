@@ -251,6 +251,13 @@ Other toolbar controls:
 - "Refresh databases" reloads the database list. "Refresh field names" reloads the fields that
   completion uses. The app samples documents to find the fields.
 
+Completion offers collection names after `db.`, collection methods, the fields of the
+collection the statement names (also after a dotted parent such as `customer.`, and inside a
+quoted key), query and aggregation operators after `$`, the cursor methods such as `sort`,
+`limit` and `project` after a `find(...)` or `aggregate(...)` chain, and the BSON constructors
+such as `ISODate`, `ObjectId`, `Long` and `UUID` where a value starts. A statement that spans
+several lines keeps its context on every line.
+
 The Output panel under the editor has four tabs: "Output", "History" and "Favourites", and
 "Transfers". Every statement you run goes into "History". Search the history with the
 "Search history" field, or filter it by connection or database. Re-run an entry to run it again.

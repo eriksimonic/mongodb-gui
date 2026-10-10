@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import {
   completionContext,
+  staticCompletionsFor,
   fieldCompletions,
   lastCollection,
   mergeCompletions,
@@ -25,6 +26,10 @@ describe('completionContext', () => {
       head: 'db.orders.find({ ',
       memberOfCollection: false,
       objectKey: true,
+      quotedKey: false,
+      fieldParent: undefined,
+      valuePosition: false,
+      cursorMember: false,
     });
   });
 
@@ -303,5 +308,93 @@ describe('signatureAt', () => {
   it('gives the doc of an operator key', () => {
     const code = '{ $gt: ';
     expect(signatureAt(code, code.length)).toMatchObject({ label: '$gt(value)' });
+  });
+});
+
+describe('completionContext across lines and positions', () => {
+  const query = `db.events.find({createdAt:{$gt: ISODate("2025-10-10T10:51:30.232Z") }}).sort({
+  createdAt: 1
+}).li`;
+
+  it('folds a statement that spans lines, so a chained method keeps its collection', () => {
+    const context = completionContext(query, query.length);
+    expect(context.prefix).toBe('li');
+    expect(context.collection).toBe('events');
+    expect(context.head).toContain('db.events.find(');
+    expect(context.head).not.toContain('\n');
+    expect(context.cursorMember).toBe(true);
+  });
+
+  it('offers the cursor methods after a find chain and nothing after a plain call', () => {
+    const labels = staticCompletionsFor(completionContext(query, query.length)).map(
+      (item) => item.label,
+    );
+    expect(labels).toEqual(expect.arrayContaining(['limit', 'sort', 'skip', 'toArray']));
+
+    const plain = 'db.events.countDocuments().';
+    expect(staticCompletionsFor(completionContext(plain, plain.length))).toEqual([]);
+  });
+
+  it('offers the BSON constructors where a value starts, as snippets', () => {
+    const code = 'db.events.find({ createdAt: { $gt: ';
+    const items = staticCompletionsFor(completionContext(code, code.length));
+    const iso = items.find((item) => item.label === 'ISODate');
+    expect(iso).toMatchObject({ snippet: true, insertText: 'ISODate("$1")', kind: 'method' });
+    expect(items.map((item) => item.label)).toEqual(
+      expect.arrayContaining(['ObjectId', 'Long', 'Decimal128', 'UUID']),
+    );
+  });
+
+  it('offers no constructors where a key starts', () => {
+    const code = 'db.events.find({ ';
+    expect(staticCompletionsFor(completionContext(code, code.length))).toEqual([]);
+  });
+
+  it('reads a dotted parent and a quoted key', () => {
+    const dotted = 'db.events.find({ customer.na';
+    expect(completionContext(dotted, dotted.length)).toMatchObject({
+      prefix: 'na',
+      fieldParent: 'customer',
+      objectKey: true,
+      quotedKey: false,
+    });
+    const quoted = 'db.events.find({ "cust';
+    expect(completionContext(quoted, quoted.length)).toMatchObject({
+      prefix: 'cust',
+      objectKey: true,
+      quotedKey: true,
+    });
+  });
+
+  it('sees an object key on a continuation line', () => {
+    const code = 'db.events.find({\n  crea';
+    expect(completionContext(code, code.length)).toMatchObject({
+      prefix: 'crea',
+      objectKey: true,
+      collection: 'events',
+    });
+  });
+});
+
+describe('fieldCompletions with a dotted parent and quoted keys', () => {
+  const fields = [
+    { path: 'customer', types: ['object'], presence: 1 },
+    { path: 'customer.name', types: ['string'], presence: 1 },
+    { path: 'customer.address.city', types: ['string'], presence: 1 },
+    { path: 'status', types: ['string'], presence: 1 },
+  ];
+
+  it('lists the children of the typed parent without the parent prefix', () => {
+    const labels = fieldCompletions(fields, true, { parent: 'customer' }).map((item) => item.label);
+    expect(labels).toEqual(['name', 'address.city']);
+  });
+
+  it('adds no quotes inside an already quoted key', () => {
+    const [item] = fieldCompletions(
+      [{ path: 'customer.name', types: ['string'], presence: 1 }],
+      true,
+      { quoted: true },
+    );
+    expect(item?.insertText).toBeUndefined();
   });
 });

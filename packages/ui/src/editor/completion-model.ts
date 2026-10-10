@@ -1,5 +1,5 @@
 import type { CompletionItem, CompletionKind, SchemaField } from '@mongo-gui/core';
-import { QUERY_OPERATORS } from './operators';
+import { BSON_CONSTRUCTORS, CURSOR_METHODS, QUERY_OPERATORS } from './operators';
 import { statementAt } from './statements';
 
 /** An item the editor shows. The provider maps `kind` to the Monaco icon. */
@@ -12,6 +12,8 @@ export interface EditorCompletion {
   readonly rank: number;
   /** The text inserted in place of the prefix. Defaults to the label. */
   readonly insertText?: string | undefined;
+  /** True when `insertText` is a snippet with `$1` placeholders. */
+  readonly snippet?: boolean | undefined;
 }
 
 export interface CompletionContext {
@@ -19,12 +21,23 @@ export interface CompletionContext {
   readonly prefix: string;
   /** The collection of the nearest `db.<name>` in the same statement, when there is one. */
   readonly collection: string | undefined;
-  /** The text of the line before the prefix. Runtime completion texts start with it. */
+  /**
+   * The statement text before the prefix, with line breaks folded to one space, so a statement
+   * that spans lines reads as one line. Runtime completion texts start with it.
+   */
   readonly head: string;
   /** The cursor sits right after `db.<name>.`, where only the collection's methods apply. */
   readonly memberOfCollection: boolean;
   /** The cursor sits where an object key starts, after `{` or `,`. Operators and quoted keys apply here. */
   readonly objectKey: boolean;
+  /** The key being typed is already inside quotes, so a dotted path needs no quotes added. */
+  readonly quotedKey: boolean;
+  /** The dotted path typed before the prefix in a key, such as `customer` in `customer.na`. */
+  readonly fieldParent: string | undefined;
+  /** The cursor sits where a value starts: after `:`, `(` or `[`. Constructors apply here. */
+  readonly valuePosition: boolean;
+  /** The cursor follows `)` and a dot in a statement that opened a cursor, so cursor methods apply. */
+  readonly cursorMember: boolean;
 }
 
 const WORD_BEFORE = /[A-Za-z0-9_$]*$/;
@@ -34,22 +47,62 @@ const WORD_BEFORE = /[A-Za-z0-9_$]*$/;
 const COLLECTION_REF =
   /\bdb\.getCollection\(\s*(['"])([^'"]+)\1\s*\)|\bdb\[\s*(['"])([^'"]+)\3\s*\]|\bdb\.([A-Za-z_][A-Za-z0-9_]*)\b/g;
 
-/** The word before the cursor, the line text before that word, and the collection the statement names. */
+const KEY_START = /[{,]\s*$/;
+const QUOTED_KEY_START = /[{,]\s*["']$/;
+// A dotted path before the prefix, such as `customer.address.`, where it starts a key.
+const DOTTED_KEY = /[{,]\s*["']?([A-Za-z_$][\w$]*(?:\.[A-Za-z_$][\w$]*)*)\.$/;
+const CURSOR_CALL = /\.(?:find|aggregate|listCollections|listIndexes|watch)\s*\(/;
+
+/**
+ * The word before the cursor, the statement text before that word on one line, and what the
+ * cursor position accepts. The statement text is used instead of the current line so a
+ * statement that spans lines, such as a chained `.sort({` on its own line, keeps its context.
+ */
 export function completionContext(code: string, offset: number): CompletionContext {
   const lineStart = offset > 0 ? code.lastIndexOf('\n', offset - 1) + 1 : 0;
   const lineBefore = code.slice(lineStart, offset);
   const prefix = WORD_BEFORE.exec(lineBefore)?.[0] ?? '';
-  const head = lineBefore.slice(0, lineBefore.length - prefix.length);
   const statement = statementAt(code, offset);
   const scope =
-    statement === undefined ? '' : code.slice(statement.start, Math.min(offset, statement.end));
+    statement === undefined
+      ? lineBefore
+      : code.slice(statement.start, Math.min(offset, statement.end));
+  // Earlier lines join the head only while they leave a bracket open or end in a chain dot.
+  // Otherwise a line such as `use shop` above the cursor would read as part of the statement.
+  const earlier = scope.slice(0, Math.max(0, scope.length - lineBefore.length));
+  const joined = continuesOnNextLine(earlier) ? scope : lineBefore;
+  const head = foldLines(joined.slice(0, Math.max(0, joined.length - prefix.length)));
+  const dotted = DOTTED_KEY.exec(head);
+  const objectKey = KEY_START.test(head) || QUOTED_KEY_START.test(head) || dotted !== null;
   return {
     prefix,
     collection: lastCollection(scope),
     head,
     memberOfCollection: /\bdb\.[A-Za-z_][A-Za-z0-9_]*\.$/.test(head),
-    objectKey: /[{,]\s*$/.test(head),
+    objectKey,
+    quotedKey: QUOTED_KEY_START.test(head) || /["'][\w$.]*\.$/.test(head),
+    fieldParent: dotted?.[1],
+    valuePosition: /[:([]\s*$/.test(head),
+    cursorMember: /\)\s*\.\s*$/.test(head) && CURSOR_CALL.test(head),
   };
+}
+
+/** True when text leaves a `(`, `{` or `[` open, or ends with a `.` or `,`, so the next line continues it. */
+function continuesOnNextLine(text: string): boolean {
+  let depth = 0;
+  for (const char of text) {
+    if (char === '(' || char === '{' || char === '[') {
+      depth += 1;
+    } else if (char === ')' || char === '}' || char === ']') {
+      depth -= 1;
+    }
+  }
+  return depth > 0 || /[.,]\s*$/.test(text);
+}
+
+/** One line from text that may span lines: each line break and its surrounding spaces become one space. */
+function foldLines(text: string): string {
+  return text.replace(/\s*\n\s*/g, ' ');
 }
 
 /**
@@ -101,15 +154,55 @@ const FIELD_RANK = 2;
 export function fieldCompletions(
   fields: readonly SchemaField[],
   objectKey = false,
+  options: { readonly parent?: string | undefined; readonly quoted?: boolean } = {},
 ): EditorCompletion[] {
-  return fields.map((field) => ({
-    label: field.path,
-    kind: 'property',
-    detail: field.types.join(' | '),
-    doc: `Present in ${Math.round(field.presence * 100)} percent of the sampled documents.`,
-    rank: FIELD_RANK + pathDepth(field.path),
-    ...(objectKey && field.path.includes('.') ? { insertText: `"${field.path}"` } : {}),
-  }));
+  const parentPrefix = options.parent === undefined ? undefined : `${options.parent}.`;
+  const result: EditorCompletion[] = [];
+  for (const field of fields) {
+    if (parentPrefix !== undefined && !field.path.startsWith(parentPrefix)) {
+      continue;
+    }
+    const label = parentPrefix === undefined ? field.path : field.path.slice(parentPrefix.length);
+    const quote =
+      objectKey && parentPrefix === undefined && options.quoted !== true && label.includes('.');
+    result.push({
+      label,
+      kind: 'property',
+      detail: field.types.join(' | '),
+      doc: `Present in ${Math.round(field.presence * 100)} percent of the sampled documents.`,
+      rank: FIELD_RANK + pathDepth(label),
+      ...(quote ? { insertText: `"${label}"` } : {}),
+    });
+  }
+  return result;
+}
+
+/**
+ * Completions that do not depend on the runtime or on a sample: the cursor methods after a
+ * `find(...)` or `aggregate(...)` chain, and the BSON constructors where a value starts. The
+ * runtime completer sees one line and no cursor type, so these fill what it misses.
+ */
+export function staticCompletionsFor(context: CompletionContext): EditorCompletion[] {
+  const result: EditorCompletion[] = [];
+  if (context.cursorMember) {
+    for (const method of CURSOR_METHODS) {
+      result.push({ label: method.name, kind: 'method', doc: method.doc, rank: 1 });
+    }
+  }
+  if (context.valuePosition && !context.objectKey) {
+    for (const constructor of BSON_CONSTRUCTORS) {
+      result.push({
+        label: constructor.name,
+        kind: 'method',
+        detail: 'BSON',
+        doc: constructor.doc,
+        rank: 3,
+        insertText: constructor.snippet,
+        snippet: true,
+      });
+    }
+  }
+  return result;
 }
 
 /** The number of dots in a path, so `a.b.c` is 2 and `a` is 0. */
