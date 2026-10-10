@@ -129,6 +129,10 @@ inline edits in the tree, and a history and favourites list in the Output panel.
 | --------------------------------------------------------------------------------------------------------------------------------------------------- |
 | ![Sharding panel with the balancer state, a collections table with chunk bars per shard and the Distribution action](docs/screenshots/sharding.png) |
 
+| Backup dialog for a database                                                                                | Restore dialog with a rename and a tools version warning                                                             |
+| ----------------------------------------------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------- |
+| ![Backup dialog for the shop database with the folder, name and format fields](docs/screenshots/backup.png) | ![Restore dialog with the source summary, a rename row and the tools mismatch warning](docs/screenshots/restore.png) |
+
 ## Prerequisites
 
 - Node.js 24 (see `.nvmrc`)
