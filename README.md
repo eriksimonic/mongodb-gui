@@ -1,7 +1,7 @@
 # Mongo GUI
 
 Mongo GUI is a desktop client for MongoDB. It runs mongosh-compatible queries in an
-editor, shows results in a grid, and will draw explain plans, indexes, live monitoring
+editor, shows results in a grid, and draws explain plans, indexes, live monitoring
 and the profiler. It runs on Linux, Windows and macOS and is released under the MIT
 license.
 
@@ -15,10 +15,30 @@ See the security section of [docs/PLAN.md](docs/PLAN.md).
 The app follows the system theme or stays in light or dark, as set under Settings. The
 panel layout and the window size are saved, so the next launch opens where you left off.
 
+## Features
+
+- Connections and vault keep saved connections, history and settings in one encrypted store, and connect by URI or form.
+- Docker discovery finds MongoDB containers on the local machine and connects to them.
+- The shell runs mongosh statements with completion, multi-statement scripts and print output.
+- Results open as a grid, an expandable tree with inline edits, or read-only JSON.
+- Explain shows the plan of find, aggregate, count, distinct, update and delete as a stage tree with warnings.
+- Collection management covers databases, collections, indexes, JSON schema validators and documents.
+- The monitoring dashboard charts server metrics in panels you choose, and lists running operations.
+- The profiler shows slow operations, top query shapes and the profiling level of each database.
+- Import reads JSON and CSV through a field mapping wizard, and export writes JSON, NDJSON or CSV.
+- Schema analysis reports the types, presence and examples of the fields in sampled documents.
+- Users and roles manage users and custom roles with their privileges.
+- Replica set shows members, lag and elections, and reconfigures the set after a dry run.
+- Sharding shows shards, sharded collections, chunks and the balancer, and shards collections.
+- Diagnostics show the server log, parameters, serverStatus, host information and sessions.
+- GridFS browses buckets and files, uploads and downloads them, and edits their metadata.
+- Change streams watch a collection, a database or a deployment, with resume tokens.
+- Settings set the theme, idle lock, editor size and update checks.
+- Packaging builds installers for Linux, Windows and macOS, and the app checks GitHub for updates.
+
 ## Screenshots
 
-Current state of the app. The set grows as screens land and gets a final refresh at
-release.
+The screenshots show the app as of the 0.1.0 release.
 
 ![Query editor with the documents of a find shown as a grid](docs/screenshots/editor-table.png)
 
@@ -38,25 +58,25 @@ inline edits in the tree, and a history and favourites list in the Output panel.
 | ------------------------------------------------------------------------------------------------ | ----------------------------------------------------------------------------- |
 | ![Connection tree with databases and collections expanded](docs/screenshots/connection-tree.png) | ![New connection dialog in form mode](docs/screenshots/connection-dialog.png) |
 
-| Indexes with the create index dialog                                             | Validation with a Monaco validator                                                | Documents                                                                    |
-| -------------------------------------------------------------------------------- | --------------------------------------------------------------------------------- | ---------------------------------------------------------------------------- |
-| ![Indexes panel with the create index dialog open](docs/screenshots/indexes.png) | ![Validation panel with a JSON schema validator](docs/screenshots/validation.png) | ![Documents panel with one sampled document](docs/screenshots/documents.png) |
+| Indexes with the create index dialog                                             | Validation with a Monaco validator                                                | Documents                                                                                                         |
+| -------------------------------------------------------------------------------- | --------------------------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------- |
+| ![Indexes panel with the create index dialog open](docs/screenshots/indexes.png) | ![Validation panel with a JSON schema validator](docs/screenshots/validation.png) | ![Documents panel with the first documents of a collection and their row actions](docs/screenshots/documents.png) |
 
 | Profiler                                                                               | Top query shapes                                                        |
 | -------------------------------------------------------------------------------------- | ----------------------------------------------------------------------- |
 | ![Profiler panel with slow queries and the detail pane](docs/screenshots/profiler.png) | ![Profiler top query shapes view](docs/screenshots/profiler-shapes.png) |
 
-| Explain of a find with an in-memory sort warning                                               |
-| ---------------------------------------------------------------------------------------------- |
-| ![Explain panel with the summary, the warning and the plan tree](docs/screenshots/explain.png) |
+| Explain of an aggregate with a $lookup sub-tree open                                                         |
+| ------------------------------------------------------------------------------------------------------------ |
+| ![Explain panel with the summary, the plan tree and the $lookup sub-tree open](docs/screenshots/explain.png) |
 
 | Docker node in the connection tree                                                |
 | --------------------------------------------------------------------------------- |
 | ![Docker node listing local MongoDB containers](docs/screenshots/docker-tree.png) |
 
-| Monitor dashboard                                                                     | Running operations                                                                         |
-| ------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------ |
-| ![Live monitoring dashboard with stat tiles and charts](docs/screenshots/monitor.png) | ![Running operations with filters and a long aggregation](docs/screenshots/operations.png) |
+| Monitor dashboard                                                                     | Running operations                                                                                        |
+| ------------------------------------------------------------------------------------- | --------------------------------------------------------------------------------------------------------- |
+| ![Live monitoring dashboard with stat tiles and charts](docs/screenshots/monitor.png) | ![Running operations with a namespace search and a long-running command](docs/screenshots/operations.png) |
 
 | Shell in the light theme                                                                                 | Settings                                                            |
 | -------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------- |
