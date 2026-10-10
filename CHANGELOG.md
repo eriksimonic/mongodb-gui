@@ -6,7 +6,16 @@ All notable changes to Mongo GUI are listed here, newest first.
 
 ### Added
 
+- "Only problematic" in the profiler filter row hides slow query rows without a COLLSCAN, an
+  in-memory sort or a high examined-to-returned ratio. It filters the loaded rows in the app.
 - Right-click on a table cell offers "Copy value", "Copy key" and "Copy document".
+- The Output panel folds down to its tab strip with the chevron at the right of its tabs or with
+  Mod+J, and unfolds to its previous height.
+- Field completion lists top-level fields before nested paths and returns up to 1,000 entries,
+  so a collection with a large keyed map no longer hides its other fields.
+- The Explain panel's Raw view fills the panel height.
+- A connection with `directConnection=true` to a replica set member shows the set name and
+  "direct" in the connection tree, in the status tooltip and in the monitor header.
 - Exports selected connections to a file encrypted with AES-256-GCM under a scrypt key from a
   passphrase of at least 10 characters. Each export uses a new salt and IV.
 - Imports a connections file after its passphrase is typed. Name collisions can skip, rename or

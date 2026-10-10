@@ -102,7 +102,9 @@ in logs or in the tree. Context menus copy the URI with the password masked.
    Enter.
 
 The tree shows the server's databases once the connection opens. Choose "Disconnect" from the
-same menu to close it.
+same menu to close it. Hover the status icon to see the server topology. A replica set shows its
+set name to the right of the connection name. When the URI has `directConnection=true`, the row
+also says "direct": the app talks to that one member only, and a write to a secondary fails.
 
 ### Connection manager
 
@@ -235,7 +237,9 @@ The Output panel under the editor has four tabs: "Output", "History" and "Favour
 "Transfers". Every statement you run goes into "History". Search the history with the
 "Search history" field, or filter it by connection or database. Re-run an entry to run it again.
 "Clear history" deletes all history entries after confirmation. Favourites holds the saved
-statements. Use "Save as favourite" in the editor or in the history to add one.
+statements. Use "Save as favourite" in the editor or in the history to add one. The chevron at the
+right of the panel's tab strip folds the panel down to the tab strip, so the editor above gets the
+space. Click it again, or press Ctrl+J, to unfold it to its previous height.
 
 The app keeps the text of each open editor tab, and the tab list. The tabs come back the next
 time you open the app.
@@ -440,7 +444,11 @@ Open the profiler from the database menu with "Open profiler". The profiler has 
    threshold when the level is "Slow only".
 3. Use the filters to narrow the list. The filters cover the namespace, the operation, the
    minimum duration in "Min duration (ms)", and a time range. The time range options are
-   "Last 5 min", "Last 15 min", "Last hour", "All time" and "Custom".
+   "Last 5 min", "Last 15 min", "Last hour", "All time" and "Custom". Turn on "Only
+   problematic" to hide rows that look fine. A row stays when its plan has a COLLSCAN, the server
+   sorted in memory, it examined more than 100 documents per document returned, or it examined
+   more than 1000 documents and returned none. This switch filters the loaded rows and does not
+   change the server query.
 4. Turn on "Tail" to read new entries as they arrive. "Tail poll interval" sets how often the
    app checks, from 0.5 s to 10 s.
 5. Select an entry to read its command, plan summary and lock statistics in the detail pane.
