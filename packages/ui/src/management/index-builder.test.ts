@@ -1,7 +1,10 @@
+import type { IndexInfo } from '@mongo-gui/core';
 import { describe, expect, it } from 'vitest';
 import {
   buildIndexRequest,
+  canEditIndex,
   defaultNameFor,
+  draftFromIndex,
   EMPTY_INDEX_DRAFT,
   parseWeights,
   previewCommand,
@@ -190,5 +193,107 @@ describe('previewCommand', () => {
         },
       ],
     });
+  });
+});
+
+describe('draftFromIndex', () => {
+  function indexWith(patch: Partial<IndexInfo>): IndexInfo {
+    return { name: 'index', key: { a: 1 }, ...patch };
+  }
+
+  it('round-trips a compound key with its orders and options', () => {
+    const info = indexWith({
+      name: 'status_1_createdAt_-1',
+      key: { status: 1, createdAt: -1 },
+      unique: true,
+      sparse: true,
+      hidden: true,
+      partialFilterExpressionEjson: '{"active":true}',
+      collationEjson: '{"locale":"en","strength":2}',
+      wildcardProjectionEjson: '{"profile":1}',
+    });
+    expect(canEditIndex(info)).toBe(true);
+    expect(buildIndexRequest(draftFromIndex(info))).toEqual({
+      ok: true,
+      keys: { status: 1, createdAt: -1 },
+      options: {
+        name: 'status_1_createdAt_-1',
+        unique: true,
+        sparse: true,
+        hidden: true,
+        partialFilterExpressionEjson: '{"active":true}',
+        collationEjson: '{"locale":"en","strength":2}',
+        wildcardProjectionEjson: '{"profile":1}',
+      },
+    });
+  });
+
+  it('round-trips the expiry of a single-field TTL index', () => {
+    const info = indexWith({
+      name: 'expiresAt_1',
+      key: { expiresAt: 1 },
+      expireAfterSeconds: 0,
+    });
+    expect(buildIndexRequest(draftFromIndex(info))).toEqual({
+      ok: true,
+      keys: { expiresAt: 1 },
+      options: { name: 'expiresAt_1', expireAfterSeconds: 0 },
+    });
+  });
+
+  it('round-trips hashed, 2dsphere and 2d keys', () => {
+    const info = indexWith({
+      name: 'mixed',
+      key: { shard: 'hashed', location: '2dsphere', point: '2d' },
+    });
+    expect(buildIndexRequest(draftFromIndex(info))).toEqual({
+      ok: true,
+      keys: { shard: 'hashed', location: '2dsphere', point: '2d' },
+      options: { name: 'mixed' },
+    });
+  });
+
+  it('rebuilds a text index from its weights, not from the server key entries', () => {
+    const info = indexWith({
+      name: 'title_text_body_text',
+      key: { _fts: 'text', _ftsx: 1 },
+      weights: { title: 3, body: 1 },
+      defaultLanguage: 'english',
+      extraOptionsEjson: '{"textIndexVersion":3}',
+    });
+    expect(canEditIndex(info)).toBe(true);
+    const draft = draftFromIndex(info);
+    expect(draft.fields).toEqual([
+      { field: 'title', order: 'text' },
+      { field: 'body', order: 'text' },
+    ]);
+    expect(buildIndexRequest(draft)).toEqual({
+      ok: true,
+      keys: { title: 'text', body: 'text' },
+      options: {
+        name: 'title_text_body_text',
+        weights: { title: 3, body: 1 },
+        defaultLanguage: 'english',
+        extraOptionsEjson: '{"textIndexVersion":3}',
+      },
+    });
+  });
+
+  it('passes options the dialog has no field for through the request unchanged', () => {
+    const info = indexWith({
+      name: 'a_1',
+      key: { a: 1 },
+      extraOptionsEjson: '{"storageEngine":{"wiredTiger":{}}}',
+    });
+    expect(buildIndexRequest(draftFromIndex(info))).toEqual({
+      ok: true,
+      keys: { a: 1 },
+      options: { name: 'a_1', extraOptionsEjson: '{"storageEngine":{"wiredTiger":{}}}' },
+    });
+  });
+
+  it('refuses an index whose key the draft cannot hold', () => {
+    expect(canEditIndex(indexWith({ key: { loc: 'geoHaystack' } }))).toBe(false);
+    expect(canEditIndex(indexWith({ key: { _fts: 'text', _ftsx: 1 } }))).toBe(false);
   });
 });

@@ -15,6 +15,7 @@ import {
   TextInput,
 } from '@mantine/core';
 import { IconPlus, IconTrash } from '@tabler/icons-react';
+import type { IndexInfo } from '@mongo-gui/core';
 import { errorText } from '../notify-error';
 import { useEffect, useState } from 'react';
 import { useUiApi } from '../../api/ui-api';
@@ -24,6 +25,7 @@ import { topLevelKeys } from '../../management/document-rows';
 import {
   buildIndexRequest,
   defaultNameFor,
+  draftFromIndex,
   EMPTY_INDEX_DRAFT,
   hasTextKey,
   INDEX_ORDERS,
@@ -38,10 +40,18 @@ export interface CreateIndexDialogProps {
   readonly collection: string;
   /** A field to put in the key builder first, for example from the schema panel. */
   readonly initialField?: string | undefined;
+  /**
+   * The index to replace. The dialog then opens with its definition, and saving drops it and
+   * creates the new definition.
+   */
+  readonly editing?: IndexInfo | undefined;
   readonly onClose: () => void;
 }
 
-function draftFor(initialField: string | undefined): IndexDraft {
+function draftFor(initialField: string | undefined, editing: IndexInfo | undefined): IndexDraft {
+  if (editing !== undefined) {
+    return draftFromIndex(editing);
+  }
   return initialField === undefined
     ? EMPTY_INDEX_DRAFT
     : { ...EMPTY_INDEX_DRAFT, fields: [{ field: initialField, order: '1' }] };
@@ -63,18 +73,23 @@ function isIndexOrder(value: string | null): value is IndexOrder {
   return INDEX_ORDERS.some((order) => order === value);
 }
 
-/** Builds an index from a key builder, options, and a read-only preview of the command. */
+/**
+ * Builds an index from a key builder, options, and a read-only preview of the command. With
+ * `editing`, it replaces an existing index: saving drops that index, then creates the new one.
+ */
 export function CreateIndexDialog({
   connectionId,
   database,
   collection,
   initialField,
+  editing,
   onClose,
 }: CreateIndexDialogProps) {
   const { rpc } = useUiApi();
-  const [draft, setDraft] = useState<IndexDraft>(() => draftFor(initialField));
+  const [draft, setDraft] = useState<IndexDraft>(() => draftFor(initialField, editing));
   const [suggestions, setSuggestions] = useState<string[]>([]);
   const [busy, setBusy] = useState(false);
+  const [dropped, setDropped] = useState(false);
   const [error, setError] = useState<string | undefined>(undefined);
   const request = buildIndexRequest(draft);
   const keyFields = draft.fields.map((item) => item.field.trim()).filter((field) => field !== '');
@@ -113,13 +128,25 @@ export function CreateIndexDialog({
   }
 
   async function submit() {
+    // Enter in a field submits the form even while a save runs. A second run could drop twice.
+    if (busy) {
+      return;
+    }
     if (!request.ok) {
       setError(request.message);
       return;
     }
     setBusy(true);
     setError(undefined);
+    // Whether the old index is gone by now. A failed create after the drop leaves it gone, so a
+    // retry skips the drop.
+    let removed = dropped;
     try {
+      if (editing !== undefined && !dropped) {
+        await rpc.management.dropIndex({ connectionId, database, collection, name: editing.name });
+        removed = true;
+        setDropped(true);
+      }
       await rpc.management.createIndex({
         connectionId,
         database,
@@ -129,7 +156,11 @@ export function CreateIndexDialog({
       });
       onClose();
     } catch (failure) {
-      setError(errorText(failure));
+      setError(
+        editing !== undefined && removed
+          ? `The index ${editing.name} was dropped, but the new index was not created. ${errorText(failure)}`
+          : errorText(failure),
+      );
     } finally {
       setBusy(false);
     }
@@ -141,7 +172,11 @@ export function CreateIndexDialog({
     <Modal
       opened
       onClose={onClose}
-      title={`New index on ${database}.${collection}`}
+      title={
+        editing === undefined
+          ? `New index on ${database}.${collection}`
+          : `Edit index ${editing.name}`
+      }
       centered
       size="xl"
     >
@@ -152,6 +187,13 @@ export function CreateIndexDialog({
         }}
       >
         <Stack gap="sm">
+          {editing === undefined ? null : (
+            <Alert color="yellow" variant="light">
+              MongoDB cannot change an index in place. Saving drops {editing.name} and creates the
+              new definition. If the create fails after the drop, the collection has no{' '}
+              {editing.name} index until you save a definition that works.
+            </Alert>
+          )}
           <Text size="sm" fw={500}>
             Key fields
           </Text>
@@ -313,7 +355,7 @@ export function CreateIndexDialog({
               Cancel
             </Button>
             <Button disabled={!request.ok} loading={busy} type="submit">
-              Create index
+              {editing === undefined ? 'Create index' : 'Replace index'}
             </Button>
           </Group>
         </Stack>

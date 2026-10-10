@@ -314,6 +314,61 @@ describe.each(MONGO_IMAGES)('management on %s', (image) => {
       expect(index.key).toHaveProperty('_fts', 'text');
     });
 
+    it('lists text weights and extra options, and recreates the index from them', async () => {
+      const database = uniqueDatabase();
+      const first = await createIndex(client, {
+        database,
+        collection: 'articles',
+        keys: { title: 'text', body: 'text' },
+        options: { name: 'search', weights: { title: 3, body: 1 }, defaultLanguage: 'german' },
+      });
+      expect(first.weights).toEqual({ title: 3, body: 1 });
+      expect(first.defaultLanguage).toBe('german');
+      expect(first.extraOptionsEjson).toBeDefined();
+      const extras = EJSON.parse(first.extraOptionsEjson ?? '{}') as Record<string, unknown>;
+      expect(extras).toHaveProperty('textIndexVersion');
+      expect(extras).not.toHaveProperty('key');
+      expect(extras).not.toHaveProperty('name');
+
+      await dropIndex(client, { database, collection: 'articles', name: 'search' });
+      const second = await createIndex(client, {
+        database,
+        collection: 'articles',
+        keys: { title: 'text', body: 'text' },
+        options: {
+          name: 'search',
+          weights: first.weights,
+          defaultLanguage: first.defaultLanguage,
+          extraOptionsEjson: first.extraOptionsEjson,
+        },
+      });
+      expect(second).toMatchObject({
+        key: first.key,
+        weights: first.weights,
+        defaultLanguage: first.defaultLanguage,
+        extraOptionsEjson: first.extraOptionsEjson,
+      });
+    });
+
+    it('refuses extra options that would override the key or the name', async () => {
+      const database = uniqueDatabase();
+      await client.db(database).collection<Fixture>('users').insertOne({ email: 'a@example.com' });
+      for (const extra of ['{"key":{"other":1}}', '{"name":"other_1"}', '{"unique":true}']) {
+        const error = await captureError(() =>
+          createIndex(client, {
+            database,
+            collection: 'users',
+            keys: { email: 1 },
+            options: { name: 'email_1', extraOptionsEjson: extra },
+          }),
+        );
+        expect(error.code).toBe('VALIDATION');
+      }
+      const names = (await listIndexes(client, database, 'users')).map((index) => index.name);
+      expect(names).not.toContain('email_1');
+      expect(names).not.toContain('other_1');
+    });
+
     it('creates a hashed index', async () => {
       const database = uniqueDatabase();
       const index = await createIndex(client, {

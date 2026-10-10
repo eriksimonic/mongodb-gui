@@ -1,4 +1,4 @@
-import type { CreateIndexInput, IndexKeyValue } from '@mongo-gui/core';
+import type { CreateIndexInput, IndexInfo, IndexKeyValue } from '@mongo-gui/core';
 import { parseJsonObject } from './input-rules';
 
 export const INDEX_ORDERS = ['1', '-1', 'text', '2dsphere', 'hashed', '2d'] as const;
@@ -23,6 +23,11 @@ export interface IndexDraft {
   /** One `field: weight` pair per line. Used only when a text key exists. */
   readonly weights: string;
   readonly defaultLanguage: string;
+  /**
+   * Index options the dialog has no field for, as an EJSON object, such as storageEngine. Editing
+   * an index fills it from the server, and the request passes it through unchanged.
+   */
+  readonly extraOptionsEjson: string;
 }
 
 export const EMPTY_INDEX_DRAFT: IndexDraft = {
@@ -37,7 +42,12 @@ export const EMPTY_INDEX_DRAFT: IndexDraft = {
   wildcardEjson: '',
   weights: '',
   defaultLanguage: '',
+  extraOptionsEjson: '',
 };
+
+// The key entries MongoDB uses for a text index. The text fields are listed in its weights.
+const TEXT_KEY = '_fts';
+const TEXT_OPTIONS_KEY = '_ftsx';
 
 export type IndexOptions = CreateIndexInput['options'];
 
@@ -71,6 +81,74 @@ export function defaultNameFor(keys: Readonly<Record<string, IndexKeyValue>>): s
   return Object.entries(keys)
     .map(([field, direction]) => `${field}_${String(direction)}`)
     .join('_');
+}
+
+/** The draft order for a key value the server reports, or undefined when the draft cannot hold it. */
+export function orderOfKeyValue(value: number | string): IndexOrder | undefined {
+  if (value === 1) {
+    return '1';
+  }
+  if (value === -1) {
+    return '-1';
+  }
+  return INDEX_ORDERS.find((order) => order === value);
+}
+
+/** True when the draft can hold the index, so Edit can rebuild its definition from the draft. */
+export function canEditIndex(index: IndexInfo): boolean {
+  return Object.entries(index.key).every(([field, value]) => {
+    if (field === TEXT_OPTIONS_KEY) {
+      return true;
+    }
+    if (field === TEXT_KEY) {
+      return value === 'text' && Object.keys(index.weights ?? {}).length > 0;
+    }
+    return orderOfKeyValue(value) !== undefined;
+  });
+}
+
+/**
+ * The draft that rebuilds an index. It is the inverse of buildIndexRequest for the options the
+ * draft holds. Call it only when canEditIndex is true.
+ */
+export function draftFromIndex(index: IndexInfo): IndexDraft {
+  const fields: IndexFieldDraft[] = [];
+  for (const [field, value] of Object.entries(index.key)) {
+    if (field === TEXT_OPTIONS_KEY) {
+      continue;
+    }
+    if (field === TEXT_KEY) {
+      for (const textField of Object.keys(index.weights ?? {})) {
+        fields.push({ field: textField, order: 'text' });
+      }
+      continue;
+    }
+    const order = orderOfKeyValue(value);
+    if (order === undefined) {
+      throw new Error(`The ${field} key of ${index.name} cannot be edited in the dialog`);
+    }
+    fields.push({ field, order });
+  }
+  return {
+    fields,
+    name: index.name,
+    unique: index.unique === true,
+    sparse: index.sparse === true,
+    hidden: index.hidden === true,
+    ttlSeconds: index.expireAfterSeconds === undefined ? '' : String(index.expireAfterSeconds),
+    partialEjson: index.partialFilterExpressionEjson ?? '',
+    collationEjson: index.collationEjson ?? '',
+    wildcardEjson: index.wildcardProjectionEjson ?? '',
+    weights: weightLines(index.weights),
+    defaultLanguage: index.defaultLanguage ?? '',
+    extraOptionsEjson: index.extraOptionsEjson ?? '',
+  };
+}
+
+function weightLines(weights: Readonly<Record<string, number>> | undefined): string {
+  return Object.entries(weights ?? {})
+    .map(([field, weight]) => `${field}: ${weight}`)
+    .join('\n');
 }
 
 export function hasTextKey(draft: IndexDraft): boolean {
@@ -154,6 +232,15 @@ export function buildIndexRequest(draft: IndexDraft): IndexRequest {
     options[key] = trimmed;
   }
 
+  const extra = draft.extraOptionsEjson.trim();
+  if (extra !== '') {
+    const parsed = parseJsonObject(extra);
+    if (!parsed.ok) {
+      return { ok: false, message: `The extra options: ${parsed.message}` };
+    }
+    options.extraOptionsEjson = extra;
+  }
+
   if (hasTextKey(draft)) {
     const weights = parseWeights(draft.weights);
     if (typeof weights === 'string') {
@@ -193,7 +280,14 @@ export function previewCommand(
   request: Extract<IndexRequest, { ok: true }>,
 ): Record<string, unknown> {
   const { options } = request;
-  const spec: Record<string, unknown> = { key: request.keys };
+  const parsedExtra =
+    options.extraOptionsEjson === undefined
+      ? undefined
+      : parseJsonObject(options.extraOptionsEjson);
+  const spec: Record<string, unknown> = {
+    ...(parsedExtra?.ok === true ? parsedExtra.value : {}),
+    key: request.keys,
+  };
   if (options.name !== undefined) {
     spec.name = options.name;
   }

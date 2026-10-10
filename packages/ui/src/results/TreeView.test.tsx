@@ -9,13 +9,14 @@ import { TreeView } from './TreeView';
 
 const DOCUMENTS: JsonObject[] = [{ _id: { region: 'eu', seq: 7 }, status: 'paid' }];
 
-function renderTree(onUnsetField = vi.fn(() => Promise.resolve())) {
+function renderTree(onUnsetField = vi.fn(() => Promise.resolve()), onOpenDocument = vi.fn()) {
   render(
     <AppProviders>
       <TreeView
         documents={DOCUMENTS}
         editable
         editabilityNote="Only a plain find can be edited."
+        onOpenDocument={onOpenDocument}
         onSetField={() => Promise.resolve()}
         onUnsetField={onUnsetField}
       />
@@ -56,5 +57,36 @@ describe('TreeView actions', () => {
     await screen.findByRole('dialog', { name: 'Remove field' });
     fireEvent.click(screen.getByRole('button', { name: 'Cancel' }));
     expect(onUnsetField).not.toHaveBeenCalled();
+  });
+});
+
+describe('TreeView double-click', () => {
+  it('opens the document when its top-level row is double-clicked', () => {
+    const onOpenDocument = vi.fn();
+    renderTree(undefined, onOpenDocument);
+
+    fireEvent.doubleClick(screen.getByRole('treeitem', { name: '#1' }));
+
+    expect(onOpenDocument).toHaveBeenCalledWith(0);
+  });
+
+  it('keeps the inline edit on a leaf and does not open the document', () => {
+    const onOpenDocument = vi.fn();
+    renderTree(undefined, onOpenDocument);
+
+    fireEvent.doubleClick(screen.getByText('status'));
+
+    expect(onOpenDocument).not.toHaveBeenCalled();
+    expect(screen.getByRole('textbox', { name: 'New value for status' })).toBeInTheDocument();
+  });
+
+  it('does not open the document from a button in the top-level row', () => {
+    const onOpenDocument = vi.fn();
+    renderTree(undefined, onOpenDocument);
+
+    // The document row has an empty path, so its copy button reads "Copy path" with no suffix.
+    fireEvent.doubleClick(screen.getAllByRole('button', { name: /^Copy path/ })[0] as HTMLElement);
+
+    expect(onOpenDocument).not.toHaveBeenCalled();
   });
 });

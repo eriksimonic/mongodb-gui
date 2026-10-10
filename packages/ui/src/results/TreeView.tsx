@@ -20,6 +20,7 @@ import {
 } from '@tabler/icons-react';
 import { useMemo, useRef, useState } from 'react';
 import { DestructiveDialog } from '../components/management/DestructiveDialog';
+import { isInsideControl } from '../components/is-inside-control';
 import { errorText } from '../components/notify-error';
 import {
   BSON_TYPE_LABELS,
@@ -69,6 +70,8 @@ export interface TreeViewProps {
   /** False when the result is not a plain find on one collection. Editing then stays off. */
   readonly editable: boolean;
   readonly editabilityNote: string;
+  /** Called when a document row is double-clicked. Without it, a double-click does nothing. */
+  readonly onOpenDocument?: ((documentIndex: number) => void) | undefined;
   readonly onSetField: (edit: TreeEdit) => Promise<void>;
   readonly onUnsetField: (documentIndex: number, path: string) => Promise<void>;
 }
@@ -85,12 +88,14 @@ interface EditState {
 /**
  * Documents as an expandable tree, with a key, a value and a type badge per row. Rows are
  * virtualised. A leaf value can be edited with a type picker, and a field can be removed. Both write
- * through the editField callbacks, which the results pane wires to the management calls.
+ * through the editField callbacks, which the results pane wires to the management calls. Double-
+ * clicking a document row opens the whole document.
  */
 export function TreeView({
   documents,
   editable,
   editabilityNote,
+  onOpenDocument,
   onSetField,
   onUnsetField,
 }: TreeViewProps) {
@@ -222,6 +227,12 @@ export function TreeView({
                 aria-expanded={row.hasChildren ? row.expanded : undefined}
                 aria-label={row.key}
                 data-row-id={row.id}
+                onDoubleClick={(event) => {
+                  // Only a document row opens the document. Buttons in a row keep their own action.
+                  if (row.depth === 0 && !isInsideControl(event.target)) {
+                    onOpenDocument?.(row.documentIndex);
+                  }
+                }}
                 style={{
                   position: 'absolute',
                   top: 0,

@@ -53,6 +53,11 @@ export const IndexInfoSchema = z.object({
   partialFilterExpressionEjson: z.string().optional(),
   collationEjson: z.string().optional(),
   wildcardProjectionEjson: z.string().optional(),
+  /** Text index field weights, one per field of a text key. */
+  weights: z.record(z.string(), z.number()).optional(),
+  defaultLanguage: z.string().optional(),
+  /** Other index options as EJSON, such as storageEngine. Passed back unchanged when editing. */
+  extraOptionsEjson: z.string().optional(),
   size: z.number().nonnegative().optional(),
   usage: z
     .object({

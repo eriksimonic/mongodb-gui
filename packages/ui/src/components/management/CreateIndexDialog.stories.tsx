@@ -30,3 +30,9 @@ export default meta;
 type Story = StoryObj<typeof meta>;
 
 export const Default: Story = {};
+
+export const EditIndex: Story = {
+  args: {
+    editing: { name: 'email_1', key: { email: 1 }, unique: true },
+  },
+};

@@ -285,6 +285,9 @@ function toIndexInfo(
       ),
       ...definedEntry('collationEjson', ejsonField(descriptor, 'collation')),
       ...definedEntry('wildcardProjectionEjson', ejsonField(descriptor, 'wildcardProjection')),
+      ...definedEntry('weights', weightsOf(descriptor)),
+      ...definedEntry('defaultLanguage', readString(descriptor, 'default_language')),
+      ...definedEntry('extraOptionsEjson', extraOptionsOf(descriptor)),
       ...definedEntry('size', sizes[name]),
       ...definedEntry('usage', usage.get(name)),
     },
@@ -325,6 +328,48 @@ function numericValue(value: unknown): number | undefined {
     return value.toNumber();
   }
   return undefined;
+}
+
+// The options that toIndexInfo maps to their own fields. Every other option is an extra.
+// createIndex refuses extra options that name one of these.
+export const HELD_INDEX_OPTIONS: readonly string[] = [
+  'v',
+  'key',
+  'name',
+  'ns',
+  'unique',
+  'sparse',
+  'hidden',
+  'expireAfterSeconds',
+  'partialFilterExpression',
+  'collation',
+  'wildcardProjection',
+  'weights',
+  'default_language',
+];
+
+function weightsOf(descriptor: unknown): Record<string, number> | undefined {
+  const raw = readRecord(descriptor, 'weights');
+  if (raw === undefined) {
+    return undefined;
+  }
+  const weights: Record<string, number> = {};
+  for (const [field, value] of Object.entries(raw)) {
+    const weight = numericValue(value);
+    if (weight !== undefined) {
+      weights[field] = weight;
+    }
+  }
+  return weights;
+}
+
+// Options the draft does not hold, as EJSON. Editing an index passes them back unchanged.
+function extraOptionsOf(descriptor: unknown): string | undefined {
+  if (!isPlainObject(descriptor)) {
+    return undefined;
+  }
+  const extras = Object.entries(descriptor).filter(([key]) => !HELD_INDEX_OPTIONS.includes(key));
+  return extras.length === 0 ? undefined : stringifyEjson(Object.fromEntries(extras));
 }
 
 // Canonical EJSON text for an index option document, so BSON types survive the RPC boundary.

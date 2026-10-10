@@ -233,9 +233,13 @@ The results pane shows the documents of the last run. Switch between three views
 ![Editor with a find result in table view](screenshots/editor-table.png)
 
 - Table view shows one column for each field. The "Columns" menu chooses which columns show.
-  Nested fields appear as dotted paths.
+  Nested fields appear as dotted paths. Double-click a row to open its whole document. The
+  document opens in the editor when the result is a plain find on one collection. Otherwise it
+  opens read-only, with a "Copy" button.
 - Tree view shows each document as an expandable tree. Each value has a type badge. "Collapse
-  all" folds the tree. Each row has "Copy path" and "Copy value" buttons.
+  all" folds the tree. Each row has "Copy path" and "Copy value" buttons. Double-click the
+  top-level row of a document, the one marked with its position such as "#1", to open the whole
+  document. Double-click a value to edit it.
 - JSON view shows the result as read-only mongosh-style text.
 
 ![Tree view of a document with type badges](screenshots/editor-tree.png)
@@ -329,6 +333,12 @@ Open the "Indexes" panel from the collection menu.
 To drop an index, choose "Drop index" and type the index name. Choose "Hide" or "Unhide" to
 change whether the planner may use an index. Hiding an index keeps it in place.
 
+To change an index, click "Edit" on its row. The index builder opens with the current
+definition. MongoDB cannot change an index in place, so "Replace index" drops the index and then
+creates the new definition. If the create fails after the drop, the collection has no index with
+that name until you save a definition that works. The "_id_" index has no "Edit" action. Neither
+does an index whose keys the builder cannot show, such as a geoHaystack key.
+
 ![Indexes panel with the create index dialog open](screenshots/indexes.png)
 
 ### Validation
@@ -352,7 +362,8 @@ Open the "Documents" panel from the collection menu, or choose "Open documents".
 
 - Type a filter in "Filter". "Count matches" counts the documents the filter matches.
 - "Load more" fetches the next page.
-- Each row has "Edit document", "Duplicate document" and "Delete document" controls.
+- Each row has "Edit document", "Duplicate document" and "Delete document" controls. Double-click
+  a row to open its document in the editor too.
 - Click "Insert document" to add a document. The editor takes EJSON text.
 - "Delete matching" deletes every document that matches the filter. The button reads "Delete N
   matching" once you have counted the matches. "Delete all shown" deletes only the rows on the

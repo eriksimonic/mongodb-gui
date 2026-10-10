@@ -21,6 +21,7 @@ import {
   type DocumentRow,
 } from '../../management/document-rows';
 import { parseJsonObject } from '../../management/input-rules';
+import { isInsideControl } from '../is-inside-control';
 import { DestructiveDialog } from './DestructiveDialog';
 import { DocumentEditorDialog } from './DocumentEditorDialog';
 import type { CollectionPanelProps } from './IndexesPanel';
@@ -184,7 +185,16 @@ export function DocumentsPanel({ connectionId, database, collection }: Collectio
             </Table.Thead>
             <Table.Tbody>
               {rows.map((row) => (
-                <Table.Tr key={row.idEjson}>
+                <Table.Tr
+                  key={row.idEjson}
+                  onDoubleClick={(event) => {
+                    // A double-click on a button in the row is an action, not an open.
+                    if (isInsideControl(event.target)) {
+                      return;
+                    }
+                    setEditor({ mode: 'edit', row });
+                  }}
+                >
                   <Table.Td>
                     <Text size="xs" ff="monospace">
                       {row.idEjson}
