@@ -3,6 +3,7 @@ import { CollectionNameSchema, DatabaseNameSchema } from '../management/types';
 import { AbsolutePathSchema } from '../transfer/types';
 import { ToolsVersionSchema } from '../tools/types';
 import { FindingCodeSchema } from './findings';
+import { dumpOptionProblems } from './option-problems';
 
 export const BackupScopeSchema = z.discriminatedUnion('kind', [
   z.object({ kind: z.literal('server') }),
@@ -53,7 +54,7 @@ export const BackupNameSchema = z
   // eslint-disable-next-line no-control-regex
   .regex(/^[^\\/:*?"<>|\u0000-\u001f]+$/)
   .refine((n) => n !== '.' && n !== '..' && !/[. ]$/.test(n));
-// The server-independent option checks are added by option-problems.
+// Runs the option checks that need no server facts; main repeats them with the server's.
 export const BackupStartInputSchema = z
   .object({
     connectionId: z.uuid(),
@@ -66,7 +67,11 @@ export const BackupStartInputSchema = z
     toolsVersion: ToolsVersionSchema,
     acknowledged: z.array(FindingCodeSchema).default([]),
   })
-  .superRefine(() => {});
+  .superRefine((input, ctx) => {
+    for (const problem of dumpOptionProblems(input.scope, input.options)) {
+      ctx.addIssue({ code: 'custom', message: problem.message, path: ['options', problem.field] });
+    }
+  });
 
 export const DatabaseRenameSchema = z.object({ from: DatabaseNameSchema, to: DatabaseNameSchema });
 // "db.*" selects a database, "db.coll" one collection. Source names, before any rename.

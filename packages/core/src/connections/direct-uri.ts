@@ -1,4 +1,4 @@
-const MONGO_SCHEME = /^\s*(mongodb(?:\+srv)?:\/\/)/i;
+export const MONGO_SCHEME = /^\s*(mongodb(?:\+srv)?:\/\/)/i;
 const DIRECT_OPTIONS: ReadonlySet<string> = new Set(['directConnection', 'replicaSet']);
 
 /**
@@ -31,14 +31,14 @@ export function directConnectionName(parentName: string, host: string): string {
 }
 
 /** Index in `rest` of the first `/` or `?` after the host list, or its length. */
-function hostListEnd(rest: string): number {
+export function hostListEnd(rest: string): number {
   const slash = rest.indexOf('/');
   const question = rest.indexOf('?');
   const ends = [slash, question].filter((index) => index !== -1);
   return ends.length === 0 ? rest.length : Math.min(...ends);
 }
 
-function splitQuery(text: string): [string, string] {
+export function splitQuery(text: string): [string, string] {
   const question = text.indexOf('?');
   return question === -1 ? [text, ''] : [text.slice(0, question), text.slice(question + 1)];
 }
