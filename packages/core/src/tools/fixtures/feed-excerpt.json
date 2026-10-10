@@ -1,0 +1,287 @@
+{
+  "versions": [
+    {
+      "version": "99.0.0",
+      "downloads": [
+        {
+          "name": "macos",
+          "arch": "x86_64",
+          "archive": {
+            "url": "https://fastdl.mongodb.org/tools/db/mongodb-database-tools-macos-x86_64-99.0.0.tgz",
+            "sha256": "418635b638e057f6112e9f5626d425c61b5af1c625ef260cdc9dcb64f18feec0"
+          }
+        },
+        {
+          "name": "rhel70",
+          "arch": "x86_64",
+          "archive": {
+            "url": "https://fastdl.mongodb.org/tools/db/mongodb-database-tools-rhel70-x86_64-99.0.0.tgz",
+            "sha256": "5dbb278a7340724132a6f7d2913d4cd88ebbde641924002c77f44318f184cc3d"
+          }
+        },
+        {
+          "name": "windows",
+          "arch": "x86_64",
+          "archive": {
+            "url": "https://fastdl.mongodb.org/tools/db/mongodb-database-tools-windows-x86_64-99.0.0.zip",
+            "sha256": "54b0f55abfc2501309e67bc7b9322526fa7e7a3c64f26bfb71d86295779fd56c"
+          }
+        }
+      ]
+    },
+    {
+      "version": "100.0.0-alpha1",
+      "downloads": [
+        {
+          "name": "macos",
+          "arch": "x86_64",
+          "archive": {
+            "url": "https://fastdl.mongodb.org/tools/db/mongodb-database-tools-macos-x86_64-100.0.0-alpha1.tgz",
+            "sha256": "20f7b778255570473d9e9edd2e0b970ac0151aa25e93e0f51367415b8d6c1584"
+          }
+        }
+      ]
+    },
+    {
+      "version": "100.0.2",
+      "downloads": [
+        {
+          "name": "macos",
+          "arch": "x86_64",
+          "archive": {
+            "url": "https://fastdl.mongodb.org/tools/db/mongodb-database-tools-macos-x86_64-100.0.2.tgz",
+            "sha256": "be2294ea0dd4ccce40910b88bbc3feb38facb4ec0dac32b14894c19aabe59e2c"
+          }
+        },
+        {
+          "name": "rhel70",
+          "arch": "x86_64",
+          "archive": {
+            "url": "https://fastdl.mongodb.org/tools/db/mongodb-database-tools-rhel70-x86_64-100.0.2.tgz",
+            "sha256": "2e863038509a80f3bd606db437d45d1a9842e31d3e899d1f09a69115ed3e9d55"
+          }
+        },
+        {
+          "name": "windows",
+          "arch": "x86_64",
+          "archive": {
+            "url": "https://fastdl.mongodb.org/tools/db/mongodb-database-tools-windows-x86_64-100.0.2.zip",
+            "sha256": "b722b9b495fdea80b8ac2e55d5a4c109411630e5a98b3aaeb610da160d49ade5"
+          }
+        }
+      ]
+    },
+    {
+      "version": "100.12.1",
+      "downloads": [
+        {
+          "name": "windows",
+          "arch": "x86_64",
+          "archive": {
+            "url": "https://fastdl.mongodb.org/tools/db/mongodb-database-tools-windows-x86_64-100.12.1.zip",
+            "sha256": "e432aac2e658a0dc0463ae3a524195ffa5cd37c6f0fc18d5a7d43ec0c52224a1"
+          }
+        },
+        {
+          "name": "macos",
+          "arch": "arm64",
+          "archive": {
+            "url": "https://fastdl.mongodb.org/tools/db/mongodb-database-tools-macos-arm64-100.12.1.zip",
+            "sha256": "e5fed4b2ab8d67f54067c947446333337a187301a3b41bb5d8b9b3f009dac0d2"
+          }
+        },
+        {
+          "name": "macos",
+          "arch": "x86_64",
+          "archive": {
+            "url": "https://fastdl.mongodb.org/tools/db/mongodb-database-tools-macos-x86_64-100.12.1.zip",
+            "sha256": "ba21e390ee11955e3d5282bbabe58c0bdfb37cb29a0b5bf320554c284019f626"
+          }
+        },
+        {
+          "name": "rhel70",
+          "arch": "x86_64",
+          "archive": {
+            "url": "https://fastdl.mongodb.org/tools/db/mongodb-database-tools-rhel70-x86_64-100.12.1.tgz",
+            "sha256": "d8adb6c80e8f61f08cb0d6574de69613a82b1bfcfbaf949911f14cb9d7d6aa42"
+          }
+        },
+        {
+          "name": "ubuntu2004",
+          "arch": "x86_64",
+          "archive": {
+            "url": "https://fastdl.mongodb.org/tools/db/mongodb-database-tools-ubuntu2004-x86_64-100.12.1.tgz",
+            "sha256": "3322ce1ebc7e0f8b6e42651fb661f96856b61ba2d344887e4e5154c9c9694df8"
+          }
+        },
+        {
+          "name": "ubuntu2004",
+          "arch": "arm64",
+          "archive": {
+            "url": "https://fastdl.mongodb.org/tools/db/mongodb-database-tools-ubuntu2004-arm64-100.12.1.tgz",
+            "sha256": "56a9b61263a232be5081580f4553eb8ee16e0c84b58a913d3d76262fd8a04c71"
+          }
+        }
+      ]
+    },
+    {
+      "version": "100.12.1",
+      "downloads": [
+        {
+          "name": "windows",
+          "arch": "x86_64",
+          "archive": {
+            "url": "https://fastdl.mongodb.org/tools/db/mongodb-database-tools-windows-x86_64-100.12.1.zip",
+            "sha256": "e432aac2e658a0dc0463ae3a524195ffa5cd37c6f0fc18d5a7d43ec0c52224a1"
+          }
+        },
+        {
+          "name": "macos",
+          "arch": "arm64",
+          "archive": {
+            "url": "https://fastdl.mongodb.org/tools/db/mongodb-database-tools-macos-arm64-100.12.1.zip",
+            "sha256": "477927da8c9ac1f6006899627d903c345e61ac152c9896df3646131631bd0072"
+          }
+        },
+        {
+          "name": "macos",
+          "arch": "x86_64",
+          "archive": {
+            "url": "https://fastdl.mongodb.org/tools/db/mongodb-database-tools-macos-x86_64-100.12.1.zip",
+            "sha256": "ba21e390ee11955e3d5282bbabe58c0bdfb37cb29a0b5bf320554c284019f626"
+          }
+        },
+        {
+          "name": "rhel70",
+          "arch": "x86_64",
+          "archive": {
+            "url": "https://fastdl.mongodb.org/tools/db/mongodb-database-tools-rhel70-x86_64-100.12.1.tgz",
+            "sha256": "d8adb6c80e8f61f08cb0d6574de69613a82b1bfcfbaf949911f14cb9d7d6aa42"
+          }
+        },
+        {
+          "name": "ubuntu2004",
+          "arch": "x86_64",
+          "archive": {
+            "url": "https://fastdl.mongodb.org/tools/db/mongodb-database-tools-ubuntu2004-x86_64-100.12.1.tgz",
+            "sha256": "3322ce1ebc7e0f8b6e42651fb661f96856b61ba2d344887e4e5154c9c9694df8"
+          }
+        },
+        {
+          "name": "ubuntu2004",
+          "arch": "arm64",
+          "archive": {
+            "url": "https://fastdl.mongodb.org/tools/db/mongodb-database-tools-ubuntu2004-arm64-100.12.1.tgz",
+            "sha256": "56a9b61263a232be5081580f4553eb8ee16e0c84b58a913d3d76262fd8a04c71"
+          }
+        }
+      ]
+    },
+    {
+      "version": "100.18.0",
+      "downloads": [
+        {
+          "name": "windows",
+          "arch": "x86_64",
+          "archive": {
+            "url": "https://fastdl.mongodb.org/tools/db/mongodb-database-tools-windows-x86_64-100.18.0.zip",
+            "sha256": "feb29eed9788b1da2fb6f7ae63909ac790a6fe3a363947e68590f048bed08edb"
+          }
+        },
+        {
+          "name": "macos",
+          "arch": "arm64",
+          "archive": {
+            "url": "https://fastdl.mongodb.org/tools/db/mongodb-database-tools-macos-arm64-100.18.0.zip",
+            "sha256": "d8f020ed71681f01514e0d2316c446289d0fda391cd3cab0984e47170aabf97e"
+          }
+        },
+        {
+          "name": "macos",
+          "arch": "x86_64",
+          "archive": {
+            "url": "https://fastdl.mongodb.org/tools/db/mongodb-database-tools-macos-x86_64-100.18.0.zip",
+            "sha256": "db50ae92da0f8c88e30c2b98d4498c4ac3a20107fdc0e488b9b5b6417b013e67"
+          }
+        },
+        {
+          "name": "rhel70",
+          "arch": "x86_64",
+          "archive": {
+            "url": "https://fastdl.mongodb.org/tools/db/mongodb-database-tools-rhel70-x86_64-100.18.0.tgz",
+            "sha256": "50065ed7f1881e2a21a7ee398c1a1e45deb58b36e16a8b39db563495f8aac386"
+          }
+        },
+        {
+          "name": "ubuntu2004",
+          "arch": "x86_64",
+          "archive": {
+            "url": "https://fastdl.mongodb.org/tools/db/mongodb-database-tools-ubuntu2004-x86_64-100.18.0.tgz",
+            "sha256": "5556d6b896aa021c363297d0ba15e99e4cbaac0bceebba3b9eba7a77ac2fe5a1"
+          }
+        },
+        {
+          "name": "ubuntu2004",
+          "arch": "arm64",
+          "archive": {
+            "url": "https://fastdl.mongodb.org/tools/db/mongodb-database-tools-ubuntu2004-arm64-100.18.0.tgz",
+            "sha256": "0fcc6d0bd3be11abee6558495ff1495a46dc94c83410e7afcf523eab3d0a105b"
+          }
+        }
+      ]
+    },
+    {
+      "version": "100.19.1",
+      "downloads": [
+        {
+          "name": "windows",
+          "arch": "x86_64",
+          "archive": {
+            "url": "https://fastdl.mongodb.org/tools/db/mongodb-database-tools-windows-x86_64-100.19.1.zip",
+            "sha256": "527738a0f9ab2d80ea40cb8fc7a68f8e28664a2fd4e3b63626c2d4629aeb7f37"
+          }
+        },
+        {
+          "name": "macos",
+          "arch": "arm64",
+          "archive": {
+            "url": "https://fastdl.mongodb.org/tools/db/mongodb-database-tools-macos-arm64-100.19.1.zip",
+            "sha256": "54643d4aedb79ddc81797d6fb54113acf79f77fd82a5868b6674f6c74e1b3000"
+          }
+        },
+        {
+          "name": "macos",
+          "arch": "x86_64",
+          "archive": {
+            "url": "https://fastdl.mongodb.org/tools/db/mongodb-database-tools-macos-x86_64-100.19.1.zip",
+            "sha256": "1633f62c42d8cbff79b3f0b2475080ce9e1a536170fce632b64f83ae05520a4a"
+          }
+        },
+        {
+          "name": "rhel70",
+          "arch": "x86_64",
+          "archive": {
+            "url": "https://fastdl.mongodb.org/tools/db/mongodb-database-tools-rhel70-x86_64-100.19.1.tgz",
+            "sha256": "7e2c95536ecd34b68f151c54eb2a9cf82ade64b71454382d33f9e4637d4d084c"
+          }
+        },
+        {
+          "name": "ubuntu2004",
+          "arch": "x86_64",
+          "archive": {
+            "url": "https://fastdl.mongodb.org/tools/db/mongodb-database-tools-ubuntu2004-x86_64-100.19.1.tgz",
+            "sha256": "c0a9adad7afbfaa38c1e0aa093c468e9796017bfb84377cd7d07c878ce0bc2ee"
+          }
+        },
+        {
+          "name": "ubuntu2004",
+          "arch": "arm64",
+          "archive": {
+            "url": "https://fastdl.mongodb.org/tools/db/mongodb-database-tools-ubuntu2004-arm64-100.19.1.tgz",
+            "sha256": "81d67187819987d57afbd215a9b8a91515e3a28f7e9625bf98c011d701b31844"
+          }
+        }
+      ]
+    }
+  ]
+}

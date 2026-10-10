@@ -1,0 +1,12 @@
+2026-10-10T18:42:44.319+0200	writing `shop.v` to `archive on stdout`
+2026-10-10T18:42:44.320+0200	writing `shop.orders` to `archive on stdout`
+2026-10-10T18:42:44.320+0200	writing `shop.capped` to `archive on stdout`
+2026-10-10T18:42:44.320+0200	writing `shop.system.buckets.ts` to `archive on stdout`
+2026-10-10T18:42:44.320+0200	done dumping `shop.v` (0 documents)
+2026-10-10T18:42:44.321+0200	done dumping `shop.capped` (1 document)
+2026-10-10T18:42:44.321+0200	done dumping `shop.system.buckets.ts` (2 documents)
+2026-10-10T18:42:47.318+0200	[########................]  shop.orders  141578/400000  (35.4%)
+2026-10-10T18:42:50.317+0200	[################........]  shop.orders  283156/400000  (70.8%)
+2026-10-10T18:42:53.318+0200	[#####################...]  shop.orders  353945/400000  (88.5%)
+2026-10-10T18:42:53.908+0200	[########################]  shop.orders  400000/400000  (100.0%)
+2026-10-10T18:42:55.398+0200	done dumping `shop.orders` (400000 documents)

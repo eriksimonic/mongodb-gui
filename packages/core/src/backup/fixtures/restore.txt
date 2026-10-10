@@ -1,0 +1,13 @@
+2026-10-10T18:50:01.102+0200	preparing collections to restore from
+2026-10-10T18:50:01.110+0200	reading metadata for shop.orders from dir/shop/orders.metadata.json
+2026-10-10T18:50:01.131+0200	restoring `shop.orders` from dir/shop/orders.bson
+2026-10-10T18:50:04.104+0200	[########................]  shop.orders  86.6MB/250MB  (34.6%)
+2026-10-10T18:50:07.104+0200	[################........]  shop.orders  172.5MB/250MB  (69.0%)
+2026-10-10T18:50:09.870+0200	[########################]  shop.orders  250MB/250MB  (100.0%)
+2026-10-10T18:50:09.871+0200	finished restoring `shop.orders` (400000 documents, 0 failures)
+2026-10-10T18:50:09.872+0200	restoring `shop.capped` from archive on stdin
+2026-10-10T18:50:10.104+0200	[####....................]  shop.capped  1.5KB
+2026-10-10T18:50:10.200+0200	finished restoring `shop.capped` (1 document, 0 failures)
+2026-10-10T18:50:10.201+0200	WARNING: the index 'a_1' already exists with different options
+2026-10-10T18:50:10.202+0200	Failed: shop.bad: error restoring from dir/shop/bad.bson: duplicate key error
+2026-10-10T18:50:10.203+0200	400001 document(s) restored successfully. 3 document(s) failed to restore.
