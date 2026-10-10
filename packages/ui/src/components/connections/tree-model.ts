@@ -6,6 +6,8 @@ import type {
   DockerMongoContainerSummary,
   DockerStatus,
   GridFsBucket,
+  ReplicaSetMember,
+  ReplicaSetStatus,
 } from '@mongo-gui/core';
 import type { Loadable } from '../../state/app-store';
 import {
@@ -16,7 +18,9 @@ import {
   databaseNodeId,
   gridfsBucketNodeId,
   gridfsNodeId,
+  memberNodeId,
   monitorNodeId,
+  replicaSetNodeId,
   operationsNodeId,
   profilerNodeId,
 } from '../../state/node-ids';
@@ -33,7 +37,9 @@ export type TreeRowKind =
   | 'docker'
   | 'container'
   | 'monitor'
-  | 'operations';
+  | 'operations'
+  | 'replica-set'
+  | 'member';
 
 /** One visible line of the tree, flattened. Children follow their parent in the list. */
 export interface TreeRow {
@@ -56,6 +62,8 @@ export interface TreeRow {
   readonly status: ConnectionStatus | undefined;
   /** Set on `container` rows only. */
   readonly container: DockerMongoContainerSummary | undefined;
+  /** Set on `member` rows only. */
+  readonly member: ReplicaSetMember | undefined;
   /** Tooltip text. Set when the row is shown without its container, for example with Docker down. */
   readonly note: string | undefined;
   readonly tone: 'dimmed' | 'red';
@@ -76,6 +84,8 @@ export interface TreeInput {
   readonly docker?: DockerTreeInput | undefined;
   /** GridFS buckets per database, keyed by `catalogKey`. Absent until the GridFS node loads them. */
   readonly gridfs?: Readonly<Record<string, Loadable<readonly GridFsBucket[]>>> | undefined;
+  /** Replica set status per connection. Absent until the connection's status is read. */
+  readonly replicaSets?: Readonly<Record<string, Loadable<ReplicaSetStatus>>> | undefined;
 }
 
 const DISCONNECTED: ConnectionStatus = { state: 'disconnected' };
@@ -97,6 +107,7 @@ function makeRow(init: RowInit): TreeRow {
     color: undefined,
     status: undefined,
     container: undefined,
+    member: undefined,
     note: undefined,
     tone: 'dimmed',
     ...init,
@@ -137,7 +148,10 @@ function connectionChildren(
   if (status.state === 'disconnected') {
     return [messageRow(parentKey, connectionId, depth, 'Not connected. Double-click to connect.')];
   }
-  const tools = toolRows(connectionId, parentKey, depth);
+  const tools = [
+    ...replicaSetRows(input, connectionId, status, parentKey, depth),
+    ...toolRows(connectionId, parentKey, depth),
+  ];
   const databases = input.databases[connectionId];
   if (databases === undefined || databases.state === 'loading') {
     return [...tools, messageRow(parentKey, connectionId, depth, 'Loading databases')];
@@ -151,6 +165,96 @@ function connectionChildren(
       databaseRows(input, connectionId, database.name, parentKey, depth),
     ),
   ];
+}
+
+/**
+ * The replica set node and its member rows. Shown when the server reports a set name, so a direct
+ * connection to one member lists the whole set too. The node is open unless the user closed it.
+ */
+function replicaSetRows(
+  input: TreeInput,
+  connectionId: string,
+  status: ConnectionStatus,
+  parentKey: string,
+  depth: number,
+): TreeRow[] {
+  if (status.state !== 'connected' || status.setName === undefined) {
+    return [];
+  }
+  const key = replicaSetNodeId(connectionId);
+  const expanded = input.expanded[key] !== false;
+  const node = makeRow({
+    key,
+    kind: 'replica-set',
+    depth,
+    label: `Replica set ${status.setName}`,
+    connectionId,
+    parentKey,
+    expandable: true,
+    expanded,
+  });
+  if (!expanded) {
+    return [node];
+  }
+  const loaded = input.replicaSets?.[connectionId];
+  if (loaded === undefined || loaded.state === 'loading') {
+    return [node, messageRow(key, connectionId, depth + CHILD, 'Loading members')];
+  }
+  if (loaded.state === 'error') {
+    return [node, messageRow(key, connectionId, depth + CHILD, loaded.error.message, 'red')];
+  }
+  return [
+    node,
+    ...loaded.data.members.map((member) =>
+      makeRow({
+        key: memberNodeId(connectionId, member.name),
+        kind: 'member',
+        depth: depth + CHILD,
+        label: member.name,
+        connectionId,
+        parentKey: key,
+        member,
+        note: memberNote(member),
+      }),
+    ),
+  ];
+}
+
+/** Tooltip of a member row: the state, and what else the configuration says about the member. */
+export function memberNote(member: ReplicaSetMember): string {
+  const parts = [member.state];
+  if (member.self) {
+    parts.push('this connection');
+  }
+  if (member.hidden) {
+    parts.push('hidden');
+  }
+  if (member.health === 0) {
+    parts.push('unreachable');
+  }
+  if (member.lagSeconds !== undefined && member.lagSeconds > 0) {
+    parts.push(`${member.lagSeconds} s behind`);
+  }
+  return parts.join(' · ');
+}
+
+/** Colour group of a member: primary, secondary, arbiter, or down for anything unhealthy or odd. */
+export function memberStateTone(
+  member: Pick<ReplicaSetMember, 'state' | 'health'>,
+): 'primary' | 'secondary' | 'arbiter' | 'down' {
+  if (member.health === 0) {
+    return 'down';
+  }
+  switch (member.state) {
+    case 'PRIMARY':
+      return 'primary';
+    case 'SECONDARY':
+      return 'secondary';
+    case 'ARBITER':
+      return 'arbiter';
+    default:
+      return 'down';
+  }
 }
 
 /** The Monitoring and Operations children that sit above the databases of a connected connection. */

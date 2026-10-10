@@ -18,6 +18,7 @@ import {
   DEFAULT_SORT,
   draftFromLevel,
   filtersToQuery,
+  isProblematic,
   mergeTailEntries,
   setLevelInput,
   tailFilterFor,
@@ -104,19 +105,23 @@ const DEFAULT_DETAIL_WIDTH = 320;
 
 /**
  * The selection that survives a change of rows. It stays only while the row is still listed and
- * still passes the shape filter. Otherwise the detail pane would show a row the table hides.
+ * still passes the shape filter and the "Only problematic" filter. Otherwise the detail pane
+ * would show a row the table hides.
  */
 function visibleSelection(
   entries: readonly ProfileEntry[],
   selectedId: string | undefined,
   shapeFilter: string | undefined,
+  onlyProblematic: boolean,
 ): string | undefined {
   if (selectedId === undefined) {
     return undefined;
   }
   const kept = entries.some(
     (entry) =>
-      entry.id === selectedId && (shapeFilter === undefined || shapeKey(entry) === shapeFilter),
+      entry.id === selectedId &&
+      (shapeFilter === undefined || shapeKey(entry) === shapeFilter) &&
+      (!onlyProblematic || isProblematic(entry)),
   );
   return kept ? selectedId : undefined;
 }
@@ -275,7 +280,12 @@ export function createProfilerStore(api: UiApi): ProfilerStore {
             rpc.profiler.list({ ...target, filter }),
             rpc.profiler.shapes({ ...target, filter }),
           ]);
-          const selected = visibleSelection(entries, panel.selectedId, panel.shapeFilter);
+          const selected = visibleSelection(
+            entries,
+            panel.selectedId,
+            panel.shapeFilter,
+            panel.filters.onlyProblematic,
+          );
           patch(panelId, {
             entries,
             shapes,
@@ -321,7 +331,16 @@ export function createProfilerStore(api: UiApi): ProfilerStore {
         if (panel === undefined) {
           return;
         }
-        patch(panelId, { filters: { ...panel.filters, ...change } });
+        const filters = { ...panel.filters, ...change };
+        patch(panelId, {
+          filters,
+          selectedId: visibleSelection(
+            panel.entries,
+            panel.selectedId,
+            panel.shapeFilter,
+            filters.onlyProblematic,
+          ),
+        });
       },
 
       async setTailEnabled(panelId, enabled) {
@@ -365,7 +384,12 @@ export function createProfilerStore(api: UiApi): ProfilerStore {
         // the shape is dropped, so the detail pane never shows a hidden row.
         patch(panelId, {
           shapeFilter: key,
-          selectedId: visibleSelection(panel.entries, panel.selectedId, key),
+          selectedId: visibleSelection(
+            panel.entries,
+            panel.selectedId,
+            key,
+            panel.filters.onlyProblematic,
+          ),
           ...(key === undefined ? {} : { tab: 'slow' as const }),
         });
       },

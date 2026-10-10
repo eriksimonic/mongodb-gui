@@ -75,6 +75,17 @@ export function fixtureFavourites(): Favourite[] {
   ];
 }
 
+/**
+ * A container whose server enforces auth, with no MONGO_INITDB variables. Connecting asks for
+ * credentials. Only the user below is accepted, with authSource admin.
+ */
+export const SECURE_CONTAINER_NAME = 'secure-mongo';
+export const SECURE_CONTAINER_CREDENTIALS = {
+  username: 'admin',
+  password: 'admin',
+  authSource: 'admin',
+} as const;
+
 /** A container with 27017 published on loopback. Its root user is `app`, with a password the mock never shows. */
 export function fixtureDockerContainers(): DockerMongoContainerSummary[] {
   return [
@@ -101,6 +112,17 @@ export function fixtureDockerContainers(): DockerMongoContainerSummary[] {
       state: 'running',
       internalPort: 27017,
       networks: ['orders_net'],
+      env: {},
+      envKeys: ['MONGO_VERSION'],
+      hasCredentials: false,
+    },
+    {
+      id: 'e7b2c9a4d1f3065b8c2e7d9a4f1b3c6e0d8a2f5b7c9e1d3a6f8b0c2e4d6a8f1c',
+      name: SECURE_CONTAINER_NAME,
+      image: 'mongo:7',
+      state: 'running',
+      internalPort: 27017,
+      networks: ['secure_net'],
       env: {},
       envKeys: ['MONGO_VERSION'],
       hasCredentials: false,

@@ -3,6 +3,7 @@ import { useProfilerOpener } from '../../profiler/profiler-opener';
 import { useAppStore } from '../../state/app-store-context';
 import { shardingAvailability } from '../../sharding/sharding-availability';
 import { usePanelOpener } from '../../state/panel-opener';
+import { useGenerateDialog } from '../generate/generate-store';
 import { TreeMenu, type TreeMenuEntry } from './TreeMenu';
 
 interface MenuPlacement {
@@ -151,6 +152,11 @@ export function CollectionContextMenu({
       kind: 'item',
       label: 'Import data',
       onSelect: () => setTransferDialog({ kind: 'import', connectionId, database, collection }),
+    },
+    {
+      kind: 'item',
+      label: 'Generate data',
+      onSelect: () => useGenerateDialog.getState().open({ connectionId, database, collection }),
     },
     {
       kind: 'item',

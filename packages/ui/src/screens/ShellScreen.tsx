@@ -24,6 +24,7 @@ import {
 } from 'dockview-react';
 import { ConnectionDialog } from '../components/connections/ConnectionDialog';
 import { ConnectionManager } from '../components/connections/ConnectionManager';
+import { DockerCredentialsDialog } from '../components/connections/DockerCredentialsDialog';
 import { useUiApi } from '../api/ui-api';
 import { ManagementDialogs } from '../components/management/ManagementDialogs';
 import { runReported } from '../components/notify-error';
@@ -31,6 +32,7 @@ import { SettingsModal } from '../components/settings/SettingsModal';
 import { ShortcutsModal } from '../shortcuts/ShortcutsModal';
 import { shellHotkeys } from '../shortcuts/shortcuts';
 import { TransferModals } from '../components/transfers/TransferModals';
+import { GenerateDataDialog } from '../components/generate/GenerateDataDialog';
 import { UpdateBanner } from '../components/updates/UpdateBanner';
 import { ProfilerOpenerContext, type ProfilerOpener } from '../profiler/profiler-opener';
 import type { AppData, PanelRequest } from '../state/app-store';
@@ -59,6 +61,7 @@ import { GridFsOpenerContext, type GridFsOpener } from '../components/gridfs/gri
 import { ChangesOpenerContext, type ChangesOpener } from '../changes/changes-opener';
 import { databasePanelIds, restoredCollectionRequest, stalePanelIds } from './collection-panels';
 import { createLayoutSaver, loadDockLayout, restoreDockLayout } from './dock-layout';
+import { OUTPUT_SHARE, toggleOutputPanel } from './output-collapse';
 import {
   ChangesDockPanel,
   ConnectionsPanel,
@@ -66,6 +69,7 @@ import {
   EditorDockPanel,
   ExplainDockPanel,
   ClosableTab,
+  GroupHeaderActions,
   FixedTab,
   GridFsDockPanel,
   IndexesDockPanel,
@@ -118,7 +122,6 @@ const MONGO_THEME: DockviewTheme = { ...themeDark, name: 'mongo-gui', className:
 type ConnectionsState = AppData['connections'];
 
 const SIDEBAR_WIDTH_PX = 280;
-const OUTPUT_SHARE = 0.3;
 const PANEL_TITLE_SUFFIX: Readonly<Record<PanelRequest['panel'], string>> = {
   indexes: 'indexes',
   validation: 'validation',
@@ -500,6 +503,7 @@ export function ShellScreen() {
   const editorOrder = useAppStore((state) => state.editors.order);
   const editorTabs = useAppStore((state) => state.editors.tabs);
   const activeEditor = useAppStore((state) => state.editors.activeId);
+  const editorFocus = useAppStore((state) => state.editors.focusRevision);
   // The editor panels this shell opened, by tab id. Their state lives in the store.
   const editorPanels = useRef(new Set<string>());
   const explainPanels = useAppStore((state) => state.explainPanels);
@@ -598,6 +602,11 @@ export function ShellScreen() {
       openSettings: () => setSettingsOpen(true),
       lock: () => void runReported(() => lock()),
       openHelp: () => setShortcutsOpen(true),
+      toggleOutput: () => {
+        if (dock !== undefined) {
+          toggleOutputPanel(dock);
+        }
+      },
     }),
   );
 
@@ -664,12 +673,13 @@ export function ShellScreen() {
     }
   }, [dock, editorOrder, editorTabs, connections]);
 
-  // Brings the active tab's panel to the front when the store changes the active tab.
+  // Brings the active tab's panel to the front when the store activates a tab, including the one
+  // that is already active, because another panel kind may have the focus meanwhile.
   useEffect(() => {
     if (dock !== undefined && activeEditor !== undefined) {
       dock.getPanel(activeEditor)?.api.setActive();
     }
-  }, [dock, activeEditor]);
+  }, [dock, activeEditor, editorFocus]);
 
   // Ctrl+N opens a new editor on the selected connection, and on the selected database when there is one.
   useEffect(() => {
@@ -774,6 +784,7 @@ export function ShellScreen() {
                     components={PANEL_COMPONENTS}
                     tabComponents={TAB_COMPONENTS}
                     defaultTabComponent={ClosableTab}
+                    rightHeaderActionsComponent={GroupHeaderActions}
                     onReady={(event) => {
                       dockApi.current = event.api;
                       setDock(event.api);
@@ -811,6 +822,7 @@ export function ShellScreen() {
                   onClose={() => setDialog({ kind: 'closed' })}
                 />
               )}
+              <DockerCredentialsDialog />
               <ManagementDialogs
                 onDatabaseDropped={(connectionId, database) => {
                   if (dockApi.current !== undefined) {
@@ -828,6 +840,7 @@ export function ShellScreen() {
               <SettingsModal />
               <ShortcutsModal />
               <TransferModals />
+              <GenerateDataDialog />
             </Flex>
           </ChangesOpenerContext.Provider>
         </GridFsOpenerContext.Provider>

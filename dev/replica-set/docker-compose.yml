@@ -1,0 +1,119 @@
+name: mongo-gui-perf
+
+services:
+  keyfile:
+    image: alpine:3.20
+    restart: 'no'
+    command:
+      - sh
+      - -c
+      - |
+        apk add --no-cache openssl >/dev/null
+        [ -s /etc/mongo/keyfile ] || openssl rand -base64 756 > /etc/mongo/keyfile
+        chown 999:999 /etc/mongo/keyfile
+        chmod 400 /etc/mongo/keyfile
+    volumes:
+      - keyfile:/etc/mongo
+
+  rs1:
+    image: mongo:7.0
+    restart: unless-stopped
+    command:
+      - mongod
+      - --replSet
+      - rs0
+      - --port
+      - '27117'
+      - --bind_ip_all
+      - --keyFile
+      - /etc/mongo/keyfile
+      - --wiredTigerCacheSizeGB
+      - '0.25'
+      - --setParameter
+      - diagnosticDataCollectionEnabled=false
+    cpus: '0.5'
+    mem_limit: 512m
+    deploy:
+      resources:
+        limits:
+          cpus: '0.5'
+          memory: 512M
+    ports:
+      - '127.0.0.1:27117:27117'
+    volumes:
+      - keyfile:/etc/mongo:ro
+      - rs1-data:/data/db
+      - ./scripts:/scripts:ro
+    depends_on:
+      keyfile:
+        condition: service_completed_successfully
+
+  rs2:
+    image: mongo:7.0
+    restart: unless-stopped
+    command:
+      - mongod
+      - --replSet
+      - rs0
+      - --port
+      - '27118'
+      - --bind_ip_all
+      - --keyFile
+      - /etc/mongo/keyfile
+      - --wiredTigerCacheSizeGB
+      - '0.25'
+      - --setParameter
+      - diagnosticDataCollectionEnabled=false
+    cpus: '0.5'
+    mem_limit: 512m
+    deploy:
+      resources:
+        limits:
+          cpus: '0.5'
+          memory: 512M
+    ports:
+      - '127.0.0.1:27118:27118'
+    volumes:
+      - keyfile:/etc/mongo:ro
+      - rs2-data:/data/db
+    depends_on:
+      keyfile:
+        condition: service_completed_successfully
+
+  rs3:
+    image: mongo:7.0
+    restart: unless-stopped
+    command:
+      - mongod
+      - --replSet
+      - rs0
+      - --port
+      - '27119'
+      - --bind_ip_all
+      - --keyFile
+      - /etc/mongo/keyfile
+      - --wiredTigerCacheSizeGB
+      - '0.25'
+      - --setParameter
+      - diagnosticDataCollectionEnabled=false
+    cpus: '0.5'
+    mem_limit: 512m
+    deploy:
+      resources:
+        limits:
+          cpus: '0.5'
+          memory: 512M
+    ports:
+      - '127.0.0.1:27119:27119'
+    volumes:
+      - keyfile:/etc/mongo:ro
+      - rs3-data:/data/db
+    depends_on:
+      keyfile:
+        condition: service_completed_successfully
+
+volumes:
+  keyfile:
+  rs1-data:
+  rs2-data:
+  rs3-data:

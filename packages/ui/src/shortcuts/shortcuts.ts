@@ -20,6 +20,7 @@ export const SHORTCUTS: readonly Shortcut[] = [
   { id: 'help', keys: 'shift+?', action: 'Open this shortcut reference', scope: 'global' },
   { id: 'settings', keys: 'mod+,', action: 'Open settings', scope: 'global' },
   { id: 'lock', keys: 'mod+l', action: 'Lock the app', scope: 'global' },
+  { id: 'output', keys: 'mod+j', action: 'Collapse or expand the output panel', scope: 'global' },
   // ShellScreen binds Ctrl+N and Cmd+N in code, because the handler needs the tree selection.
   // The row is here so the reference lists it.
   {
@@ -125,6 +126,7 @@ export interface ShellHotkeyHandlers {
   readonly openSettings: () => void;
   readonly lock: () => void;
   readonly openHelp: () => void;
+  readonly toggleOutput: () => void;
 }
 
 /**
@@ -136,6 +138,7 @@ export function shellHotkeys(handlers: ShellHotkeyHandlers): [string, () => void
     [keysFor('settings'), handlers.openSettings],
     [keysFor('lock'), handlers.lock],
     [keysFor('help'), handlers.openHelp],
+    [keysFor('output'), handlers.toggleOutput],
   ];
 }
 

@@ -13,7 +13,10 @@ export async function readServerInfo(client: MongoClient): Promise<ServerInfo> {
   if (serverVersion === undefined) {
     throw new Error('buildInfo reply has no version');
   }
-  return toServerInfo(hello, serverVersion, client.options.loadBalanced);
+  return toServerInfo(hello, serverVersion, {
+    loadBalanced: client.options.loadBalanced,
+    directConnection: client.options.directConnection,
+  });
 }
 
 export function detectTopology(hello: unknown, loadBalanced: boolean): ClusterTopology {
@@ -54,11 +57,26 @@ function isCommandNotFound(error: unknown): boolean {
   );
 }
 
-function toServerInfo(hello: unknown, serverVersion: string, loadBalanced: boolean): ServerInfo {
+interface ClientOptions {
+  readonly loadBalanced: boolean;
+  readonly directConnection: boolean;
+}
+
+/**
+ * The connected status from the hello reply and the client options. A direct connection to a
+ * replica set member still reports the set name, so the flag tells the UI the client sees only
+ * that member.
+ */
+export function toServerInfo(
+  hello: unknown,
+  serverVersion: string,
+  options: ClientOptions,
+): ServerInfo {
   return {
     serverVersion,
-    topology: detectTopology(hello, loadBalanced),
+    topology: detectTopology(hello, options.loadBalanced),
     hosts: readStringArray(hello, 'hosts'),
     ...definedEntry('setName', readString(hello, 'setName')),
+    ...(options.directConnection ? { directConnection: true } : {}),
   };
 }

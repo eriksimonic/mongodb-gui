@@ -11,6 +11,7 @@ import {
   buildTreeRows,
   edgeFocusKey,
   firstChildKey,
+  memberStateTone,
   nextFocusKey,
   parentKeyOf,
   type TreeInput,
@@ -52,6 +53,90 @@ function input(overrides: Partial<TreeInput> = {}): TreeInput {
     ...overrides,
   };
 }
+
+describe('buildTreeRows replica set rows', () => {
+  const member = {
+    id: 0,
+    name: 'a:27117',
+    state: 'PRIMARY',
+    stateCode: 1,
+    health: 1,
+    self: true,
+    priority: 1,
+    votes: 1,
+    hidden: false,
+    arbiterOnly: false,
+    buildIndexes: true,
+    secondaryDelaySecs: 0,
+    tags: {},
+  };
+  const replicaStatus = { ...connected, topology: 'replicaSet' as const, setName: 'rs0' };
+
+  it('lists the set node with its members under a connected replica set member', () => {
+    const rows = buildTreeRows(
+      input({
+        expanded: { [connectionNodeId(local.id)]: true },
+        statuses: { [local.id]: replicaStatus },
+        databases: { [local.id]: { state: 'ready', data: [] } },
+        replicaSets: {
+          [local.id]: {
+            state: 'ready',
+            data: {
+              setName: 'rs0',
+              myState: 1,
+              members: [
+                member,
+                {
+                  ...member,
+                  id: 1,
+                  name: 'b:27118',
+                  state: 'SECONDARY',
+                  stateCode: 2,
+                  self: false,
+                },
+              ],
+            },
+          },
+        },
+      }),
+    );
+    const labels = rows.map((row) => row.label);
+    expect(labels.slice(0, 4)).toEqual(['Local dev', 'Replica set rs0', 'a:27117', 'b:27118']);
+    expect(rows[2]).toMatchObject({ kind: 'member', depth: 2, note: 'PRIMARY · this connection' });
+    expect(rows[3]).toMatchObject({ kind: 'member', note: 'SECONDARY' });
+  });
+
+  it('shows a loading line until the members arrive, and nothing for a standalone server', () => {
+    const loading = buildTreeRows(
+      input({
+        expanded: { [connectionNodeId(local.id)]: true },
+        statuses: { [local.id]: replicaStatus },
+        databases: { [local.id]: { state: 'ready', data: [] } },
+      }),
+    );
+    expect(loading.map((row) => row.label).slice(1, 3)).toEqual([
+      'Replica set rs0',
+      'Loading members',
+    ]);
+
+    const standalone = buildTreeRows(
+      input({
+        expanded: { [connectionNodeId(local.id)]: true },
+        statuses: { [local.id]: connected },
+        databases: { [local.id]: { state: 'ready', data: [] } },
+      }),
+    );
+    expect(standalone.map((row) => row.label)).not.toContain('Replica set rs0');
+  });
+
+  it('colours a member by its state and marks an unhealthy one as down', () => {
+    expect(memberStateTone({ state: 'PRIMARY', health: 1 })).toBe('primary');
+    expect(memberStateTone({ state: 'SECONDARY', health: 1 })).toBe('secondary');
+    expect(memberStateTone({ state: 'ARBITER', health: 1 })).toBe('arbiter');
+    expect(memberStateTone({ state: 'SECONDARY', health: 0 })).toBe('down');
+    expect(memberStateTone({ state: 'RECOVERING', health: 1 })).toBe('down');
+  });
+});
 
 describe('buildTreeRows', () => {
   it('lists the connections, then the Docker node, when nothing is expanded', () => {

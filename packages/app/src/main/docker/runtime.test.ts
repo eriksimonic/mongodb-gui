@@ -5,7 +5,9 @@ import { afterEach, describe, expect, it, vi } from 'vitest';
 import {
   AppErrorException,
   type ConnectionProfile,
+  type ConnectionProfileInput,
   type ConnectionStatus,
+  type ConnectionTestResult,
   type RpcEvent,
 } from '@mongo-gui/core';
 import {
@@ -19,6 +21,8 @@ import type { Logger } from '../log';
 import {
   buildUri,
   createDockerRuntime,
+  type DockerConnectedResult,
+  type DockerConnectResult,
   type DockerConnections,
   type DockerRuntime,
 } from './runtime';
@@ -35,6 +39,14 @@ const SILENT_LOG: Logger = { info: () => undefined, warn: () => undefined, error
 const UNUSED = (): never => {
   throw new Error('not expected in this test');
 };
+
+/** Narrows a connect result to the connected variant. Any other result fails the test. */
+function connectedOf(result: DockerConnectResult): DockerConnectedResult {
+  if ('kind' in result) {
+    throw new Error(`expected a connected result, got ${result.kind}`);
+  }
+  return result;
+}
 
 interface InspectOptions {
   readonly id: string;
@@ -152,7 +164,9 @@ function fakeForwarders(hostPort = 40123): FakeForwarders {
 interface FakeConnections extends DockerConnections {
   readonly connected: string[];
   readonly disconnected: string[];
+  readonly tested: string[];
   nextStatus: ConnectionStatus;
+  nextTest: ConnectionTestResult;
   failure: Error | undefined;
 }
 
@@ -160,7 +174,9 @@ function fakeConnections(): FakeConnections {
   const connections: FakeConnections = {
     connected: [],
     disconnected: [],
+    tested: [],
     nextStatus: CONNECTED,
+    nextTest: { ok: true, serverVersion: '8.0.17', topology: 'standalone' },
     failure: undefined,
     async connect(profile: ConnectionProfile) {
       connections.connected.push(profile.uri);
@@ -171,6 +187,10 @@ function fakeConnections(): FakeConnections {
     },
     async disconnect(connectionId: string) {
       connections.disconnected.push(connectionId);
+    },
+    async test(profile: ConnectionProfileInput) {
+      connections.tested.push(profile.uri);
+      return connections.nextTest;
     },
   };
   return connections;
@@ -278,7 +298,7 @@ describe('createDockerRuntime connect', () => {
       }),
     });
 
-    const result = await harness.runtime.connect(PUBLISHED_ID);
+    const result = connectedOf(await harness.runtime.connect(PUBLISHED_ID));
 
     expect(result.status).toEqual(CONNECTED);
     expect(harness.forwarders.ensured).toEqual([]);
@@ -299,8 +319,8 @@ describe('createDockerRuntime connect', () => {
       [PLAIN_ID]: inspectOf({ id: PLAIN_ID, name: 'orders-mongo', image: 'mongo:8.0.17' }),
     });
 
-    const first = await harness.runtime.connect(PLAIN_ID);
-    const second = await harness.runtime.connect(PLAIN_ID);
+    const first = connectedOf(await harness.runtime.connect(PLAIN_ID));
+    const second = connectedOf(await harness.runtime.connect(PLAIN_ID));
 
     expect(harness.forwarders.ensured).toEqual([PLAIN_ID, PLAIN_ID]);
     expect(second.connectionId).toBe(first.connectionId);
@@ -315,12 +335,12 @@ describe('createDockerRuntime connect', () => {
     });
     harness.connections.nextStatus = {
       state: 'error',
-      error: { code: 'AUTH_FAILED', message: 'Authentication failed' },
+      error: { code: 'CONNECTION_FAILED', message: 'Could not connect to the server' },
     };
 
     const result = await harness.runtime.connect(PLAIN_ID);
 
-    expect(result.status.state).toBe('error');
+    expect(result).toMatchObject({ status: { state: 'error' } });
     expect(harness.forwarders.released).toEqual([PLAIN_ID]);
   });
 
@@ -361,6 +381,177 @@ describe('createDockerRuntime connect', () => {
   });
 });
 
+describe('createDockerRuntime credentials required', () => {
+  const AUTH_FAILED: ConnectionStatus = {
+    state: 'error',
+    error: { code: 'AUTH_FAILED', message: 'Authentication failed' },
+  };
+  const UNAUTHORIZED: ConnectionStatus = {
+    state: 'error',
+    error: {
+      code: 'COMMAND_FAILED',
+      message: 'The server rejected the command',
+      codeName: 'Unauthorized',
+    },
+  };
+
+  it('asks for credentials when the server rejects a container without credentials', async () => {
+    const harness = buildHarness({
+      [PLAIN_ID]: inspectOf({ id: PLAIN_ID, name: 'secure-mongo' }),
+    });
+    harness.connections.nextStatus = AUTH_FAILED;
+
+    const result = await harness.runtime.connect(PLAIN_ID);
+
+    expect(result).toEqual({
+      kind: 'credentialsRequired',
+      containerId: PLAIN_ID,
+      host: '127.0.0.1',
+      port: 40123,
+      hint: 'noEnv',
+    });
+    expect(harness.forwarders.released).toEqual([PLAIN_ID]);
+  });
+
+  it('reports envFound when the container credentials are rejected', async () => {
+    const harness = buildHarness({
+      [PUBLISHED_ID]: inspectOf({
+        id: PUBLISHED_ID,
+        name: 'shop-mongo',
+        published: true,
+        env: ['MONGO_INITDB_ROOT_USERNAME=app', 'MONGO_INITDB_ROOT_PASSWORD=old'],
+      }),
+    });
+    harness.connections.nextStatus = AUTH_FAILED;
+
+    const result = await harness.runtime.connect(PUBLISHED_ID);
+
+    expect(result).toMatchObject({ kind: 'credentialsRequired', port: 27017, hint: 'envFound' });
+  });
+
+  it('asks for credentials on Unauthorized when no credentials were sent', async () => {
+    const harness = buildHarness({
+      [PLAIN_ID]: inspectOf({ id: PLAIN_ID, name: 'secure-mongo' }),
+    });
+    harness.connections.nextStatus = UNAUTHORIZED;
+
+    const result = await harness.runtime.connect(PLAIN_ID);
+
+    expect(result).toMatchObject({ kind: 'credentialsRequired', hint: 'noEnv' });
+  });
+
+  it('keeps the status when Unauthorized follows container credentials', async () => {
+    const harness = buildHarness({
+      [PUBLISHED_ID]: inspectOf({
+        id: PUBLISHED_ID,
+        published: true,
+        env: ['MONGO_INITDB_ROOT_USERNAME=app', 'MONGO_INITDB_ROOT_PASSWORD=hunter2'],
+      }),
+    });
+    harness.connections.nextStatus = UNAUTHORIZED;
+
+    const result = await harness.runtime.connect(PUBLISHED_ID);
+
+    expect(result).toEqual({ connectionId: expect.any(String), status: UNAUTHORIZED });
+  });
+});
+
+describe('createDockerRuntime connectWithCredentials', () => {
+  it('tests the typed credentials, then saves the profile and connects it', async () => {
+    const harness = buildHarness({
+      [PUBLISHED_ID]: inspectOf({ id: PUBLISHED_ID, name: 'secure-mongo', published: true }),
+    });
+
+    const result = await harness.runtime.connectWithCredentials({
+      containerId: PUBLISHED_ID,
+      username: 'ops@team',
+      password: 'p@ss/word',
+      authSource: 'admin',
+    });
+
+    const uri =
+      'mongodb://ops%40team:p%40ss%2Fword@127.0.0.1:27017/?directConnection=true&authSource=admin';
+    expect(harness.connections.tested).toEqual([uri]);
+    expect(harness.connections.connected).toEqual([uri]);
+    expect(result.status).toEqual(CONNECTED);
+    const [profile] = harness.repos.connections.list();
+    expect(profile).toMatchObject({
+      id: result.connectionId,
+      name: 'secure-mongo',
+      source: 'docker',
+      dockerContainerId: PUBLISHED_ID,
+      uri,
+    });
+  });
+
+  it('updates the existing docker profile instead of creating a second one', async () => {
+    const harness = buildHarness({
+      [PLAIN_ID]: inspectOf({ id: PLAIN_ID, name: 'secure-mongo' }),
+    });
+    harness.connections.nextStatus = {
+      state: 'error',
+      error: { code: 'AUTH_FAILED', message: 'Authentication failed' },
+    };
+    await harness.runtime.connect(PLAIN_ID);
+    harness.connections.nextStatus = CONNECTED;
+
+    const result = await harness.runtime.connectWithCredentials({
+      containerId: PLAIN_ID,
+      username: 'admin',
+      password: 'admin',
+      authSource: 'admin',
+    });
+
+    const profiles = harness.repos.connections.list();
+    expect(profiles).toHaveLength(1);
+    expect(result.connectionId).toBe(profiles[0]?.id);
+    expect(profiles[0]?.uri).toBe(
+      'mongodb://admin:admin@127.0.0.1:40123/?directConnection=true&authSource=admin',
+    );
+  });
+
+  it('throws the test error and saves nothing when the password is wrong', async () => {
+    const harness = buildHarness({
+      [PLAIN_ID]: inspectOf({ id: PLAIN_ID, name: 'secure-mongo' }),
+    });
+    harness.connections.nextTest = {
+      ok: false,
+      error: { code: 'AUTH_FAILED', message: 'Authentication failed' },
+    };
+
+    const failure = await harness.runtime
+      .connectWithCredentials({
+        containerId: PLAIN_ID,
+        username: 'admin',
+        password: 'wrong',
+        authSource: 'admin',
+      })
+      .catch((error: unknown) => error);
+
+    expect(failure).toBeInstanceOf(AppErrorException);
+    expect(failure).toMatchObject({ error: { code: 'AUTH_FAILED' } });
+    expect(harness.connections.connected).toEqual([]);
+    expect(harness.repos.connections.list()).toEqual([]);
+    expect(harness.forwarders.released).toEqual([PLAIN_ID]);
+  });
+
+  it('refuses a container that is not running', async () => {
+    const harness = buildHarness({
+      [PLAIN_ID]: inspectOf({ id: PLAIN_ID, status: 'exited' }),
+    });
+
+    await expect(
+      harness.runtime.connectWithCredentials({
+        containerId: PLAIN_ID,
+        username: 'admin',
+        password: 'admin',
+        authSource: 'admin',
+      }),
+    ).rejects.toMatchObject({ error: { code: 'COMMAND_FAILED' } });
+    expect(harness.connections.tested).toEqual([]);
+  });
+});
+
 describe('createDockerRuntime failure after the forwarder starts', () => {
   it('releases the forwarder when the connection manager throws', async () => {
     const harness = buildHarness({
@@ -398,7 +589,7 @@ describe('createDockerRuntime disconnect, status and list', () => {
     const harness = buildHarness({
       [PLAIN_ID]: inspectOf({ id: PLAIN_ID, name: 'orders-mongo' }),
     });
-    const { connectionId } = await harness.runtime.connect(PLAIN_ID);
+    const { connectionId } = connectedOf(await harness.runtime.connect(PLAIN_ID));
 
     await harness.runtime.disconnect(PLAIN_ID);
 

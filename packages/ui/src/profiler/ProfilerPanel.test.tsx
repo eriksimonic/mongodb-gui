@@ -8,7 +8,7 @@ import type { UiApi } from '../api/ui-api';
 import { renderWithApp } from '../test-support/render';
 import { ProfilerPanel } from './ProfilerPanel';
 import { profilerUiEvents, type ProfilerUiEvent } from './profiler-events';
-import { formatCommand } from './profiler-model';
+import { formatCommand, isProblematic } from './profiler-model';
 import type { ProfilerSeed } from './profiler-store';
 
 const SHOP = { connectionId: localConnectionId, database: 'shop' };
@@ -107,6 +107,23 @@ describe('ProfilerPanel', () => {
     });
     await waitForRows(expected.length);
     expect(within(slowGrid()).queryByText('shop.orders')).not.toBeInTheDocument();
+  });
+
+  it('hides rows that are not problematic while "Only problematic" is on', async () => {
+    const api = await connectedApi();
+    renderPanel(api);
+    const list = await api.rpc.profiler.list({ ...SHOP, filter: LIMIT });
+    await waitForRows(list.length);
+    const problematic = list.filter(isProblematic);
+    expect(problematic.length).toBeGreaterThan(0);
+    expect(problematic.length).toBeLessThan(list.length);
+
+    fireEvent.click(screen.getByLabelText('Only problematic'));
+    await waitForRows(problematic.length);
+    expect(within(slowGrid()).queryByText('IXSCAN { email: 1 }')).not.toBeInTheDocument();
+
+    fireEvent.click(screen.getByLabelText('Only problematic'));
+    await waitForRows(list.length);
   });
 
   it('keeps the selected row inside the client height after scrollToIndex', async () => {

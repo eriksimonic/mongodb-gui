@@ -17,13 +17,17 @@ import {
   colorSchemeLight,
   ModuleRegistry,
   themeQuartz,
+  type CellContextMenuEvent,
   type ColDef,
   type ValueGetterParams,
 } from 'ag-grid-community';
 import { IconColumns } from '@tabler/icons-react';
 import { AgGridReact, type CustomCellRendererProps, type CustomHeaderProps } from 'ag-grid-react';
 import { useMemo, useState } from 'react';
+import { TreeMenu, type TreeMenuEntry } from '../components/connections/TreeMenu';
+import { copyText } from '../diagnostics/copy';
 import { compareCells } from './cell-order';
+import { jsonTextFor } from './json-text';
 import {
   BSON_TYPE_LABELS,
   cellView,
@@ -32,6 +36,7 @@ import {
   type ColumnDef,
   type JsonObject,
 } from './result-model';
+import { copyTextOf } from './tree-rows';
 
 ModuleRegistry.registerModules([AllCommunityModule]);
 
@@ -52,6 +57,38 @@ export interface TableViewProps {
   readonly editabilityNote: string;
   readonly onOpenDocument: (documentIndex: number) => void;
   readonly onSelectionChange: (documentIndexes: readonly number[]) => void;
+}
+
+/** The cell under the pointer when its menu opened. */
+interface CellMenuState {
+  readonly position: { readonly x: number; readonly y: number };
+  readonly path: string;
+  readonly value: unknown;
+  readonly doc: JsonObject;
+}
+
+/** The entries of a cell's menu. Each copies one piece of the clicked cell. */
+function cellMenuEntries(cell: Omit<CellMenuState, 'position'>): TreeMenuEntry[] {
+  return [
+    {
+      kind: 'item',
+      label: 'Copy value',
+      disabled: cell.value === undefined,
+      reason: cell.value === undefined ? 'missing' : undefined,
+      onSelect: () => void copyText(copyTextOf(cell.value), 'Value copied'),
+    },
+    {
+      kind: 'item',
+      label: 'Copy key',
+      onSelect: () => void copyText(cell.path, 'Key copied'),
+    },
+    {
+      kind: 'item',
+      label: 'Copy document',
+      onSelect: () =>
+        void copyText(jsonTextFor({ documents: [cell.doc] }, 'canonical'), 'Document copied'),
+    },
+  ];
 }
 
 interface TypeHeaderParams {
@@ -108,7 +145,8 @@ function CellRenderer(props: CustomCellRendererProps<Row, unknown>) {
 
 /**
  * The documents as a grid. Each field path is a column, discovered from the loaded pages. The
- * column chooser hides and shows columns. Double-clicking a row opens the whole document.
+ * column chooser hides and shows columns. Double-clicking a row opens the whole document. A
+ * right-click on a cell offers to copy its value, its key or its document.
  */
 export function TableView({
   documents,
@@ -119,6 +157,7 @@ export function TableView({
   onSelectionChange,
 }: TableViewProps) {
   const [hidden, setHidden] = useState<readonly string[]>([]);
+  const [cellMenu, setCellMenu] = useState<CellMenuState | undefined>(undefined);
   const scheme = useComputedColorScheme('dark');
   const rows = useMemo<Row[]>(() => documents.map((doc, index) => ({ index, doc })), [documents]);
   const visible = useMemo(
@@ -205,6 +244,19 @@ export function TableView({
           onSelectionChanged={(event) =>
             onSelectionChange(event.api.getSelectedRows().map((row: Row) => row.index))
           }
+          preventDefaultOnContextMenu
+          onCellContextMenu={(event: CellContextMenuEvent<Row>) => {
+            const pointer = event.event;
+            if (event.data === undefined || !(pointer instanceof MouseEvent)) {
+              return;
+            }
+            setCellMenu({
+              position: { x: pointer.clientX, y: pointer.clientY },
+              path: event.column.getColId(),
+              value: event.value,
+              doc: event.data.doc,
+            });
+          }}
           onRowDoubleClicked={(event) => {
             if (event.data !== undefined) {
               onOpenDocument(event.data.index);
@@ -213,6 +265,13 @@ export function TableView({
           overlayNoRowsTemplate="<span>No documents</span>"
         />
       </Box>
+      {cellMenu === undefined ? null : (
+        <TreeMenu
+          entries={cellMenuEntries(cellMenu)}
+          position={cellMenu.position}
+          onClose={() => setCellMenu(undefined)}
+        />
+      )}
     </Stack>
   );
 }

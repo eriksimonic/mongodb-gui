@@ -100,6 +100,22 @@
   background: var(--mantine-color-red-5);
 }
 
+.mg-tree-state[data-member-state='primary'] {
+  background: var(--mantine-color-green-5);
+}
+
+.mg-tree-state[data-member-state='secondary'] {
+  background: var(--mantine-color-blue-5);
+}
+
+.mg-tree-state[data-member-state='arbiter'] {
+  background: var(--mantine-color-gray-5);
+}
+
+.mg-tree-state[data-member-state='down'] {
+  background: var(--mantine-color-red-5);
+}
+
 .mg-tree-route {
   display: inline-flex;
   align-items: center;

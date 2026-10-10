@@ -1,6 +1,6 @@
 // @vitest-environment jsdom
 import { fireEvent, screen, waitFor, within } from '@testing-library/react';
-import { describe, expect, it } from 'vitest';
+import { describe, expect, it, vi } from 'vitest';
 import { connectedMockApi } from '../../api/connected-mock';
 import { localConnectionId } from '../../api/mock-fixtures';
 import { createMockUiApi } from '../../api/mock-rpc-client';
@@ -18,6 +18,22 @@ async function rowOf(text: string): Promise<HTMLElement> {
 }
 
 describe('UsersRolesPanel', () => {
+  it('copies a connection string for a user from the row menu', async () => {
+    const writeText = vi.fn().mockResolvedValue(undefined);
+    Object.defineProperty(navigator, 'clipboard', { value: { writeText }, configurable: true });
+    const api = await connectedMockApi();
+    renderWithApp(<UsersRolesPanel {...panel} />, { api });
+
+    fireEvent.contextMenu(await rowOf('reporter'));
+    fireEvent.click(await screen.findByText('Copy as connection string'));
+
+    await waitFor(() =>
+      expect(writeText).toHaveBeenCalledWith(
+        'mongodb://reporter:<password>@localhost:27017/?authSource=shop',
+      ),
+    );
+  });
+
   it('lists the users with their roles, mechanisms and restrictions', async () => {
     const api = await connectedMockApi();
     renderWithApp(<UsersRolesPanel {...panel} />, { api });

@@ -287,6 +287,30 @@ describe('editor actions: tabs', () => {
     });
   });
 
+  it('brings the tab that already shows the collection to the front instead of opening another', async () => {
+    const api = await connectedMockApi();
+    const store = await storeOn(api);
+    const target = {
+      connectionId: localConnectionId,
+      database: 'analytics',
+      collection: 'bson_samples',
+    };
+    await store.getState().openCollectionQuery(target);
+    const first = store.getState().editors.activeId;
+    const other = store
+      .getState()
+      .openEditor({ connectionId: localConnectionId, database: 'shop', newTab: true });
+    store.getState().setEditorText(other, 'db.orders.find({})');
+    const revision = store.getState().editors.focusRevision;
+
+    await store.getState().openCollectionQuery(target);
+
+    const { order, activeId, focusRevision } = store.getState().editors;
+    expect(order).toHaveLength(2);
+    expect(activeId).toBe(first);
+    expect(focusRevision).toBeGreaterThan(revision);
+  });
+
   it('reuses an empty tab on the same connection for a collection query', async () => {
     const api = await connectedMockApi();
     const store = await storeOn(api);

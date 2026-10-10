@@ -44,6 +44,8 @@ export interface ProfilerFilters {
   readonly until: string;
   readonly textSearch: string;
   readonly limit: number;
+  /** Hides rows that `isProblematic` rejects. Applied in the renderer, never sent to the server. */
+  readonly onlyProblematic: boolean;
 }
 
 export const DEFAULT_FILTERS: ProfilerFilters = {
@@ -55,6 +57,7 @@ export const DEFAULT_FILTERS: ProfilerFilters = {
   until: '',
   textSearch: '',
   limit: DEFAULT_PROFILE_LIMIT,
+  onlyProblematic: false,
 };
 
 export type SortKey = 'time' | 'duration';
@@ -66,8 +69,13 @@ export interface EntrySort {
 
 export const DEFAULT_SORT: EntrySort = { key: 'time', direction: 'desc' };
 
+const MS_PER_SECOND = 1000;
 const MS_PER_MINUTE = 60_000;
 const PROFILE_PLAN_COLLSCAN = /COLLSCAN/;
+/** Documents examined per document returned above which a query counts as problematic. */
+export const PROBLEMATIC_EXAMINED_RATIO = 100;
+/** Documents examined above which a query that returned nothing counts as problematic. */
+export const PROBLEMATIC_EXAMINED_EMPTY = 1000;
 const COMMAND_PREVIEW_CHARS = 120;
 
 /** Maps the filter row to the contract filter. Relative ranges are measured from `now`. */
@@ -177,15 +185,61 @@ export function isCollscan(planSummary: string | undefined): boolean {
   return planSummary !== undefined && PROFILE_PLAN_COLLSCAN.test(planSummary);
 }
 
-/** Documents examined per document returned. With nothing returned, the examined count itself. */
+/**
+ * True when an entry shows one of the signs the "Only problematic" filter looks for:
+ *
+ * - the plan summary contains COLLSCAN;
+ * - `hasSortStage` is true, so the server sorted in memory;
+ * - more than 100 documents were examined per document returned (`nreturned` above 0);
+ * - more than 1000 documents were examined and nothing was returned (`nreturned` 0 or absent).
+ *
+ * A missing plan summary or missing counters is not a sign on its own.
+ */
+export function isProblematic(entry: ProfileEntry): boolean {
+  if (isCollscan(entry.planSummary) || entry.hasSortStage === true) {
+    return true;
+  }
+  if (entry.docsExamined === undefined) {
+    return false;
+  }
+  if (entry.nreturned === undefined || entry.nreturned === 0) {
+    return entry.docsExamined > PROBLEMATIC_EXAMINED_EMPTY;
+  }
+  return entry.docsExamined / entry.nreturned > PROBLEMATIC_EXAMINED_RATIO;
+}
+
+/**
+ * Documents examined per document returned. Undefined when the counts are missing or nothing was
+ * returned, so the table shows a dash and the Examined column carries the count.
+ */
 export function examinedRatio(entry: ProfileEntry): number | undefined {
   if (entry.docsExamined === undefined) {
     return undefined;
   }
   if (entry.nreturned === undefined || entry.nreturned === 0) {
-    return entry.docsExamined;
+    return undefined;
   }
   return entry.docsExamined / entry.nreturned;
+}
+
+/** A duration for a table cell. From one second up it shows seconds with one decimal. */
+export function formatDuration(millis: number): string {
+  if (millis >= MS_PER_SECOND) {
+    return `${(millis / MS_PER_SECOND).toFixed(1)} s`;
+  }
+  return `${millis} ms`;
+}
+
+/**
+ * The namespaces the filter offers: the catalog collections of the database, plus every namespace
+ * in the loaded entries, without repeats and sorted.
+ */
+export function namespaceOptions(
+  catalogNamespaces: readonly string[],
+  entries: readonly ProfileEntry[],
+): string[] {
+  const all = new Set([...catalogNamespaces, ...entries.map((entry) => entry.ns)]);
+  return [...all].sort(compareText);
 }
 
 /** Width of a duration bar as a whole percentage of the slowest row in view. */
@@ -273,11 +327,31 @@ export function commandPreview(command: unknown): string {
     : `${text.slice(0, COMMAND_PREVIEW_CHARS - 1)}…`;
 }
 
-/** Local time with milliseconds. The table and the detail pane both show this form. */
-export function formatLocalTime(iso: string): string {
+/**
+ * Local time with milliseconds. The table and the detail pane both show this form. An entry from
+ * a day other than `now` also shows its local date, such as 1999-12-31 12:00:00.000.
+ */
+export function formatLocalTime(iso: string, now: Date = new Date()): string {
   const date = new Date(iso);
   const time = date.toLocaleTimeString(undefined, { hour12: false });
-  return `${time}.${String(date.getMilliseconds()).padStart(3, '0')}`;
+  const clock = `${time}.${String(date.getMilliseconds()).padStart(3, '0')}`;
+  if (isSameLocalDay(date, now)) {
+    return clock;
+  }
+  const day = [
+    date.getFullYear(),
+    String(date.getMonth() + 1).padStart(2, '0'),
+    String(date.getDate()).padStart(2, '0'),
+  ].join('-');
+  return `${day} ${clock}`;
+}
+
+function isSameLocalDay(a: Date, b: Date): boolean {
+  return (
+    a.getFullYear() === b.getFullYear() &&
+    a.getMonth() === b.getMonth() &&
+    a.getDate() === b.getDate()
+  );
 }
 
 export function formatBytes(bytes: number): string {

@@ -102,7 +102,11 @@ in logs or in the tree. Context menus copy the URI with the password masked.
    Enter.
 
 The tree shows the server's databases once the connection opens. Choose "Disconnect" from the
-same menu to close it.
+same menu to close it. Hover the status icon to see the server topology. A replica set shows its
+set name to the right of the connection name. When the URI has `directConnection=true`, the row
+also says "direct": the app talks to that one member only, and a write to a secondary fails.
+Double-clicking a collection opens its documents in a query tab, or brings that tab to the front
+when it is already open.
 
 ### Connection manager
 
@@ -135,6 +139,15 @@ The app uses these routes:
 If the container sets `MONGO_INITDB_ROOT_USERNAME` and `MONGO_INITDB_ROOT_PASSWORD`, the app
 fills in the user name and password for you.
 
+If the server needs a user name and password that the container does not set, or the container's
+own credentials are rejected, the app opens a dialog. Type a user name and password, and check
+the authentication database. It is usually `admin`, the database that holds the user. The app
+tests the credentials first. If the test fails, the dialog shows the error and stays open. On
+success, the app saves the credentials in the encrypted vault on the container's connection, so
+the next connect does not ask again.
+
+![Credentials dialog for a password-protected container](screenshots/docker-credentials.png)
+
 The right-click menu on a container offers "Open container details" and "Copy URI (redacted)".
 The details panel lists the container id, image, networks and environment variable names. It
 does not show their values.
@@ -153,6 +166,13 @@ container when the app starts. The setting is off by default.
 ## The connection tree
 
 The left panel shows the connections. Each connected server has these nodes:
+
+- Replica set. Shown when the server is a replica set member. It lists every member with its
+  state, PRIMARY, SECONDARY or ARBITER, and marks the member this connection talks to. Right-click
+  a member for "Connect directly", which saves a connection to that one host with the same
+  credentials and opens it, or "Copy host". Double-click a member to connect directly too.
+
+![Replica set node with the members, their states and the member menu](screenshots/replica-tree.png)
 
 - Databases. Expand a database to see its collections, views and time series collections.
 - Profiler. Opens the profiler.
@@ -235,7 +255,9 @@ The Output panel under the editor has four tabs: "Output", "History" and "Favour
 "Transfers". Every statement you run goes into "History". Search the history with the
 "Search history" field, or filter it by connection or database. Re-run an entry to run it again.
 "Clear history" deletes all history entries after confirmation. Favourites holds the saved
-statements. Use "Save as favourite" in the editor or in the history to add one.
+statements. Use "Save as favourite" in the editor or in the history to add one. The chevron at the
+right of the panel's tab strip folds the panel down to the tab strip, so the editor above gets the
+space. Click it again, or press Ctrl+J, to unfold it to its previous height.
 
 The app keeps the text of each open editor tab, and the tab list. The tabs come back the next
 time you open the app.
@@ -252,7 +274,12 @@ The results pane shows the documents of the last run. Switch between three views
 - Table view shows one column for each field. The "Columns" menu chooses which columns show.
   Nested fields appear as dotted paths. Double-click a row to open its whole document. The
   document opens in the editor when the result is a plain find on one collection. Otherwise it
-  opens read-only, with a "Copy" button.
+  opens read-only, with a "Copy" button. Right-click a cell for "Copy value", "Copy key" and
+  "Copy document". The value copies in mongosh form, the key is the dotted field path, and the
+  document copies as canonical JSON.
+
+![Cell menu of the table view with the copy actions](screenshots/cell-menu.png)
+
 - Tree view shows each document as an expandable tree. Each value has a type badge. "Collapse
   all" folds the tree. Each row has "Copy path" and "Copy value" buttons. Double-click the
   top-level row of a document, the one marked with its position such as "#1", to open the whole
@@ -435,7 +462,11 @@ Open the profiler from the database menu with "Open profiler". The profiler has 
    threshold when the level is "Slow only".
 3. Use the filters to narrow the list. The filters cover the namespace, the operation, the
    minimum duration in "Min duration (ms)", and a time range. The time range options are
-   "Last 5 min", "Last 15 min", "Last hour", "All time" and "Custom".
+   "Last 5 min", "Last 15 min", "Last hour", "All time" and "Custom". Turn on "Only
+   problematic" to hide rows that look fine. A row stays when its plan has a COLLSCAN, the server
+   sorted in memory, it examined more than 100 documents per document returned, or it examined
+   more than 1000 documents and returned none. This switch filters the loaded rows and does not
+   change the server query.
 4. Turn on "Tail" to read new entries as they arrive. "Tail poll interval" sets how often the
    app checks, from 0.5 s to 10 s.
 5. Select an entry to read its command, plan summary and lock statistics in the detail pane.
@@ -490,6 +521,44 @@ The file rules are these:
 - A pick covers one write. A refused write needs a new pick.
 - The app refuses a path that contains `..`, and a path that is a symbolic link.
 
+### Generate data
+
+Choose "Generate data" on a collection to fill it with made-up documents, for tests and for
+load checks. The app generates the documents in the main process and inserts them in batches of
+10,000. The app does not keep the whole set in memory.
+
+1. Set the "Documents" count. The default is 10,000 and the maximum is 10,000,000.
+2. Set the "Seed". The same seed and fields give the same documents. "New seed" picks another.
+3. Add a field with "Add field". Set its "Name", choose its "Generator" and fill its options.
+   A dotted name such as "address.city" writes a nested field.
+4. Check "Unique" to make the values of a field differ across the documents. A unique field needs
+   at least as many distinct values as the count. The app refuses the job before it writes when
+   the generator has fewer values, for example an integer from 1 to 100 with 1,000 documents.
+5. Click "Preview" to see three documents. The preview runs in the window and writes nothing.
+6. Click "Start". The progress view shows the inserted count, the documents per second and the
+   elapsed time. Click "Cancel job" to stop after the batch in progress.
+
+The generators are:
+
+- "ObjectId" and "GUID (UUID v4)" for identifiers. An ObjectId field stores an ObjectId. A GUID
+  field stores a string.
+- "Integer" and "Decimal (double)" with a minimum and a maximum. A decimal also takes the
+  "Precision" in decimal places. It stores a double.
+- "Boolean" with the probability of true.
+- "Date and time" between two ISO 8601 dates. It stores a BSON date.
+- "File path", such as /var/data/2026/10/report-123.csv, with the number of directories and the
+  list of extensions.
+- "First name", "Last name", "Full name" and "Email". An email uses the first and last name of
+  the same document when the job has both fields. Otherwise it uses random names. The "Domains"
+  list sets the domains.
+- "Lorem word", "Lorem sentence" and "Lorem paragraph".
+- "Pick from a list" with the values as text. The "Weights" are optional, one per value.
+- "Sequence" with a start and a step. Its values are always unique.
+
+Nested objects and arrays are not generated.
+
+![Generate data dialog with fields, generators and the unique flag](screenshots/generate-data.png)
+
 ## Schema analysis
 
 Open "Analyse schema" from the collection menu.
@@ -524,7 +593,9 @@ The "Users" tab lists the users of the database. Create a user with "Create user
 for a user name, a password and its confirmation, the authentication mechanisms ("SCRAM-SHA-256"
 or "SCRAM-SHA-1") and the roles to grant. For a user, the roles dialog offers "Grant roles" and
 "Revoke roles", and "Apply" saves the change. "Change password" sets a new password. "Drop user"
-asks you to type the user name.
+asks you to type the user name. Right-click a user row for "Copy as connection string", which
+copies a URI that logs in as that user, with the hosts of the connection, `authSource` set to the
+user's database and `<password>` in place of the password.
 
 The "Roles" tab lists built-in and custom roles. Create a role with the role editor. The
 privilege editor takes a resource, which is the cluster, a database, a collection or any

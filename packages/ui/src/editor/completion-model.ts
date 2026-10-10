@@ -89,9 +89,14 @@ const DATABASE_MEMBERS = new Set([
   'version',
 ]);
 
+/** The rank of a top-level field. Each level of nesting adds one, so shallow paths list first. */
+const FIELD_RANK = 2;
+
 /**
  * Field completions from a sample. Dotted paths keep their dots, and array elements are not split.
  * In an object key a dotted path is quoted, because `a.b` as a bare key is not valid JavaScript.
+ * A deeper path ranks below a shallower one, so a collection with a large map, such as thousands
+ * of `definitions.<id>.*` paths, still lists its top-level fields before the cap cuts the list.
  */
 export function fieldCompletions(
   fields: readonly SchemaField[],
@@ -102,9 +107,20 @@ export function fieldCompletions(
     kind: 'property',
     detail: field.types.join(' | '),
     doc: `Present in ${Math.round(field.presence * 100)} percent of the sampled documents.`,
-    rank: 2,
+    rank: FIELD_RANK + pathDepth(field.path),
     ...(objectKey && field.path.includes('.') ? { insertText: `"${field.path}"` } : {}),
   }));
+}
+
+/** The number of dots in a path, so `a.b.c` is 2 and `a` is 0. */
+function pathDepth(path: string): number {
+  let depth = 0;
+  for (const char of path) {
+    if (char === '.') {
+      depth += 1;
+    }
+  }
+  return depth;
 }
 
 /**
@@ -148,14 +164,21 @@ export function runtimeCompletions(
 }
 
 /**
+ * The most completions one request returns. The editor filters the list as the user types, without
+ * asking again, so a list cut here hides fields for the rest of the word. The cap stays above the
+ * field count of most collections and below what makes the suggest widget slow.
+ */
+export const COMPLETION_LIMIT = 1000;
+
+/**
  * Merges the sources and keeps the ones that match the prefix. A prefix that starts with `$` shows
  * operators first. Labels that appear twice keep their first entry. Matching is case-insensitive
- * and prefix-based.
+ * and prefix-based. Items with a lower rank come first, then the labels sort alphabetically.
  */
 export function mergeCompletions(
   prefix: string,
   sources: readonly (readonly EditorCompletion[])[],
-  limit = 200,
+  limit = COMPLETION_LIMIT,
 ): EditorCompletion[] {
   const needle = prefix.toLowerCase();
   const seen = new Set<string>();

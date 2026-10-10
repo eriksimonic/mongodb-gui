@@ -23,6 +23,7 @@ import {
   type Favourite,
   type HistoryEntry,
   type IndexInfo,
+  type ProfileEntry,
   type RpcClient,
   type RpcEvent,
   type Settings,
@@ -30,6 +31,8 @@ import {
   type SettingsPatch,
   type UpdateState,
   type VaultStatus,
+  directConnectionName,
+  directUriFor,
 } from '@mongo-gui/core';
 import type { MockReplicaSetInfo } from './mock-replication';
 import {
@@ -48,6 +51,8 @@ import {
   fixtureConnections,
   DOCKER_PROFILE_ID,
   fixtureDockerContainers,
+  SECURE_CONTAINER_CREDENTIALS,
+  SECURE_CONTAINER_NAME,
   fixtureDockerProfile,
   fixtureFavourites,
   fixtureHistory,
@@ -66,6 +71,7 @@ import {
   mockSavePath,
 } from './mock-transfer';
 import { createMockProfiler } from './mock-profiler';
+import { createMockGenerate } from './mock-generate';
 import { createMockChanges } from './mock-changes';
 import { createMockGridFs, MOCK_FOLDER_PATH } from './mock-gridfs';
 import { createShardingCalls, fixtureCluster, type MockCluster } from './mock-sharding';
@@ -90,6 +96,8 @@ export interface MockUiApiOptions {
   readonly latencyMs?: number;
   /** Replaces the shop profiler fixtures with this many generated rows. For performance checks. */
   readonly profilerRows?: number | undefined;
+  /** Replaces the profiler rows of every database with these entries. For scenario tests. */
+  readonly profilerEntries?: readonly ProfileEntry[] | undefined;
   /** `unavailable` makes every Docker call report that the engine cannot be reached. */
   readonly docker?: 'available' | 'unavailable';
   /** Scripted update states. Defaults to an idle updater on version 0.1.0. */
@@ -180,7 +188,7 @@ function initialState(preset: MockPreset): MockState {
     vault: 'unlocked',
     password: mockMasterPassword,
     connections: [...connections, fixtureDockerProfile()],
-    statuses: new Map([[DOCKER_PROFILE_ID, connectedStatus()]]),
+    statuses: new Map([[DOCKER_PROFILE_ID, connectedStatus('standalone', true)]]),
     history: fixtureHistory(),
     favourites: fixtureFavourites(),
     layout: new Map(),
@@ -252,13 +260,27 @@ function summarise(profile: ConnectionProfile): ConnectionProfileSummary {
   return { ...profile, uriRedacted: redactUri(profile.uri) };
 }
 
-function connectedStatus(topology: 'standalone' | 'sharded' = 'standalone'): ConnectionStatus {
+function connectedStatus(
+  topology: 'standalone' | 'sharded' = 'standalone',
+  directConnection = false,
+): ConnectionStatus {
   return {
     state: 'connected',
     serverVersion: SERVER_VERSION,
     topology,
     hosts: ['localhost:27017'],
+    ...(directConnection ? { directConnection: true } : {}),
   };
+}
+
+/** True when a saved URI pins the client to one host, as the real driver options would report. */
+function isDirectUri(uri: string | undefined): boolean {
+  return uri !== undefined && /[?&]directConnection=true(?:&|$)/i.test(uri);
+}
+
+/** Adds the direct flag to a connected status. Other states pass through. */
+function withDirectFlag(status: ConnectionStatus, direct: boolean): ConnectionStatus {
+  return status.state === 'connected' && direct ? { ...status, directConnection: true } : status;
 }
 
 /** The status a connection reports once connected. A replica set reports its name and members. */
@@ -381,6 +403,8 @@ export function createMockUiApi(options: MockUiApiOptions = {}): UiApi {
         ?.collections.find((item) => item.info.name === collection)?.documents.length,
   );
 
+  const generate = createMockGenerate(emit);
+
   function statusOf(connectionId: string): ConnectionStatus {
     return state.statuses.get(connectionId) ?? { state: 'disconnected' };
   }
@@ -451,6 +475,32 @@ export function createMockUiApi(options: MockUiApiOptions = {}): UiApi {
     return state.connections.find((item) => item.id === connectionId)?.source === 'docker'
       ? localConnectionId
       : connectionId;
+  }
+
+  /** Saves the docker profile of a container with this URI. An existing profile is updated. */
+  function saveDockerProfile(
+    container: DockerMongoContainerSummary,
+    uri: string,
+  ): ConnectionProfile {
+    const existing = state.connections.find((item) => item.dockerContainerId === container.id);
+    const now = new Date().toISOString();
+    const profile: ConnectionProfile =
+      existing === undefined
+        ? {
+            id: newId(),
+            name: container.name,
+            uri,
+            source: 'docker',
+            dockerContainerId: container.id,
+            createdAt: now,
+            updatedAt: now,
+          }
+        : { ...existing, name: container.name, uri, updatedAt: now };
+    state.connections =
+      existing === undefined
+        ? [...state.connections, profile]
+        : state.connections.map((item) => (item.id === profile.id ? profile : item));
+    return profile;
   }
 
   function requireDockerAvailable(): void {
@@ -573,6 +623,7 @@ export function createMockUiApi(options: MockUiApiOptions = {}): UiApi {
 
   const profiler = createMockProfiler({
     bulkRows: options.profilerRows,
+    seedEntries: options.profilerEntries,
     wrap: wrapCall,
     requireUnlocked,
     requireConnected,
@@ -608,13 +659,14 @@ export function createMockUiApi(options: MockUiApiOptions = {}): UiApi {
   // sharding option is on, and every other connection is standalone.
   function connectedStatusOf(connectionId: string): ConnectionStatus {
     const info = replication.infoFor(connectionId);
+    const direct = isDirectUri(state.connections.find((item) => item.id === connectionId)?.uri);
     if (info.topology !== 'standalone') {
-      return connectedStatusFor(info);
+      return withDirectFlag(connectedStatusFor(info), direct);
     }
     if (connectionId === localConnectionId && options.sharding === 'cluster') {
       return connectedStatus('sharded');
     }
-    return connectedStatusFor(info);
+    return withDirectFlag(connectedStatusFor(info), direct);
   }
   if (options.replSetUninitiated === true) {
     replication.setMode(localConnectionId, 'uninitiated');
@@ -686,6 +738,16 @@ export function createMockUiApi(options: MockUiApiOptions = {}): UiApi {
       }),
       // The mock has no disk. The export is accepted and nothing is written.
       writeExport: method(rpcContract.app.writeExport, latencyMs, () => undefined),
+    },
+    generate: {
+      start: method(rpcContract.generate.start, latencyMs, (input) => {
+        requireUnlocked();
+        findConnection(input.connectionId);
+        return { jobId: generate.start(input) };
+      }),
+      cancel: method(rpcContract.generate.cancel, latencyMs, ({ jobId }) => {
+        generate.cancel(jobId);
+      }),
     },
     transfer: {
       previewImport: method(rpcContract.transfer.previewImport, latencyMs, (input) => {
@@ -844,6 +906,23 @@ export function createMockUiApi(options: MockUiApiOptions = {}): UiApi {
         const profile: ConnectionProfile = {
           ...input,
           id: newId(),
+          createdAt: now,
+          updatedAt: now,
+        };
+        state.connections.push(profile);
+        return profile;
+      }),
+      createDirect: method(rpcContract.connections.createDirect, latencyMs, ({ id, host }) => {
+        requireUnlocked();
+        const parent = findConnection(id);
+        const now = new Date().toISOString();
+        const profile: ConnectionProfile = {
+          ...parent,
+          id: newId(),
+          name: directConnectionName(parent.name, host),
+          uri: directUriFor(parent.uri, host),
+          source: 'manual',
+          dockerContainerId: undefined,
           createdAt: now,
           updatedAt: now,
         };
@@ -1146,28 +1225,42 @@ export function createMockUiApi(options: MockUiApiOptions = {}): UiApi {
         if (container === undefined) {
           throw fail('VALIDATION', 'The container was not found.');
         }
-        const uri = mockContainerUri(container);
-        const existing = state.connections.find((item) => item.dockerContainerId === containerId);
-        const now = new Date().toISOString();
-        const profile: ConnectionProfile =
-          existing === undefined
-            ? {
-                id: newId(),
-                name: container.name,
-                uri,
-                source: 'docker',
-                dockerContainerId: containerId,
-                createdAt: now,
-                updatedAt: now,
-              }
-            : { ...existing, name: container.name, uri, updatedAt: now };
-        state.connections =
-          existing === undefined
-            ? [...state.connections, profile]
-            : state.connections.map((item) => (item.id === profile.id ? profile : item));
+        if (container.name === SECURE_CONTAINER_NAME) {
+          return {
+            kind: 'credentialsRequired' as const,
+            containerId,
+            host: '127.0.0.1',
+            port: 27017,
+            hint: 'noEnv' as const,
+          };
+        }
+        const profile = saveDockerProfile(container, mockContainerUri(container));
         const status = await rpc.connections.connect({ id: profile.id });
         return { connectionId: profile.id, status };
       }),
+      connectWithCredentials: method(
+        rpcContract.docker.connectWithCredentials,
+        latencyMs,
+        async (input) => {
+          requireUnlocked();
+          requireDockerAvailable();
+          const container = state.dockerContainers.find((item) => item.id === input.containerId);
+          if (container === undefined) {
+            throw fail('VALIDATION', 'The container was not found.');
+          }
+          const accepted =
+            input.username === SECURE_CONTAINER_CREDENTIALS.username &&
+            input.password === SECURE_CONTAINER_CREDENTIALS.password &&
+            input.authSource === SECURE_CONTAINER_CREDENTIALS.authSource;
+          if (!accepted) {
+            throw fail('AUTH_FAILED', 'Authentication failed', 'Check the user name and password');
+          }
+          const uri = `mongodb://${encodeURIComponent(input.username)}:${encodeURIComponent(input.password)}@localhost:27017/?directConnection=true&authSource=${encodeURIComponent(input.authSource)}`;
+          const profile = saveDockerProfile(container, uri);
+          const status = await rpc.connections.connect({ id: profile.id });
+          return { connectionId: profile.id, status };
+        },
+      ),
       disconnect: method(rpcContract.docker.disconnect, latencyMs, ({ containerId }) => {
         requireUnlocked();
         const profile = state.connections.find((item) => item.dockerContainerId === containerId);

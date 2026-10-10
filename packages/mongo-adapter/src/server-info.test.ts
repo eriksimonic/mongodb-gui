@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { detectTopology } from './server-info';
+import { detectTopology, toServerInfo } from './server-info';
 
 describe('detectTopology', () => {
   it('reports a standalone server from a writable hello reply', () => {
@@ -43,5 +43,24 @@ describe('detectTopology', () => {
   it('reports unknown when the reply has no usable markers', () => {
     expect(detectTopology({}, false)).toBe('unknown');
     expect(detectTopology(undefined, false)).toBe('unknown');
+  });
+});
+
+describe('toServerInfo', () => {
+  const hello = { setName: 'rs0', isWritablePrimary: true, hosts: ['a:27017', 'b:27017'] };
+
+  it('marks a direct connection to a replica set member', () => {
+    expect(toServerInfo(hello, '7.0.3', { loadBalanced: false, directConnection: true })).toEqual({
+      serverVersion: '7.0.3',
+      topology: 'replicaSet',
+      setName: 'rs0',
+      hosts: ['a:27017', 'b:27017'],
+      directConnection: true,
+    });
+  });
+
+  it('leaves the flag out of a connection that follows the set', () => {
+    const info = toServerInfo(hello, '7.0.3', { loadBalanced: false, directConnection: false });
+    expect(info).not.toHaveProperty('directConnection');
   });
 });

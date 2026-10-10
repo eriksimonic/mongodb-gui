@@ -1,4 +1,4 @@
-import { Autocomplete, Button, Group, NumberInput, Select, TextInput } from '@mantine/core';
+import { Autocomplete, Button, Group, NumberInput, Select, Switch, TextInput } from '@mantine/core';
 import { IconSearch } from '@tabler/icons-react';
 import type { ProfilerPanelState } from './profiler-store';
 import { useProfilerStore } from './profiler-store-context';
@@ -124,6 +124,13 @@ export function ProfilerFilterRow({ panelId, panel, namespaces }: ProfilerFilter
           }
         }}
         w={100}
+      />
+      <Switch
+        label="Only problematic"
+        checked={filters.onlyProblematic}
+        onChange={(event) => patch({ onlyProblematic: event.currentTarget.checked })}
+        h={30}
+        style={{ alignSelf: 'center' }}
       />
       <Button loading={panel.loading} onClick={() => void refresh(panelId)}>
         Refresh

@@ -86,6 +86,11 @@ export interface EditorsState {
   readonly runtime: Readonly<Record<string, ShellRuntimeState>>;
   /** Moves when a history or favourite changes, so the panels reload. */
   readonly listRevision: number;
+  /**
+   * Moves on every activate request, even one for the tab that is already active. The shell brings
+   * the panel to the front on each move, which matters when another panel kind has the focus.
+   */
+  readonly focusRevision: number;
 }
 
 export const EMPTY_EDITORS: EditorsState = {
@@ -96,6 +101,7 @@ export const EMPTY_EDITORS: EditorsState = {
   requestTabs: {},
   runtime: {},
   listRevision: 0,
+  focusRevision: 0,
 };
 
 /** The part of a tab that is saved between launches. */
@@ -198,7 +204,9 @@ export function closeTab(state: EditorsState, id: string): EditorsState {
 }
 
 export function setActiveTab(state: EditorsState, id: string): EditorsState {
-  return state.tabs[id] === undefined ? state : { ...state, activeId: id };
+  return state.tabs[id] === undefined
+    ? state
+    : { ...state, activeId: id, focusRevision: state.focusRevision + 1 };
 }
 
 export function setTabText(state: EditorsState, id: string, text: string): EditorsState {

@@ -23,6 +23,7 @@ import {
   type SettingsPatch,
   type UpdateState,
   type VaultStatus,
+  type ReplicaSetStatus,
 } from '@mongo-gui/core';
 import { createStore, type StoreApi } from 'zustand/vanilla';
 import type { UiApi } from '../api/ui-api';
@@ -53,6 +54,7 @@ import {
 import { createExplainActions, type ExplainActions } from '../explain/explain-actions';
 import type { ExplainPanelState } from '../explain/explain-model';
 import { catalogKey, connectionNodeId } from './node-ids';
+import { useDockerCredentialsStore } from '../components/connections/docker-credentials-store';
 import type { ThemeSetting } from '../theme/color-scheme';
 import { readCachedPreferences, writeCachedPreferences } from '../theme/preferences-cache';
 
@@ -199,6 +201,8 @@ export interface AppData {
   readonly expanded: Readonly<Record<string, boolean>>;
   readonly databases: Readonly<Record<string, Loadable<readonly DatabaseInfo[]>>>;
   readonly collections: Readonly<Record<string, Loadable<readonly CollectionInfo[]>>>;
+  /** Replica set status per connection, for the member rows of the tree. Loaded when the connection opens. */
+  readonly replicaSets: Readonly<Record<string, Loadable<ReplicaSetStatus>>>;
   /** Monitor samples and sampler state per connection, fed by monitor events. */
   readonly monitors: Readonly<Record<string, MonitorView>>;
   /** Dashboard layout per connection. A connection without an entry shows the default layout. */
@@ -276,6 +280,10 @@ export interface AppActions extends EditorActions, ExplainActions {
   stopMonitor(connectionId: string): Promise<void>;
   loadDatabases(connectionId: string): Promise<void>;
   loadCollections(connectionId: string, database: string): Promise<void>;
+  /** Reads the replica set status once per connection. A reload happens after `refreshConnection`. */
+  loadReplicaSet(connectionId: string): Promise<void>;
+  /** Creates a profile that connects to one member only, connects it and opens it in the tree. */
+  connectDirectly(connectionId: string, host: string): Promise<void>;
   /** Drops the cached databases and collections of a connection. Open nodes reload them. */
   refreshConnection(id: string): void;
   select(selection: Selection | undefined): void;
@@ -310,6 +318,13 @@ export interface AppActions extends EditorActions, ExplainActions {
   watchDocker(enabled: boolean): Promise<void>;
   /** Connects a container. Rejects with the AppError the main process returned. */
   connectContainer(containerId: string): Promise<void>;
+  /** Tests the typed credentials, saves them on the container's profile and connects. Throws on a failed test. */
+  connectContainerWithCredentials(input: {
+    readonly containerId: string;
+    readonly username: string;
+    readonly password: string;
+    readonly authSource: string;
+  }): Promise<void>;
   disconnectContainer(containerId: string): Promise<void>;
   setDockerAutoConnect(enabled: boolean): Promise<void>;
   setSettingsOpen(open: boolean): void;
@@ -342,6 +357,7 @@ export type AppStore = StoreApi<AppState>;
 
 const SESSION_RESET: Pick<
   AppData,
+  | 'replicaSets'
   | 'connections'
   | 'statuses'
   | 'docker'
@@ -371,6 +387,7 @@ const SESSION_RESET: Pick<
   docker: { status: undefined, containers: { state: 'loading' }, autoConnect: false },
   expanded: {},
   databases: {},
+  replicaSets: {},
   collections: {},
   monitors: {},
   dashboards: {},
@@ -413,13 +430,13 @@ const INITIAL_DATA: AppData = {
  * only that database's collections.
  */
 function withoutCatalogScope(
-  data: Pick<AppData, 'databases' | 'collections'>,
+  data: Pick<AppData, 'databases' | 'collections' | 'replicaSets'>,
   scope: {
     readonly connectionId: string;
     readonly database?: string | undefined;
     readonly collection?: string | undefined;
   },
-): Pick<AppData, 'databases' | 'collections'> {
+): Pick<AppData, 'databases' | 'collections' | 'replicaSets'> {
   if (scope.database === undefined) {
     return withoutConnectionCatalog(data, scope.connectionId);
   }
@@ -435,13 +452,14 @@ function withoutCatalogScope(
     collections: Object.fromEntries(
       Object.entries(data.collections).filter(([catalog]) => catalog !== key),
     ),
+    replicaSets: data.replicaSets,
   };
 }
 
 function withoutConnectionCatalog(
-  data: Pick<AppData, 'databases' | 'collections'>,
+  data: Pick<AppData, 'databases' | 'collections' | 'replicaSets'>,
   connectionId: string,
-): Pick<AppData, 'databases' | 'collections'> {
+): Pick<AppData, 'databases' | 'collections' | 'replicaSets'> {
   const prefix = `${connectionId}/`;
   return {
     databases: Object.fromEntries(
@@ -449,6 +467,9 @@ function withoutConnectionCatalog(
     ),
     collections: Object.fromEntries(
       Object.entries(data.collections).filter(([key]) => !key.startsWith(prefix)),
+    ),
+    replicaSets: Object.fromEntries(
+      Object.entries(data.replicaSets).filter(([key]) => key !== connectionId),
     ),
   };
 }
@@ -492,6 +513,34 @@ export function createAppStore(api: UiApi, initial: Partial<AppData> = {}): AppS
 
     function setStatus(id: string, status: ConnectionStatus): void {
       set((state) => ({ statuses: { ...state.statuses, [id]: status } }));
+    }
+
+    /**
+     * A saved Docker connection whose server rejected the stored credentials gets the same
+     * credentials dialog as a container row, so the user can fix them in place.
+     */
+    function offerDockerCredentials(connectionId: string, status: ConnectionStatus): void {
+      if (status.state !== 'error' || status.error.code !== 'AUTH_FAILED') {
+        return;
+      }
+      const connections = get().connections;
+      const profile =
+        connections.state === 'ready'
+          ? connections.data.find((item) => item.id === connectionId)
+          : undefined;
+      if (profile?.source !== 'docker' || profile.dockerContainerId === undefined) {
+        return;
+      }
+      const containers = get().docker.containers;
+      const container =
+        containers.state === 'ready'
+          ? containers.data.find((item) => item.id === profile.dockerContainerId)
+          : undefined;
+      useDockerCredentialsStore.getState().open({
+        containerId: profile.dockerContainerId,
+        containerName: container?.name ?? profile.name,
+        hint: container?.hasCredentials === true ? 'envFound' : 'noEnv',
+      });
     }
 
     /**
@@ -692,7 +741,9 @@ export function createAppStore(api: UiApi, initial: Partial<AppData> = {}): AppS
         }
         setStatus(id, { state: 'connecting' });
         try {
-          setStatus(id, await rpc.connections.connect({ id }));
+          const status = await rpc.connections.connect({ id });
+          setStatus(id, status);
+          offerDockerCredentials(id, status);
         } catch (error) {
           setStatus(id, { state: 'error', error: toAppError(error) });
         }
@@ -823,6 +874,35 @@ export function createAppStore(api: UiApi, initial: Partial<AppData> = {}): AppS
             },
           }));
         }
+      },
+
+      async loadReplicaSet(connectionId) {
+        const current = get().replicaSets[connectionId];
+        if (current?.state === 'loading' || current?.state === 'ready') {
+          return;
+        }
+        set((state) => ({
+          replicaSets: { ...state.replicaSets, [connectionId]: { state: 'loading' } },
+        }));
+        try {
+          const data = await rpc.replication.getStatus({ connectionId });
+          set((state) => ({
+            replicaSets: { ...state.replicaSets, [connectionId]: { state: 'ready', data } },
+          }));
+        } catch (error) {
+          set((state) => ({
+            replicaSets: {
+              ...state.replicaSets,
+              [connectionId]: { state: 'error', error: toAppError(error) },
+            },
+          }));
+        }
+      },
+
+      async connectDirectly(connectionId, host) {
+        const profile = await rpc.connections.createDirect({ id: connectionId, host });
+        await get().loadConnections();
+        await get().expandConnection(profile.id);
       },
 
       async loadCollections(connectionId, database) {
@@ -1020,6 +1100,24 @@ export function createAppStore(api: UiApi, initial: Partial<AppData> = {}): AppS
 
       async connectContainer(containerId) {
         const result = await rpc.docker.connect({ containerId });
+        if ('kind' in result) {
+          // The server wants a user name and password. The dialog takes them and connects.
+          const containers = get().docker.containers;
+          const name =
+            containers.state === 'ready'
+              ? (containers.data.find((item) => item.id === containerId)?.name ?? containerId)
+              : containerId;
+          useDockerCredentialsStore
+            .getState()
+            .open({ containerId, containerName: name, hint: result.hint });
+          return;
+        }
+        setStatus(result.connectionId, result.status);
+        await get().loadConnections();
+      },
+
+      async connectContainerWithCredentials(input) {
+        const result = await rpc.docker.connectWithCredentials(input);
         setStatus(result.connectionId, result.status);
         await get().loadConnections();
       },

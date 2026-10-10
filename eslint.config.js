@@ -36,7 +36,7 @@ function importBoundary({ packages, nodeBuiltins }) {
 
 export default [
   {
-    ignores: ['**/dist/**', '**/coverage/**', '**/out/**', '**/.vite/**', '.claude/**'],
+    ignores: ['**/dist/**', '**/coverage/**', '**/out/**', '**/.vite/**', '.claude/**', 'dev/**'],
   },
   js.configs.recommended,
   ...tseslint.configs.strict,

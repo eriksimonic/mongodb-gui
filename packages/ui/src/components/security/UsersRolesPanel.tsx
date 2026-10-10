@@ -43,7 +43,7 @@ export function UsersRolesPanel({ connectionId, database }: UsersRolesPanelProps
           <Tabs.Tab value="roles">Roles</Tabs.Tab>
         </Tabs.List>
         <Tabs.Panel value="users">
-          <UsersTab store={store} database={database} />
+          <UsersTab store={store} connectionId={connectionId} database={database} />
         </Tabs.Panel>
         <Tabs.Panel value="roles">
           <RolesTab store={store} database={database} />

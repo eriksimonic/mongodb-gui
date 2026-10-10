@@ -61,12 +61,45 @@ export const DockerStatusSchema = z.object({
   engineVersion: z.string().optional(),
 });
 
+/**
+ * `envFound` means the container environment has credentials and the server still rejected them.
+ * `noEnv` means the environment has no credentials, so the user must type them.
+ */
+export const DockerCredentialsHintSchema = z.enum(['envFound', 'noEnv']);
+
+/** Returned by connect when the server needs a user name and password that the container does not supply. */
+export const DockerCredentialsRequiredSchema = z.object({
+  kind: z.literal('credentialsRequired'),
+  containerId: z.string().min(1),
+  host: z.string().min(1),
+  port: z.number().int().positive(),
+  hint: DockerCredentialsHintSchema,
+});
+
+/** The database that holds the user. Mongo rejects names with these characters. */
+const AuthSourceSchema = z
+  .string()
+  .min(1)
+  .max(64)
+  .regex(/^[^/\\.\s"$]+$/, 'The authentication database name is invalid.');
+
+export const DockerConnectWithCredentialsInputSchema = z.object({
+  containerId: DockerContainerIdSchema,
+  username: z.string().min(1).max(256),
+  password: z.string().min(1).max(1024),
+  authSource: AuthSourceSchema.default('admin'),
+});
+
 export type DockerContainerState = z.infer<typeof DockerContainerStateSchema>;
 export type DockerPublishedPort = z.infer<typeof DockerPublishedPortSchema>;
 export type DockerMongoEnv = z.infer<typeof DockerMongoEnvSchema>;
 export type DockerMongoContainer = z.infer<typeof DockerMongoContainerSchema>;
 export type DockerMongoContainerSummary = z.infer<typeof DockerMongoContainerSummarySchema>;
 export type DockerStatus = z.infer<typeof DockerStatusSchema>;
+export type DockerCredentialsRequired = z.infer<typeof DockerCredentialsRequiredSchema>;
+export type DockerConnectWithCredentialsInput = z.infer<
+  typeof DockerConnectWithCredentialsInputSchema
+>;
 
 /** Drops the password and keeps only the environment fields the renderer may show. */
 export function toDockerContainerSummary(

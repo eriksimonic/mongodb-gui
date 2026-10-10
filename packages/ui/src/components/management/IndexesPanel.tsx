@@ -21,11 +21,30 @@ const ID_INDEX = '_id_';
 const BUILD_POLL_MS = 2000;
 const ISO_DATE_LENGTH = 10;
 
+/**
+ * The key fields to show. The server reports a text index as `_fts: "text"` and `_ftsx: 1`, so the
+ * weighted fields take the place of `_fts` and `_ftsx` is left out.
+ */
+function shownKeyFields(index: IndexInfo): [string, number | string][] {
+  return Object.entries(index.key).flatMap(([field, value]): [string, number | string][] => {
+    if (field === '_ftsx') {
+      return [];
+    }
+    if (field === '_fts') {
+      return Object.keys(index.weights ?? {}).map((weighted): [string, string] => [
+        weighted,
+        'text',
+      ]);
+    }
+    return [[field, value]];
+  });
+}
+
 /** Index names come from the server, so the key shows direction as an arrow and a type as a badge. */
 function KeyBadges({ index }: { readonly index: IndexInfo }) {
   return (
     <Group gap={4}>
-      {Object.entries(index.key).map(([field, direction]) =>
+      {shownKeyFields(index).map(([field, direction]) =>
         direction === 1 || direction === -1 ? (
           <Badge
             tt="none"
@@ -55,9 +74,24 @@ function KeyBadges({ index }: { readonly index: IndexInfo }) {
   );
 }
 
+/** The locale of a collation document in EJSON, or undefined when it has none or does not parse. */
+function collationLocale(collationEjson: string): string | undefined {
+  try {
+    const parsed: unknown = JSON.parse(collationEjson);
+    if (typeof parsed === 'object' && parsed !== null && 'locale' in parsed) {
+      return typeof parsed.locale === 'string' ? parsed.locale : undefined;
+    }
+    return undefined;
+  } catch {
+    return undefined;
+  }
+}
+
 /** The properties of an index as chips. An index with none shows a dash. */
 function propertyChips(index: IndexInfo): string[] {
   const chips: string[] = [];
+  const keyValues = Object.values(index.key);
+  const keyFields = Object.keys(index.key);
   if (index.unique === true) {
     chips.push('Unique');
   }
@@ -73,11 +107,21 @@ function propertyChips(index: IndexInfo): string[] {
   if (index.partialFilterExpressionEjson !== undefined) {
     chips.push('Partial');
   }
-  if (index.wildcardProjectionEjson !== undefined) {
+  if (index.wildcardProjectionEjson !== undefined || keyFields.some((f) => f.includes('$**'))) {
     chips.push('Wildcard');
   }
-  if (Object.values(index.key).includes('text')) {
+  if (keyValues.includes('text')) {
     chips.push('Text');
+  }
+  if (keyValues.some((value) => value === '2dsphere' || value === '2d')) {
+    chips.push('Geo');
+  }
+  if (keyValues.includes('hashed')) {
+    chips.push('Hashed');
+  }
+  if (index.collationEjson !== undefined) {
+    const locale = collationLocale(index.collationEjson);
+    chips.push(locale === undefined ? 'Collation' : `Collation ${locale}`);
   }
   return chips;
 }
@@ -228,7 +272,15 @@ export function IndexesPanel({ connectionId, database, collection }: CollectionP
                     </Group>
                   )}
                 </Table.Td>
-                <Table.Td>{formatBytes(index.size ?? 0)}</Table.Td>
+                <Table.Td>
+                  {index.size === undefined ? (
+                    <Text size="xs" c="dimmed">
+                      unknown
+                    </Text>
+                  ) : (
+                    formatBytes(index.size)
+                  )}
+                </Table.Td>
                 <Table.Td>
                   <Text size="xs">{usageText(index)}</Text>
                 </Table.Td>

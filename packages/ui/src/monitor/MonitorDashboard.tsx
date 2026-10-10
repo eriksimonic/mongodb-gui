@@ -10,6 +10,7 @@ import {
   Stack,
   Text,
 } from '@mantine/core';
+import { connectionTopologyLabel } from '../components/connections/connection-status-label';
 import {
   DEFAULT_MONITOR_INTERVAL_MS,
   findPanel,
@@ -93,7 +94,7 @@ function statusSummary(status: ConnectionStatus): { title: string; message: stri
 function headerSubtitle(status: ConnectionStatus): string {
   switch (status.state) {
     case 'connected':
-      return `MongoDB ${status.serverVersion} · ${status.topology}`;
+      return `MongoDB ${status.serverVersion} · ${connectionTopologyLabel(status)}`;
     case 'connecting':
       return 'Connecting';
     case 'error':
