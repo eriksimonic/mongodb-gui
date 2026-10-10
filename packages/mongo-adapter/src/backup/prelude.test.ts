@@ -31,6 +31,7 @@ describe('readArchivePrelude', () => {
     expect(readArchivePrelude(bytes)).toEqual({
       serverVersion: '8.0.17',
       toolsVersion: '100.10.0',
+      oplog: false,
       truncated: false,
       namespaces: [
         { database: 'shop', collection: 'orders', type: 'collection' },
@@ -49,7 +50,25 @@ describe('readArchivePrelude', () => {
 
   it('reads a header without versions', () => {
     const prelude = readArchivePrelude(archive([{ version: '0.1' }]));
-    expect(prelude).toEqual({ namespaces: [], truncated: false });
+    expect(prelude).toEqual({ namespaces: [], oplog: false, truncated: false });
+  });
+
+  it('reports the oplog entry of mongodump --oplog instead of listing it', () => {
+    const bytes = archive([
+      HEADER,
+      { db: 'shop', collection: 'orders', metadata: '{}', size: 0, type: 'collection' },
+      { db: '', collection: 'oplog', metadata: '', size: 0 },
+    ]);
+    const prelude = readArchivePrelude(bytes);
+    expect(prelude.oplog).toBe(true);
+    expect(prelude.namespaces).toEqual([
+      { database: 'shop', collection: 'orders', type: 'collection' },
+    ]);
+  });
+
+  it('skips any other entry without a database', () => {
+    const prelude = readArchivePrelude(archive([HEADER, { db: '', collection: 'other' }]));
+    expect(prelude).toMatchObject({ oplog: false, namespaces: [] });
   });
 
   it('rejects bad magic', () => {

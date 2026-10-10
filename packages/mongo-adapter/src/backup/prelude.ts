@@ -14,6 +14,8 @@ export interface ArchivePrelude {
   readonly serverVersion?: string;
   readonly toolsVersion?: string;
   readonly namespaces: PreludeNamespace[];
+  // True when the archive holds the oplog of mongodump --oplog.
+  readonly oplog: boolean;
   // True when the bytes ended before the terminator, so the namespace list may be incomplete.
   readonly truncated: boolean;
 }
@@ -37,17 +39,20 @@ export function readArchivePrelude(bytes: Uint8Array): ArchivePrelude {
   offset = header.next;
 
   const namespaces: PreludeNamespace[] = [];
+  let oplog = false;
   for (;;) {
     const entry = nextDocument(bytes, view, offset);
     if (entry === undefined) {
-      return toPrelude(header.document, namespaces, true);
+      return toPrelude(header.document, namespaces, oplog, true);
     }
     if (entry.document === undefined) {
-      return toPrelude(header.document, namespaces, false);
+      return toPrelude(header.document, namespaces, oplog, false);
     }
     offset = entry.next;
     const namespace = toNamespace(entry.document);
-    if (namespace !== undefined) {
+    if (namespace === 'oplog') {
+      oplog = true;
+    } else if (namespace !== undefined) {
       namespaces.push(namespace);
     }
   }
@@ -82,6 +87,7 @@ function nextDocument(bytes: Uint8Array, view: DataView, offset: number): NextDo
 function toPrelude(
   header: BSON.Document,
   namespaces: PreludeNamespace[],
+  oplog: boolean,
   truncated: boolean,
 ): ArchivePrelude {
   const serverVersion = readString(header, 'server_version');
@@ -90,15 +96,21 @@ function toPrelude(
     ...(serverVersion === undefined ? {} : { serverVersion }),
     ...(toolsVersion === undefined ? {} : { toolsVersion }),
     namespaces,
+    oplog,
     truncated,
   };
 }
 
-function toNamespace(document: BSON.Document): PreludeNamespace | undefined {
+// mongodump --oplog writes the oplog as an entry with an empty db and the collection "oplog".
+// Any other entry without a database is skipped.
+function toNamespace(document: BSON.Document): PreludeNamespace | 'oplog' | undefined {
   const database = readString(document, 'db');
   const collection = readString(document, 'collection');
   if (database === undefined || collection === undefined) {
     return undefined;
+  }
+  if (database === '') {
+    return collection === 'oplog' ? 'oplog' : undefined;
   }
   const type = readString(document, 'type');
   return {

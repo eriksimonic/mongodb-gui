@@ -19,22 +19,26 @@ function fakeReadPrelude(bytes: Uint8Array): ArchivePrelude {
   const body = JSON.parse(buffer.subarray(4, end < 0 ? buffer.length : end).toString('utf8')) as {
     serverVersion: string;
     namespaces: ArchivePrelude['namespaces'];
+    oplog?: boolean;
   };
   return {
     serverVersion: body.serverVersion,
     toolsVersion: '100.10.0',
     namespaces: body.namespaces,
+    oplog: body.oplog ?? false,
     truncated: end < 0,
   };
 }
 
-function archiveBytes(): Buffer {
+function archiveBytes(extra: { oplog?: boolean; namespaces?: unknown[] } = {}): Buffer {
   const body = {
     serverVersion: '8.0.1',
     namespaces: [
       { database: 'shop', collection: 'orders', type: 'collection' },
       { database: 'admin', collection: 'system.users', type: 'collection' },
+      ...(extra.namespaces ?? []),
     ],
+    ...(extra.oplog === undefined ? {} : { oplog: extra.oplog }),
   };
   return Buffer.concat([
     MAGIC,
@@ -112,6 +116,21 @@ describe('inspectBackup, archives', () => {
       ],
     });
     expect(result.sidecar).toBeUndefined();
+  });
+
+  it('reads the oplog from the prelude of an archive without a sidecar', async () => {
+    const path = join(dir, 'a.archive');
+    writeFileSync(
+      path,
+      archiveBytes({
+        oplog: true,
+        namespaces: [{ database: '', collection: 'stray', type: 'collection' }],
+      }),
+    );
+    const result = await inspectBackup(path, deps);
+    expect(result.sidecar).toBeUndefined();
+    expect(result.hasOplog).toBe(true);
+    expect(result.namespaces.map((n) => n.database)).toEqual(['shop', 'admin']);
   });
 
   it('inflates a gzip archive before reading', async () => {

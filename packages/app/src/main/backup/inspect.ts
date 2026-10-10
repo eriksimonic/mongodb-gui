@@ -138,7 +138,7 @@ async function inspectArchive(path: string, deps: InspectDeps): Promise<BackupIn
   const side = await readSidecar(sidecarPathFor(path, 'archive'));
   const namespaces: Namespace[] = side.sidecar
     ? sidecarNamespaces(side.sidecar)
-    : prelude.namespaces.map((n) => ({ ...n }));
+    : prelude.namespaces.filter((n) => n.database !== '').map((n) => ({ ...n }));
   const hasPrelude = prelude.serverVersion !== undefined || prelude.toolsVersion !== undefined;
   return {
     path,
@@ -157,7 +157,7 @@ async function inspectArchive(path: string, deps: InspectDeps): Promise<BackupIn
         }
       : {}),
     namespaces: namespaces.slice(0, MAX_NAMESPACES),
-    hasOplog: side.sidecar?.oplog ?? false,
+    hasOplog: side.sidecar?.oplog ?? prelude.oplog,
     hasUsersAndRoles:
       side.sidecar?.usersAndRoles ??
       namespaces.some((n) => n.database === 'admin' && n.collection === 'system.users'),
