@@ -1,5 +1,5 @@
 import { existsSync, mkdirSync, readFileSync, realpathSync, statSync } from 'node:fs';
-import { exportTargetProblem, replaceFile } from './export-file';
+import { ExportWriter, exportTargetProblem, replaceFile } from './export-file';
 import { basename, dirname, join, resolve } from 'node:path';
 import { randomUUID } from 'node:crypto';
 import { spawn as nodeSpawn } from 'node:child_process';
@@ -195,6 +195,8 @@ import { log, type Logger } from '../log';
 import { redactText } from '../redact';
 import type { ForkFunction } from '../shell/child';
 import { RuntimeSupervisor } from '../shell/supervisor';
+import { SpillError, spillEnv } from '@mongo-gui/storage/spill';
+import { createSpillRoot, type SpillRoot } from '../spill/spill-root';
 import {
   createUpdater,
   noopUpdaterBackend,
@@ -288,6 +290,8 @@ export interface RouterDeps {
   readonly log?: Logger;
   /** One runtime process per connection. Without it every shell call fails with INTERNAL. */
   readonly shell?: ShellRegistry;
+  /** Where the shell's encrypted spill files are read and freed. Without it a spilled document is not found. */
+  readonly spill?: Pick<SpillRoot, 'read' | 'release'>;
   /** The profiler reads and writes. Defaults to the adapter functions; tests pass a fake. */
   readonly profiler?: ProfilerPort;
   /** Local Docker discovery and forwarders. Calls to the docker namespace fail without it. */
@@ -423,6 +427,11 @@ export interface AppServicesOptions {
   readonly updates?: UpdatesRuntime;
   /** Where the MongoDB tools live and how they run. Without it the backup and tools calls fail. */
   readonly tools?: ToolsRuntime;
+  /**
+   * Candidate folders for the encrypted result spill, in order of preference. Without it the
+   * shell keeps large results in memory.
+   */
+  readonly spillBases?: readonly string[];
 }
 
 /** What the backup and tools services need from Electron. The tools folders sit under userDataDir. */
@@ -440,7 +449,9 @@ export interface ToolsRuntime {
   readonly spawn?: SpawnFn;
 }
 
-export type AppServices = Omit<RouterDeps, 'onEvent' | 'docker' | 'updates'> & {
+export type AppServices = Omit<RouterDeps, 'onEvent' | 'docker' | 'updates' | 'spill'> & {
+  /** The spill folder of this run. Absent when no folder was usable or none was asked for. */
+  readonly spill?: SpillRoot;
   readonly docker: DockerRuntime;
   readonly updates: UpdatesService;
   /** Fires after the vault unlocks. The main process restores the window bounds here. */
@@ -468,6 +479,8 @@ type CatalogScope = Omit<Extract<RpcEvent, { type: 'catalog:changed' }>, 'type' 
 
 const KEYRING_DIR_MODE = 0o700;
 const MS_PER_MINUTE = 60_000;
+/** The most text one part of a streamed export may carry. */
+const EXPORT_PART_MAX_CHARS = 2 * 1024 * 1024;
 const STORE_FILE_NAME = 'store.sqlite';
 // The sidecar inside a dump folder. A picked one stands for its folder.
 const DIRECTORY_SIDECAR_NAME = 'mongo-gui-backup.json';
@@ -1018,6 +1031,21 @@ export function createRouter(deps: RouterDeps): Router {
   // Absolute paths the user picked this session. Cleared on a renderer reset.
   // Save paths: an export may replace only these, and a download may write only to these.
   const savePaths = new Set<string>();
+  // Exports written in parts, by target path. A failed part, a reset or a quit removes the file.
+  const activeExports = new Map<string, ExportWriter>();
+  function abortExport(path: string): void {
+    const writer = activeExports.get(path);
+    activeExports.delete(path);
+    writer?.abort();
+  }
+  function appendExport(path: string, writer: ExportWriter, content: string): void {
+    try {
+      writer.append(content);
+    } catch (error) {
+      abortExport(path);
+      throw error;
+    }
+  }
   // Folders picked in a folder dialog: a download may write only directly inside these.
   const folderPicks = new Set<string>();
   // Files picked in an open dialog: an upload or an import reads only these, one use each.
@@ -1255,6 +1283,23 @@ export function createRouter(deps: RouterDeps): Router {
     entry('shell.next', rpcContract.shell.next, (input) =>
       shellCall(input.connectionId, (shell) => shell.next(input)),
     ),
+    entry('shell.readDocument', rpcContract.shell.readDocument, (input) => {
+      try {
+        if (deps.spill !== undefined) {
+          return deps.spill.read(input.ref);
+        }
+      } catch (error) {
+        if (!(error instanceof SpillError)) {
+          throw error;
+        }
+      }
+      throw new AppErrorException(
+        appError('NOT_FOUND', 'The full document is no longer available. Run the query again.'),
+      );
+    }),
+    entry('shell.releaseResult', rpcContract.shell.releaseResult, (input) => {
+      deps.spill?.release(input.requestId);
+    }),
     entry('shell.cancel', rpcContract.shell.cancel, async (input) => {
       // Nothing runs on a connection that is not open, so cancel needs no connection check.
       await deps.shell?.cancel(input.connectionId, input.requestId);
@@ -1663,17 +1708,59 @@ export function createRouter(deps: RouterDeps): Router {
       return picked;
     }),
     entry('app.writeExport', rpcContract.app.writeExport, (input) => {
-      // Only a path the user picked in this session is written, so the renderer cannot pick one.
-      if (!savePaths.has(input.path)) {
-        throw new AppErrorException(appError('VALIDATION', 'Choose the file with Save as first.'));
+      const { path, content, part } = input;
+      if (part === 'only') {
+        // Only a path the user picked in this session is written, so the renderer cannot pick one.
+        if (!savePaths.has(path)) {
+          throw new AppErrorException(
+            appError('VALIDATION', 'Choose the file with Save as first.'),
+          );
+        }
+        // The pick is good for one write. A refused write needs a new pick.
+        savePaths.delete(path);
+        const problem = exportTargetProblem(path);
+        if (problem !== undefined) {
+          throw new AppErrorException(appError('VALIDATION', problem));
+        }
+        replaceFile(path, content);
+        return;
       }
-      // The pick is good for one write. A refused write needs a new pick.
-      savePaths.delete(input.path);
-      const problem = exportTargetProblem(input.path);
-      if (problem !== undefined) {
-        throw new AppErrorException(appError('VALIDATION', problem));
+      if (part === 'abort') {
+        abortExport(path);
+        return;
       }
-      replaceFile(input.path, input.content);
+      if (content.length > EXPORT_PART_MAX_CHARS) {
+        throw new AppErrorException(appError('VALIDATION', 'The export part is too large.'));
+      }
+      if (part === 'first') {
+        if (activeExports.has(path)) {
+          throw new AppErrorException(appError('VALIDATION', 'This export has already started.'));
+        }
+        if (!savePaths.has(path)) {
+          throw new AppErrorException(
+            appError('VALIDATION', 'Choose the file with Save as first.'),
+          );
+        }
+        // The pick is good for one export, parts included.
+        savePaths.delete(path);
+        const problem = exportTargetProblem(path);
+        if (problem !== undefined) {
+          throw new AppErrorException(appError('VALIDATION', problem));
+        }
+        const writer = new ExportWriter(path);
+        activeExports.set(path, writer);
+        appendExport(path, writer, content);
+        return;
+      }
+      const writer = activeExports.get(path);
+      if (writer === undefined) {
+        throw new AppErrorException(appError('VALIDATION', 'This export has not started.'));
+      }
+      appendExport(path, writer, content);
+      if (part === 'last') {
+        activeExports.delete(path);
+        writer.commit();
+      }
     }),
     entry('app.showItemInFolder', rpcContract.app.showItemInFolder, (input) => {
       // Only a file this session exported or backed up is revealed, so the renderer cannot open
@@ -1779,6 +1866,10 @@ export function createRouter(deps: RouterDeps): Router {
 
   return {
     resetRenderer() {
+      // The quit path calls this before the services dispose, so no half-written export stays.
+      for (const path of [...activeExports.keys()]) {
+        abortExport(path);
+      }
       savePaths.clear();
       folderPicks.clear();
       openedFiles.clear();
@@ -1972,7 +2063,11 @@ export function createAppServices(options: AppServicesOptions): AppServices {
   };
   let handles = openStore();
   const connections = new ConnectionManager();
+  // Created here so the sweep of dead instances runs at startup, before any connection.
+  const spill =
+    options.spillBases === undefined ? undefined : createSpillRoot({ bases: options.spillBases });
   const shell = new RuntimeSupervisor({
+    ...(spill === undefined ? {} : { spillEnv: spillEnv(spill.ctx) }),
     entryPath: options.shell?.entryPath ?? '',
     fork: options.shell?.fork ?? refuseFork,
     profileOf: (connectionId) => handles.repos.connections.get(connectionId),
@@ -2006,6 +2101,7 @@ export function createAppServices(options: AppServicesOptions): AppServices {
     repos: handles.repos,
     connections,
     shell,
+    ...(spill === undefined ? {} : { spill }),
     docker,
     log,
     reopenStore: () => {
@@ -2033,7 +2129,9 @@ export function createAppServices(options: AppServicesOptions): AppServices {
     updates,
     ...(backupTools === undefined ? {} : { backupTools: backupTools.build }),
     async dispose() {
-      shell.dispose();
+      // Wait for the runtime to exit, so nothing writes to the spill after the wipe.
+      await shell.dispose();
+      spill?.dispose();
       updates.stop();
       // The tools run against open connections, so they stop before the disconnect.
       await backupTools?.dispose();

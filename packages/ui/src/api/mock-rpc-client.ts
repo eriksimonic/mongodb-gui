@@ -786,7 +786,7 @@ export function createMockUiApi(options: MockUiApiOptions = {}): UiApi {
           throw fail('VALIDATION', 'Only a file exported in this session can be shown.');
         }
       }),
-      // The mock has no disk. The export is accepted and nothing is written.
+      // The mock has no disk. An export is accepted, in parts too, and nothing is written.
       writeExport: method(rpcContract.app.writeExport, latencyMs, () => undefined),
     },
     generate: {
@@ -1097,6 +1097,13 @@ export function createMockUiApi(options: MockUiApiOptions = {}): UiApi {
       cancel: method(rpcContract.shell.cancel, latencyMs, ({ requestId }) => {
         requireUnlocked();
         shell.cancel(requestId);
+      }),
+      readDocument: method(rpcContract.shell.readDocument, latencyMs, () => {
+        requireUnlocked();
+        throw fail('NOT_FOUND', 'The document is no longer stored.');
+      }),
+      releaseResult: method(rpcContract.shell.releaseResult, latencyMs, () => {
+        requireUnlocked();
       }),
       complete: method(rpcContract.shell.complete, latencyMs, (input) => {
         requireUnlocked();

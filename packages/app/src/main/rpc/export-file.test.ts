@@ -1,4 +1,5 @@
 import {
+  mkdirSync,
   mkdtempSync,
   readdirSync,
   readFileSync,
@@ -9,7 +10,7 @@ import {
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
-import { exportTargetProblem, replaceFile } from './export-file';
+import { ExportWriter, exportTargetProblem, replaceFile } from './export-file';
 
 describe('replaceFile', () => {
   let dir: string;
@@ -71,5 +72,71 @@ describe('exportTargetProblem', () => {
     writeFileSync(target, '[]');
     symlinkSync(target, link);
     expect(exportTargetProblem(link)).toBeDefined();
+  });
+});
+
+describe('ExportWriter', () => {
+  let dir: string;
+
+  beforeEach(() => {
+    dir = mkdtempSync(join(tmpdir(), 'export-writer-'));
+  });
+
+  afterEach(() => {
+    rmSync(dir, { recursive: true, force: true });
+  });
+
+  it('writes the parts in order and leaves only the target', () => {
+    const path = join(dir, 'out.json');
+    const writer = new ExportWriter(path);
+    writer.append('[\n');
+    writer.append('{"a":"\u00e9\ud83d\ude00"}');
+    writer.append('\n]');
+    writer.commit();
+    expect(readFileSync(path, 'utf8')).toBe('[\n{"a":"\u00e9\ud83d\ude00"}\n]');
+    expect(readdirSync(dir)).toEqual(['out.json']);
+  });
+
+  it('keeps the old file readable until commit', () => {
+    const path = join(dir, 'out.csv');
+    writeFileSync(path, 'old');
+    const writer = new ExportWriter(path);
+    writer.append('new');
+    expect(readFileSync(path, 'utf8')).toBe('old');
+    writer.commit();
+    expect(readFileSync(path, 'utf8')).toBe('new');
+    expect(readdirSync(dir)).toEqual(['out.csv']);
+  });
+
+  it('leaves no temporary file and no target after abort', () => {
+    const path = join(dir, 'out.json');
+    const writer = new ExportWriter(path);
+    writer.append('partial');
+    writer.abort();
+    writer.abort();
+    expect(readdirSync(dir)).toEqual([]);
+  });
+
+  it('keeps the old file after abort', () => {
+    const path = join(dir, 'out.json');
+    writeFileSync(path, 'old');
+    const writer = new ExportWriter(path);
+    writer.append('partial');
+    writer.abort();
+    expect(readFileSync(path, 'utf8')).toBe('old');
+    expect(readdirSync(dir)).toEqual(['out.json']);
+  });
+
+  it('removes the temporary file when the rename fails', () => {
+    // The target is a non-empty folder, so the rename cannot replace it.
+    const path = join(dir, 'taken');
+    mkdirSync(path);
+    writeFileSync(join(path, 'inner'), 'x');
+    const writer = new ExportWriter(path);
+    writer.append('text');
+    expect(() => {
+      writer.commit();
+    }).toThrow();
+    expect(readdirSync(dir)).toEqual(['taken']);
   });
 });

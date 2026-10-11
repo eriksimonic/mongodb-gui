@@ -298,6 +298,9 @@ importers:
       '@mongo-gui/mongo-adapter':
         specifier: workspace:*
         version: link:../mongo-adapter
+      '@mongo-gui/storage':
+        specifier: workspace:*
+        version: link:../storage
       '@mongosh/browser-runtime-electron':
         specifier: 5.11.2
         version: 5.11.2(@aws-sdk/credential-providers@3.1148.0)(@mongodb-js/oidc-plugin@2.2.0(supports-color@7.2.0))(bson@7.3.3)(gcp-metadata@7.0.1(supports-color@7.2.0))(kerberos@7.0.0)(mongodb-client-encryption@7.2.1)(mongodb-log-writer@2.5.16(bson@7.3.3))(mongodb@7.7.0(@aws-sdk/credential-providers@3.1148.0)(gcp-metadata@7.0.1(supports-color@7.2.0))(kerberos@7.0.0)(mongodb-client-encryption@7.2.1)(socks@2.8.10))(socks@2.8.10)(supports-color@7.2.0)(zod@3.25.76)

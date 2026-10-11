@@ -86,6 +86,7 @@ export * from './util/debounce';
 export * from './domain/window-bounds';
 export * from './sharding/types';
 export * from './sharding/summary';
+export * from './shell/preview';
 export * from './shell/protocol';
 export * from './shell/result-type';
 export * from './tools/feed';

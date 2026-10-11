@@ -9,6 +9,7 @@ import {
   Tooltip,
 } from '@mantine/core';
 import { modals } from '@mantine/modals';
+import { notifications } from '@mantine/notifications';
 import {
   IconBookmark,
   IconChecklist,
@@ -496,7 +497,21 @@ export function EditorView({ tabId }: EditorViewProps) {
             onView={(view) => api.setEditorView(tabId, view)}
             onLoadMore={() => void api.loadMoreEditor(tabId)}
             onLoadAll={() => void api.loadAllEditor(tabId)}
-            onExport={(format) => void api.exportResult(tabId, format).catch(notifyError)}
+            readFull={(ref) => api.readFullDocument(ref)}
+            onExport={(format) =>
+              void api
+                .exportResult(tabId, format)
+                .then(({ skipped }) => {
+                  if (skipped > 0) {
+                    notifications.show({
+                      color: 'yellow',
+                      title: 'Export finished',
+                      message: `${skipped} ${skipped === 1 ? 'document was' : 'documents were'} left out because the full text was not kept.`,
+                    });
+                  }
+                })
+                .catch(notifyError)
+            }
             onSetField={(edit: TreeEdit) =>
               api.editField({
                 tabId,

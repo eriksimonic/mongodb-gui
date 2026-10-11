@@ -1,12 +1,17 @@
 import {
   AppErrorException,
   appError,
+  isUnkeptPreview,
   newId,
+  nestedMarker,
+  previewInfo,
+  withPreviewInfo,
   toAppError,
   translateSql,
   translateSqlStatement,
   type AppError,
   type EditorLanguage,
+  type PreviewEdit,
   type RpcClient,
   type Settings,
   type SettingsPatch,
@@ -16,13 +21,24 @@ import {
 import { editorUiEvents } from '../editor/editor-events';
 import { prepareSqlRun, type SqlSampler } from '../editor/sql-run';
 import {
+  addColumns,
+  discoverColumns,
   isPlainObject,
   parseCursorBatch,
   parseEjson,
+  type ColumnDef,
   type JsonObject,
 } from '../results/result-model';
+import { fullDocumentText } from '../results/full-documents';
 import { withoutPath, withValueAtPath } from '../results/document-path';
-import { EXPORT_FORMATS, exportText, type ExportFormat } from '../results/result-export';
+import {
+  createExportSink,
+  EXPORT_FORMATS,
+  exportHead,
+  exportRow,
+  exportTail,
+  type ExportFormat,
+} from '../results/result-export';
 import {
   appendOutput,
   appendPage,
@@ -40,6 +56,7 @@ import {
   markTabSaved,
   openTab,
   resultFromEvaluation,
+  RESIDENT_CHARS,
   restoreTabs,
   savedTabsOf,
   SavedTabsSchema,
@@ -124,6 +141,7 @@ type PageOutcome =
       readonly documents: readonly JsonObject[];
       readonly hasMore: boolean;
       readonly cursorRequestId: string | undefined;
+      readonly chars: number;
     }
   | { readonly error: AppError };
 
@@ -152,6 +170,15 @@ export function createEditorActions(access: EditorStoreAccess) {
   /** The language in the saved settings. Mongosh until the settings load. */
   function defaultLanguage(): EditorLanguage {
     return access.get().settings?.editorLanguage ?? 'mongosh';
+  }
+
+  /** Frees the spill files of the tab's current result. The files are gone for good, so a failure is ignored. */
+  function releaseResult(id: string): void {
+    const result = access.get().editors.tabs[id]?.result;
+    const requestId = result?.cursorRequestId ?? result?.requestId;
+    if (requestId !== undefined) {
+      void rpc.shell.releaseResult({ requestId }).catch(() => undefined);
+    }
   }
 
   /**
@@ -242,6 +269,7 @@ export function createEditorActions(access: EditorStoreAccess) {
     }
     const requestId = newId();
     const startedAt = Date.now();
+    releaseResult(id);
     update((state) => beginRun(state, id, requestId, startedAt));
     let evaluation: ShellEvaluation;
     try {
@@ -321,6 +349,7 @@ export function createEditorActions(access: EditorStoreAccess) {
         documents: batch.documents,
         hasMore: evaluation.result.hasMore,
         cursorRequestId: evaluation.result.cursorRequestId,
+        chars: evaluation.result.printableEjson.length,
       };
     } catch (failure) {
       return { error: toAppError(failure) };
@@ -339,7 +368,7 @@ export function createEditorActions(access: EditorStoreAccess) {
     ) {
       return;
     }
-    if (result.cursorRequestId === undefined || !result.hasMore) {
+    if (result.cursorRequestId === undefined || !result.hasMore || result.capped) {
       return;
     }
     update((state) => setLoadingMore(state, id, true));
@@ -349,15 +378,24 @@ export function createEditorActions(access: EditorStoreAccess) {
         ? Math.min(LOAD_ALL_BATCH, LOAD_ALL_LIMIT - count)
         : Math.min(tab.batchSize, NEXT_BATCH_LIMIT);
     let loaded = result.documents.length;
+    let chars = result.chars;
     let cursor: string | undefined = result.cursorRequestId;
     let more = true;
-    while (more && cursor !== undefined && (mode === 'batch' || loaded < LOAD_ALL_LIMIT)) {
+    // A document with no stored copy ends Load all, as the resident limit does.
+    let unkept = false;
+    while (
+      more &&
+      cursor !== undefined &&
+      (mode === 'batch' || (loaded < LOAD_ALL_LIMIT && chars < RESIDENT_CHARS && !unkept))
+    ) {
       const page = await nextPage(tab.connectionId, cursor, batchFor(loaded));
       if ('error' in page) {
         update((state) => setTabError(state, id, page.error));
         return;
       }
       loaded += page.documents.length;
+      chars += page.chars;
+      unkept = page.documents.some(isUnkeptPreview);
       more = page.hasMore;
       cursor = page.cursorRequestId;
       update((state) =>
@@ -365,6 +403,7 @@ export function createEditorActions(access: EditorStoreAccess) {
           documents: page.documents,
           hasMore: page.hasMore,
           cursorRequestId: page.cursorRequestId,
+          chars: page.chars,
         }),
       );
       if (mode === 'batch') {
@@ -452,6 +491,7 @@ export function createEditorActions(access: EditorStoreAccess) {
     },
 
     closeEditor(id: string): void {
+      releaseResult(id);
       update((state) => closeTab(state, id));
     },
 
@@ -489,12 +529,13 @@ export function createEditorActions(access: EditorStoreAccess) {
 
     /**
      * Saves the loaded documents of a tab as a JSON or CSV file. The user picks the file first. The
-     * main process writes it only when no file exists under that name.
+     * main process writes it only when no file exists under that name. A document whose full text
+     * was not kept cannot be read back, so it is left out and counted in the result.
      */
-    async exportResult(id: string, format: ExportFormat): Promise<void> {
+    async exportResult(id: string, format: ExportFormat): Promise<{ readonly skipped: number }> {
       const result = access.get().editors.tabs[id]?.result;
       if (result === undefined) {
-        return;
+        return { skipped: 0 };
       }
       const { extension, name } = EXPORT_FORMATS[format];
       const picked = await rpc.app.showSaveDialog({
@@ -503,16 +544,57 @@ export function createEditorActions(access: EditorStoreAccess) {
         defaultPath: `${result.collection ?? 'results'}.${extension}`,
       });
       if (picked.path === undefined) {
-        return;
+        return { skipped: 0 };
       }
-      await rpc.app.writeExport({
-        path: picked.path,
-        content: exportText(result.documents, format),
-      });
+      // The text goes out in parts, one document at a time, so neither this process nor the IPC
+      // message ever holds the whole file, and a full previewed document is only a transient.
+      const path = picked.path;
+      const documents = result.documents.filter((document) => !isUnkeptPreview(document));
+      const skipped = result.documents.length - documents.length;
+      const loadFull = async (document: JsonObject): Promise<JsonObject> =>
+        previewInfo(document) === undefined
+          ? document
+          : (JSON.parse(
+              await fullDocumentText(document, (ref) => rpc.shell.readDocument({ ref })),
+            ) as JsonObject);
+      // A preview keeps only some of the keys of a wide document, so the CSV columns come from the
+      // full documents. Each is read and dropped, and read again for its row.
+      let columns: ColumnDef[] = [];
+      if (format === 'csv') {
+        if (documents.some((document) => previewInfo(document) !== undefined)) {
+          for (const document of documents) {
+            columns = addColumns(columns, [await loadFull(document)]);
+          }
+        } else {
+          columns = discoverColumns(documents);
+        }
+      }
+      const sink = createExportSink((content, part) =>
+        rpc.app.writeExport({ path, content, part }),
+      );
+      try {
+        await sink.push(exportHead(format, columns, documents.length));
+        for (const [index, document] of documents.entries()) {
+          await sink.push(exportRow(format, columns, await loadFull(document), index));
+        }
+        await sink.push(exportTail(format, documents.length));
+        await sink.finish();
+      } catch (error) {
+        if (sink.started) {
+          await rpc.app.writeExport({ path, content: '', part: 'abort' }).catch(() => undefined);
+        }
+        throw error;
+      }
+      return { skipped };
     },
 
     loadAllEditor(id: string): Promise<void> {
       return readPages(id, 'all');
+    },
+
+    /** The full canonical EJSON text of a document whose result carried only a preview. */
+    readFullDocument(ref: string): Promise<string> {
+      return rpc.shell.readDocument({ ref });
     },
 
     /**
@@ -531,6 +613,12 @@ export function createEditorActions(access: EditorStoreAccess) {
       ) {
         throw new AppErrorException(appError('VALIDATION', 'This result cannot be edited.'));
       }
+      // A marker for _id means the preview cut it, and an update by it could miss or hit another document.
+      if (nestedMarker(document._id) !== undefined) {
+        throw new AppErrorException(
+          appError('VALIDATION', 'This document is a preview. Open it to edit.'),
+        );
+      }
       const target = {
         connectionId: tab.connectionId,
         database: result.database,
@@ -546,11 +634,18 @@ export function createEditorActions(access: EditorStoreAccess) {
           setEjson: JSON.stringify({ [edit.path]: edit.value }),
         });
       }
+      const saved: PreviewEdit =
+        edit.unset === true
+          ? { path: edit.path, unset: true }
+          : { path: edit.path, value: edit.value };
       update((state) =>
         patchDocument(state, edit.tabId, edit.documentIndex, (current) =>
-          edit.unset === true
-            ? withoutPath(current, edit.path)
-            : withValueAtPath(current, edit.path, edit.value),
+          withRecordedEdit(
+            edit.unset === true
+              ? withoutPath(current, edit.path)
+              : withValueAtPath(current, edit.path, edit.value),
+            saved,
+          ),
         ),
       );
     },
@@ -753,4 +848,16 @@ function countOf(documents: readonly JsonObject[], type: string): number {
   const isCursor =
     type === 'Cursor' || type === 'AggregationCursor' || type === 'CursorIterationResult';
   return isCursor ? documents.length : 1;
+}
+
+/**
+ * A previewed document keeps its marker after an edit, and the spill still holds the text from
+ * before it. The marker records the edit, so whoever reads the stored text applies it on top and
+ * gets the document as it is now.
+ */
+function withRecordedEdit(document: JsonObject, edit: PreviewEdit): JsonObject {
+  const info = previewInfo(document);
+  return info === undefined
+    ? document
+    : withPreviewInfo(document, { ...info, edits: [...(info.edits ?? []), edit] });
 }

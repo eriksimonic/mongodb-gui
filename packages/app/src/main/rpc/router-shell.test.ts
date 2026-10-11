@@ -11,6 +11,9 @@ import {
   type RpcResult,
   type ShellEvaluation,
 } from '@mongo-gui/core';
+import { randomUUID } from 'node:crypto';
+import { existsSync, writeFileSync } from 'node:fs';
+import { writeSpillFile } from '@mongo-gui/storage/spill';
 import { createAppServices, createRouter, type AppServices, type Router } from './router';
 import type { ConnectionRegistry, ShellRegistry } from './router';
 import type { RuntimeEvent } from '../shell/supervisor';
@@ -303,5 +306,98 @@ describe('router shell namespace', () => {
       { type: 'shell:state', connectionId: CONNECTION_ID, state: 'starting' },
       { type: 'shell:print', connectionId: CONNECTION_ID, requestId: REQUEST_ID, text: 'x' },
     ]);
+  });
+});
+
+describe('router shell spill', () => {
+  let dir: string;
+  // The spill refuses a RAM-backed base and the temp folder can be tmpfs, so the base sits beside
+  // the sources.
+  let base: string;
+  let services: AppServices;
+  let router: Router;
+
+  const setup = (spillBases: readonly string[] | undefined): void => {
+    services = createAppServices({
+      userDataDir: dir,
+      kdf: FAST_KDF,
+      failureDelayMs: 0,
+      ...(spillBases === undefined ? {} : { spillBases }),
+    });
+    router = createRouter({ ...services, onEvent: () => undefined });
+  };
+
+  const notFound = {
+    code: 'NOT_FOUND',
+    message: 'The full document is no longer available. Run the query again.',
+  };
+
+  beforeEach(() => {
+    dir = mkdtempSync(join(tmpdir(), 'router-spill-'));
+    base = mkdtempSync(join(import.meta.dirname, 'spill-base-'));
+  });
+
+  afterEach(async () => {
+    await services.dispose();
+    rmSync(dir, { recursive: true, force: true });
+    rmSync(base, { recursive: true, force: true });
+  });
+
+  it('reads back a document the shell wrote with the same context', async () => {
+    setup([base]);
+    const ctx = services.spill?.ctx;
+    if (ctx === undefined) {
+      throw new Error('no spill');
+    }
+    const { ref } = writeSpillFile(ctx, randomUUID(), '{"_id":1,"big":"x"}');
+    expect(valueOf(await router.handle('shell.readDocument', { ref }))).toBe('{"_id":1,"big":"x"}');
+  });
+
+  it('answers NOT_FOUND for a missing or tampered file', async () => {
+    setup([base]);
+    const ctx = services.spill?.ctx;
+    if (ctx === undefined) {
+      throw new Error('no spill');
+    }
+    const missing = `${randomUUID()}/${randomUUID()}`;
+    expect(errorOf(await router.handle('shell.readDocument', { ref: missing }))).toMatchObject(
+      notFound,
+    );
+    const { ref } = writeSpillFile(ctx, randomUUID(), '{"a":1}');
+    writeFileSync(join(ctx.dir, ref), Buffer.from('garbage that is not a spill file'));
+    expect(errorOf(await router.handle('shell.readDocument', { ref }))).toMatchObject(notFound);
+  });
+
+  it('deletes the run on releaseResult', async () => {
+    setup([base]);
+    const ctx = services.spill?.ctx;
+    if (ctx === undefined) {
+      throw new Error('no spill');
+    }
+    const runId = randomUUID();
+    const { ref } = writeSpillFile(ctx, runId, '{"a":1}');
+    expect(valueOf(await router.handle('shell.releaseResult', { requestId: runId }))).toBe(
+      undefined,
+    );
+    expect(existsSync(join(ctx.dir, ref))).toBe(false);
+    expect(errorOf(await router.handle('shell.readDocument', { ref }))).toMatchObject(notFound);
+  });
+
+  it('answers NOT_FOUND and releases nothing when no spill folder was asked for', async () => {
+    setup(undefined);
+    expect(services.spill).toBeUndefined();
+    const ref = `${randomUUID()}/${randomUUID()}`;
+    expect(errorOf(await router.handle('shell.readDocument', { ref }))).toMatchObject(notFound);
+    expect(
+      valueOf(await router.handle('shell.releaseResult', { requestId: randomUUID() })),
+    ).toBeUndefined();
+  });
+
+  it('removes the spill folder on dispose', async () => {
+    setup([base]);
+    const spillDir = services.spill?.ctx.dir ?? '';
+    expect(existsSync(spillDir)).toBe(true);
+    await services.dispose();
+    expect(existsSync(spillDir)).toBe(false);
   });
 });

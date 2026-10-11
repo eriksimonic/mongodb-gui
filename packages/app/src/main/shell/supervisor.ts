@@ -62,6 +62,9 @@ export const DEFAULT_TIMINGS: SupervisorTimings = {
   maxPrintLines: 10_000,
 };
 
+// How long dispose waits for killed processes to exit.
+const DISPOSE_EXIT_WAIT_MS = 2_000;
+
 // Responses kept for one request. A script can send more messages than a request needs, so the
 // rest are dropped.
 const MAX_RESPONSES_PER_REQUEST = 100;
@@ -83,6 +86,9 @@ export interface RuntimeSupervisorOptions {
   readonly timings?: Partial<SupervisorTimings>;
   // Source of the variables the runtime may read. Defaults to the process environment.
   readonly env?: NodeJS.ProcessEnv;
+  // Spill directory, key and store id for the runtime. They join the environment after the
+  // filter, because minimalEnv drops names it does not know.
+  readonly spillEnv?: Readonly<Record<string, string>>;
 }
 
 export type RuntimeEvent = Extract<RpcEvent, { type: 'shell:print' | 'shell:state' }>;
@@ -194,7 +200,7 @@ export class RuntimeSupervisor {
   constructor(private readonly options: RuntimeSupervisorOptions) {
     this.timings = { ...DEFAULT_TIMINGS, ...options.timings };
     this.log = options.log ?? defaultLog;
-    this.env = minimalEnv(options.env ?? process.env);
+    this.env = { ...minimalEnv(options.env ?? process.env), ...options.spillEnv };
   }
 
   onEvent(listener: (event: RuntimeEvent) => void): () => void {
@@ -415,17 +421,35 @@ export class RuntimeSupervisor {
     await Promise.all([...this.slots.keys()].map((id) => this.stop(id)));
   }
 
-  // Kills every process at once and settles their requests. Used when the app quits.
-  dispose(): void {
+  // Kills every process at once and settles their requests. Used when the app quits. Resolves once
+  // the processes have exited, or after the wait cap, so the caller can wipe what they wrote.
+  async dispose(): Promise<void> {
     this.disposed = true;
+    const exits: Promise<void>[] = [];
     for (const slot of this.slots.values()) {
       const child = this.unlink(slot, appError('INTERNAL', 'The shell was shut down.'));
       if (child !== null) {
+        exits.push(
+          new Promise<void>((resolve) => {
+            child.onExit(() => {
+              resolve();
+            });
+          }),
+        );
         this.killNow(child, slot.connectionId);
       }
       this.setState(slot, 'stopped');
     }
     this.slots.clear();
+    let timer: NodeJS.Timeout | undefined;
+    const cap = new Promise<void>((resolve) => {
+      timer = setTimeout(resolve, DISPOSE_EXIT_WAIT_MS);
+    });
+    try {
+      await Promise.race([Promise.all(exits), cap]);
+    } finally {
+      clearTimeout(timer);
+    }
   }
 
   // True when the id names a request that is queued, running, or owns the open cursor.

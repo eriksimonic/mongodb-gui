@@ -11,16 +11,22 @@ import { discoverColumns, type JsonObject } from './result-model';
 
 const DOCUMENTS = bsonSampleDocuments(3) as JsonObject[];
 
-function renderTable(onOpenDocument = vi.fn(), editable = true) {
+function renderTable(
+  onOpenDocument = vi.fn(),
+  editable = true,
+  documents: JsonObject[] = DOCUMENTS,
+  readFull: (ref: string) => Promise<string> = () => Promise.reject(new Error('no read')),
+) {
   return render(
     <AppProviders>
       <div style={{ height: 400, width: 1000 }} className="mg-virtual-scroll">
         <TableView
-          documents={DOCUMENTS}
-          columns={discoverColumns(DOCUMENTS)}
+          documents={documents}
+          columns={discoverColumns(documents)}
           editable={editable}
           editabilityNote="Only a plain find can be edited."
           onOpenDocument={onOpenDocument}
+          readFull={readFull}
           onSelectionChange={() => undefined}
         />
       </div>
@@ -120,6 +126,42 @@ describe('TableView', () => {
     fireEvent.doubleClick(await customerRow());
 
     await waitFor(() => expect(onOpen).toHaveBeenCalledTimes(1));
+  });
+});
+
+describe('TableView shortened values', () => {
+  const REF = '11111111-1111-4111-8111-111111111111/22222222-2222-4222-8222-222222222222';
+  const PREVIEW: JsonObject = {
+    _id: 1,
+    name: 'Previewed',
+    big: { $mgTruncated: { t: 'array', n: 200000 } },
+    $mgTruncated: { ref: REF, chars: 3_600_000 },
+  };
+  const FULL = { _id: 1, name: 'Previewed', big: [1, 2, 3] };
+
+  it('shows a marker as a size summary and no column for the root marker', async () => {
+    renderTable(vi.fn(), true, [PREVIEW]);
+
+    expect(await screen.findByText('[…] 200000 items')).toBeInTheDocument();
+    expect(screen.queryByText('$mgTruncated')).toBeNull();
+  });
+
+  it('disables Copy value on a marker and copies the full document of a preview', async () => {
+    const writeText = vi.fn().mockResolvedValue(undefined);
+    Object.defineProperty(navigator, 'clipboard', { value: { writeText }, configurable: true });
+    const readFull = vi.fn().mockResolvedValue(JSON.stringify(FULL));
+    renderTable(vi.fn(), true, [PREVIEW], readFull);
+    const cell = await screen.findByText('[…] 200000 items');
+
+    fireEvent.contextMenu(cell, { clientX: 40, clientY: 50 });
+    const copyValue = await screen.findByRole('menuitem', { name: /Copy value/ });
+    expect(copyValue).toBeDisabled();
+    fireEvent.click(await screen.findByText('Copy document'));
+
+    await waitFor(() =>
+      expect(writeText).toHaveBeenLastCalledWith(JSON.stringify([FULL], null, 2)),
+    );
+    expect(readFull).toHaveBeenCalledWith(REF);
   });
 });
 

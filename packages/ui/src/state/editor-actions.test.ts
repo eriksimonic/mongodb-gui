@@ -1313,3 +1313,300 @@ describe('editor actions: SQL tabs', () => {
     expect(store.getState().editors.tabs[id]?.error).toBeUndefined();
   });
 });
+
+describe('editor actions: previews', () => {
+  const REF = '11111111-1111-4111-8111-111111111111/22222222-2222-4222-8222-222222222222';
+  const MARKER = { $mgTruncated: { t: 'array', n: 200000 } };
+
+  /** A tab whose first page is the given documents, with a cursor that has more. */
+  async function previewTab(documents: readonly unknown[]) {
+    const api = await connectedMockApi();
+    const store = await storeOn(api);
+    const id = store
+      .getState()
+      .openEditor({ connectionId: localConnectionId, database: 'analytics' });
+    vi.spyOn(api.rpc.shell, 'evaluate').mockResolvedValue({
+      requestId: 'first',
+      result: {
+        type: 'Cursor',
+        printableEjson: JSON.stringify({ documents, cursorHasMore: true }),
+        hasMore: true,
+        cursorRequestId: 'cursor',
+      },
+    } as unknown as Awaited<ReturnType<typeof api.rpc.shell.evaluate>>);
+    await store.getState().runEditor(id, 'db.bson_samples.find()');
+    return { api, store, id };
+  }
+
+  it('refuses an edit when _id of the preview is a marker', async () => {
+    const { api, store, id } = await previewTab([
+      { _id: { $mgTruncated: { t: 'string', n: 99999, head: 'k' } }, a: 1 },
+    ]);
+    const update = vi.spyOn(api.rpc.management, 'updateDocumentFields');
+
+    await expect(
+      store.getState().editField({ tabId: id, documentIndex: 0, path: 'a', unset: true }),
+    ).rejects.toMatchObject({ error: { code: 'VALIDATION' } });
+    expect(update).not.toHaveBeenCalled();
+  });
+
+  it('sends only the id and the one edited path for a previewed document', async () => {
+    const { api, store, id } = await previewTab([
+      { _id: 7, big: MARKER, a: 1, $mgTruncated: { ref: REF, chars: 3_600_000 } },
+    ]);
+    const update = vi
+      .spyOn(api.rpc.management, 'updateDocumentFields')
+      .mockResolvedValue(undefined as never);
+
+    await store.getState().editField({ tabId: id, documentIndex: 0, path: 'a', value: 2 });
+
+    const sent = update.mock.calls[0]?.[0];
+    expect(sent).toMatchObject({ idEjson: '7', setEjson: '{"a":2}' });
+    expect(JSON.stringify(sent)).not.toContain('$mgTruncated');
+    // The spill still holds the text from before the edit, so the row records the edit with the ref.
+    const row = store.getState().editors.tabs[id]?.result?.documents[0];
+    expect(row).toMatchObject({
+      a: 2,
+      $mgTruncated: { ref: REF, chars: 3_600_000, edits: [{ path: 'a', value: 2 }] },
+    });
+  });
+
+  it('exports and opens an edited previewed document with the edits applied to the stored text', async () => {
+    const { api, store, id } = await previewTab([
+      { _id: 7, big: MARKER, a: 1, gone: 1, $mgTruncated: { ref: REF, chars: 3_600_000 } },
+    ]);
+    vi.spyOn(api.rpc.management, 'updateDocumentFields').mockResolvedValue(undefined as never);
+    vi.spyOn(api.rpc.shell, 'readDocument').mockResolvedValue(
+      '{"_id":7,"big":[1,2,3],"a":1,"gone":1}',
+    );
+    const writes: string[] = [];
+    vi.spyOn(api.rpc.app, 'writeExport').mockImplementation((input) => {
+      writes.push(input.content);
+      return Promise.resolve();
+    });
+
+    await store.getState().editField({ tabId: id, documentIndex: 0, path: 'a', value: 2 });
+    await store.getState().editField({ tabId: id, documentIndex: 0, path: 'gone', unset: true });
+    const result = await store.getState().exportResult(id, 'json');
+
+    expect(result).toEqual({ skipped: 0 });
+    expect(JSON.parse(writes.join(''))).toEqual([{ _id: 7, big: [1, 2, 3], a: 2 }]);
+  });
+
+  it('stops Load all when the loaded text reaches the resident limit', async () => {
+    const { api, store, id } = await previewTab([{ n: 0 }]);
+    const pad = JSON.stringify({
+      documents: [{ pad: 'x'.repeat(13 * 1024 * 1024) }],
+      cursorHasMore: true,
+    });
+    const next = vi.spyOn(api.rpc.shell, 'next').mockResolvedValue({
+      requestId: 'cursor',
+      result: { type: 'Cursor', printableEjson: pad, hasMore: true, cursorRequestId: 'cursor' },
+    } as unknown as Awaited<ReturnType<typeof api.rpc.shell.next>>);
+
+    await store.getState().loadAllEditor(id);
+
+    expect(next).toHaveBeenCalledTimes(2);
+    expect(store.getState().editors.tabs[id]?.result).toMatchObject({
+      capped: true,
+      hasMore: true,
+      loadingMore: false,
+    });
+    // A capped result fetches nothing more, even when asked.
+    await store.getState().loadMoreEditor(id);
+    expect(next).toHaveBeenCalledTimes(2);
+  });
+
+  it('stops Load all at the first document that has no stored copy', async () => {
+    const { api, store, id } = await previewTab([{ n: 0 }]);
+    const unkept = JSON.stringify({
+      documents: [{ _id: 1, big: MARKER, $mgTruncated: { chars: 3_600_000 } }],
+      cursorHasMore: true,
+    });
+    const next = vi.spyOn(api.rpc.shell, 'next').mockResolvedValue({
+      requestId: 'cursor',
+      result: { type: 'Cursor', printableEjson: unkept, hasMore: true, cursorRequestId: 'cursor' },
+    } as unknown as Awaited<ReturnType<typeof api.rpc.shell.next>>);
+
+    await store.getState().loadAllEditor(id);
+
+    expect(next).toHaveBeenCalledTimes(1);
+    expect(store.getState().editors.tabs[id]?.result).toMatchObject({
+      capped: true,
+      hasMore: true,
+      loadingMore: false,
+    });
+  });
+
+  it('frees the spill of the old result when the run restarts and when the tab closes', async () => {
+    const { api, store, id } = await previewTab([{ n: 0 }]);
+    const release = vi.spyOn(api.rpc.shell, 'releaseResult').mockRejectedValue(new Error('gone'));
+
+    await store.getState().runEditor(id, 'db.bson_samples.find()');
+    expect(release).toHaveBeenCalledWith({ requestId: 'cursor' });
+
+    store.getState().closeEditor(id);
+    expect(release).toHaveBeenCalledTimes(2);
+    // The rejected release is swallowed.
+    await Promise.resolve();
+  });
+
+  it('reads the full text of a document by its ref', async () => {
+    const { api, store } = await previewTab([]);
+    const read = vi.spyOn(api.rpc.shell, 'readDocument').mockResolvedValue('{"_id":1}');
+
+    expect(await store.getState().readFullDocument(REF)).toBe('{"_id":1}');
+    expect(read).toHaveBeenCalledWith({ ref: REF });
+  });
+
+  it('replaces a previewed row with the saved full text, which has no marker', async () => {
+    const { store, id } = await previewTab([
+      { _id: 7, big: MARKER, $mgTruncated: { ref: REF, chars: 3_600_000 } },
+    ]);
+
+    store.getState().replaceLoadedDocument(id, 0, '{"_id":7,"big":[1,2,3]}');
+
+    const row = store.getState().editors.tabs[id]?.result?.documents[0];
+    expect(row).toEqual({ _id: 7, big: [1, 2, 3] });
+  });
+});
+
+describe('editor actions: export', () => {
+  const REF = '11111111-1111-4111-8111-111111111111/22222222-2222-4222-8222-222222222222';
+  const LIMIT = 2 * 1024 * 1024;
+
+  async function tabWith(documents: readonly unknown[]) {
+    const api = await connectedMockApi();
+    const store = await storeOn(api);
+    const id = store
+      .getState()
+      .openEditor({ connectionId: localConnectionId, database: 'analytics' });
+    vi.spyOn(api.rpc.shell, 'evaluate').mockResolvedValue({
+      requestId: 'first',
+      result: {
+        type: 'Cursor',
+        printableEjson: JSON.stringify({ documents, cursorHasMore: false }),
+        hasMore: false,
+      },
+    } as unknown as Awaited<ReturnType<typeof api.rpc.shell.evaluate>>);
+    await store.getState().runEditor(id, 'db.bson_samples.find()');
+    return { api, store, id };
+  }
+
+  /** The text each writeExport call carried, in order. */
+  function captureWrites(api: Awaited<ReturnType<typeof connectedMockApi>>) {
+    const calls: { content: string; part: string | undefined }[] = [];
+    vi.spyOn(api.rpc.app, 'writeExport').mockImplementation((input) => {
+      calls.push({ content: input.content, part: input.part });
+      return Promise.resolve();
+    });
+    return calls;
+  }
+
+  it('writes a small result in one call', async () => {
+    const { api, store, id } = await tabWith([{ _id: 1, a: 'x' }]);
+    const calls = captureWrites(api);
+
+    await store.getState().exportResult(id, 'json');
+
+    expect(calls).toHaveLength(1);
+    expect(calls[0]?.part).toBe('only');
+    expect(JSON.parse(calls[0]?.content ?? '')).toEqual([{ _id: 1, a: 'x' }]);
+  });
+
+  it('streams more than 1 MiB in first, next and last parts under 2 MiB each', async () => {
+    const docs = Array.from({ length: 12 }, (_, n) => ({ _id: n, pad: 'x'.repeat(400_000) }));
+    const { api, store, id } = await tabWith(docs);
+    const calls = captureWrites(api);
+
+    await store.getState().exportResult(id, 'json');
+
+    const parts = calls.map((call) => call.part);
+    expect(parts[0]).toBe('first');
+    expect(parts.at(-1)).toBe('last');
+    expect(parts.slice(1, -1).every((part) => part === 'next')).toBe(true);
+    expect(calls.length).toBeGreaterThan(3);
+    expect(Math.max(...calls.map((call) => call.content.length))).toBeLessThan(LIMIT);
+    const text = calls.map((call) => call.content).join('');
+    expect(JSON.parse(text)).toEqual(docs);
+  });
+
+  it('reads each previewed document once and writes its full text', async () => {
+    const preview = {
+      _id: 1,
+      big: { $mgTruncated: { t: 'array', n: 9 } },
+      $mgTruncated: { ref: REF, chars: 40 },
+    };
+    const { api, store, id } = await tabWith([{ _id: 0 }, preview]);
+    const calls = captureWrites(api);
+    const read = vi
+      .spyOn(api.rpc.shell, 'readDocument')
+      .mockResolvedValue('{"_id":1,"big":[1,2,3]}');
+
+    await store.getState().exportResult(id, 'json');
+
+    expect(read).toHaveBeenCalledTimes(1);
+    expect(read).toHaveBeenCalledWith({ ref: REF });
+    const text = calls.map((call) => call.content).join('');
+    expect(JSON.parse(text)).toEqual([{ _id: 0 }, { _id: 1, big: [1, 2, 3] }]);
+    expect(text).not.toContain('$mgTruncated');
+  });
+
+  it('exports the documents it can read and reports the ones with no stored copy', async () => {
+    const kept = { _id: 1, $mgTruncated: { ref: REF, chars: 40 } };
+    const unkept = { _id: 2, $mgTruncated: { chars: 40 } };
+    const { api, store, id } = await tabWith([unkept, { _id: 0 }, kept, unkept]);
+    const calls = captureWrites(api);
+    vi.spyOn(api.rpc.shell, 'readDocument').mockResolvedValue('{"_id":1,"big":[1]}');
+
+    const result = await store.getState().exportResult(id, 'json');
+
+    expect(result).toEqual({ skipped: 2 });
+    expect(JSON.parse(calls.map((call) => call.content).join(''))).toEqual([
+      { _id: 0 },
+      { _id: 1, big: [1] },
+    ]);
+  });
+
+  it('takes the CSV columns from the full documents, not from their previews', async () => {
+    // The preview holds only the first keys of a wide document, so a later key is no column of it.
+    const preview = { _id: 1, a: 1, $mgTruncated: { ref: REF, chars: 40 } };
+    const { api, store, id } = await tabWith([preview, { _id: 2, a: 2, c: 3 }]);
+    const calls = captureWrites(api);
+    const read = vi.spyOn(api.rpc.shell, 'readDocument').mockResolvedValue('{"_id":1,"a":1,"b":9}');
+
+    await store.getState().exportResult(id, 'csv');
+
+    expect(calls.map((call) => call.content).join('')).toBe('_id,a,b,c\n1,1,9,\n2,2,,3\n');
+    // Once for the columns and once for the row.
+    expect(read).toHaveBeenCalledTimes(2);
+  });
+
+  it('sends abort and throws when a read fails after a part was written', async () => {
+    const docs = Array.from({ length: 5 }, (_, n) => ({ _id: n, pad: 'x'.repeat(600_000) }));
+    const preview = { _id: 9, $mgTruncated: { ref: REF, chars: 40 } };
+    const { api, store, id } = await tabWith([...docs, preview]);
+    const calls = captureWrites(api);
+    vi.spyOn(api.rpc.shell, 'readDocument').mockRejectedValue(
+      new AppErrorException({ code: 'NOT_FOUND', message: 'gone' }),
+    );
+
+    await expect(store.getState().exportResult(id, 'json')).rejects.toMatchObject({
+      error: { code: 'NOT_FOUND' },
+    });
+
+    expect(calls.map((call) => call.part)).toContain('first');
+    expect(calls.at(-1)?.part).toBe('abort');
+  });
+
+  it('sends no abort when nothing was written yet', async () => {
+    const preview = { _id: 9, $mgTruncated: { ref: REF, chars: 40 } };
+    const { api, store, id } = await tabWith([preview]);
+    const calls = captureWrites(api);
+    vi.spyOn(api.rpc.shell, 'readDocument').mockRejectedValue(new Error('gone'));
+
+    await expect(store.getState().exportResult(id, 'csv')).rejects.toThrow('gone');
+
+    expect(calls).toEqual([]);
+  });
+});

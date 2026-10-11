@@ -5,6 +5,8 @@ import {
   ShellEvaluateInputSchema,
   ShellEvaluationSchema,
   ShellNextInputSchema,
+  ShellReadDocumentInputSchema,
+  ShellReleaseResultInputSchema,
   ShellResultSchema,
   ShellSampleSchemaInputSchema,
 } from './rpc-schemas';
@@ -96,7 +98,17 @@ describe('shell evaluation output', () => {
 describe('shell contract', () => {
   it('declares every shell call with its schemas', () => {
     expect(Object.keys(rpcContract.shell).sort()).toEqual(
-      ['cancel', 'complete', 'evaluate', 'next', 'restart', 'sampleSchema', 'state'].sort(),
+      [
+        'cancel',
+        'complete',
+        'evaluate',
+        'next',
+        'readDocument',
+        'releaseResult',
+        'restart',
+        'sampleSchema',
+        'state',
+      ].sort(),
     );
   });
 });
@@ -128,5 +140,23 @@ describe('shell events', () => {
         state: 'exploded',
       }).success,
     ).toBe(false);
+  });
+});
+
+describe('shell readDocument and releaseResult inputs', () => {
+  const half = '3f2b8c1e-5d4a-4b7e-9c1f-2a6d8e0b7f10';
+
+  it('accepts a spill ref and rejects anything else', () => {
+    const accepts = (ref: string) => ShellReadDocumentInputSchema.safeParse({ ref }).success;
+    expect(accepts(`${half}/${REQUEST_ID}`)).toBe(true);
+    expect(accepts('../x')).toBe(false);
+    expect(accepts(`${half}/../${REQUEST_ID}`)).toBe(false);
+    expect(accepts(half)).toBe(false);
+    expect(accepts(`${half}/${REQUEST_ID}/`)).toBe(false);
+  });
+
+  it('needs a request id to release a result', () => {
+    expect(ShellReleaseResultInputSchema.safeParse({ requestId: REQUEST_ID }).success).toBe(true);
+    expect(ShellReleaseResultInputSchema.safeParse({ requestId: 'x' }).success).toBe(false);
   });
 });

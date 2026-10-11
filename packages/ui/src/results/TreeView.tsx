@@ -18,23 +18,27 @@ import {
   IconTrash,
   IconX,
 } from '@tabler/icons-react';
+import { previewInfo } from '@mongo-gui/core';
 import { useMemo, useRef, useState } from 'react';
 import { DestructiveDialog } from '../components/management/DestructiveDialog';
 import { isInsideControl } from '../components/is-inside-control';
 import { errorText } from '../components/notify-error';
+import { COPY_MAX_CHARS, fullDocuments } from './full-documents';
 import {
   BSON_TYPE_LABELS,
   EDIT_TYPES,
   cellView,
+  collectionTitle,
   editTextOf,
   editTypeOf,
+  isTruncatedValue,
   valueFromEdit,
   type EditType,
   type JsonObject,
 } from './result-model';
 import {
   COLLAPSED,
-  copyTextOf,
+  exactCopyTextOf,
   isOpen,
   valueTextOf,
   visibleRows,
@@ -72,6 +76,8 @@ export interface TreeViewProps {
   readonly editabilityNote: string;
   /** Called when a document row is double-clicked. Without it, a double-click does nothing. */
   readonly onOpenDocument?: ((documentIndex: number) => void) | undefined;
+  /** Reads the full text of a previewed document. Without it, a previewed document cannot be copied. */
+  readonly readFull?: ((ref: string) => Promise<string>) | undefined;
   readonly onSetField: (edit: TreeEdit) => Promise<void>;
   readonly onUnsetField: (documentIndex: number, path: string) => Promise<void>;
 }
@@ -96,6 +102,7 @@ export function TreeView({
   editable,
   editabilityNote,
   onOpenDocument,
+  readFull,
   onSetField,
   onUnsetField,
 }: TreeViewProps) {
@@ -177,6 +184,29 @@ export function TreeView({
     } catch {
       setNotice('The clipboard is not available.');
     }
+  }
+
+  /** Copies a value as shown. A previewed document is read in full, and a shortened part is refused. */
+  async function copyValue(row: TreeRow): Promise<void> {
+    if (row.depth === 0 && previewInfo(row.value) !== undefined) {
+      try {
+        const [full] = await fullDocuments(
+          [row.value as JsonObject],
+          readFull ?? (() => Promise.reject(new Error('The full document is not available.'))),
+          COPY_MAX_CHARS,
+        );
+        await copy(JSON.stringify(full, null, 2));
+      } catch (failure) {
+        setNotice(errorText(failure));
+      }
+      return;
+    }
+    const text = exactCopyTextOf(row.value);
+    if (text === undefined) {
+      setNotice('This value is shortened. Copy the whole document instead.');
+      return;
+    }
+    await copy(text);
   }
 
   return (
@@ -348,12 +378,16 @@ export function TreeView({
                       <IconCopy size={13} />
                     </ActionIcon>
                   </Tooltip>
-                  <Tooltip label="Copy value" withArrow>
+                  <Tooltip
+                    label={isTruncatedValue(row.value) ? 'Shortened' : 'Copy value'}
+                    withArrow
+                  >
                     <ActionIcon
                       aria-label={`Copy value of ${row.path}`}
                       size="sm"
                       variant="subtle"
-                      onClick={() => void copy(copyTextOf(row.value))}
+                      disabled={isTruncatedValue(row.value)}
+                      onClick={() => void copyValue(row)}
                     >
                       <IconClipboard size={13} />
                     </ActionIcon>
@@ -417,6 +451,13 @@ function ValueText({ row }: { readonly row: TreeRow }) {
   return (
     <span
       title={view.title ?? valueTextOf(row.value)}
+      onMouseEnter={
+        view.type === 'Object' || view.type === 'Array'
+          ? (event) => {
+              event.currentTarget.title = collectionTitle(row.value);
+            }
+          : undefined
+      }
       style={{
         display: 'block',
         overflow: 'hidden',

@@ -56,6 +56,17 @@ export const ShellNextInputSchema = z.object({
   batchSize: BatchSizeSchema.default(DEFAULT_BATCH_SIZE),
 });
 
+// The ref of a spilled document, as "<run id>/<file id>". It names a file in the main process's
+// spill directory, so nothing but these characters passes.
+export const ShellReadDocumentInputSchema = z.object({
+  ref: z.string().regex(/^[0-9a-f-]{36}\/[0-9a-f-]{36}$/),
+});
+
+// Frees what the result of this request left in the spill.
+export const ShellReleaseResultInputSchema = z.object({
+  requestId: z.uuid(),
+});
+
 export const ShellCancelInputSchema = z.object({
   connectionId: z.uuid(),
   requestId: z.uuid(),

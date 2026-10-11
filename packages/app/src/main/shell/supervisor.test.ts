@@ -202,6 +202,7 @@ interface Harness {
 function harness(options: {
   readonly next?: (index: number) => FakeOptions;
   readonly env?: NodeJS.ProcessEnv;
+  readonly spillEnv?: Record<string, string>;
   readonly timings?: Partial<SupervisorTimings>;
 }): Harness {
   const children: FakeChild[] = [];
@@ -222,6 +223,7 @@ function harness(options: {
     log: logs.logger,
     timings: { ...TIMINGS, ...options.timings },
     env: options.env ?? { PATH: '/usr/bin', HOME: '/home/u', USE_NEW_AUTOCOMPLETE: '1' },
+    ...(options.spillEnv === undefined ? {} : { spillEnv: options.spillEnv }),
   });
   supervisor.onEvent((event: RuntimeEvent) => {
     events.push(event);
@@ -263,7 +265,7 @@ describe('RuntimeSupervisor', () => {
 
   afterEach(() => {
     for (const supervisor of open.splice(0)) {
-      supervisor.dispose();
+      void supervisor.dispose();
     }
   });
 
@@ -311,6 +313,22 @@ describe('RuntimeSupervisor', () => {
       LC_ALL: 'C',
       USE_NEW_AUTOCOMPLETE: '0',
     });
+  });
+
+  it('adds the spill variables to the fork environment only when given', async () => {
+    const spillEnv = {
+      MONGO_GUI_SPILL_DIR: '/tmp/spill/1',
+      MONGO_GUI_SPILL_KEY: 'ab'.repeat(32),
+      MONGO_GUI_SPILL_STORE: 'store',
+    };
+    const withSpill = track(harness({ spillEnv }));
+    await withSpill.supervisor.evaluate(evaluateInput());
+    expect(withSpill.forks[0]?.env).toMatchObject(spillEnv);
+    const without = track(harness({}));
+    await without.supervisor.evaluate(evaluateInput());
+    expect(
+      Object.keys(without.forks[0]?.env ?? {}).some((n) => n.startsWith('MONGO_GUI_SPILL')),
+    ).toBe(false);
   });
 
   it('sends the profile URI and driver options in connect, never to the renderer', async () => {
@@ -779,9 +797,20 @@ describe('RuntimeSupervisor', () => {
   it('kills every process and refuses further requests after dispose', async () => {
     const h = track(harness({}));
     await h.supervisor.evaluate(evaluateInput());
-    h.supervisor.dispose();
+    await h.supervisor.dispose();
     expect(h.children[0]?.exited).toBe(true);
     await expect(h.supervisor.evaluate(evaluateInput())).rejects.toBeInstanceOf(AppErrorException);
+  });
+
+  it('resolves dispose only after the killed process has emitted exit', async () => {
+    const h = track(harness({}));
+    await h.supervisor.evaluate(evaluateInput());
+    let exitEvents = 0;
+    h.children[0]?.on('exit', () => {
+      exitEvents++;
+    });
+    await h.supervisor.dispose();
+    expect(exitEvents).toBe(1);
   });
 
   it('honours a cancel that arrives while the process is still connecting', async () => {

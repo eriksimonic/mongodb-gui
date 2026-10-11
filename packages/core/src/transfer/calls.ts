@@ -75,9 +75,11 @@ export const ShowItemInFolderInputSchema = z.object({ path: AbsolutePathSchema }
 export const WRITE_EXPORT_MAX_CHARS = 64 * 1024 * 1024;
 
 // Text for a file the user picked with the save dialog. The main process writes it only to a new file.
+// A large export arrives in parts: first, next..., last. Abort drops a part-written file.
 export const WriteExportInputSchema = z.object({
   path: AbsolutePathSchema,
   content: z.string().max(WRITE_EXPORT_MAX_CHARS),
+  part: z.enum(['only', 'first', 'next', 'last', 'abort']).default('only'),
 });
 
 export type PreviewImportInput = z.infer<typeof PreviewImportInputSchema>;

@@ -1,6 +1,7 @@
 import {
   appError,
   EditorLanguageSchema,
+  isUnkeptPreview,
   type AppError,
   type EditorLanguage,
   type ShellEvaluation,
@@ -22,6 +23,8 @@ export type BatchSize = (typeof BATCH_SIZES)[number];
 export const DEFAULT_BATCH_SIZE: BatchSize = 50;
 /** Most documents "Load all" fetches in one go. */
 export const LOAD_ALL_LIMIT = 5000;
+/** Characters of result text one tab keeps. Load more and Load all stop here. */
+export const RESIDENT_CHARS = 24 * 1024 * 1024;
 const OUTPUT_LIMIT = 500;
 const CURSOR_TYPES: ReadonlySet<ShellResultType> = new Set([
   'Cursor',
@@ -47,6 +50,13 @@ export interface ResultSet {
   /** The collection a plain find reads. Editing a row needs it. */
   readonly collection: string | undefined;
   readonly loadingMore: boolean;
+  /** Characters of cursor batch text loaded so far. Previews count at their shortened size. */
+  readonly chars: number;
+  /**
+   * True once the loaded text reached RESIDENT_CHARS, or a document came with no stored copy of
+   * its full text, so no more is fetched.
+   */
+  readonly capped: boolean;
 }
 
 export interface RunState {
@@ -334,6 +344,8 @@ export function resultFromEvaluation(input: {
       elapsedMs: evaluation.elapsedMs,
       collection: shell.type === 'Cursor' ? collectionOfFind(input.statement) : undefined,
       loadingMore: false,
+      chars: batch === undefined ? 0 : shell.printableEjson.length,
+      capped: batch?.documents.some(isUnkeptPreview) ?? false,
     },
   };
 }
@@ -352,7 +364,11 @@ export function finishRun(
   }));
 }
 
-/** Appends the documents of a later batch. The batch's cursor id replaces the earlier one. */
+/**
+ * Appends the documents of a later batch. The batch's cursor id replaces the earlier one. The
+ * result stops asking for more once its text reaches RESIDENT_CHARS, and `capped` says so while
+ * `hasMore` keeps the truth about the cursor.
+ */
 export function appendPage(
   state: EditorsState,
   id: string,
@@ -360,17 +376,24 @@ export function appendPage(
     readonly documents: readonly JsonObject[];
     readonly hasMore: boolean;
     readonly cursorRequestId: string | undefined;
+    /** Length of the batch's printable text. */
+    readonly chars: number;
   },
 ): EditorsState {
   return updateTab(state, id, (tab) => {
     if (tab.result === undefined) {
       return tab;
     }
+    const chars = tab.result.chars + batch.chars;
+    const capped = chars >= RESIDENT_CHARS || batch.documents.some(isUnkeptPreview);
     return {
       ...tab,
       result: {
         ...tab.result,
         documents: [...tab.result.documents, ...batch.documents],
+        chars,
+        capped: tab.result.capped || capped,
+        // The cursor still has documents when the cap hits, so the result must not claim to be whole.
         hasMore: batch.hasMore,
         cursorRequestId: batch.cursorRequestId,
         loadingMore: false,

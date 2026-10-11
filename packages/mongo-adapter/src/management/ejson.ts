@@ -1,5 +1,5 @@
 import { BSON } from 'mongodb';
-import { AppErrorException, appError } from '@mongo-gui/core';
+import { AppErrorException, appError, containsTruncatedMarker } from '@mongo-gui/core';
 import { isPlainObject, type PlainObject } from '../documents';
 
 export const EJSON = BSON.EJSON;
@@ -28,6 +28,15 @@ export function parseEjson(text: string, label: string): unknown {
 }
 
 export function parseEjsonDocument(text: string, label: string): PlainObject {
+  // A shortened preview value must never reach the server. This is the one parse every write uses.
+  if (containsTruncatedMarker(text)) {
+    throw new AppErrorException(
+      appError(
+        'VALIDATION',
+        `${label} contains a shortened preview value and was not saved. Open the full document.`,
+      ),
+    );
+  }
   const value = parseEjson(text, label);
   if (!isPlainObject(value)) {
     throw new AppErrorException(appError('VALIDATION', `${label} must be a JSON object`));

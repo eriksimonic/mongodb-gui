@@ -43,6 +43,8 @@ import {
   ShellEvaluateInputSchema,
   ShellEvaluationSchema,
   ShellNextInputSchema,
+  ShellReadDocumentInputSchema,
+  ShellReleaseResultInputSchema,
   ShellSampleSchemaInputSchema,
   ShellSchemaSampleSchema,
   ShellStateSchema,
@@ -350,6 +352,9 @@ export const rpcContract = {
     evaluate: defineCall(ShellEvaluateInputSchema, ShellEvaluationSchema),
     next: defineCall(ShellNextInputSchema, ShellEvaluationSchema),
     cancel: defineCall(ShellCancelInputSchema, z.void()),
+    // The full canonical EJSON text of a document whose result carried only a preview.
+    readDocument: defineCall(ShellReadDocumentInputSchema, z.string()),
+    releaseResult: defineCall(ShellReleaseResultInputSchema, z.void()),
     complete: defineCall(ShellCompleteInputSchema, ShellCompletionsSchema),
     sampleSchema: defineCall(ShellSampleSchemaInputSchema, ShellSchemaSampleSchema),
     restart: defineCall(ShellConnectionInputSchema, z.void()),

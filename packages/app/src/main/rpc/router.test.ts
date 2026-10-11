@@ -2,6 +2,7 @@ import {
   existsSync,
   mkdirSync,
   mkdtempSync,
+  readdirSync,
   readFileSync,
   rmSync,
   statSync,
@@ -1089,6 +1090,105 @@ describe('layout calls', () => {
     );
 
     expect(expectValue(await router.handle('layout.get', { key }))).toEqual({ value: null });
+  });
+});
+
+describe('export in parts', () => {
+  let harness: Harness | undefined;
+  let base = '';
+  let save: string | undefined;
+
+  afterEach(() => {
+    harness?.dispose();
+    harness = undefined;
+    rmSync(base, { recursive: true, force: true });
+  });
+
+  function setUp(): Router {
+    base = mkdtempSync(join(tmpdir(), 'parts-'));
+    harness = buildHarness(undefined, undefined, {
+      showOpenDialog: async () => ({}),
+      showSaveDialog: async () => (save === undefined ? {} : { path: save }),
+      showItemInFolder: () => undefined,
+    });
+    return harness.router;
+  }
+
+  async function pick(router: Router, path: string): Promise<void> {
+    save = path;
+    expectValue(await router.handle('app.showSaveDialog', { title: 't', filters: [] }));
+  }
+
+  function part(router: Router, path: string, content: string, kind: string) {
+    return router.handle('app.writeExport', { path, content, part: kind });
+  }
+
+  it('writes first, next and last parts as one file that appears at the last part', async () => {
+    const router = setUp();
+    const path = join(base, 'out.json');
+    writeFileSync(path, 'old');
+    await pick(router, path);
+
+    expectValue(await part(router, path, '[1,', 'first'));
+    expectValue(await part(router, path, '2,', 'next'));
+    expect(readFileSync(path, 'utf8')).toBe('old');
+    expectValue(await part(router, path, '3]', 'last'));
+    expect(readFileSync(path, 'utf8')).toBe('[1,2,3]');
+    expect(readdirSync(base)).toEqual(['out.json']);
+  });
+
+  it('removes the partial file on abort, and a later part is refused', async () => {
+    const router = setUp();
+    const path = join(base, 'out.json');
+    await pick(router, path);
+    expectValue(await part(router, path, 'x', 'first'));
+    expectValue(await part(router, path, '', 'abort'));
+    expect(readdirSync(base)).toEqual([]);
+    expectError(await part(router, path, 'y', 'next'), 'VALIDATION');
+  });
+
+  it('refuses a first part for a path that was not picked', async () => {
+    const router = setUp();
+    expectError(await part(router, join(base, 'other.json'), 'x', 'first'), 'VALIDATION');
+    expect(readdirSync(base)).toEqual([]);
+  });
+
+  it('refuses a second first part for a path while the export runs', async () => {
+    const router = setUp();
+    const path = join(base, 'out.json');
+    await pick(router, path);
+    expectValue(await part(router, path, 'x', 'first'));
+    await pick(router, path);
+    expectError(await part(router, path, 'y', 'first'), 'VALIDATION');
+  });
+
+  it('refuses a symbolic link at the target', async () => {
+    const router = setUp();
+    const target = join(base, 'real.json');
+    const link = join(base, 'link.json');
+    writeFileSync(target, 'keep');
+    symlinkSync(target, link);
+    await pick(router, link);
+    expectError(await part(router, link, 'x', 'first'), 'VALIDATION');
+    expect(readFileSync(target, 'utf8')).toBe('keep');
+    expect(readdirSync(base).sort()).toEqual(['link.json', 'real.json']);
+  });
+
+  it('refuses a part over 2 MiB', async () => {
+    const router = setUp();
+    const path = join(base, 'out.json');
+    await pick(router, path);
+    expectError(await part(router, path, 'x'.repeat(3 * 1024 * 1024), 'first'), 'VALIDATION');
+    expect(readdirSync(base)).toEqual([]);
+  });
+
+  it('removes a half-written export when the renderer resets', async () => {
+    const router = setUp();
+    const path = join(base, 'out.json');
+    await pick(router, path);
+    expectValue(await part(router, path, 'x', 'first'));
+    router.resetRenderer();
+    expect(readdirSync(base)).toEqual([]);
   });
 });
 

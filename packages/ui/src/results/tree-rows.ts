@@ -1,7 +1,9 @@
+import { TRUNCATED_KEY, containsTruncatedMarker } from '@mongo-gui/core';
 import {
   bsonTypeOf,
   cellView,
   isPlainObject,
+  isTruncatedValue,
   objectIdHex,
   wrapperKey,
   type BsonType,
@@ -40,13 +42,16 @@ export function isOpen(state: TreeState, id: string): boolean {
   return state.overrides[id] ?? state.expandAll;
 }
 
-/** The children of a value: the fields of an object, or the elements of an array, in order. */
+/**
+ * The children of a value: the fields of an object, or the elements of an array, in order. A
+ * shortened value has none, and a previewed document does not list its root marker.
+ */
 export function childrenOf(value: unknown): [string, unknown][] {
   if (Array.isArray(value)) {
     return value.map((item, index) => [String(index), item]);
   }
-  if (isPlainObject(value) && bsonTypeOf(value) === 'Object') {
-    return Object.entries(value);
+  if (isPlainObject(value) && bsonTypeOf(value) === 'Object' && !isTruncatedValue(value)) {
+    return Object.entries(value).filter(([key]) => key !== TRUNCATED_KEY);
   }
   return [];
 }
@@ -111,6 +116,18 @@ export function copyTextOf(value: unknown): string {
     return JSON.stringify(value, null, 2) ?? '';
   }
   return mongoshFormOf(value);
+}
+
+/**
+ * The text "copy value" offers, or undefined when the value is, or holds, a shortened part. Copying
+ * it would hand over a marker as if it were the value.
+ */
+export function exactCopyTextOf(value: unknown): string | undefined {
+  if (isTruncatedValue(value)) {
+    return undefined;
+  }
+  const text = copyTextOf(value);
+  return typeof value === 'object' && containsTruncatedMarker(text) ? undefined : text;
 }
 
 /** The value as mongosh writes it in a statement, in full. The table cell may shorten it. */

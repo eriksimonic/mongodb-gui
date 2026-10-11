@@ -1,5 +1,13 @@
 import { randomUUID } from 'node:crypto';
-import { lstatSync, renameSync, rmSync, writeFileSync } from 'node:fs';
+import {
+  appendFileSync,
+  closeSync,
+  lstatSync,
+  openSync,
+  renameSync,
+  rmSync,
+  writeFileSync,
+} from 'node:fs';
 import { basename, dirname, join } from 'node:path';
 
 /**
@@ -32,5 +40,54 @@ export function replaceFile(path: string, content: string | Uint8Array): void {
     renameSync(temporary, path);
   } finally {
     rmSync(temporary, { force: true });
+  }
+}
+
+/**
+ * Writes a large export in parts, so no whole-file string exists in memory. The parts go to a
+ * temporary file beside the target. `commit` renames it over the target, like `replaceFile`, so a
+ * reader sees the old file or the complete new one. `abort` removes it. Both are safe to repeat.
+ */
+export class ExportWriter {
+  private readonly temporary: string;
+  private fd: number | undefined;
+
+  constructor(private readonly path: string) {
+    this.temporary = join(dirname(path), `.${basename(path)}.${randomUUID()}.tmp`);
+    this.fd = openSync(this.temporary, 'wx');
+  }
+
+  append(text: string): void {
+    if (this.fd !== undefined) {
+      appendFileSync(this.fd, text);
+    }
+  }
+
+  commit(): void {
+    if (this.fd === undefined) {
+      return;
+    }
+    try {
+      this.close();
+      renameSync(this.temporary, this.path);
+    } finally {
+      rmSync(this.temporary, { force: true });
+    }
+  }
+
+  abort(): void {
+    try {
+      this.close();
+    } finally {
+      rmSync(this.temporary, { force: true });
+    }
+  }
+
+  private close(): void {
+    const fd = this.fd;
+    this.fd = undefined;
+    if (fd !== undefined) {
+      closeSync(fd);
+    }
   }
 }

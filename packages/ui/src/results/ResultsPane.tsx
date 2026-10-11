@@ -2,11 +2,12 @@ import { Alert, Badge, Button, Group, Modal, SegmentedControl, Stack, Text } fro
 import { modals } from '@mantine/modals';
 import { IconCopy } from '@tabler/icons-react';
 import { useEffect, useMemo, useState } from 'react';
-import type { AppError } from '@mongo-gui/core';
-import { errorText } from '../components/notify-error';
+import { isUnkeptPreview, previewInfo, type AppError } from '@mongo-gui/core';
+import { errorText, notifyError } from '../components/notify-error';
 import { LOAD_ALL_LIMIT, type ResultSet, type ResultView, type RunState } from '../state/editors';
 import { DocumentEditorDialog } from '../components/management/DocumentEditorDialog';
 import { formatJson } from '../management/input-rules';
+import { COPY_MAX_CHARS, OPEN_MAX_CHARS, fullDocumentText, fullDocuments } from './full-documents';
 import { discoverColumns, formatCount, type JsonObject } from './result-model';
 import { JsonView } from './JsonView';
 import { jsonTextFor } from './json-text';
@@ -21,6 +22,14 @@ const VIEW_LABELS: Readonly<Record<ResultView, string>> = {
 };
 const TICK_MS = 250;
 const MILLIS_PER_SECOND = 1000;
+/** The JSON view shows about this many characters of documents. Copy and Export still take them all. */
+const JSON_VIEW_CHARS = 2 * 1024 * 1024;
+const BYTES_PER_MB = 1024 * 1024;
+
+/** The document the user opened, as text from the full document and never from a preview. */
+type OpenedDocument =
+  | { readonly index: number; readonly full: string }
+  | { readonly index: number; readonly initialText: string; readonly idEjson: string };
 
 /** The collection a document edit writes to. Set only for a plain find on one collection. */
 export interface EditTarget {
@@ -41,6 +50,8 @@ export interface ResultsPaneProps {
   readonly onView: (view: ResultView) => void;
   readonly onLoadMore: () => void;
   readonly onLoadAll: () => void;
+  /** Reads the full canonical EJSON text of a previewed document. */
+  readonly readFull: (ref: string) => Promise<string>;
   readonly onSetField: (edit: TreeEdit) => Promise<void>;
   readonly onUnsetField: (documentIndex: number, path: string) => Promise<void>;
   readonly onExport: (format: ExportFormat) => void;
@@ -77,32 +88,53 @@ export function ResultsPane({
   onView,
   onLoadMore,
   onLoadAll,
+  readFull,
   onSetField,
   onUnsetField,
   onExport,
 }: ResultsPaneProps) {
   const [selected, setSelected] = useState<readonly number[]>([]);
-  const [openIndex, setOpenIndex] = useState<number | undefined>(undefined);
+  const [opened, setOpened] = useState<OpenedDocument | undefined>(undefined);
+  const [opening, setOpening] = useState(false);
+  const [notice, setNotice] = useState<string | undefined>(undefined);
   const elapsed = useElapsed(running);
   const isCursor = result !== undefined && result.printableEjson === undefined;
   const effectiveView: ResultView = isCursor ? view : 'json';
   const documents = result?.documents;
   const columns = useMemo(() => discoverColumns(documents ?? []), [documents]);
+  // The JSON view writes its text for a window of the documents, so a large result stays small.
+  const windowSize =
+    result === undefined || result.documents.length === 0
+      ? 1
+      : Math.max(
+          1,
+          Math.floor(JSON_VIEW_CHARS / Math.max(1, result.chars / result.documents.length)),
+        );
   const jsonSource = useMemo(() => {
     if (result === undefined) {
       return undefined;
     }
     return result.printableEjson === undefined
-      ? { documents: result.documents }
+      ? { documents: result.documents.slice(0, windowSize) }
       : { printableEjson: result.printableEjson };
-  }, [result]);
+  }, [result, windowSize]);
+  const windowed = isCursor && result !== undefined && windowSize < result.documents.length;
+  // Previews whose full text was not stored. They can be neither opened, copied nor exported.
+  const unkept = useMemo(
+    () => documents?.filter((document) => isUnkeptPreview(document)).length ?? 0,
+    [documents],
+  );
+  const anyShortened = useMemo(
+    () => documents?.some((document) => previewInfo(document) !== undefined) ?? false,
+    [documents],
+  );
   const editable = isCursor && target !== undefined;
   const editabilityNote = editable
     ? ''
     : 'Only a plain find on one collection can be edited. This result does not come from one.';
   const count = result?.documents.length ?? 0;
 
-  function copyJson(): void {
+  async function copyJson(): Promise<void> {
     if (result === undefined) {
       return;
     }
@@ -110,8 +142,45 @@ export function ResultsPane({
       selected.length === 0
         ? result.documents
         : selected.map((index) => result.documents[index]).filter(isDocument);
-    const text = jsonTextFor({ documents: chosen }, 'canonical');
-    void navigator.clipboard.writeText(text);
+    try {
+      const full = await fullDocuments(chosen, readFull, COPY_MAX_CHARS);
+      await navigator.clipboard.writeText(jsonTextFor({ documents: full }, 'canonical'));
+    } catch (failure) {
+      notifyError(failure, 'Copy failed');
+    }
+  }
+
+  /**
+   * Opens one document. A previewed one is read in full first, and one that is too large for the
+   * dialog gets a notice. The edit dialog starts from the full text, so a preview is never saved.
+   */
+  async function openDocument(index: number): Promise<void> {
+    const document = result?.documents[index];
+    if (document === undefined || opening) {
+      return;
+    }
+    setNotice(undefined);
+    const info = previewInfo(document);
+    if (info !== undefined && info.chars > OPEN_MAX_CHARS) {
+      setNotice(
+        `This document is ${(info.chars / BYTES_PER_MB).toFixed(1)} MB. Open it in the shell, or Export.`,
+      );
+      return;
+    }
+    setOpening(true);
+    try {
+      const full = await fullDocumentText(document, readFull);
+      if (target === undefined) {
+        setOpened({ index, full });
+      } else {
+        const parsed = JSON.parse(full) as JsonObject;
+        setOpened({ index, initialText: formatJson(parsed), idEjson: JSON.stringify(parsed._id) });
+      }
+    } catch (failure) {
+      setNotice(errorText(failure));
+    } finally {
+      setOpening(false);
+    }
   }
 
   return (
@@ -134,6 +203,11 @@ export function ResultsPane({
               {formatCount(count, result.hasMore)}
             </Text>
           )}
+          {opening ? (
+            <Text size="xs" c="dimmed" aria-live="polite">
+              Opening document…
+            </Text>
+          ) : null}
           {result?.summary === undefined ? null : (
             <Badge tt="none" size="sm" variant="light" color="teal" data-testid="result-summary">
               {result.summary}
@@ -156,7 +230,10 @@ export function ResultsPane({
                 size="xs"
                 variant="default"
                 disabled={
-                  !result.hasMore || result.loadingMore || result.cursorRequestId === undefined
+                  !result.hasMore ||
+                  result.capped ||
+                  result.loadingMore ||
+                  result.cursorRequestId === undefined
                 }
                 onClick={onLoadMore}
               >
@@ -166,7 +243,10 @@ export function ResultsPane({
                 size="xs"
                 variant="default"
                 disabled={
-                  !result.hasMore || result.loadingMore || result.cursorRequestId === undefined
+                  !result.hasMore ||
+                  result.capped ||
+                  result.loadingMore ||
+                  result.cursorRequestId === undefined
                 }
                 onClick={() =>
                   modals.openConfirmModal({
@@ -190,7 +270,7 @@ export function ResultsPane({
                 variant="default"
                 leftSection={<IconCopy size={13} />}
                 disabled={count === 0}
-                onClick={copyJson}
+                onClick={() => void copyJson()}
               >
                 {selected.length === 0 ? 'Copy JSON' : `Copy ${selected.length} as JSON`}
               </Button>
@@ -219,6 +299,32 @@ export function ResultsPane({
           {errorText(error)}
         </Alert>
       )}
+      {notice === undefined ? null : (
+        <Alert
+          color="yellow"
+          variant="light"
+          role="alert"
+          p="xs"
+          withCloseButton
+          onClose={() => setNotice(undefined)}
+        >
+          {notice}
+        </Alert>
+      )}
+      {unkept === 0 ? null : (
+        <Text size="xs" c="dimmed" data-testid="result-unkept">
+          {unkept} {unkept === 1 ? 'document was' : 'documents were'} too large to keep in full, so{' '}
+          {unkept === 1 ? 'it shows' : 'they show'} a preview only. Export and Copy leave{' '}
+          {unkept === 1 ? 'it' : 'them'} out, and no more is loaded. Run the query again with a
+          narrower filter or a projection.
+        </Text>
+      )}
+      {result?.capped !== true || !result.hasMore || unkept > 0 ? null : (
+        <Text size="xs" c="dimmed" data-testid="result-capped">
+          Memory limit reached for this result. The query has more documents than the {count} shown,
+          and Export writes only those. Narrow the query to reach the rest.
+        </Text>
+      )}
       {result === undefined || jsonSource === undefined ? (
         running === undefined && error === undefined ? (
           <Text size="sm" c="dimmed">
@@ -233,7 +339,8 @@ export function ResultsPane({
               columns={columns}
               editable={editable}
               editabilityNote={editabilityNote}
-              onOpenDocument={setOpenIndex}
+              onOpenDocument={(index) => void openDocument(index)}
+              readFull={readFull}
               onSelectionChange={setSelected}
             />
           ) : effectiveView === 'tree' ? (
@@ -241,31 +348,44 @@ export function ResultsPane({
               documents={result.documents}
               editable={editable}
               editabilityNote={editabilityNote}
-              onOpenDocument={setOpenIndex}
+              onOpenDocument={(index) => void openDocument(index)}
+              readFull={readFull}
               onSetField={onSetField}
               onUnsetField={onUnsetField}
             />
           ) : (
-            <JsonView source={jsonSource} label="Result as JSON" />
+            <Stack gap={6} h="100%">
+              {windowed && result !== undefined ? (
+                <Text size="xs" c="dimmed">
+                  Showing the first {windowSize.toLocaleString('en-US')} of{' '}
+                  {result.documents.length.toLocaleString('en-US')} documents. Copy and Export
+                  include all.
+                </Text>
+              ) : null}
+              {isCursor && anyShortened ? (
+                <Text size="xs" c="dimmed">
+                  Some values are shortened.
+                </Text>
+              ) : null}
+              <div style={{ flex: 1, minHeight: 0 }}>
+                <JsonView source={jsonSource} label="Result as JSON" />
+              </div>
+            </Stack>
           )}
         </div>
       )}
-      {openIndex === undefined || result?.documents[openIndex] === undefined ? null : target ===
-        undefined ? (
-        <DocumentModal
-          document={result.documents[openIndex]}
-          onClose={() => setOpenIndex(undefined)}
-        />
-      ) : (
+      {opened === undefined ? null : 'full' in opened ? (
+        <DocumentModal full={opened.full} onClose={() => setOpened(undefined)} />
+      ) : target === undefined ? null : (
         <DocumentEditorDialog
           connectionId={target.connectionId}
           database={target.database}
           collection={target.collection}
           mode="edit"
-          initialText={formatJson(result.documents[openIndex])}
-          idEjson={JSON.stringify(result.documents[openIndex]._id)}
-          onClose={() => setOpenIndex(undefined)}
-          onSaved={(documentEjson) => onDocumentSaved(openIndex, documentEjson)}
+          initialText={opened.initialText}
+          idEjson={opened.idEjson}
+          onClose={() => setOpened(undefined)}
+          onSaved={(documentEjson) => onDocumentSaved(opened.index, documentEjson)}
         />
       )}
     </Stack>
@@ -277,14 +397,8 @@ function isDocument(value: unknown): value is JsonObject {
 }
 
 /** One document of a result that cannot be edited. It opens read-only, with a copy action. */
-function DocumentModal({
-  document,
-  onClose,
-}: {
-  readonly document: JsonObject;
-  readonly onClose: () => void;
-}) {
-  const source = useMemo(() => ({ printableEjson: JSON.stringify(document) }), [document]);
+function DocumentModal({ full, onClose }: { readonly full: string; readonly onClose: () => void }) {
+  const source = useMemo(() => ({ printableEjson: full }), [full]);
   return (
     <Modal opened onClose={onClose} title="Document" centered size="xl">
       <Stack gap="sm">

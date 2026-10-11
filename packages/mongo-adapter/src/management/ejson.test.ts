@@ -1,3 +1,4 @@
+import { BSON } from 'mongodb';
 import { describe, expect, it } from 'vitest';
 import { AppErrorException, type AppError } from '@mongo-gui/core';
 import { parseEjson, parseEjsonDocument } from './ejson';
@@ -42,5 +43,25 @@ describe('parseEjson', () => {
 describe('parseEjsonDocument', () => {
   it('rejects a value that is not an object', () => {
     expect(errorOf(() => parseEjsonDocument('[1, 2]', 'The document')).code).toBe('VALIDATION');
+  });
+});
+
+describe('parseEjsonDocument', () => {
+  it('rejects text that carries a preview marker, at any depth', () => {
+    const error = errorOf(() =>
+      parseEjsonDocument('{"a":{"$mgTruncated":{"t":"array","n":3}}}', 'Document'),
+    );
+    expect(error.code).toBe('VALIDATION');
+    expect(error.message).toContain('shortened preview');
+    const root = errorOf(() =>
+      parseEjsonDocument('{"_id":1,"$mgTruncated":{"chars":9}}', 'Document'),
+    );
+    expect(root.code).toBe('VALIDATION');
+  });
+
+  it('parses a clean document', () => {
+    expect(parseEjsonDocument('{"a":{"$numberInt":"3"}}', 'Document')).toEqual({
+      a: new BSON.Int32(3),
+    });
   });
 });

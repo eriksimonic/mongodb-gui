@@ -90,3 +90,50 @@ describe('TreeView double-click', () => {
     expect(onOpenDocument).not.toHaveBeenCalled();
   });
 });
+
+describe('TreeView shortened values', () => {
+  const REF = '11111111-1111-4111-8111-111111111111/22222222-2222-4222-8222-222222222222';
+  const PREVIEW: JsonObject = {
+    _id: 1,
+    big: { $mgTruncated: { t: 'array', n: 200000 } },
+    $mgTruncated: { ref: REF, chars: 3_600_000 },
+  };
+
+  function renderPreview(readFull = vi.fn().mockResolvedValue('{"_id":1,"big":[1]}')) {
+    render(
+      <AppProviders>
+        <TreeView
+          documents={[PREVIEW]}
+          editable
+          editabilityNote="x"
+          readFull={readFull}
+          onSetField={() => Promise.resolve()}
+          onUnsetField={() => Promise.resolve()}
+        />
+      </AppProviders>,
+    );
+    fireEvent.click(screen.getByRole('button', { name: 'Expand all' }));
+    return readFull;
+  }
+
+  it('shows a marker as a leaf with no edit and no copy, and hides the root marker', () => {
+    renderPreview();
+    expect(screen.getByText('[…] 200000 items')).toBeInTheDocument();
+    expect(screen.queryByRole('treeitem', { name: '$mgTruncated' })).toBeNull();
+    expect(screen.queryByRole('button', { name: 'Edit big' })).toBeNull();
+    expect(screen.getByRole('button', { name: 'Copy value of big' })).toBeDisabled();
+  });
+
+  it('copies the full document for the document row of a preview', async () => {
+    const writeText = vi.fn().mockResolvedValue(undefined);
+    Object.defineProperty(navigator, 'clipboard', { value: { writeText }, configurable: true });
+    const readFull = renderPreview();
+
+    fireEvent.click(screen.getByRole('button', { name: 'Copy value of' }));
+
+    await waitFor(() =>
+      expect(writeText).toHaveBeenCalledWith(JSON.stringify({ _id: 1, big: [1] }, null, 2)),
+    );
+    expect(readFull).toHaveBeenCalledWith(REF);
+  });
+});

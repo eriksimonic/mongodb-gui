@@ -3,11 +3,14 @@ import {
   BSON_TYPE_LABELS,
   bsonTypeOf,
   cellView,
+  collectionTitle,
   collectionOfFind,
   discoverColumns,
   editTextOf,
+  addColumns,
   editTypeOf,
   flattenDocument,
+  isTruncatedValue,
   isoDateText,
   numberOf,
   parseCursorBatch,
@@ -162,11 +165,12 @@ describe('cellView', () => {
     expect(cellView(null).text).toBe('null');
   });
 
-  it('cuts a long string and keeps it whole in the title', () => {
+  it('cuts a long string and keeps its start in the title', () => {
     const long = 'x'.repeat(200);
     const view = cellView(long);
     expect(view.text.length).toBe(120);
     expect(view.title).toBe(long);
+    expect(cellView('x'.repeat(100000)).title?.length).toBe(600);
   });
 
   it('summarises an object and an array with a count and a tooltip', () => {
@@ -174,7 +178,14 @@ describe('cellView', () => {
     expect(cellView({ a: 1 })).toMatchObject({ text: '{…} 1 field' });
     expect(cellView([1, 2, 3]).text).toBe('[…] 3 items');
     expect(cellView([1]).text).toBe('[…] 1 item');
-    expect(cellView({ a: 1 }).title).toContain('"a"');
+    expect(cellView({ a: 1 }).title).toBeUndefined();
+  });
+
+  it('writes a collection tooltip from its first entries only', () => {
+    expect(collectionTitle({ a: 1 })).toContain('"a"');
+    const title = collectionTitle(Array.from({ length: 200000 }, (_, i) => i));
+    expect(title).toContain('19');
+    expect(title).not.toContain('20,');
   });
 
   it('describes the less common BSON types', () => {
@@ -334,6 +345,13 @@ describe('editTypeOf and editTextOf', () => {
     expect(editTypeOf([1])).toBeUndefined();
     expect(editTypeOf({ $binary: { base64: '', subType: '00' } })).toBeUndefined();
   });
+
+  it('offers no edit for a wrapper whose inner value is shortened', () => {
+    const shortened = { $symbol: { $mgTruncated: { t: 'string', n: 5000, head: 'abc' } } };
+    expect(editTypeOf(shortened)).toBeUndefined();
+    // The same wrapper with its whole value stays editable.
+    expect(editTypeOf({ $symbol: 'abc' })).toBe('string');
+  });
 });
 
 describe('binary, timestamp and long values', () => {
@@ -362,5 +380,63 @@ describe('binary, timestamp and long values', () => {
     expect(valueFromEdit('long', '-9223372036854775808').ok).toBe(true);
     expect(valueFromEdit('long', '9223372036854775808').ok).toBe(false);
     expect(valueFromEdit('long', '-9223372036854775809').ok).toBe(false);
+  });
+});
+
+describe('shortened values', () => {
+  const MARKERS = {
+    string: { $mgTruncated: { t: 'string', n: 5000, head: 'abc' } },
+    array: { $mgTruncated: { t: 'array', n: 200000 } },
+    object: { $mgTruncated: { t: 'object', n: 12 } },
+    binary: { $mgTruncated: { t: 'binary', n: 9000 } },
+  };
+
+  it.each([
+    ['string', 'String', 'abc… (5000 chars)'],
+    ['array', 'Array', '[…] 200000 items'],
+    ['object', 'Object', '{…} 12 fields'],
+    ['binary', 'Binary', 'Binary (9000 bytes)'],
+  ] as const)('shows a %s marker as %s with its size', (kind, type, text) => {
+    const marker = MARKERS[kind];
+    expect(isTruncatedValue(marker)).toBe(true);
+    expect(bsonTypeOf(marker)).toBe(type);
+    expect(cellView(marker)).toMatchObject({ type, text, title: 'Shortened' });
+    expect(collectionTitle(marker)).toBe('Shortened');
+    expect(editTypeOf(marker)).toBeUndefined();
+  });
+
+  it('flattens a marker to a leaf and never into a .$mgTruncated path', () => {
+    const entries = flattenDocument({
+      a: { b: MARKERS.object, c: MARKERS.array, d: MARKERS.string, e: MARKERS.binary },
+    });
+    expect(entries.map((entry) => entry.path)).toEqual(['a.b', 'a.c', 'a.d', 'a.e']);
+    expect(entries.map((entry) => entry.type)).toEqual(['Object', 'Array', 'String', 'Binary']);
+  });
+
+  it('skips the root marker of a previewed document in columns', () => {
+    const preview = { _id: 1, big: MARKERS.array, $mgTruncated: { ref: 'a/b', chars: 99 } };
+    expect(flattenDocument(preview).map((entry) => entry.path)).toEqual(['_id', 'big']);
+    expect(discoverColumns([preview]).map((column) => column.path)).toEqual(['_id', 'big']);
+  });
+
+  it('does not count the root marker as a field of the document', () => {
+    expect(cellView({ a: 1, $mgTruncated: { chars: 9 } }).text).toBe('{…} 1 field');
+  });
+
+  it('keeps an ordinary object and an array of plain values unmarked', () => {
+    expect(isTruncatedValue({ t: 'array', n: 1 })).toBe(false);
+    expect(isTruncatedValue([MARKERS.array])).toBe(false);
+  });
+});
+
+describe('addColumns', () => {
+  it('widens earlier columns with the paths of more documents, keeping first-seen order', () => {
+    const first = discoverColumns([{ a: 1, b: 'x' }]);
+    const widened = addColumns(first, [{ a: 'text', c: 2, _id: 5 }]);
+    expect(widened.map((column) => column.path)).toEqual(['_id', 'a', 'b', 'c']);
+    expect(widened.find((column) => column.path === 'a')?.types).toHaveLength(2);
+    // The earlier columns are not changed.
+    expect(first.map((column) => column.path)).toEqual(['a', 'b']);
+    expect(first[0]?.types).toHaveLength(1);
   });
 });

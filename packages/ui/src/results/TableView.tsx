@@ -25,18 +25,22 @@ import { IconColumns } from '@tabler/icons-react';
 import { AgGridReact, type CustomCellRendererProps, type CustomHeaderProps } from 'ag-grid-react';
 import { useMemo, useState } from 'react';
 import { TreeMenu, type TreeMenuEntry } from '../components/connections/TreeMenu';
+import { notifyError } from '../components/notify-error';
 import { copyText } from '../diagnostics/copy';
 import { compareCells } from './cell-order';
+import { COPY_MAX_CHARS, fullDocuments } from './full-documents';
 import { jsonTextFor } from './json-text';
 import {
   BSON_TYPE_LABELS,
   cellView,
+  collectionTitle,
   valueAtPath,
   type BsonType,
   type ColumnDef,
   type JsonObject,
 } from './result-model';
-import { copyTextOf } from './tree-rows';
+import { typeBucket, typeColor } from '../schema/schema-model';
+import { exactCopyTextOf } from './tree-rows';
 
 ModuleRegistry.registerModules([AllCommunityModule]);
 
@@ -56,6 +60,8 @@ export interface TableViewProps {
   readonly editable: boolean;
   readonly editabilityNote: string;
   readonly onOpenDocument: (documentIndex: number) => void;
+  /** Reads the full text of a previewed document. */
+  readonly readFull: (ref: string) => Promise<string>;
   readonly onSelectionChange: (documentIndexes: readonly number[]) => void;
 }
 
@@ -67,15 +73,37 @@ interface CellMenuState {
   readonly doc: JsonObject;
 }
 
+/** Copies the whole document. A previewed one is read in full first. */
+async function copyDocument(
+  doc: JsonObject,
+  readFull: (ref: string) => Promise<string>,
+): Promise<void> {
+  try {
+    const documents = await fullDocuments([doc], readFull, COPY_MAX_CHARS);
+    await copyText(jsonTextFor({ documents }, 'canonical'), 'Document copied');
+  } catch (failure) {
+    notifyError(failure, 'Copy failed');
+  }
+}
+
 /** The entries of a cell's menu. Each copies one piece of the clicked cell. */
-function cellMenuEntries(cell: Omit<CellMenuState, 'position'>): TreeMenuEntry[] {
+function cellMenuEntries(
+  cell: Omit<CellMenuState, 'position'>,
+  readFull: (ref: string) => Promise<string>,
+): TreeMenuEntry[] {
+  const valueText = cell.value === undefined ? undefined : exactCopyTextOf(cell.value);
   return [
     {
       kind: 'item',
       label: 'Copy value',
-      disabled: cell.value === undefined,
-      reason: cell.value === undefined ? 'missing' : undefined,
-      onSelect: () => void copyText(copyTextOf(cell.value), 'Value copied'),
+      disabled: valueText === undefined,
+      reason:
+        valueText !== undefined ? undefined : cell.value === undefined ? 'missing' : 'Shortened',
+      onSelect: () => {
+        if (valueText !== undefined) {
+          void copyText(valueText, 'Value copied');
+        }
+      },
     },
     {
       kind: 'item',
@@ -85,8 +113,7 @@ function cellMenuEntries(cell: Omit<CellMenuState, 'position'>): TreeMenuEntry[]
     {
       kind: 'item',
       label: 'Copy document',
-      onSelect: () =>
-        void copyText(jsonTextFor({ documents: [cell.doc] }, 'canonical'), 'Document copied'),
+      onSelect: () => void copyDocument(cell.doc, readFull),
     },
   ];
 }
@@ -113,6 +140,7 @@ function TypeHeader(props: CustomHeaderProps & TypeHeaderParams) {
 
 /** One cell. A missing field shows a dash. Long text is cut, with the full value on hover. */
 function CellRenderer(props: CustomCellRendererProps<Row, unknown>) {
+  const scheme = useComputedColorScheme('dark');
   if (props.value === undefined) {
     return (
       <Text size="sm" c="dimmed" component="span">
@@ -134,9 +162,19 @@ function CellRenderer(props: CustomCellRendererProps<Row, unknown>) {
           view.type === 'ObjectId' || view.align === 'right'
             ? 'var(--mantine-font-family-monospace)'
             : undefined,
-        color: view.type === 'Null' ? 'var(--mantine-color-dimmed)' : undefined,
+        color:
+          view.type === 'Null'
+            ? 'var(--mantine-color-dimmed)'
+            : typeColor(typeBucket(view.type), scheme),
       }}
       title={view.title ?? view.text}
+      onMouseEnter={
+        view.type === 'Object' || view.type === 'Array'
+          ? (event) => {
+              event.currentTarget.title = collectionTitle(props.value);
+            }
+          : undefined
+      }
     >
       {view.text}
     </span>
@@ -154,6 +192,7 @@ export function TableView({
   editable,
   editabilityNote,
   onOpenDocument,
+  readFull,
   onSelectionChange,
 }: TableViewProps) {
   const [hidden, setHidden] = useState<readonly string[]>([]);
@@ -267,7 +306,7 @@ export function TableView({
       </Box>
       {cellMenu === undefined ? null : (
         <TreeMenu
-          entries={cellMenuEntries(cellMenu)}
+          entries={cellMenuEntries(cellMenu, readFull)}
           position={cellMenu.position}
           onClose={() => setCellMenu(undefined)}
         />

@@ -1,6 +1,13 @@
-import { describe, expect, it } from 'vitest';
-import type { ShellResponse } from '@mongo-gui/core';
-import { ShellSession } from './session';
+import { mkdtempSync, rmSync } from 'node:fs';
+import { tmpdir } from 'node:os';
+import { join } from 'node:path';
+import { randomUUID } from 'node:crypto';
+import { EJSON } from 'bson';
+import { afterEach, describe, expect, it } from 'vitest';
+import { previewInfo, type ShellResponse } from '@mongo-gui/core';
+import { createSpillContext, readSpillFile, type SpillContext } from '@mongo-gui/storage/spill';
+import { serializePrintable } from './results';
+import { ShellSession, type ShellSessionOptions } from './session';
 
 interface FakeOptions {
   readonly collections: readonly string[];
@@ -102,5 +109,113 @@ describe('ShellSession.complete', () => {
       kind: 'completions',
       items: [{ text: 'db.find', kind: 'other' }],
     });
+  });
+});
+
+describe('ShellSession cursor results', () => {
+  const dirs: string[] = [];
+
+  afterEach(() => {
+    dirs.splice(0).forEach((dir) => {
+      rmSync(dir, { recursive: true, force: true });
+    });
+  });
+
+  function spillContext(): SpillContext {
+    const dir = mkdtempSync(join(tmpdir(), 'mg-session-'));
+    dirs.push(dir);
+    return createSpillContext(dir);
+  }
+
+  // A session whose evaluation returns one cursor batch.
+  function cursorSession(documents: unknown[], options: ShellSessionOptions): ShellSession {
+    const session = new ShellSession(options);
+    const printable = { documents, cursorHasMore: true };
+    const connection = {
+      generation: 1,
+      runtime: { evaluate: async () => ({ type: 'Cursor', printable }) },
+      provider: { baseCmdOptions: {} },
+      pendingWork: null,
+    };
+    (session as unknown as { ensureConnection: () => Promise<unknown> }).ensureConnection =
+      async () => connection;
+    return session;
+  }
+
+  async function evaluate(session: ShellSession): Promise<string> {
+    const messages: ShellResponse[] = [];
+    await session.evaluate(
+      { id: randomUUID(), kind: 'evaluate', code: 'db.c.find()', batchSize: 50 },
+      (message) => messages.push(message),
+    );
+    const result = messages.find((message) => message.kind === 'result');
+    if (result?.kind !== 'result') {
+      throw new Error('no result');
+    }
+    return result.printableEjson;
+  }
+
+  const big = { _id: 2, text: 'x'.repeat(100_000) };
+
+  it('previews an oversized document and stores its full text in the spill', async () => {
+    const spill = spillContext();
+    const text = await evaluate(cursorSession([{ _id: 1 }, big], { spill }));
+    const page = JSON.parse(text) as { documents: unknown[] };
+    const info = previewInfo(page.documents[1]);
+    expect(previewInfo(page.documents[0])).toBeUndefined();
+    expect(info?.ref).toBeDefined();
+    expect(readSpillFile(spill, info?.ref ?? '')).toBe(EJSON.stringify(big, { relaxed: false }));
+  });
+
+  // A session whose evaluation returns a plain value, such as the array toArray() gives.
+  function valueSession(printable: unknown, options: ShellSessionOptions): ShellSession {
+    const session = new ShellSession(options);
+    const connection = {
+      generation: 1,
+      runtime: { evaluate: async () => ({ type: 'Document', printable }) },
+      provider: { baseCmdOptions: {} },
+      pendingWork: null,
+    };
+    (session as unknown as { ensureConnection: () => Promise<unknown> }).ensureConnection =
+      async () => connection;
+    return session;
+  }
+
+  it('previews and spills a toArray() list and a findOne() document', async () => {
+    const spill = spillContext();
+    const list = Array.from({ length: 200 }, (_, i) => ({ _id: i, text: 'x'.repeat(100_000) }));
+    const listText = await evaluate(valueSession(list, { spill }));
+    expect(listText.length).toBeLessThan(2.5 * 1024 * 1024);
+    const items = JSON.parse(listText) as unknown[];
+    expect(items).toHaveLength(200);
+    const info = previewInfo(items[199]);
+    expect(readSpillFile(spill, info?.ref ?? '')).toBe(
+      EJSON.stringify(list[199], { relaxed: false }),
+    );
+
+    const oneText = await evaluate(valueSession(big, { spill }));
+    expect(oneText.length).toBeLessThan(20_000);
+    expect(previewInfo(JSON.parse(oneText))?.ref).toBeDefined();
+  });
+
+  it('sends a non-cursor value whole without a spill context', async () => {
+    const text = await evaluate(valueSession([big], {}));
+    expect(text).toBe(serializePrintable([big]));
+  });
+
+  it('sends the legacy string without a spill context', async () => {
+    const printable = { documents: [{ _id: 1 }, big], cursorHasMore: true };
+    const text = await evaluate(cursorSession(printable.documents, {}));
+    expect(text).toBe(serializePrintable(printable));
+  });
+
+  it('stops storing documents once the run limit is reached', async () => {
+    const spill = spillContext();
+    const second = { _id: 3, text: 'y'.repeat(100_000) };
+    const session = cursorSession([big, second], { spill, spillRunLimitBytes: 150_000 });
+    const page = JSON.parse(await evaluate(session)) as { documents: unknown[] };
+    expect(previewInfo(page.documents[0])?.ref).toBeDefined();
+    expect(previewInfo(page.documents[1])).toMatchObject({ chars: expect.any(Number) });
+    expect(previewInfo(page.documents[1])?.ref).toBeUndefined();
   });
 });

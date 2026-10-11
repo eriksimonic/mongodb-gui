@@ -14,6 +14,7 @@ import {
   markTabSaved,
   openTab,
   resultFromEvaluation,
+  RESIDENT_CHARS,
   restoreTabs,
   savedTabsOf,
   setActiveTab,
@@ -313,6 +314,8 @@ describe('runs', () => {
     });
     expect(outcome.result.documents).toHaveLength(1);
     expect(outcome.result.printableEjson).toBeUndefined();
+    expect(outcome.result.chars).toBe(cursorEvaluation.result.printableEjson.length);
+    expect(outcome.result.capped).toBe(false);
   });
 
   it('keeps the value of a non-cursor result and summarises a write', () => {
@@ -410,6 +413,7 @@ describe('runs', () => {
       documents: [{ status: 'open' }, { status: 'closed' }],
       hasMore: false,
       cursorRequestId: undefined,
+      chars: 100,
     });
     expect(state.tabs.a?.result).toMatchObject({
       documents: [
@@ -420,6 +424,41 @@ describe('runs', () => {
       hasMore: false,
       cursorRequestId: undefined,
       loadingMore: false,
+      capped: false,
+    });
+    expect(state.tabs.a?.result?.chars).toBe(cursorEvaluation.result.printableEjson.length + 100);
+  });
+
+  it('stops asking for more once the loaded text reaches the resident limit', () => {
+    let state = beginRun(withTab('a'), 'a', REQUEST, 0);
+    state = finishRun(
+      state,
+      'a',
+      resultFromEvaluation({
+        statement: 'db.orders.find()',
+        database: 'shop',
+        evaluation: cursorEvaluation,
+      }),
+    );
+    const first = state.tabs.a?.result?.chars ?? 0;
+    state = appendPage(state, 'a', {
+      documents: [{ n: 1 }],
+      hasMore: true,
+      cursorRequestId: REQUEST,
+      chars: RESIDENT_CHARS - first - 1,
+    });
+    expect(state.tabs.a?.result).toMatchObject({ hasMore: true, capped: false });
+    state = appendPage(state, 'a', {
+      documents: [{ n: 2 }],
+      hasMore: true,
+      cursorRequestId: REQUEST,
+      chars: 1,
+    });
+    // The cursor still has documents, so the result must not claim to be whole.
+    expect(state.tabs.a?.result).toMatchObject({
+      hasMore: true,
+      capped: true,
+      chars: RESIDENT_CHARS,
     });
   });
 
@@ -429,6 +468,7 @@ describe('runs', () => {
       documents: [{}],
       hasMore: false,
       cursorRequestId: undefined,
+      chars: 2,
     });
     expect(next.tabs.a).toBe(state.tabs.a);
   });

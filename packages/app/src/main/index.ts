@@ -346,6 +346,8 @@ app
     installContentSecurityPolicy();
     const appServices = createAppServices({
       userDataDir: app.getPath('userData'),
+      // A RAM-backed temp folder falls through to the user data folder, which is on disk.
+      spillBases: [app.getPath('temp'), join(app.getPath('userData'), 'spill-tmp')],
       shell: { entryPath: shellRuntimePath, fork: utilityFork },
       updates: {
         autoUpdater,

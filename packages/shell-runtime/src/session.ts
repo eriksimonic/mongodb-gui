@@ -16,6 +16,7 @@ import {
   type ShellResponse,
 } from '@mongo-gui/core';
 import { buildClientOptions, readServerInfo } from '@mongo-gui/mongo-adapter';
+import { writeSpillFile, type SpillContext } from '@mongo-gui/storage/spill';
 import {
   classifyCompletion,
   collectionMemberItems,
@@ -24,10 +25,19 @@ import {
   isDatabaseMemberLine,
   lineBeforeCursor,
 } from './completion-kind';
+import { armGate, disarmGate, installCursorGate } from './cursor-gate';
 import { toConnectError, toEvaluationError } from './errors';
 import { readString } from './fields';
 import { findHostListProblem } from './host-list';
-import { formatPrintText, hasMoreResults, isCursorResult, serializePrintable } from './results';
+import {
+  formatPrintText,
+  hasMoreResults,
+  isCursorResult,
+  serializeCursorBatch,
+  serializePrintable,
+  serializeResult,
+  type SpillSink,
+} from './results';
 import { summarizeDocuments } from './schema-sampler';
 
 export const DEFAULT_TIMEOUT_MS = 30_000;
@@ -40,6 +50,16 @@ const PRODUCT_DOCS_LINK = 'https://www.mongodb.com/docs/mongosh/';
 // Keeps BSON wrapper types (Int32, Double, Long) in the sample so the walker can name them.
 const SAMPLE_OPTIONS = { promoteValues: false, promoteLongs: false };
 const CURSOR_NEXT_CODE = 'it';
+// The spill one cursor and its next batches may write. Past it a document is cut without a stored
+// copy, so a long Load all cannot fill the disk.
+export const SPILL_RUN_LIMIT_BYTES = 512 * 1024 * 1024;
+
+export interface ShellSessionOptions {
+  // Where oversized cursor documents are stored. Without it nothing is cut.
+  readonly spill?: SpillContext | undefined;
+  // Overrides SPILL_RUN_LIMIT_BYTES, so a test need not write 512 MiB.
+  readonly spillRunLimitBytes?: number | undefined;
+}
 
 export type Emit = (message: ShellResponse) => void;
 
@@ -100,6 +120,15 @@ export class ShellSession {
   private cursorOwner: string | null = null;
   private generation = 0;
   private readonly bus = new EventEmitter();
+  private readonly spill: SpillContext | undefined;
+  private readonly spillRunLimit: number;
+  // Bytes written to the spill per cursor owner.
+  private readonly spilledBytes = new Map<string, number>();
+
+  constructor(options: ShellSessionOptions = {}) {
+    this.spill = options.spill;
+    this.spillRunLimit = options.spillRunLimitBytes ?? SPILL_RUN_LIMIT_BYTES;
+  }
 
   async connect(request: ConnectRequest, emit: Emit): Promise<void> {
     // Checked before any state changes, so a malformed host list leaves the current connection.
@@ -222,13 +251,16 @@ export class ShellSession {
       const result = await this.run({ id, code, batchSize, timeoutMs, emit, connection });
       const cursor = isCursorResult(result.printable);
       if (cursor && !continuation) {
+        if (this.cursorOwner !== null) {
+          this.spilledBytes.delete(this.cursorOwner);
+        }
         this.cursorOwner = id;
       }
       emit({
         id,
         kind: 'result',
         type: toShellResultType(result.type, result.printable),
-        printableEjson: serializePrintable(result.printable),
+        printableEjson: this.serialize(id, result.printable, cursor),
         hasMore: hasMoreResults(result.printable),
         ...(cursor && this.cursorOwner !== null ? { cursorRequestId: this.cursorOwner } : {}),
         elapsedMs: performance.now() - started,
@@ -236,6 +268,46 @@ export class ShellSession {
     } catch (error) {
       throw toFailure(error);
     }
+  }
+
+  // Results go through the spill so one response stays small, whatever shape they have: a cursor
+  // batch, a toArray() list or a single document. Other values are sent whole.
+  private serialize(id: string, printable: unknown, cursor: boolean): string {
+    if (this.spill === undefined) {
+      return serializePrintable(printable);
+    }
+    if (!cursor) {
+      try {
+        return serializeResult(printable, this.spillSink(this.spill, id));
+      } finally {
+        // Only a cursor's run keeps counting across batches.
+        this.spilledBytes.delete(id);
+      }
+    }
+    const documents: unknown = Reflect.get(printable as object, 'documents');
+    if (this.cursorOwner === null || !Array.isArray(documents)) {
+      return serializePrintable(printable);
+    }
+    return serializeCursorBatch(printable as object, this.spillSink(this.spill, this.cursorOwner));
+  }
+
+  // A failed or refused write degrades to a preview without a reference. It never fails the query.
+  private spillSink(spill: SpillContext, runId: string): SpillSink {
+    return {
+      write: (text) => {
+        const total = this.spilledBytes.get(runId) ?? 0;
+        if (total + text.length > this.spillRunLimit) {
+          return undefined;
+        }
+        try {
+          const { ref, fileBytes } = writeSpillFile(spill, runId, text);
+          this.spilledBytes.set(runId, total + fileBytes);
+          return ref;
+        } catch {
+          return undefined;
+        }
+      },
+    };
   }
 
   private async run(options: RunOptions): Promise<RuntimeResult> {
@@ -278,6 +350,7 @@ export class ShellSession {
       return await Promise.race([work, aborted]);
     } finally {
       clearTimeout(timer);
+      disarmGate();
       if (this.active === run) {
         this.active = null;
       }
@@ -355,6 +428,7 @@ export class ShellSession {
       productDocsLink: PRODUCT_DOCS_LINK,
     };
     const provider = await NodeDriverServiceProvider.connect(config.uri, options, {}, this.bus);
+    installCursorGate(provider.getRawClient().db('admin').collection('x').find({}));
     this.generation += 1;
     const connection: OpenConnection = {
       generation: this.generation,
@@ -408,6 +482,8 @@ export class ShellSession {
         ) {
           return undefined;
         }
+        // "it" awaits this just before it reads the batch, so the gate covers exactly that read.
+        armGate(run.batchSize);
         return run.batchSize;
       }) as NonNullable<RuntimeListener['getConfig']>,
     };

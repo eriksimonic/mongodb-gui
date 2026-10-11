@@ -2,6 +2,12 @@
  * Turns canonical EJSON results into what the result views show: BSON types, flattened columns,
  * cell text, one-line summaries, and the collection a statement reads. Everything here is pure.
  */
+import {
+  TRUNCATED_KEY,
+  nestedMarker,
+  type NestedMarker,
+  type TruncatedType,
+} from '@mongo-gui/core';
 
 /** BSON types the views label. `number` is a plain JSON number, which canonical EJSON never sends. */
 export type BsonType =
@@ -26,6 +32,23 @@ export type BsonType =
   | 'Number';
 
 export type JsonObject = Readonly<Record<string, unknown>>;
+
+const MARKER_TYPES: Readonly<Record<TruncatedType, BsonType>> = {
+  string: 'String',
+  array: 'Array',
+  object: 'Object',
+  binary: 'Binary',
+};
+
+/** Whether the value is the marker that stands for a shortened string, array, object or binary. */
+export function isTruncatedValue(value: unknown): boolean {
+  return nestedMarker(value) !== undefined;
+}
+
+// A wrapper such as {$symbol: <marker>} is shortened inside, so what an edit would save is not the value.
+function hasTruncatedInner(value: unknown): boolean {
+  return isPlainObject(value) && Object.values(value).some(isTruncatedValue);
+}
 
 const WRAPPER_KEYS: Readonly<Record<string, BsonType>> = {
   $oid: 'ObjectId',
@@ -102,6 +125,10 @@ export function bsonTypeOf(value: unknown): BsonType {
   if (key !== undefined) {
     return WRAPPER_KEYS[key] ?? 'Object';
   }
+  const marker = nestedMarker(value);
+  if (marker !== undefined) {
+    return MARKER_TYPES[marker.t];
+  }
   return isPlainObject(value) ? 'Object' : 'Undefined';
 }
 
@@ -139,15 +166,24 @@ export interface FlatEntry {
 
 /**
  * The leaves of a document. Plain objects are opened into dotted paths. Arrays, wrapped BSON
- * values and empty objects are leaves, so an array shows as one cell.
+ * values, shortened-value markers and empty objects are leaves, so an array shows as one cell.
  */
 export function flattenDocument(document: JsonObject): FlatEntry[] {
   const entries: FlatEntry[] = [];
   const visit = (value: JsonObject, prefix: string): void => {
     for (const [key, child] of Object.entries(value)) {
+      // The root marker flags a previewed document. It is not a field.
+      if (prefix === '' && key === TRUNCATED_KEY) {
+        continue;
+      }
       const path = prefix === '' ? key : `${prefix}.${key}`;
       const type = bsonTypeOf(child);
-      if (type === 'Object' && isPlainObject(child) && Object.keys(child).length > 0) {
+      if (
+        type === 'Object' &&
+        isPlainObject(child) &&
+        Object.keys(child).length > 0 &&
+        !isTruncatedValue(child)
+      ) {
         visit(child, path);
       } else {
         entries.push({ path, value: child, type });
@@ -169,7 +205,17 @@ export interface ColumnDef {
  * any document has one.
  */
 export function discoverColumns(documents: readonly JsonObject[]): ColumnDef[] {
-  const types = new Map<string, BsonType[]>();
+  return addColumns([], documents);
+}
+
+/** The columns of an earlier discovery, widened by the paths of more documents. */
+export function addColumns(
+  columns: readonly ColumnDef[],
+  documents: readonly JsonObject[],
+): ColumnDef[] {
+  const types = new Map<string, BsonType[]>(
+    columns.map((column) => [column.path, [...column.types]]),
+  );
   for (const document of documents) {
     for (const entry of flattenDocument(document)) {
       const seen = types.get(entry.path);
@@ -226,6 +272,7 @@ export function objectIdHex(value: unknown): string | undefined {
 
 const SHORT_OBJECT_ID = 8;
 const TOOLTIP_LIMIT = 600;
+const TOOLTIP_ENTRIES = 20;
 const CELL_TEXT_LIMIT = 120;
 
 /** What one table cell or tree value shows. */
@@ -238,10 +285,14 @@ export interface CellView {
 }
 
 /**
- * The text of a leaf value. Collections are summarised in one line, with the relaxed JSON in the
- * title. Long strings are cut for the cell, and the title keeps the whole string.
+ * The text of a leaf value. Collections are summarised in one line, and `collectionTitle` gives
+ * their tooltip. Long strings are cut for the cell, and the title keeps the start of the string.
  */
 export function cellView(value: unknown): CellView {
+  const marker = nestedMarker(value);
+  if (marker !== undefined) {
+    return markerView(marker);
+  }
   const type = bsonTypeOf(value);
   switch (type) {
     case 'ObjectId': {
@@ -263,7 +314,12 @@ export function cellView(value: unknown): CellView {
     case 'String': {
       const text = typeof value === 'string' ? value : String(wrapperValue(value));
       return text.length > CELL_TEXT_LIMIT
-        ? { text: `${text.slice(0, CELL_TEXT_LIMIT - 1)}…`, type, align: 'left', title: text }
+        ? {
+            text: `${text.slice(0, CELL_TEXT_LIMIT - 1)}…`,
+            type,
+            align: 'left',
+            title: tooltipText(text),
+          }
         : { text, type, align: 'left' };
     }
     case 'Boolean':
@@ -276,16 +332,16 @@ export function cellView(value: unknown): CellView {
         text: `[…] ${items} ${items === 1 ? 'item' : 'items'}`,
         type,
         align: 'left',
-        title: relaxedTitle(value),
       };
     }
     case 'Object': {
-      const fields = isPlainObject(value) ? Object.keys(value).length : 0;
+      const fields = isPlainObject(value)
+        ? Object.keys(value).length - (Object.hasOwn(value, TRUNCATED_KEY) ? 1 : 0)
+        : 0;
       return {
         text: `{…} ${fields} ${fields === 1 ? 'field' : 'fields'}`,
         type,
         align: 'left',
-        title: relaxedTitle(value),
       };
     }
     default:
@@ -293,9 +349,46 @@ export function cellView(value: unknown): CellView {
   }
 }
 
-function relaxedTitle(value: unknown): string {
-  const text = JSON.stringify(value, null, 2) ?? '';
+const SHORTENED_TITLE = 'Shortened';
+
+/** A value the preview replaced: what it was and how big, with no way to see the rest. */
+function markerView(marker: NestedMarker): CellView {
+  const type = MARKER_TYPES[marker.t];
+  const base = { type, align: 'left', title: SHORTENED_TITLE } as const;
+  switch (marker.t) {
+    case 'string':
+      return {
+        ...base,
+        text: `${typeof marker.head === 'string' ? marker.head : ''}… (${marker.n} chars)`,
+      };
+    case 'array':
+      return { ...base, text: `[…] ${marker.n} items` };
+    case 'object':
+      return { ...base, text: `{…} ${marker.n} fields` };
+    case 'binary':
+      return { ...base, text: `Binary (${marker.n} bytes)` };
+  }
+}
+
+function tooltipText(text: string): string {
   return text.length > TOOLTIP_LIMIT ? `${text.slice(0, TOOLTIP_LIMIT - 1)}…` : text;
+}
+
+/**
+ * Tooltip text for an object or array cell, built on hover, not on render. Only the first entries
+ * are written, so a huge array costs the same as a small one.
+ */
+export function collectionTitle(value: unknown): string {
+  if (isTruncatedValue(value)) {
+    return SHORTENED_TITLE;
+  }
+  let head = value;
+  if (Array.isArray(value)) {
+    head = value.slice(0, TOOLTIP_ENTRIES);
+  } else if (isPlainObject(value)) {
+    head = Object.fromEntries(Object.entries(value).slice(0, TOOLTIP_ENTRIES));
+  }
+  return tooltipText(JSON.stringify(head, null, 2) ?? '');
 }
 
 function wrapperValue(value: unknown): unknown {
@@ -679,6 +772,9 @@ export function editTextOf(value: unknown): string {
 
 /** The type picker value that matches a leaf, or undefined when it has no editable type. */
 export function editTypeOf(value: unknown): EditType | undefined {
+  if (isTruncatedValue(value) || hasTruncatedInner(value)) {
+    return undefined;
+  }
   switch (bsonTypeOf(value)) {
     case 'String':
       return 'string';

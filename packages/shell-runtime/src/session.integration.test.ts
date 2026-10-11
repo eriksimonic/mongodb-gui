@@ -1,9 +1,21 @@
 import { fork, type ChildProcess } from 'node:child_process';
-import { dirname, resolve } from 'node:path';
+import { randomUUID } from 'node:crypto';
+import { mkdtempSync, rmSync } from 'node:fs';
+import { connect } from 'node:net';
+import { tmpdir } from 'node:os';
+import { dirname, join, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { EJSON, ObjectId } from 'bson';
+import { MongoClient } from 'mongodb';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
-import type { AppError, ShellRequest, ShellResponse } from '@mongo-gui/core';
+import { previewInfo, type AppError, type ShellRequest, type ShellResponse } from '@mongo-gui/core';
+import {
+  createSpillContext,
+  disposeSpill,
+  readSpillFile,
+  spillEnv,
+  type SpillContext,
+} from '@mongo-gui/storage/spill';
 import { ShellProcessClient } from './client';
 import { startMongo, type StartedMongo } from '@mongo-gui/mongo-adapter/test';
 
@@ -434,4 +446,130 @@ describe.each(['mongo:8.0.17', 'mongo:6.0'])('shell runtime against %s', (image)
     },
     TEST_TIMEOUT_MS,
   );
+});
+
+// Needs the seeded grid database (flat_1m, big_docs, huge_arrays). Skipped when it is not running.
+const SEEDED_HOST = '127.0.0.1';
+const SEEDED_PORT = 27217;
+const SEEDED_URI = `mongodb://${SEEDED_HOST}:${SEEDED_PORT}/grid`;
+
+function reachable(): Promise<boolean> {
+  return new Promise((resolve) => {
+    const socket = connect({ host: SEEDED_HOST, port: SEEDED_PORT, timeout: 1000 });
+    socket.once('connect', () => {
+      socket.destroy();
+      resolve(true);
+    });
+    const fail = (): void => {
+      socket.destroy();
+      resolve(false);
+    };
+    socket.once('error', fail);
+    socket.once('timeout', fail);
+  });
+}
+
+describe('shell runtime spill and cursor gate on the seeded grid database', () => {
+  const MIB = 1024 * 1024;
+  let available = false;
+  let spill: SpillContext;
+  let dir: string;
+  let child: ChildProcess;
+  let client: ShellProcessClient;
+
+  const run = (request: ShellRequest): Promise<ShellResponse[]> => collect(client.request(request));
+  const evaluate = (code: string, batchSize: number): Promise<ShellResponse[]> =>
+    run({ id: randomUUID(), kind: 'evaluate', code, batchSize });
+  const next = (batchSize: number): Promise<ShellResponse[]> =>
+    run({ id: randomUUID(), kind: 'next', batchSize });
+
+  beforeAll(async () => {
+    available = await reachable();
+    if (!available) {
+      return;
+    }
+    dir = mkdtempSync(join(tmpdir(), 'mg-seeded-'));
+    spill = createSpillContext(dir);
+    child = fork(BUNDLE_PATH, [], {
+      serialization: 'advanced',
+      stdio: ['ignore', 'inherit', 'inherit', 'ipc'],
+      env: { ...process.env, ...spillEnv(spill) },
+    });
+    client = new ShellProcessClient();
+    await client.spawn(() => child);
+    await run({ id: 'seed-connect', kind: 'connect', uri: SEEDED_URI, database: 'grid' });
+  }, TEST_TIMEOUT_MS);
+
+  afterAll(() => {
+    if (!available) {
+      return;
+    }
+    client.dispose();
+    disposeSpill(spill);
+    rmSync(dir, { recursive: true, force: true });
+  });
+
+  it('cuts a batch of huge documents at the BSON budget and serves the rest with next', async (context) => {
+    if (!available) {
+      context.skip();
+    }
+    const expected = Number(
+      EJSON.parse(
+        messageOf(await evaluate('db.huge_arrays.countDocuments()', 50), 'result').printableEjson,
+      ),
+    );
+    const first = messageOf(await evaluate('db.huge_arrays.find()', 50), 'result');
+    expect(first.printableEjson.length).toBeLessThan(3 * MIB);
+    expect(first.hasMore).toBe(true);
+    const firstCount = pageOf(first).documents.length;
+    expect(firstCount).toBeGreaterThan(0);
+    expect(firstCount).toBeLessThan(50);
+    let total = firstCount;
+    let more = first.hasMore;
+    while (more) {
+      const page = messageOf(await next(50), 'result');
+      expect(page.printableEjson.length).toBeLessThan(3 * MIB);
+      total += pageOf(page).documents.length;
+      more = page.hasMore;
+    }
+    expect(total).toBe(expected);
+  }, 120_000);
+
+  it('stores big documents in the spill and the decoded spill equals the fresh document', async (context) => {
+    if (!available) {
+      context.skip();
+    }
+    const result = messageOf(await evaluate('db.big_docs.find().sort({ _id: 1 })', 50), 'result');
+    const documents = pageOf(result).documents;
+    const info = previewInfo(documents[0]);
+    expect(info?.ref).toBeDefined();
+    const full = readSpillFile(spill, info?.ref ?? '');
+    const mongo = new MongoClient(SEEDED_URI);
+    try {
+      const fresh = await mongo
+        .db('grid')
+        .collection('big_docs')
+        .findOne({}, { sort: { _id: 1 } });
+      expect(full).toBe(EJSON.stringify(fresh, { relaxed: false }));
+    } finally {
+      await mongo.close();
+    }
+  }, 60_000);
+
+  it('lets a user forEach see every document', async (context) => {
+    if (!available) {
+      context.skip();
+    }
+    const result = messageOf(
+      await evaluate('let n = 0; db.big_docs.find().forEach(() => { n += 1; }); n', 50),
+      'result',
+    );
+    const counted = Number(EJSON.parse(result.printableEjson));
+    const expected = Number(
+      EJSON.parse(
+        messageOf(await evaluate('db.big_docs.countDocuments()', 50), 'result').printableEjson,
+      ),
+    );
+    expect(counted).toBe(expected);
+  }, 120_000);
 });
