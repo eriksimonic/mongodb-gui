@@ -1,7 +1,8 @@
 # Contributing
 
 This file covers the setup, the commands and the rules for changes to Mongo GUI. For how the code
-is organised, read [docs/architecture.md](docs/architecture.md).
+is organised, read [docs/architecture.md](docs/architecture.md). For layout, toolbar and editing
+rules in the UI, read [docs/ui-guidelines.md](docs/ui-guidelines.md).
 
 ## Prerequisites
 
