@@ -1,5 +1,6 @@
 import { connect } from 'node:net';
 import { randomBytes } from 'node:crypto';
+import { generate } from 'selfsigned';
 import { z } from 'zod';
 import { AppErrorException, appError, type DockerMongoContainer } from '@mongo-gui/core';
 import { FORWARDER_LABEL, MONGO_PORT, MONGO_PORT_KEY, networkAddress } from './discovery';
@@ -17,6 +18,16 @@ const BRIDGE_NETWORK = 'bridge';
 const UNREACHABLE_NETWORKS: readonly string[] = ['host', 'none'];
 const NAME_SUFFIX_BYTES = 4;
 const ID_PREFIX_LENGTH = 12;
+const CERT_VALID_DAYS = 7;
+const MS_PER_DAY = 86_400_000;
+const CERT_DIR = '/tmp';
+// The entrypoint writes the PEMs from the environment to files, then runs socat with the command.
+const ENTRYPOINT_SCRIPT = [
+  `printf '%s' "$FORWARDER_CERT" > ${CERT_DIR}/server.pem`,
+  `printf '%s' "$FORWARDER_KEY" > ${CERT_DIR}/server.key`,
+  `chmod 600 ${CERT_DIR}/server.key`,
+  'exec socat "$@"',
+].join('; ');
 
 const HostPortSchema = z.object({
   NetworkSettings: z.object({
@@ -32,9 +43,18 @@ const StateSchema = z.object({ State: z.object({ Status: z.string().optional() }
 export const FORWARDER_SCOPE_LABEL = `${FORWARDER_LABEL}.scope`;
 export const DEFAULT_FORWARDER_SCOPE = 'app';
 
+/** The PEM material the app needs to connect. The private key never leaves memory except as a file the caller writes. */
+export interface ForwarderTls {
+  /** The server certificate, which also signed the client certificate. Used as the trusted CA. */
+  readonly caPem: string;
+  /** The client certificate followed by its private key, as `tlsCertificateKeyFile` expects. */
+  readonly clientPem: string;
+}
+
 export interface ForwarderHandle {
   readonly hostPort: number;
   readonly forwarderId: string;
+  readonly tls: ForwarderTls;
 }
 
 export interface ForwarderManagerOptions {
@@ -52,8 +72,9 @@ export interface ForwarderManagerOptions {
 
 export interface ForwarderManager {
   /**
-   * Returns a loopback port that reaches the target's MongoDB port. A running forwarder for the
-   * target is reused. Otherwise the image is pulled if missing and a new forwarder starts.
+   * Returns a loopback port that reaches the target's MongoDB port, with the client certificate
+   * the port requires. A running forwarder whose certificates this manager still holds is reused.
+   * Otherwise the image is pulled if missing and a new forwarder starts with fresh certificates.
    */
   ensure(target: DockerMongoContainer): Promise<ForwarderHandle>;
   /** Removes the forwarder for one target. A missing forwarder is not an error. */
@@ -73,6 +94,8 @@ export function createForwarderManager(options: ForwarderManagerOptions): Forwar
   const scope = options.scope ?? DEFAULT_FORWARDER_SCOPE;
   // Concurrent ensure calls for one target share a single start.
   const pending = new Map<string, Promise<ForwarderHandle>>();
+  // Certificates by forwarder id. They exist only here, so a forwarder from an earlier run is replaced.
+  const certificates = new Map<string, ForwarderTls>();
 
   const start = async (target: DockerMongoContainer): Promise<ForwarderHandle> => {
     const network = target.networks[0];
@@ -88,10 +111,16 @@ export function createForwarderManager(options: ForwarderManagerOptions): Forwar
     if (!(await client.hasImage(image))) {
       await client.pullImage(image);
     }
+    const material = await generateCertificates();
     const forwarderId = await client.createContainer({
       name: forwarderName(target.id),
       image,
-      cmd: [`tcp-listen:${MONGO_PORT},fork,reuseaddr`, `tcp-connect:${address}:${MONGO_PORT}`],
+      entrypoint: ['sh', '-c', ENTRYPOINT_SCRIPT, 'sh'],
+      env: [`FORWARDER_CERT=${material.serverCert}`, `FORWARDER_KEY=${material.serverKey}`],
+      cmd: [
+        `openssl-listen:${MONGO_PORT},fork,reuseaddr,cert=${CERT_DIR}/server.pem,key=${CERT_DIR}/server.key,cafile=${CERT_DIR}/server.pem,verify=1`,
+        `tcp-connect:${address}:${MONGO_PORT}`,
+      ],
       labels: { [FORWARDER_LABEL]: target.id, [FORWARDER_SCOPE_LABEL]: scope },
       exposedPorts: [MONGO_PORT_KEY],
       networkMode: network,
@@ -102,7 +131,9 @@ export function createForwarderManager(options: ForwarderManagerOptions): Forwar
       await client.startContainer(forwarderId);
       const hostPort = hostPortOf(await client.inspectContainer(forwarderId));
       await waitForPort(hostPort, readyTimeoutMs);
-      return { hostPort, forwarderId };
+      const tls = { caPem: material.serverCert, clientPem: material.clientPem };
+      certificates.set(forwarderId, tls);
+      return { hostPort, forwarderId, tls };
     } catch (error) {
       await client.removeContainer(forwarderId, true);
       throw error;
@@ -115,7 +146,7 @@ export function createForwarderManager(options: ForwarderManagerOptions): Forwar
       if (inFlight !== undefined) {
         return inFlight;
       }
-      const attempt = reuseOrStart(client, target, scope, start).finally(() => {
+      const attempt = reuseOrStart(client, target, scope, certificates, start).finally(() => {
         pending.delete(target.id);
       });
       pending.set(target.id, attempt);
@@ -125,11 +156,11 @@ export function createForwarderManager(options: ForwarderManagerOptions): Forwar
     async release(targetId) {
       // A start still in flight would create a forwarder after this call, so wait for it first.
       await pending.get(targetId)?.catch(() => undefined);
-      await removeOwned(client, await listOwned(client, scope, targetId), targetId);
+      await removeOwned(client, await listOwned(client, scope, targetId), targetId, certificates);
     },
 
     async cleanupAll() {
-      await removeOwned(client, await listOwned(client, scope), undefined);
+      await removeOwned(client, await listOwned(client, scope), undefined, certificates);
     },
   };
 }
@@ -159,20 +190,27 @@ async function reuseOrStart(
   client: DockerEngineClient,
   target: DockerMongoContainer,
   scope: string,
+  certificates: Map<string, ForwarderTls>,
   start: (target: DockerMongoContainer) => Promise<ForwarderHandle>,
 ): Promise<ForwarderHandle> {
   const existing = await listOwned(client, scope, target.id);
   const pinned = await client.imageId(FORWARDER_IMAGE);
+  // Without the certificates in memory the forwarder cannot be used, so it is replaced.
   const running = existing.find(
-    (item) => item.state === 'running' && isOwnedForwarder(item, target.id, pinned),
+    (item) =>
+      item.state === 'running' &&
+      isOwnedForwarder(item, target.id, pinned) &&
+      certificates.has(item.id),
   );
-  if (running !== undefined) {
+  const tls = running === undefined ? undefined : certificates.get(running.id);
+  if (running !== undefined && tls !== undefined) {
     return {
       hostPort: hostPortOf(await client.inspectContainer(running.id)),
       forwarderId: running.id,
+      tls,
     };
   }
-  await removeOwned(client, existing, target.id);
+  await removeOwned(client, existing, target.id, certificates);
   return start(target);
 }
 
@@ -204,11 +242,13 @@ async function removeOwned(
   client: DockerEngineClient,
   containers: readonly ContainerListItem[],
   targetId: string | undefined,
+  certificates: Map<string, ForwarderTls>,
 ): Promise<void> {
   const pinned = await client.imageId(FORWARDER_IMAGE);
   for (const container of containers) {
     if (isOwnedForwarder(container, targetId, pinned)) {
       await client.removeContainer(container.id, true);
+      certificates.delete(container.id);
     }
   }
 }
@@ -230,6 +270,45 @@ async function targetAddress(
     );
   }
   return address;
+}
+
+interface CertificateMaterial {
+  readonly serverCert: string;
+  readonly serverKey: string;
+  readonly clientPem: string;
+}
+
+/**
+ * Makes a fresh server certificate for 127.0.0.1 and a client certificate signed by it. Both are
+ * short lived and used for one forwarder only.
+ */
+async function generateCertificates(): Promise<CertificateMaterial> {
+  const now = Date.now();
+  const generated = await generate([{ name: 'commonName', value: 'mongo-gui-forwarder' }], {
+    keyType: 'ec',
+    algorithm: 'sha256',
+    notBeforeDate: new Date(now - MS_PER_DAY),
+    notAfterDate: new Date(now + CERT_VALID_DAYS * MS_PER_DAY),
+    extensions: [
+      { name: 'basicConstraints', cA: true },
+      { name: 'keyUsage', keyCertSign: true, digitalSignature: true },
+      { name: 'subjectAltName', altNames: [{ type: 7, ip: LOOPBACK }] },
+    ],
+    clientCertificate: {
+      cn: 'mongo-gui',
+      algorithm: 'sha256',
+      notBeforeDate: new Date(now - MS_PER_DAY),
+      notAfterDate: new Date(now + CERT_VALID_DAYS * MS_PER_DAY),
+    },
+  });
+  if (generated.clientcert === undefined || generated.clientprivate === undefined) {
+    throw new AppErrorException(appError('INTERNAL', 'The forwarder certificates were not made.'));
+  }
+  return {
+    serverCert: generated.cert,
+    serverKey: generated.private,
+    clientPem: `${generated.clientcert}\n${generated.clientprivate}`,
+  };
 }
 
 function hostPortOf(inspectJson: unknown): number {

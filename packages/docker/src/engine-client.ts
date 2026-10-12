@@ -69,6 +69,10 @@ export interface ContainerCreateSpec {
   readonly name?: string;
   readonly image: string;
   readonly cmd?: readonly string[];
+  /** Replaces the image entrypoint. `cmd` is passed to it as arguments. */
+  readonly entrypoint?: readonly string[];
+  /** Environment variables in the form `NAME=value`. */
+  readonly env?: readonly string[];
   readonly labels?: Readonly<Record<string, string>>;
   /** Container ports in the form `27017/tcp`. */
   readonly exposedPorts?: readonly string[];
@@ -407,6 +411,8 @@ function toCreateBody(spec: ContainerCreateSpec): Record<string, unknown> {
   return {
     Image: spec.image,
     ...(spec.cmd === undefined ? {} : { Cmd: [...spec.cmd] }),
+    ...(spec.entrypoint === undefined ? {} : { Entrypoint: [...spec.entrypoint] }),
+    ...(spec.env === undefined ? {} : { Env: [...spec.env] }),
     ...(spec.labels === undefined ? {} : { Labels: { ...spec.labels } }),
     ExposedPorts: exposed,
     HostConfig: {

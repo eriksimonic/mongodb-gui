@@ -1,6 +1,6 @@
-import { mkdtempSync, rmSync } from 'node:fs';
+import { existsSync, mkdtempSync, readFileSync, rmSync, statSync } from 'node:fs';
 import { tmpdir } from 'node:os';
-import { join } from 'node:path';
+import { dirname, join } from 'node:path';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import {
   AppErrorException,
@@ -149,7 +149,11 @@ function fakeForwarders(hostPort = 40123): FakeForwarders {
     cleanups: 0,
     async ensure(target) {
       forwarders.ensured.push(target.id);
-      return { hostPort, forwarderId: `fwd-${target.id}` };
+      return {
+        hostPort,
+        forwarderId: `fwd-${target.id}`,
+        tls: { caPem: 'CA-PEM', clientPem: 'CLIENT-PEM' },
+      };
     },
     async release(targetId) {
       forwarders.released.push(targetId);
@@ -739,5 +743,27 @@ describe('createDockerRuntime watch', () => {
       expect(harness.events).toEqual([{ type: 'docker:containers', containers: [] }]),
     );
     harness.runtime.watch(false, () => undefined);
+  });
+});
+
+describe('createDockerRuntime forwarder certificates', () => {
+  it('writes private certificate files into the profile and removes them on disconnect', async () => {
+    const harness = buildHarness({
+      [PLAIN_ID]: inspectOf({ id: PLAIN_ID, name: 'orders-mongo' }),
+    });
+
+    await harness.runtime.connect(PLAIN_ID);
+
+    const tls = harness.repos.connections.list()[0]?.tls;
+    expect(tls?.enabled).toBe(true);
+    const { caFile, certFile } = tls ?? {};
+    expect(readFileSync(caFile ?? '', 'utf8')).toBe('CA-PEM');
+    expect(readFileSync(certFile ?? '', 'utf8')).toBe('CLIENT-PEM');
+    expect(statSync(certFile ?? '').mode & 0o077).toBe(0);
+    expect(statSync(dirname(certFile ?? '')).mode & 0o077).toBe(0);
+
+    await harness.runtime.disconnect(PLAIN_ID);
+
+    expect(existsSync(certFile ?? '')).toBe(false);
   });
 });

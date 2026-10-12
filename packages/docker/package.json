@@ -10,6 +10,7 @@
   },
   "dependencies": {
     "@mongo-gui/core": "workspace:*",
+    "selfsigned": "^5.5.0",
     "zod": "^4.6.5"
   },
   "devDependencies": {

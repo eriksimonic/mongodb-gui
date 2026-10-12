@@ -220,7 +220,9 @@ issues.
   starts an `alpine/socat` container on the same Docker network that publishes a random
   loopback port and forwards to the Mongo container, labels it `mongo-gui.forwarder`,
   reuses it while the connection is open, and removes it on disconnect and on quit (and
-  removes stale labelled forwarders on start). Connecting through the container IP is
+  removes stale labelled forwarders on start). The forwarder listens with
+  mutual TLS: a fresh server and client certificate pair per forwarder, 7 day validity, held in
+  memory and written to owner-only files that are deleted on release. Connecting through the container IP is
   not used because it fails on Docker Desktop. A setting "connect to Docker instances
   automatically" (off by default) connects every discovered container on startup.
 

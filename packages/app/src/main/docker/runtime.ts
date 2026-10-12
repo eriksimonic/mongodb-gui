@@ -1,3 +1,6 @@
+import { mkdtempSync, rmSync, writeFileSync } from 'node:fs';
+import { tmpdir } from 'node:os';
+import { join } from 'node:path';
 import {
   AppErrorException,
   appError,
@@ -23,6 +26,7 @@ import {
   dockerStatus,
   type DockerEngineClient,
   type ForwarderManager,
+  type ForwarderTls,
 } from '@mongo-gui/docker';
 import type { ConnectionsRepository, SettingsRepository } from '@mongo-gui/storage';
 import type { Logger } from '../log';
@@ -96,6 +100,13 @@ interface Endpoint {
   readonly port: number;
   /** Set when the connection goes through a forwarder that the runtime must release on failure. */
   readonly forwarded: boolean;
+  /** Files holding the forwarder's certificates. Set only for a forwarded endpoint. */
+  readonly tls?: TlsFiles;
+}
+
+interface TlsFiles {
+  readonly caFile: string;
+  readonly certFile: string;
 }
 
 interface Snapshot {
@@ -110,6 +121,43 @@ export function createDockerRuntime(deps: DockerRuntimeDeps): DockerRuntime {
   let watching = false;
   let lastKey: string | undefined;
   let polling = false;
+  // Private directories that hold the certificate files of the live forwarders, by container id.
+  const tlsDirs = new Map<string, string>();
+
+  function writeTlsFiles(containerId: string, tls: ForwarderTls): TlsFiles {
+    removeTlsDir(containerId);
+    // mkdtemp creates the directory with mode 0700. The files are owner-only too.
+    const dir = mkdtempSync(join(tmpdir(), 'mongo-gui-forwarder-'));
+    tlsDirs.set(containerId, dir);
+    const caFile = join(dir, 'ca.pem');
+    const certFile = join(dir, 'client.pem');
+    writeFileSync(caFile, tls.caPem, { mode: 0o600 });
+    writeFileSync(certFile, tls.clientPem, { mode: 0o600 });
+    return { caFile, certFile };
+  }
+
+  function removeTlsDir(containerId: string): void {
+    const dir = tlsDirs.get(containerId);
+    if (dir !== undefined) {
+      rmSync(dir, { recursive: true, force: true });
+      tlsDirs.delete(containerId);
+    }
+  }
+
+  async function releaseForwarder(containerId: string): Promise<void> {
+    try {
+      await deps.forwarders.release(containerId);
+    } finally {
+      removeTlsDir(containerId);
+    }
+  }
+
+  async function cleanupForwardersAndFiles(): Promise<void> {
+    await cleanupForwarders(deps.forwarders, deps.log);
+    for (const containerId of [...tlsDirs.keys()]) {
+      removeTlsDir(containerId);
+    }
+  }
 
   const discover = async (): Promise<DockerMongoContainer[]> =>
     discoverMongoContainers(deps.engine);
@@ -148,18 +196,28 @@ export function createDockerRuntime(deps: DockerRuntimeDeps): DockerRuntime {
       return { host: LOOPBACK, port: MONGO_PORT, forwarded: false };
     }
     const handle = await deps.forwarders.ensure(container);
-    return { host: LOOPBACK, port: handle.hostPort, forwarded: true };
+    return {
+      host: LOOPBACK,
+      port: handle.hostPort,
+      forwarded: true,
+      tls: writeTlsFiles(container.id, handle.tls),
+    };
   }
 
-  function saveProfile(container: DockerMongoContainer, uri: string): ConnectionProfile {
+  function saveProfile(
+    container: DockerMongoContainer,
+    uri: string,
+    tls: Endpoint['tls'],
+  ): ConnectionProfile {
     const repos = deps.repos();
     const existing = findProfile(container.id);
     if (existing !== undefined) {
-      return repos.connections.update(existing.id, { name: container.name, uri });
+      return repos.connections.update(existing.id, { name: container.name, uri, tls: tlsOf(tls) });
     }
     return repos.connections.create({
       name: container.name,
       uri,
+      tls: tlsOf(tls),
       source: 'docker',
       dockerContainerId: container.id,
     });
@@ -172,10 +230,10 @@ export function createDockerRuntime(deps: DockerRuntimeDeps): DockerRuntime {
     }
     const endpoint = await endpointFor(container);
     try {
-      const profile = saveProfile(container, buildUri(container, endpoint));
+      const profile = saveProfile(container, buildUri(container, endpoint), endpoint.tls);
       const status = await deps.connections.connect(profile);
       if (status.state !== 'connected' && endpoint.forwarded) {
-        await deps.forwarders.release(container.id);
+        await releaseForwarder(container.id);
       }
       const hasEnvCredentials = envHasCredentials(container);
       if (status.state === 'error' && needsCredentials(status.error, hasEnvCredentials)) {
@@ -191,7 +249,7 @@ export function createDockerRuntime(deps: DockerRuntimeDeps): DockerRuntime {
     } catch (error) {
       // A failure after the forwarder started would leave it running with no owner.
       if (endpoint.forwarded) {
-        await deps.forwarders.release(container.id).catch(() => undefined);
+        await releaseForwarder(container.id).catch(() => undefined);
       }
       throw error;
     }
@@ -210,21 +268,22 @@ export function createDockerRuntime(deps: DockerRuntimeDeps): DockerRuntime {
       const tested = await deps.connections.test({
         name: container.name,
         uri,
+        tls: tlsOf(endpoint.tls),
         source: 'docker',
         dockerContainerId: container.id,
       });
       if (!tested.ok) {
         throw new AppErrorException(tested.error);
       }
-      const profile = saveProfile(container, uri);
+      const profile = saveProfile(container, uri, endpoint.tls);
       const status = await deps.connections.connect(profile);
       if (status.state !== 'connected' && endpoint.forwarded) {
-        await deps.forwarders.release(container.id);
+        await releaseForwarder(container.id);
       }
       return { connectionId: profile.id, status };
     } catch (error) {
       if (endpoint.forwarded) {
-        await deps.forwarders.release(container.id).catch(() => undefined);
+        await releaseForwarder(container.id).catch(() => undefined);
       }
       throw error;
     }
@@ -297,7 +356,7 @@ export function createDockerRuntime(deps: DockerRuntimeDeps): DockerRuntime {
       if (profile !== undefined) {
         await deps.connections.disconnect(profile.id);
       }
-      await deps.forwarders.release(containerId);
+      await releaseForwarder(containerId);
     },
 
     setAutoConnect(enabled) {
@@ -345,18 +404,23 @@ export function createDockerRuntime(deps: DockerRuntimeDeps): DockerRuntime {
 
     async releaseProfile(profile) {
       if (profile?.source === 'docker' && profile.dockerContainerId !== undefined) {
-        await deps.forwarders.release(profile.dockerContainerId);
+        await releaseForwarder(profile.dockerContainerId);
       }
     },
 
-    cleanupAll: () => cleanupForwarders(deps.forwarders, deps.log),
+    cleanupAll: cleanupForwardersAndFiles,
 
     async dispose() {
       stopTimer();
       watching = false;
-      await cleanupForwarders(deps.forwarders, deps.log);
+      await cleanupForwardersAndFiles();
     },
   };
+}
+
+/** The TLS profile for a forwarded endpoint. A direct endpoint keeps the connection's own TLS state. */
+function tlsOf(files: TlsFiles | undefined): ConnectionProfileInput['tls'] {
+  return files === undefined ? undefined : { enabled: true, ...files };
 }
 
 async function cleanupForwarders(forwarders: ForwarderManager, log: Logger): Promise<void> {

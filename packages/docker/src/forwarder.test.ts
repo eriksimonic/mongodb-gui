@@ -160,11 +160,19 @@ describe('ForwarderManager', () => {
     const engine = fakeEngine(() => listenPort);
     const handle = await managerFor(engine).ensure(target());
 
-    expect(handle).toEqual({ hostPort: listenPort, forwarderId: 'fwd-1' });
+    expect(handle).toMatchObject({ hostPort: listenPort, forwarderId: 'fwd-1' });
+    expect(handle.tls.caPem).toContain('BEGIN CERTIFICATE');
+    expect(handle.tls.clientPem).toContain('BEGIN CERTIFICATE');
+    expect(handle.tls.clientPem).toContain('PRIVATE KEY');
     const spec = engine.containers.get('fwd-1')?.spec;
     expect(spec).toMatchObject({
       image: FORWARDER_IMAGE,
-      cmd: ['tcp-listen:27017,fork,reuseaddr', 'tcp-connect:shop-db:27017'],
+      cmd: [
+        expect.stringMatching(/^openssl-listen:27017,.*verify=1$/),
+        'tcp-connect:shop-db:27017',
+      ],
+      entrypoint: ['sh', '-c', expect.stringContaining('exec socat'), 'sh'],
+      env: [expect.stringContaining('FORWARDER_CERT='), expect.stringContaining('FORWARDER_KEY=')],
       labels: { [FORWARDER_LABEL]: TARGET_ID },
       networkMode: 'app_net',
       exposedPorts: ['27017/tcp'],

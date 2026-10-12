@@ -27,6 +27,7 @@ export {
   createForwarderManager,
   forwarderLabelFor,
   type ForwarderHandle,
+  type ForwarderTls,
   type ForwarderManager,
   type ForwarderManagerOptions,
 } from './forwarder';

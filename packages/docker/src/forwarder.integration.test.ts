@@ -81,7 +81,13 @@ describe('Docker discovery and forwarder against a real engine', () => {
       const handle = await manager.ensure(target);
       const mongoClient = new MongoClient(
         `mongodb://127.0.0.1:${handle.hostPort}/?directConnection=true`,
-        { serverSelectionTimeoutMS: 10_000 },
+        {
+          serverSelectionTimeoutMS: 10_000,
+          tls: true,
+          ca: handle.tls.caPem,
+          cert: handle.tls.clientPem,
+          key: handle.tls.clientPem,
+        },
       );
       try {
         await mongoClient.connect();
@@ -94,6 +100,40 @@ describe('Docker discovery and forwarder against a real engine', () => {
       await manager.release(target.id);
 
       expect(await engine.listContainersByLabel(forwarderLabelFor(target.id))).toEqual([]);
+    },
+    TEST_TIMEOUT_MS,
+  );
+
+  it(
+    'refuses a client that has no certificate or one from another forwarder',
+    async () => {
+      const handle = await manager.ensure(target);
+      const other = await createForwarderManager({ client: engine, scope: OTHER_SCOPE }).ensure(
+        target,
+      );
+      const attempt = async (options: ConstructorParameters<typeof MongoClient>[1]) => {
+        const client = new MongoClient(
+          `mongodb://127.0.0.1:${handle.hostPort}/?directConnection=true`,
+          { serverSelectionTimeoutMS: 3_000, tls: true, ca: handle.tls.caPem, ...options },
+        );
+        try {
+          await client.connect();
+          await client.db('admin').command({ ping: 1 });
+        } finally {
+          await client.close();
+        }
+      };
+
+      await expect(attempt({})).rejects.toThrow();
+      await expect(
+        attempt({ cert: other.tls.clientPem, key: other.tls.clientPem }),
+      ).rejects.toThrow();
+      await expect(
+        attempt({ cert: handle.tls.clientPem, key: handle.tls.clientPem }),
+      ).resolves.toBeUndefined();
+
+      await createForwarderManager({ client: engine, scope: OTHER_SCOPE }).cleanupAll();
+      await manager.release(target.id);
     },
     TEST_TIMEOUT_MS,
   );

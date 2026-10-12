@@ -137,6 +137,10 @@ The app uses these routes:
   loopback port and relays traffic to the MongoDB container. The app labels the forwarder
   `mongo-gui.forwarder`. It removes the forwarder when you disconnect, when you quit the app,
   and when it starts. The app pulls the forwarder image when the machine does not have it.
+  The forwarder requires a client certificate (mutual TLS). The app makes a new certificate pair
+  for each forwarder, valid for 7 days, and connects with it. The certificate files sit in a
+  private temporary directory that the app deletes with the forwarder. Other tools on the
+  machine cannot use the forwarder port without them.
 
 If the container sets `MONGO_INITDB_ROOT_USERNAME` and `MONGO_INITDB_ROOT_PASSWORD`, the app
 fills in the user name and password for you.
