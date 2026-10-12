@@ -1,6 +1,7 @@
 import { Box, Button, Group, Tabs, Text } from '@mantine/core';
 import { useVirtualizer } from '@tanstack/react-virtual';
 import { useMemo, useRef } from 'react';
+import { useFontScale } from '../../theme/font-scale';
 import { useAppStore, useAppStoreApi } from '../../state/app-store-context';
 import type { PrintLine } from '../../state/editors';
 import { clockTime, countOf } from './labels';
@@ -56,10 +57,11 @@ export function OutputLines() {
     () => new Map(Object.values(tabs).map((tab) => [tab.id, tab.database] as const)),
     [tabs],
   );
+  const lineHeight = Math.round(LINE_HEIGHT_PX * useFontScale());
   const virtualizer = useVirtualizer({
     count: output.length,
     getScrollElement: () => scroller.current,
-    estimateSize: () => LINE_HEIGHT_PX,
+    estimateSize: () => lineHeight,
     overscan: 20,
   });
 
@@ -103,12 +105,12 @@ export function OutputLines() {
                   top: 0,
                   left: 0,
                   width: '100%',
-                  minHeight: LINE_HEIGHT_PX,
+                  minHeight: lineHeight,
                   transform: `translateY(${item.start}px)`,
                   display: 'flex',
                   gap: 8,
                   fontFamily: 'var(--mantine-font-family-monospace)',
-                  fontSize: 12,
+                  fontSize: 'calc(var(--mg-font-scale, 1) * 12px)',
                   whiteSpace: 'pre',
                   overflow: 'hidden',
                 }}

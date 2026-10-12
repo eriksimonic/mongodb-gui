@@ -2,7 +2,7 @@
 
 .mg-explain {
   min-height: 100%;
-  font-size: 13px;
+  font-size: calc(var(--mg-font-scale, 1) * 13px);
 }
 
 .mg-explain-statement {
@@ -23,7 +23,7 @@
   white-space: nowrap;
   text-overflow: ellipsis;
   font-family: var(--mantine-font-family-monospace);
-  font-size: 12px;
+  font-size: calc(var(--mg-font-scale, 1) * 12px);
 }
 
 .mg-explain-statement-open code {
@@ -52,7 +52,7 @@
 
 .mg-explain-summary-item dt {
   color: var(--mantine-color-dimmed);
-  font-size: 11px;
+  font-size: calc(var(--mg-font-scale, 1) * 11px);
 }
 
 .mg-explain-summary-item dd {
@@ -108,12 +108,12 @@
 .mg-explain-warning-advice {
   display: block;
   color: var(--mantine-color-dimmed);
-  font-size: 12px;
+  font-size: calc(var(--mg-font-scale, 1) * 12px);
 }
 
 .mg-explain-warning-stage {
   color: var(--mantine-color-dimmed);
-  font-size: 12px;
+  font-size: calc(var(--mg-font-scale, 1) * 12px);
 }
 
 .mg-explain-index-line {
@@ -194,7 +194,7 @@
   flex-wrap: wrap;
   gap: 12px;
   color: var(--mantine-color-dimmed);
-  font-size: 12px;
+  font-size: calc(var(--mg-font-scale, 1) * 12px);
   font-variant-numeric: tabular-nums;
 }
 
@@ -223,7 +223,7 @@
 
 .mg-explain-bounds summary {
   color: var(--mantine-color-dimmed);
-  font-size: 12px;
+  font-size: calc(var(--mg-font-scale, 1) * 12px);
   cursor: pointer;
 }
 
@@ -231,7 +231,7 @@
   margin: 4px 0 0;
   overflow-x: auto;
   font-family: var(--mantine-font-family-monospace);
-  font-size: 12px;
+  font-size: calc(var(--mg-font-scale, 1) * 12px);
 }
 
 .mg-explain-group {
@@ -239,7 +239,7 @@
   padding-right: 8px;
   padding-bottom: 2px;
   color: var(--mg-accent-text);
-  font-size: 12px;
+  font-size: calc(var(--mg-font-scale, 1) * 12px);
   font-weight: 600;
 }
 
@@ -280,7 +280,7 @@
 .mg-explain-tip {
   display: grid;
   gap: 4px;
-  font-size: 12px;
+  font-size: calc(var(--mg-font-scale, 1) * 12px);
   line-height: 1.4;
 }
 
@@ -297,7 +297,7 @@
 
 .mg-explain-shard-error {
   font-family: var(--mantine-font-family-monospace);
-  font-size: 12px;
+  font-size: calc(var(--mg-font-scale, 1) * 12px);
   overflow-wrap: anywhere;
 }
 

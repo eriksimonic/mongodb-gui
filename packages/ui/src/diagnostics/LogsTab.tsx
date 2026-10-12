@@ -171,7 +171,11 @@ export function LogsTab({ store, kind }: LogsTabProps) {
               <div
                 role="row"
                 className="mg-log-head"
-                style={{ ...rowStyle(), fontWeight: 600, fontSize: 12 }}
+                style={{
+                  ...rowStyle(),
+                  fontWeight: 600,
+                  fontSize: 'calc(var(--mg-font-scale, 1) * 12px)',
+                }}
               >
                 <span />
                 <span>Time</span>
@@ -227,7 +231,7 @@ function rowStyle(): CSSProperties {
     alignItems: 'center',
     columnGap: 8,
     padding: '0 6px',
-    fontSize: 12,
+    fontSize: 'calc(var(--mg-font-scale, 1) * 12px)',
   };
 }
 

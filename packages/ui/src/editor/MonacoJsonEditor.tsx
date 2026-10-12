@@ -1,12 +1,9 @@
 import { useComputedColorScheme } from '@mantine/core';
 import Editor from '@monaco-editor/react';
 import { useMemo } from 'react';
-import { useAppStore } from '../state/app-store-context';
 import './monaco-setup';
+import { useEditorFontSize } from './use-editor-font-size';
 import type { JsonEditorHandle, JsonEditorProps } from './JsonEditor';
-
-/** Used before the saved settings load, and while the vault is locked. */
-const DEFAULT_EDITOR_FONT_SIZE = 13;
 
 /** Monaco in JSON mode. Loaded lazily by JsonEditor, so Monaco is not evaluated outside the editors. */
 export function MonacoJsonEditor({
@@ -20,9 +17,7 @@ export function MonacoJsonEditor({
   // Follows the app's colour scheme. The dark theme is the default, as in the rest of the app.
   const scheme = useComputedColorScheme('dark');
   // The saved font size. Monaco applies a changed options object in place, so the editor keeps its text.
-  const fontSize = useAppStore(
-    (state) => state.settings?.editorFontSize ?? DEFAULT_EDITOR_FONT_SIZE,
-  );
+  const fontSize = useEditorFontSize();
   const options = useMemo(
     () => ({
       ariaLabel: label,

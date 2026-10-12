@@ -75,7 +75,9 @@ export function ServerStatusTab({ store }: ServerStatusTabProps) {
       <LoadState state={state}>
         {() =>
           relaxed === undefined || canonical === undefined ? null : (
-            <div style={{ fontFamily: 'monospace', fontSize: 12 }}>
+            <div
+              style={{ fontFamily: 'monospace', fontSize: 'calc(var(--mg-font-scale, 1) * 12px)' }}
+            >
               {childEntries(relaxed).map(([key, child]) => (
                 <TreeNode
                   key={key}

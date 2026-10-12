@@ -110,7 +110,14 @@ export function SessionsTab({ store }: SessionsTabProps) {
                 The running operations of these sessions stop, and the sessions end:
               </span>
               {selected.map((id) => (
-                <span key={id} style={{ display: 'block', fontFamily: 'monospace', fontSize: 12 }}>
+                <span
+                  key={id}
+                  style={{
+                    display: 'block',
+                    fontFamily: 'monospace',
+                    fontSize: 'calc(var(--mg-font-scale, 1) * 12px)',
+                  }}
+                >
                   {id}
                 </span>
               ))}

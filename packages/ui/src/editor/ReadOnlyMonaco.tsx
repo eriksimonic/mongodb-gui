@@ -4,6 +4,7 @@ import { useEffect, useRef } from 'react';
 import './monaco-setup';
 import { defineEditorThemes, themeFor } from './editor-theme';
 import { registerMongoshLanguage } from './mongosh-language';
+import { useEditorFontSize } from './use-editor-font-size';
 import type { ReadOnlyCodeProps } from './ReadOnlyCode';
 
 /** Scrolling within this many pixels of the end asks for more. */
@@ -12,6 +13,7 @@ const NEAR_END_PX = 200;
 /** Read-only Monaco with folding and find. Loaded lazily by ReadOnlyCode. */
 export function ReadOnlyMonaco({ label, value, language, wrap, onNearEnd }: ReadOnlyCodeProps) {
   const scheme = useComputedColorScheme('dark');
+  const fontSize = useEditorFontSize();
   const nearEnd = useRef(onNearEnd);
   useEffect(() => {
     nearEnd.current = onNearEnd;
@@ -40,7 +42,7 @@ export function ReadOnlyMonaco({ label, value, language, wrap, onNearEnd }: Read
         domReadOnly: true,
         minimap: { enabled: false },
         scrollBeyondLastLine: false,
-        fontSize: 13,
+        fontSize,
         tabSize: 2,
         wordWrap: wrap === true ? 'on' : 'off',
         automaticLayout: true,

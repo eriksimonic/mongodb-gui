@@ -10,8 +10,8 @@
 .dv-shell {
   --dv-group-view-background-color: var(--mg-surface-0);
   --dv-tabs-and-actions-container-background-color: var(--mg-surface-1);
-  --dv-tabs-and-actions-container-height: 28px;
-  --dv-tabs-and-actions-container-font-size: 12px;
+  --dv-tabs-and-actions-container-height: calc(var(--mg-font-scale, 1) * 28px);
+  --dv-tabs-and-actions-container-font-size: calc(var(--mg-font-scale, 1) * 12px);
   --dv-activegroup-visiblepanel-tab-background-color: var(--mg-surface-0);
   --dv-activegroup-hiddenpanel-tab-background-color: var(--mg-surface-2);
   --dv-inactivegroup-visiblepanel-tab-background-color: var(--mg-surface-1);

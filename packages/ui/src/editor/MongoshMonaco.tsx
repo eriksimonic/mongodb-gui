@@ -11,6 +11,7 @@ import {
   setCompletionSource,
 } from './mongosh-language';
 import { registerSqlLanguage, SQL_LANGUAGE } from './sql-language';
+import { useEditorFontSize } from './use-editor-font-size';
 import type { CompletionSource } from './completion-source';
 import type { MongoshEditorProps, RunRequest } from './MongoshEditor';
 
@@ -68,6 +69,7 @@ export function MongoshMonaco({
   onExplain,
 }: MongoshEditorProps) {
   const scheme = useComputedColorScheme('dark');
+  const fontSize = useEditorFontSize();
   // Handlers read the latest props, because Monaco keeps the callbacks it got on mount.
   const latest = useRef({ onRun, onRunAll, onExplain, source, value });
   const modelUri = useRef<string | undefined>(undefined);
@@ -218,7 +220,7 @@ export function MongoshMonaco({
         ariaLabel: label,
         minimap: { enabled: false },
         scrollBeyondLastLine: false,
-        fontSize: 13,
+        fontSize,
         tabSize: 2,
         wordWrap: 'on',
         automaticLayout: true,

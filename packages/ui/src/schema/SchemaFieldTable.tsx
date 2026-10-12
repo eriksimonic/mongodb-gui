@@ -49,7 +49,10 @@ const COLUMNS =
   'minmax(200px, 2fr) minmax(170px, 1.5fr) 150px 70px minmax(150px, 1.2fr) minmax(170px, 2fr) 36px';
 
 /** Header text shared by the sortable and the plain column headers. */
-const HEADER_TEXT_STYLE: CSSProperties = { fontSize: 12, fontWeight: 600 };
+const HEADER_TEXT_STYLE: CSSProperties = {
+  fontSize: 'calc(var(--mg-font-scale, 1) * 12px)',
+  fontWeight: 600,
+};
 
 const SORT_LABELS: Readonly<Record<SchemaSortKey, string>> = {
   name: 'Path',

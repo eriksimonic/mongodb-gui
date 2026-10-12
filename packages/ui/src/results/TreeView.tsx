@@ -23,6 +23,7 @@ import { useEffect, useMemo, useRef, useState } from 'react';
 import { DestructiveDialog } from '../components/management/DestructiveDialog';
 import { isInsideControl } from '../components/is-inside-control';
 import { errorText } from '../components/notify-error';
+import { useFontScale } from '../theme/font-scale';
 import { COPY_MAX_CHARS, fullDocuments } from './full-documents';
 import {
   BSON_TYPE_LABELS,
@@ -120,10 +121,11 @@ export function TreeView({
   const [notice, setNotice] = useState<string | undefined>(undefined);
   const scroller = useRef<HTMLDivElement>(null);
   const rows = useMemo(() => visibleRows(documents, state), [documents, state]);
+  const rowHeight = Math.round(ROW_HEIGHT_PX * useFontScale());
   const virtualizer = useVirtualizer({
     count: rows.length,
     getScrollElement: () => scroller.current,
-    estimateSize: () => ROW_HEIGHT_PX,
+    estimateSize: () => rowHeight,
     overscan: OVERSCAN_ROWS,
   });
 
@@ -283,7 +285,7 @@ export function TreeView({
                   top: 0,
                   left: 0,
                   width: '100%',
-                  height: ROW_HEIGHT_PX,
+                  height: rowHeight,
                   transform: `translateY(${item.start}px)`,
                   display: 'grid',
                   gridTemplateColumns: 'minmax(160px, 1fr) minmax(160px, 2fr) 90px 96px',
@@ -291,7 +293,7 @@ export function TreeView({
                   gap: 8,
                   paddingLeft: row.depth * INDENT_PX,
                   borderBottom: '1px solid var(--mantine-color-dark-5)',
-                  fontSize: 13,
+                  fontSize: 'calc(var(--mg-font-scale, 1) * 13px)',
                 }}
               >
                 <div style={{ display: 'flex', alignItems: 'center', minWidth: 0, gap: 4 }}>
