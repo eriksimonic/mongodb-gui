@@ -24,6 +24,7 @@ import {
   type AppError,
   type CallInput,
   type AppVersions,
+  type StartupSettings,
   type ChangeEvent,
   type ChangeTarget,
   type ChangeWatchOptions,
@@ -224,6 +225,13 @@ import { toolsRoots } from '../tools/paths';
 import type { SpawnFn } from '../tools/probe';
 import { createToolsRegistry, type ToolsRegistry } from '../tools/registry';
 
+/** The start-up options file and the app restart. The Electron wiring lives in index.ts. */
+export interface StartupControl {
+  readonly read: () => StartupSettings;
+  readonly write: (settings: StartupSettings) => void;
+  readonly restart: () => void;
+}
+
 /** Native file dialogs and the shell reveal. The main window's dialogs live in index.ts. */
 export interface NativeDialogs {
   showOpenDialog(input: OpenDialogInput): Promise<DialogResult>;
@@ -307,6 +315,8 @@ export interface RouterDeps {
   readonly openExternal?: (url: string) => Promise<void>;
   /** Version strings for the About panel. Defaults to what process.versions reports. */
   readonly versions?: () => AppVersions;
+  /** Reads and writes the start-up options and restarts the app. Without it these calls fail with INTERNAL. */
+  readonly startup?: StartupControl;
   /** File dialogs for import and export. Calls to them fail with INTERNAL without it. */
   readonly dialogs?: NativeDialogs;
   /** The transfer functions. Tests inject a fake. Defaults to the adapter. */
@@ -651,6 +661,13 @@ export function createRouter(deps: RouterDeps): Router {
       throw new AppErrorException(appError('INTERNAL', 'Updates are not available.'));
     }
     return deps.updates;
+  };
+
+  const startup = (): StartupControl => {
+    if (deps.startup === undefined) {
+      throw new AppErrorException(appError('INTERNAL', 'Start-up options are not available.'));
+    }
+    return deps.startup;
   };
 
   const appVersions = (): AppVersions => {
@@ -1738,6 +1755,14 @@ export function createRouter(deps: RouterDeps): Router {
       await deps.openExternal(new URL(input.url).href);
     }),
     entry('app.versions', rpcContract.app.versions, () => appVersions()),
+    entry('app.getStartupSettings', rpcContract.app.getStartupSettings, () => startup().read()),
+    entry('app.setStartupSettings', rpcContract.app.setStartupSettings, (input) => {
+      startup().write(input);
+      return input;
+    }),
+    entry('app.restart', rpcContract.app.restart, () => {
+      startup().restart();
+    }),
     entry('app.showOpenDialog', rpcContract.app.showOpenDialog, async (input) => {
       const picked = await dialogs().showOpenDialog(input);
       if (picked.path !== undefined) {

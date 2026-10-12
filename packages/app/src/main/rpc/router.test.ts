@@ -1852,4 +1852,12 @@ describe('connection files', { timeout: 30_000 }, () => {
     expect(replaced.uri).toBe('mongodb://remote.example.com:27017');
     expect(replaced.tls).toBeUndefined();
   });
+
+  it('fails the start-up option calls with INTERNAL when the app gives no controls', async () => {
+    harness = buildHarness();
+    const { router } = harness;
+
+    expectError(await router.handle('app.getStartupSettings', undefined), 'INTERNAL');
+    expectError(await router.handle('app.restart', undefined), 'INTERNAL');
+  });
 });

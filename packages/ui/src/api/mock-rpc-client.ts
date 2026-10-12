@@ -35,6 +35,7 @@ import {
   type VaultStatus,
   directConnectionName,
   directUriFor,
+  type StartupSettings,
 } from '@mongo-gui/core';
 import type { MockReplicaSetInfo } from './mock-replication';
 import {
@@ -375,6 +376,7 @@ function databaseStats(database: MockDatabase): DatabaseStats {
 export function createMockUiApi(options: MockUiApiOptions = {}): UiApi {
   const latencyMs = options.latencyMs ?? 0;
   const state = initialState(options.preset ?? 'fresh');
+  let startupSettings: StartupSettings = { disableGpu: false };
   state.dockerAvailable = options.docker !== 'unavailable';
   const listeners = new Set<(event: RpcEvent) => void>();
   if (options.updates !== undefined && options.updates.states.length > 0) {
@@ -800,6 +802,14 @@ export function createMockUiApi(options: MockUiApiOptions = {}): UiApi {
     app: {
       openExternal: method(rpcContract.app.openExternal, latencyMs, () => undefined),
       versions: method(rpcContract.app.versions, latencyMs, () => ({ ...MOCK_VERSIONS })),
+      getStartupSettings: method(rpcContract.app.getStartupSettings, latencyMs, () => ({
+        ...startupSettings,
+      })),
+      setStartupSettings: method(rpcContract.app.setStartupSettings, latencyMs, (input) => {
+        startupSettings = { ...input };
+        return { ...startupSettings };
+      }),
+      restart: method(rpcContract.app.restart, latencyMs, () => undefined),
       showOpenDialog: method(
         rpcContract.app.showOpenDialog,
         latencyMs,

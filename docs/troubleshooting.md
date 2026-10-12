@@ -123,6 +123,14 @@ server. A query that scans a large collection takes as long as the query itself.
 3. Create an index on that field in the "Indexes" panel. Then explain again.
 4. Use `executionStats` only when you need the counts and the timings.
 
+## Use less memory
+
+With a vault open and one connection, the app uses about 400 MB, and the GPU process is about 125 MB of that. Turn on Settings > Performance > Disable GPU acceleration and restart. The GPU process drops to about 30 MB, which saves about 90 MB in total. Rendering moves to the CPU, so scrolling a large grid and the monitor charts use more CPU.
+
+The option is stored in `startup.json` in the app data folder, outside the vault, because Electron reads it before the vault can be opened. Starting the app with `--disable-gpu` has the same effect for one run.
+
+Large results cost more. A result of 50,000 documents (about 14 MB of data) takes about 320 MB in the window, and the memory returns about 15 seconds after you run a smaller query. Use the batch size, `limit` or a projection instead of `toArray()` on a large collection.
+
 ## Where the logs are
 
 The app writes its logs to standard error. It does not write a log file. A log line is one JSON

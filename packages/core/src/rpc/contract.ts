@@ -15,7 +15,7 @@ import {
   IndexInfoSchema,
 } from '../schemas/catalog';
 import { SettingsPatchSchema, SettingsSchema } from '../schemas/settings';
-import { AppVersionsSchema } from '../schemas/app';
+import { AppVersionsSchema, StartupSettingsSchema } from '../schemas/app';
 import { LayoutGetOutputSchema, LayoutKeySchema, LayoutSetInputSchema } from '../schemas/layout';
 import {
   MonitorConfigOutputSchema,
@@ -618,6 +618,11 @@ export const rpcContract = {
   app: {
     openExternal: defineCall(z.object({ url: externalUrl }), z.void()),
     versions: defineCall(z.void(), AppVersionsSchema),
+    /** Options that apply at the next start. They are stored outside the vault. */
+    getStartupSettings: defineCall(z.void(), StartupSettingsSchema),
+    setStartupSettings: defineCall(StartupSettingsSchema, StartupSettingsSchema),
+    /** Quits the app and starts it again. */
+    restart: defineCall(z.void(), z.void()),
     /** Shows the native open dialog. The renderer gets only the path the user picked. */
     showOpenDialog: defineCall(OpenDialogInputSchema, DialogResultSchema),
     showSaveDialog: defineCall(SaveDialogInputSchema, DialogResultSchema),
