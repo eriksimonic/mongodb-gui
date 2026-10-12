@@ -181,6 +181,7 @@ import {
   DEFAULT_KDF_PARAMS,
   EncryptedStore,
   FavouritesRepository,
+  SavedRestoresRepository,
   HistoryRepository,
   LayoutRepository,
   SettingsRepository,
@@ -238,6 +239,7 @@ export interface RouterRepos {
   readonly connections: ConnectionsRepository;
   readonly history: HistoryRepository;
   readonly favourites: FavouritesRepository;
+  readonly savedRestores: SavedRestoresRepository;
   readonly settings: SettingsRepository;
   readonly layout: LayoutRepository;
 }
@@ -1453,6 +1455,33 @@ export function createRouter(deps: RouterDeps): Router {
       repos().favourites.remove(input.id);
     }),
 
+    entry('savedRestores.list', rpcContract.savedRestores.list, () => repos().savedRestores.list()),
+    entry('savedRestores.save', rpcContract.savedRestores.save, (input) => {
+      // Only a source inspected this session, so a saved path was always picked in a dialog.
+      if (!inspectedSources.has(resolveRequestPath(input.source))) {
+        throw new AppErrorException(appError('VALIDATION', 'Open the backup in a dialog first.'));
+      }
+      return repos().savedRestores.save({ ...input, source: resolveRequestPath(input.source) });
+    }),
+    entry('savedRestores.open', rpcContract.savedRestores.open, async (input) => {
+      const saved = repos()
+        .savedRestores.list()
+        .find((item) => item.id === input.id);
+      if (saved === undefined) {
+        throw new AppErrorException(appError('NOT_FOUND', 'The saved restore was not found.'));
+      }
+      const inspection = await tools().inspect(saved.source);
+      inspectedSources.add(saved.source);
+      inspectedSources.add(inspection.path);
+      return inspection;
+    }),
+    entry('savedRestores.rename', rpcContract.savedRestores.rename, (input) =>
+      repos().savedRestores.rename(input.id, input.name),
+    ),
+    entry('savedRestores.remove', rpcContract.savedRestores.remove, (input) => {
+      repos().savedRestores.remove(input.id);
+    }),
+
     entry('profiler.level', rpcContract.profiler.level, (input) =>
       driverCall(() => profiler.level(profilerClient(input.connectionId), input.database)),
     ),
@@ -2302,6 +2331,7 @@ export function createRepos(store: EncryptedStore): RouterRepos {
     connections: new ConnectionsRepository(store),
     history: new HistoryRepository(store, settings),
     favourites: new FavouritesRepository(store),
+    savedRestores: new SavedRestoresRepository(store),
     settings,
     layout: new LayoutRepository(store),
   };

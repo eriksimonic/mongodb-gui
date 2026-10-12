@@ -3,11 +3,13 @@ import { describe, expect, it } from 'vitest';
 import {
   databaseCheckState,
   draftFromInspection,
+  draftFromSaved,
   includeFrom,
   isCollectionChecked,
   renameRows,
   restoreProblemsOf,
   restoreStartInput,
+  savedRestoreInput,
   setRename,
   toggleCollection,
   toggleDatabase,
@@ -177,5 +179,39 @@ describe('restore model', () => {
     expect(input.options.numInsertionWorkersPerCollection).toBe(1);
     expect(input.acknowledged).toEqual(['admin-drop']);
     expect(input.confirmation).toBe('Local');
+  });
+
+  it('round-trips a draft through a saved restore', () => {
+    let draft = draftFromInspection(INSPECTION, OPTIONS);
+    draft = toggleCollection(draft, 'shop', 'users', false);
+    draft = setRename(draft, 'blog', 'blog_copy');
+    const saved = savedRestoreInput(
+      { ...draft, drop: true, numParallelCollections: 2 },
+      { name: 'Nightly', connectionId: ID, source: '/b' },
+    );
+    expect(saved).toMatchObject({ name: 'Nightly', connectionId: ID, source: '/b' });
+    const restored = draftFromSaved(INSPECTION, saved, OPTIONS);
+    expect(restored.unchecked).toEqual(['shop.users']);
+    expect(restored.renameTo).toEqual({ blog: 'blog_copy' });
+    expect(restored.drop).toBe(true);
+    expect(restored.numParallelCollections).toBe(2);
+    expect(restoreStartInput(restored, { connectionId: ID, source: '/b' }).options).toEqual(
+      saved.options,
+    );
+  });
+
+  it('leaves namespaces the saved restore did not select unchecked, and falls back on tools', () => {
+    const saved = savedRestoreInput(
+      toggleCollection(draftFromInspection(INSPECTION, OPTIONS), 'shop', 'users', false),
+      { name: 'Shop', connectionId: ID, source: '/b' },
+    );
+    const grown = { ...INSPECTION, namespaces: [...INSPECTION.namespaces, ns('shop', 'carts')] };
+    const restored = draftFromSaved(
+      grown,
+      { ...saved, toolsVersion: '99.0.0' },
+      { installedVersions: ['100.10.0'], preference: '100.10.0' },
+    );
+    expect(restored.unchecked).toEqual(['shop.users', 'shop.carts']);
+    expect(restored.toolsVersion).toBe('100.10.0');
   });
 });

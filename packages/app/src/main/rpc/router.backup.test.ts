@@ -97,6 +97,7 @@ interface FakeTools extends BackupTools {
     cancel: Mock<ToolsDownloads['cancel']>;
     cancelAll: Mock<ToolsDownloads['cancelAll']>;
   };
+  readonly inspect: Mock<BackupTools['inspect']>;
   readonly listCalls: string[];
   wiring?: BackupToolsWiring;
 }
@@ -141,7 +142,7 @@ function fakeTools(): FakeTools {
       dispose: vi.fn(async () => undefined),
     },
     describeServer: vi.fn(async () => SERVER_INFO),
-    inspect: vi.fn(async (path: string) =>
+    inspect: vi.fn<BackupTools['inspect']>(async (path) =>
       inspection(path, path.endsWith('.gz') ? 'archive' : 'directory'),
     ),
   };
@@ -451,6 +452,40 @@ describe('backup calls', () => {
       await router.handle('backup.startRestore', restoreInput(connectionId, archive)),
       'VALIDATION',
     );
+  });
+
+  it('saves only an inspected source and reopens it for a restore after a renderer reset', async () => {
+    const harness = buildHarness();
+    const { router, tools } = harness;
+    const connectionId = await unlockWithProfile(harness);
+    const archive = join(dir, 'shop.archive.gz');
+    writeFileSync(archive, 'archive');
+    const { source, toolsVersion, options } = restoreInput(connectionId, archive);
+    const input = { name: 'Nightly', connectionId, source, toolsVersion, options };
+
+    expectError(await router.handle('savedRestores.save', input), 'VALIDATION');
+    await pick(harness, archive, false);
+    expectValue(await router.handle('backup.inspect', { path: archive }));
+    const saved = expectValue(await router.handle('savedRestores.save', input)) as { id: string };
+    expect(expectValue(await router.handle('savedRestores.list', undefined))).toEqual([saved]);
+    expectValue(await router.handle('savedRestores.rename', { id: saved.id, name: 'Weekly' }));
+
+    router.resetRenderer();
+    expectError(
+      await router.handle('backup.startRestore', restoreInput(connectionId, archive)),
+      'VALIDATION',
+    );
+    expect(expectValue(await router.handle('savedRestores.open', { id: saved.id }))).toMatchObject({
+      path: archive,
+    });
+    expectValue(await router.handle('backup.startRestore', restoreInput(connectionId, archive)));
+
+    tools.inspect.mockRejectedValueOnce(
+      new AppErrorException(appError('NOT_FOUND', 'The backup was not found.')),
+    );
+    expectError(await router.handle('savedRestores.open', { id: saved.id }), 'NOT_FOUND');
+    expectValue(await router.handle('savedRestores.remove', { id: saved.id }));
+    expectError(await router.handle('savedRestores.open', { id: saved.id }), 'NOT_FOUND');
   });
 
   it('reveals a file a backup wrote and refuses other paths', async () => {

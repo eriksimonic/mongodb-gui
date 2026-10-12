@@ -18,6 +18,7 @@ import {
   type BackupInspection,
   type BackupServerInfo,
   type FindingCode,
+  type SavedRestore,
   type ToolsListOutput,
   type ToolsVersion,
 } from '@mongo-gui/core';
@@ -32,15 +33,18 @@ import { useBackupDialogs, type BackupDialogRequest } from './backup-dialog-stor
 import type { BackupProblem } from './backup-model';
 import { RestoreContentsTree } from './RestoreContentsTree';
 import { RestoreSourceSummary } from './RestoreSourceSummary';
+import { SavedRestores } from './SavedRestores';
 import {
   defaultRestoreTools,
   draftFromInspection,
+  draftFromSaved,
   includeFrom,
   isCollectionChecked,
   renameRows,
   renamesOf,
   restoreProblemsOf,
   restoreStartInput,
+  savedRestoreInput,
   setRename,
   type RestoreDraft,
 } from './restore-model';
@@ -184,6 +188,28 @@ export function RestoreDialogBody({
         setInspecting(false);
       }
     });
+  }
+
+  // Inspecting the saved source again is what lets a restore from it start. A source that is gone
+  // leaves the form as it was.
+  async function openSaved(saved: SavedRestore) {
+    setInspecting(true);
+    try {
+      const found = await rpc.savedRestores.open({ id: saved.id });
+      setInspection(found);
+      setDraft(
+        draftFromSaved(found, saved, { installedVersions: installed, preference: tools?.resolved }),
+      );
+      setAcknowledged([]);
+      setConfirmation('');
+      setLoadProblem(undefined);
+    } catch (failure) {
+      setLoadProblem(
+        `${saved.name} cannot be opened from ${saved.source}. ${errorText(failure)} Choose the backup again.`,
+      );
+    } finally {
+      setInspecting(false);
+    }
   }
 
   const filtered = draft !== undefined && includeFrom(draft) !== undefined;
@@ -344,6 +370,18 @@ export function RestoreDialogBody({
           {inspection?.path ?? 'Choose the backup to restore.'}
         </Text>
       </Group>
+      <SavedRestores
+        connectionId={connectionId}
+        current={
+          effective === undefined || inspection === undefined || problems.length > 0
+            ? undefined
+            : (name) =>
+                savedRestoreInput(effective, { name, connectionId, source: inspection.path })
+        }
+        onOpen={(saved) => {
+          void openSaved(saved);
+        }}
+      />
       {inspection === undefined || draft === undefined || effective === undefined ? null : (
         <>
           <RestoreSourceSummary inspection={inspection} />

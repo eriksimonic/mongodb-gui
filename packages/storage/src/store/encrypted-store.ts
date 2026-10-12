@@ -6,7 +6,8 @@ import type { Vault } from '../vault/vault';
 import { applyMigrations } from './migrations';
 import { parseStored, type PayloadSchema } from './validation';
 
-export type StoreTable = 'connections' | 'history' | 'favourites' | 'settings' | 'layout';
+export type StoreTable =
+  'connections' | 'history' | 'favourites' | 'settings' | 'layout' | 'saved_restores';
 
 export interface EncryptedStoreOptions {
   readonly path: string;

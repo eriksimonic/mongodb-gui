@@ -15,6 +15,7 @@ export {
   type HistoryListQuery,
 } from './store/history-repo';
 export { FavouritesRepository } from './store/favourites-repo';
+export { SavedRestoresRepository } from './store/saved-restores-repo';
 export { SettingsRepository } from './store/settings-repo';
 export { LayoutRepository } from './store/layout-repo';
 export { exportConnections, importConnections } from './connections-file/connections-file';

@@ -21,6 +21,7 @@ import {
   type DatabaseInfo,
   type DatabaseStats,
   type Favourite,
+  type SavedRestore,
   type HistoryEntry,
   type IndexInfo,
   type ProfileEntry,
@@ -133,6 +134,7 @@ interface MockState {
   settings: Settings;
   history: HistoryEntry[];
   favourites: Favourite[];
+  savedRestores: SavedRestore[];
   /** Layout values by key. Stored as-is, like the encrypted store keeps them. */
   layout: Map<string, unknown>;
   /** Databases and collections per connection id. Mutated by the management calls. */
@@ -168,6 +170,7 @@ function initialState(preset: MockPreset): MockState {
     settings: { ...defaultSettings },
     history: [],
     favourites: [],
+    savedRestores: [],
     layout: new Map(),
     catalogs: new Map(),
     builds: new Map(),
@@ -460,6 +463,14 @@ export function createMockUiApi(options: MockUiApiOptions = {}): UiApi {
     if (state.vault === 'locked') {
       throw fail('VAULT_LOCKED', 'The vault is locked');
     }
+  }
+
+  function findSavedRestore(id: string): SavedRestore {
+    const found = state.savedRestores.find((item) => item.id === id);
+    if (found === undefined) {
+      throw fail('NOT_FOUND', 'The saved restore was not found.');
+    }
+    return found;
   }
 
   function requireConnected(connectionId: string): void {
@@ -881,6 +892,7 @@ export function createMockUiApi(options: MockUiApiOptions = {}): UiApi {
         state.settings = { ...defaultSettings };
         state.history = [];
         state.favourites = [];
+        state.savedRestores = [];
         state.layout.clear();
         state.catalogs.clear();
         state.builds.clear();
@@ -1258,6 +1270,34 @@ export function createMockUiApi(options: MockUiApiOptions = {}): UiApi {
           throw fail('VALIDATION', 'Favourite not found');
         }
         state.favourites = state.favourites.filter((item) => item.id !== id);
+      }),
+    },
+    savedRestores: {
+      list: method(rpcContract.savedRestores.list, latencyMs, () => {
+        requireUnlocked();
+        return [...state.savedRestores];
+      }),
+      save: method(rpcContract.savedRestores.save, latencyMs, (input) => {
+        requireUnlocked();
+        const saved: SavedRestore = { ...input, id: newId(), createdAt: new Date().toISOString() };
+        state.savedRestores.push(saved);
+        return saved;
+      }),
+      rename: method(rpcContract.savedRestores.rename, latencyMs, ({ id, name }) => {
+        requireUnlocked();
+        const saved = findSavedRestore(id);
+        saved.name = name;
+        return { ...saved };
+      }),
+      remove: method(rpcContract.savedRestores.remove, latencyMs, ({ id }) => {
+        requireUnlocked();
+        state.savedRestores = state.savedRestores.filter((item) => item.id !== id);
+      }),
+      open: method(rpcContract.savedRestores.open, latencyMs, ({ id }) => {
+        requireUnlocked();
+        const { source } = findSavedRestore(id);
+        picks.opened(source);
+        return backup.inspect(source);
       }),
     },
     profiler,

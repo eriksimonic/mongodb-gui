@@ -1,4 +1,4 @@
-import type { RpcEvent } from '@mongo-gui/core';
+import { RestoreOptionsSchema, type RpcEvent } from '@mongo-gui/core';
 import { describe, expect, it } from 'vitest';
 import { createMockUiApi } from './mock-rpc-client';
 import { localConnectionId, mockMasterPassword, stagingConnectionId } from './mock-fixtures';
@@ -276,6 +276,28 @@ describe('mock settings, history and favourites', () => {
     expect((await api.rpc.favourites.list()).map((item) => item.id)).toContain(saved.id);
     await api.rpc.favourites.remove({ id: saved.id });
     expect((await api.rpc.favourites.list()).map((item) => item.id)).not.toContain(saved.id);
+  });
+});
+
+describe('mock saved restores', () => {
+  it('saves, renames, reopens and removes a restore', async () => {
+    const api = createMockUiApi({ preset: 'unlocked' });
+    const saved = await api.rpc.savedRestores.save({
+      name: 'Nightly',
+      connectionId: localConnectionId,
+      source: '/backups/shop.archive',
+      toolsVersion: '100.9.4',
+      options: RestoreOptionsSchema.parse({}),
+    });
+    expect(await api.rpc.savedRestores.list()).toEqual([saved]);
+    const renamed = await api.rpc.savedRestores.rename({ id: saved.id, name: 'Weekly' });
+    expect(renamed.name).toBe('Weekly');
+    expect((await api.rpc.savedRestores.open({ id: saved.id })).path).toBe(saved.source);
+    await api.rpc.savedRestores.remove({ id: saved.id });
+    expect(await api.rpc.savedRestores.list()).toEqual([]);
+    await expect(api.rpc.savedRestores.open({ id: saved.id })).rejects.toMatchObject({
+      error: { code: 'NOT_FOUND' },
+    });
   });
 });
 
