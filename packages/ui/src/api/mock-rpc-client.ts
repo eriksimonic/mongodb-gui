@@ -1058,6 +1058,11 @@ export function createMockUiApi(options: MockUiApiOptions = {}): UiApi {
           ? connectedStatusOf(id)
           : { state: 'error', error: authError() };
         setStatus(id, status);
+        if (status.state === 'connected') {
+          state.connections = state.connections.map((item) =>
+            item.id === id ? { ...item, lastAccessedAt: new Date().toISOString() } : item,
+          );
+        }
         return status;
       }),
       disconnect: method(rpcContract.connections.disconnect, latencyMs, ({ id }) => {

@@ -56,9 +56,9 @@ describe('ConnectionsImportModal', () => {
     const preview = vi.spyOn(api.rpc.connections, 'previewImport');
     await openImport(api);
 
-    await readFile('short');
+    await readFile('abc');
 
-    expect(await screen.findByText('The passphrase must be at least 10 characters.')).toBeVisible();
+    expect(await screen.findByText('The passphrase must be at least 4 characters.')).toBeVisible();
     expect(preview).not.toHaveBeenCalled();
   });
 

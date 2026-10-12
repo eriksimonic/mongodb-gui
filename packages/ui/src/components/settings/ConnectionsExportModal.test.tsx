@@ -34,12 +34,12 @@ describe('ConnectionsExportModal', () => {
     const { api } = renderExport();
     const save = vi.spyOn(api.rpc.app, 'showSaveDialog');
     await screen.findAllByRole('checkbox');
-    expect(screen.getByText(/At least 10 characters/)).toBeInTheDocument();
+    expect(screen.getByText(/At least 4 characters/)).toBeInTheDocument();
 
-    await fillPassphrase('short');
+    await fillPassphrase('abc');
     fireEvent.click(screen.getByRole('button', { name: 'Export' }));
 
-    expect(await screen.findByText('The passphrase must be at least 10 characters.')).toBeVisible();
+    expect(await screen.findByText('The passphrase must be at least 4 characters.')).toBeVisible();
     expect(save).not.toHaveBeenCalled();
   });
 

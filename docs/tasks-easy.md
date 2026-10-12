@@ -23,3 +23,11 @@ Source: docs/gap-matrix.md. Other decided items wait for another day.
 
 - [ ] Show how dotted paths render today.
 - [ ] Decide whether to group nested fields under a parent header. Record the decision in the matrix.
+
+## Connections dialog like NoSQLBooster
+
+- [x] Table with sort and filter per column, checkboxes, and the toolbar New, Edit, Delete, Clone, Test, To URI, Export, Import.
+- [x] Last accessed time, stored on each successful connect.
+- [ ] TODO: import connections from a NoSQLBooster backup file. Needs a sample file from the user, because the format is not documented.
+- [ ] Export preselects the rows picked in the table (the export dialog still lists all connections).
+- [ ] Connect in a new window is left out, the app has one window.

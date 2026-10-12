@@ -7,7 +7,7 @@ import { userInfoEnd } from '../redact';
 
 export const CONNECTIONS_FILE_FORMAT = 'mongo-gui-connections';
 export const CONNECTIONS_FILE_VERSION = 1;
-export const CONNECTIONS_PASSPHRASE_MIN_LENGTH = 10;
+export const CONNECTIONS_PASSPHRASE_MIN_LENGTH = 4;
 export const CONNECTIONS_PASSPHRASE_MAX_LENGTH = 1024;
 
 /** Largest connections file the app reads. A file of a few hundred connections is far below it. */

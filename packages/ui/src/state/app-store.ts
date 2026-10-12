@@ -744,6 +744,21 @@ export function createAppStore(api: UiApi, initial: Partial<AppData> = {}): AppS
         try {
           const status = await rpc.connections.connect({ id });
           setStatus(id, status);
+          if (status.state === 'connected') {
+            const stamp = new Date().toISOString();
+            set((state) =>
+              state.connections.state === 'ready'
+                ? {
+                    connections: {
+                      state: 'ready',
+                      data: state.connections.data.map((item) =>
+                        item.id === id ? { ...item, lastAccessedAt: stamp } : item,
+                      ),
+                    },
+                  }
+                : {},
+            );
+          }
           offerDockerCredentials(id, status);
         } catch (error) {
           setStatus(id, { state: 'error', error: toAppError(error) });

@@ -146,9 +146,9 @@ describe('connections file', () => {
   });
 
   it('refuses a passphrase under ten characters without echoing it', () => {
-    const short = 'short 9ch';
+    const short = 'abc';
     expect(messageOf(() => exportConnections(profiles, short))).toBe(
-      'The passphrase must be at least 10 characters.',
+      'The passphrase must be at least 4 characters.',
     );
     const bytes = exportConnections(profiles, PASSPHRASE, CHEAP_KDF);
     expect(messageOf(() => importConnections(bytes, short))).not.toContain(short);

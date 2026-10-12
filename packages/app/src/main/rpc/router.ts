@@ -31,6 +31,7 @@ import {
   type ChangeWatchState,
   type ConnectionProfile,
   type ConnectionProfileInput,
+  type ConnectionStatus,
   type DialogResult,
   type LogLine,
   type ServerLog,
@@ -494,6 +495,14 @@ const DEFAULT_CATCH_UP_SECONDS = 10;
 export function createRouter(deps: RouterDeps): Router {
   let active: StoreHandles = { store: deps.store, repos: deps.repos };
   const repos = (): RouterRepos => active.repos;
+
+  /** Records the time of a successful connect on the profile, then returns the status unchanged. */
+  const stamped = (id: string, status: ConnectionStatus): ConnectionStatus => {
+    if (status.state === 'connected') {
+      repos().connections.markAccessed(id);
+    }
+    return status;
+  };
   const profiler = deps.profiler ?? adapterProfilerPort;
   const replicationPlans = createReplicationPlans();
   // At most one tail per connection and database, keyed by both.
@@ -1185,9 +1194,9 @@ export function createRouter(deps: RouterDeps): Router {
             error: appError('AUTH_FAILED', 'The server needs a user name and password.'),
           };
         }
-        return result.status;
+        return stamped(input.id, result.status);
       }
-      return deps.connections.connect(profile);
+      return stamped(input.id, await deps.connections.connect(profile));
     }),
     entry('connections.disconnect', rpcContract.connections.disconnect, (input) =>
       disconnectConnection(input.id, profileById(input.id)),

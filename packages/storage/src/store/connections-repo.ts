@@ -80,6 +80,19 @@ export class ConnectionsRepository {
     return updated;
   }
 
+  /**
+   * Records a successful connect. It leaves updated_at alone, because a connect is not an edit of the
+   * profile.
+   */
+  markAccessed(id: string): void {
+    this.#store.assertUnlocked();
+    const existing = this.#load(id);
+    const updated: ConnectionProfile = { ...existing, lastAccessedAt: new Date().toISOString() };
+    this.#store.db
+      .prepare('UPDATE connections SET payload = ? WHERE id = ?')
+      .run(this.#store.encryptPayload('connections', id, updated), id);
+  }
+
   remove(id: string): void {
     this.#store.assertUnlocked();
     const result = this.#store.db.prepare('DELETE FROM connections WHERE id = ?').run(id);

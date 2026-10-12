@@ -8,7 +8,6 @@ import {
   IconHelp,
   IconKeyboard,
   IconLock,
-  IconPlus,
   IconServer,
   IconSettings,
 } from '@tabler/icons-react';
@@ -730,13 +729,6 @@ export function ShellScreen() {
                   <Text fw={600} size="sm">
                     Mongo GUI
                   </Text>
-                  <Button
-                    variant="light"
-                    leftSection={<IconPlus size={14} />}
-                    onClick={() => setDialog({ kind: 'create' })}
-                  >
-                    New connection
-                  </Button>
                   <Button
                     variant="default"
                     leftSection={<IconServer size={14} />}

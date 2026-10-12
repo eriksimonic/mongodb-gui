@@ -6,9 +6,9 @@ import {
 } from './connections-file-model';
 
 describe('connections file form rules', () => {
-  it('requires ten characters and a matching confirmation for a new passphrase', () => {
-    expect(validateNewPassphrase('123456789', '123456789')).toEqual({
-      passphrase: 'The passphrase must be at least 10 characters.',
+  it('requires four characters and a matching confirmation for a new passphrase', () => {
+    expect(validateNewPassphrase('abc', 'abc')).toEqual({
+      passphrase: 'The passphrase must be at least 4 characters.',
       confirmation: undefined,
     });
     expect(validateNewPassphrase('1234567890', '1234567891')).toEqual({
@@ -22,8 +22,8 @@ describe('connections file form rules', () => {
   });
 
   it('applies the same length rule to an existing file', () => {
-    expect(validateExistingPassphrase('short')).toBe(
-      'The passphrase must be at least 10 characters.',
+    expect(validateExistingPassphrase('abc')).toBe(
+      'The passphrase must be at least 4 characters.',
     );
     expect(validateExistingPassphrase('long enough')).toBeUndefined();
   });

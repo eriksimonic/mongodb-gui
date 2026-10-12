@@ -146,3 +146,22 @@ describe('ConnectionsRepository.transaction', () => {
     expect(test.connections.list()).toEqual([]);
   });
 });
+
+describe('ConnectionsRepository.markAccessed', () => {
+  it('sets lastAccessedAt and leaves updatedAt alone', () => {
+    test = openTestStore();
+    const created = test.connections.create(connectionInput({ name: 'Orders' }));
+    expect(created.lastAccessedAt).toBeUndefined();
+    test.connections.markAccessed(created.id);
+    const stored = test.connections.get(created.id);
+    expect(stored.lastAccessedAt).toBeDefined();
+    expect(stored.updatedAt).toBe(created.updatedAt);
+  });
+
+  it('throws CONNECTION_NOT_FOUND for an unknown id', () => {
+    test = openTestStore();
+    expect(
+      codeOf(() => test.connections.markAccessed('00000000-0000-4000-8000-000000000000')),
+    ).toBe('CONNECTION_NOT_FOUND');
+  });
+});

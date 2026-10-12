@@ -32,12 +32,15 @@ export const ConnectionProfileSchema = z.object({
   dockerContainerId: DockerContainerIdSchema.optional(),
   createdAt: z.iso.datetime(),
   updatedAt: z.iso.datetime(),
+  /** The last successful connect. Absent until the profile connects once. */
+  lastAccessedAt: z.iso.datetime().optional(),
 });
 
 export const ConnectionProfileInputSchema = ConnectionProfileSchema.omit({
   id: true,
   createdAt: true,
   updatedAt: true,
+  lastAccessedAt: true,
 });
 
 export const ConnectionProfileSummarySchema = ConnectionProfileSchema.omit({ uri: true }).extend({

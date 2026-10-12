@@ -1635,7 +1635,7 @@ describe('connection files', { timeout: 30_000 }, () => {
     expect(readFileSync(existing, 'utf8')).toBe('keep me');
   });
 
-  it('refuses a passphrase under ten characters without echoing it', async () => {
+  it('refuses a passphrase under four characters without echoing it', async () => {
     const { router, localId } = await setUp();
     const path = join(base, 'short.mgconn');
     picks.save = path;
@@ -1644,13 +1644,13 @@ describe('connection files', { timeout: 30_000 }, () => {
     const failed = expectError(
       await router.handle('connections.exportToFile', {
         profileIds: [localId],
-        passphrase: 'tiny pass',
+        passphrase: 'abc',
         path,
       }),
       'VALIDATION',
     );
     expect(failed.message).toBe('The input is invalid.');
-    expect(JSON.stringify(failed)).not.toContain('tiny pass');
+    expect(JSON.stringify(failed)).not.toContain('abc');
     expect(existsSync(path)).toBe(false);
   });
 
