@@ -31,6 +31,8 @@ export interface UriForm {
   readonly replicaSet: string;
   readonly readPreference: ReadPreference | undefined;
   readonly connectTimeoutMs: number | undefined;
+  /** Wire compression. Only zlib: the packaged app has no snappy or zstd modules. */
+  readonly zlibCompression: boolean;
   readonly tls: TlsForm;
   readonly extraOptions: readonly ExtraOption[];
 }
@@ -58,6 +60,7 @@ export function emptyUriForm(): UriForm {
     replicaSet: '',
     readPreference: undefined,
     connectTimeoutMs: undefined,
+    zlibCompression: false,
     tls: { enabled: false, caFile: '', certFile: '', allowInvalidCertificates: false },
     extraOptions: [],
   };
@@ -86,6 +89,7 @@ interface QueryFields {
   replicaSet: string;
   readPreference: ReadPreference | undefined;
   connectTimeoutMs: number | undefined;
+  zlibCompression: boolean;
   tls: TlsForm;
   extraOptions: ExtraOption[];
 }
@@ -96,6 +100,7 @@ interface QueryState {
   replicaSet: string;
   readPreference: ReadPreference | undefined;
   connectTimeoutMs: number | undefined;
+  zlibCompression: boolean;
   tlsEnabled: boolean | undefined;
   caFile: string;
   certFile: string;
@@ -128,6 +133,13 @@ function applyQueryOption(state: QueryState, key: string, value: string): void {
       }
       break;
     }
+    case 'compressors':
+      // Only a plain `zlib` maps to the switch. Other lists stay as typed.
+      if (value === 'zlib') {
+        state.zlibCompression = true;
+        return;
+      }
+      break;
     case 'tls':
     case 'ssl':
       // `true` wins over `false` in either order, so tls and ssl never conflict.
@@ -164,6 +176,7 @@ function parseQuery(query: string): QueryFields {
     replicaSet: '',
     readPreference: undefined,
     connectTimeoutMs: undefined,
+    zlibCompression: false,
     tlsEnabled: undefined,
     caFile: '',
     certFile: '',
@@ -184,6 +197,7 @@ function parseQuery(query: string): QueryFields {
     replicaSet: state.replicaSet,
     readPreference: state.readPreference,
     connectTimeoutMs: state.connectTimeoutMs,
+    zlibCompression: state.zlibCompression,
     tls: {
       enabled: state.tlsEnabled === true,
       caFile: state.caFile,
@@ -227,6 +241,7 @@ export function parseMongoUri(uri: string): ParseResult {
         replicaSet: fields.replicaSet,
         readPreference: fields.readPreference,
         connectTimeoutMs: fields.connectTimeoutMs,
+        zlibCompression: fields.zlibCompression,
         tls: fields.tls,
         extraOptions: fields.extraOptions,
       },
@@ -264,6 +279,9 @@ export function buildMongoUri(form: UriForm): string {
   }
   if (form.connectTimeoutMs !== undefined) {
     params.push(['connectTimeoutMS', String(form.connectTimeoutMs)]);
+  }
+  if (form.zlibCompression) {
+    params.push(['compressors', 'zlib']);
   }
   if (form.tls.enabled) {
     params.push(['tls', 'true']);

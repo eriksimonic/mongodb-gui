@@ -13,6 +13,7 @@ import {
   Stack,
   Switch,
   TextInput,
+  Tooltip,
 } from '@mantine/core';
 import { IconPlus, IconTrash } from '@tabler/icons-react';
 import { READ_PREFERENCES, type ReadPreference, type UriForm } from './uri-form';
@@ -141,6 +142,18 @@ export function ConnectionForm({ form, onChange }: ConnectionFormProps) {
             }
           />
         </Group>
+        <Tooltip
+          multiline
+          w={280}
+          label="Compress traffic with zlib (compressors=zlib). Saves bandwidth on slow links, costs some CPU. The server must allow it. Snappy and zstd are not bundled."
+        >
+          <Switch
+            mt="sm"
+            label="Compress traffic (zlib)"
+            checked={form.zlibCompression}
+            onChange={(event) => onChange({ zlibCompression: event.currentTarget.checked })}
+          />
+        </Tooltip>
       </Fieldset>
 
       <Accordion variant="contained" radius="sm" defaultValue={tlsInUse ? 'tls' : null}>
