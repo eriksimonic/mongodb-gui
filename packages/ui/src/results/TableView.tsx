@@ -53,6 +53,9 @@ interface Row {
   readonly doc: JsonObject;
 }
 
+/** Scrolling within this many rows of the last one asks for more. */
+const NEAR_END_ROWS = 10;
+
 export interface TableViewProps {
   readonly documents: readonly JsonObject[];
   readonly columns: readonly ColumnDef[];
@@ -63,6 +66,8 @@ export interface TableViewProps {
   /** Reads the full text of a previewed document. */
   readonly readFull: (ref: string) => Promise<string>;
   readonly onSelectionChange: (documentIndexes: readonly number[]) => void;
+  /** Called when the user scrolls near the last loaded row. */
+  readonly onNearEnd?: (() => void) | undefined;
 }
 
 /** The cell under the pointer when its menu opened. */
@@ -194,6 +199,7 @@ export function TableView({
   onOpenDocument,
   readFull,
   onSelectionChange,
+  onNearEnd,
 }: TableViewProps) {
   const [hidden, setHidden] = useState<readonly string[]>([]);
   const [cellMenu, setCellMenu] = useState<CellMenuState | undefined>(undefined);
@@ -299,6 +305,12 @@ export function TableView({
           onRowDoubleClicked={(event) => {
             if (event.data !== undefined) {
               onOpenDocument(event.data.index);
+            }
+          }}
+          onBodyScroll={(event) => {
+            const total = event.api.getDisplayedRowCount();
+            if (event.api.getLastDisplayedRowIndex() >= total - NEAR_END_ROWS) {
+              onNearEnd?.();
             }
           }}
           overlayNoRowsTemplate="<span>No documents</span>"

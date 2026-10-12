@@ -56,7 +56,7 @@ describe('EditorView run', () => {
     pressRun();
 
     expect(await screen.findByText('1 to 12 of 12')).toBeInTheDocument();
-    expect(screen.getByRole('button', { name: 'Load more' })).toBeDisabled();
+    expect(screen.queryByRole('button', { name: 'Load more' })).toBeNull();
   });
 
   it('runs only the selection when one is made', async () => {
@@ -101,15 +101,6 @@ describe('EditorView run', () => {
 
     expect(await screen.findByRole('alert')).toHaveTextContent('The operation was cancelled');
     expect(screen.queryByRole('button', { name: 'Cancel' })).not.toBeInTheDocument();
-  });
-
-  it('pages the cursor with Load more and counts what is loaded', async () => {
-    await openEditor('db.orders.find()', undefined, 'shop');
-    pressRun();
-
-    expect(await screen.findByText('1 to 50 of ?')).toBeInTheDocument();
-    fireEvent.click(screen.getByRole('button', { name: 'Load more' }));
-    expect(await screen.findByText('1 to 100 of ?')).toBeInTheDocument();
   });
 
   it('shows a non-cursor value as JSON with its summary', async () => {

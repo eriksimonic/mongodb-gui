@@ -8,6 +8,8 @@ export interface ReadOnlyCodeProps {
   readonly language: 'json' | 'mongosh';
   /** Wraps long lines instead of scrolling sideways. */
   readonly wrap?: boolean | undefined;
+  /** Called when the user scrolls near the end of the text. */
+  readonly onNearEnd?: (() => void) | undefined;
 }
 
 // Monaco loads on first use, as in the other editors.

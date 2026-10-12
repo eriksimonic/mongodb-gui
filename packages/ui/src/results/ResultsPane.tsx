@@ -133,6 +133,13 @@ export function ResultsPane({
     ? ''
     : 'Only a plain find on one collection can be edited. This result does not come from one.';
   const count = result?.documents.length ?? 0;
+  const canLoadMore =
+    result !== undefined &&
+    result.hasMore &&
+    !result.capped &&
+    !result.loadingMore &&
+    result.cursorRequestId !== undefined;
+  const loadMoreOnScroll = canLoadMore ? onLoadMore : undefined;
 
   async function copyJson(): Promise<void> {
     if (result === undefined) {
@@ -226,19 +233,6 @@ export function ResultsPane({
           )}
           {result === undefined || !isCursor ? null : (
             <>
-              <Button
-                size="xs"
-                variant="default"
-                disabled={
-                  !result.hasMore ||
-                  result.capped ||
-                  result.loadingMore ||
-                  result.cursorRequestId === undefined
-                }
-                onClick={onLoadMore}
-              >
-                Load more
-              </Button>
               <Button
                 size="xs"
                 variant="default"
@@ -342,6 +336,7 @@ export function ResultsPane({
               onOpenDocument={(index) => void openDocument(index)}
               readFull={readFull}
               onSelectionChange={setSelected}
+              onNearEnd={loadMoreOnScroll}
             />
           ) : effectiveView === 'tree' ? (
             <TreeView
@@ -352,6 +347,7 @@ export function ResultsPane({
               readFull={readFull}
               onSetField={onSetField}
               onUnsetField={onUnsetField}
+              onNearEnd={loadMoreOnScroll}
             />
           ) : (
             <Stack gap={6} h="100%">
@@ -368,7 +364,7 @@ export function ResultsPane({
                 </Text>
               ) : null}
               <div style={{ flex: 1, minHeight: 0 }}>
-                <JsonView source={jsonSource} label="Result as JSON" />
+                <JsonView source={jsonSource} label="Result as JSON" onNearEnd={loadMoreOnScroll} />
               </div>
             </Stack>
           )}

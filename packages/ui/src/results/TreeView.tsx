@@ -19,7 +19,7 @@ import {
   IconX,
 } from '@tabler/icons-react';
 import { previewInfo } from '@mongo-gui/core';
-import { useMemo, useRef, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import { DestructiveDialog } from '../components/management/DestructiveDialog';
 import { isInsideControl } from '../components/is-inside-control';
 import { errorText } from '../components/notify-error';
@@ -69,6 +69,9 @@ export interface TreeEdit {
   readonly value: unknown;
 }
 
+/** Scrolling within this many rows of the last one asks for more. */
+const NEAR_END_ROWS = 10;
+
 export interface TreeViewProps {
   readonly documents: readonly JsonObject[];
   /** False when the result is not a plain find on one collection. Editing then stays off. */
@@ -80,6 +83,8 @@ export interface TreeViewProps {
   readonly readFull?: ((ref: string) => Promise<string>) | undefined;
   readonly onSetField: (edit: TreeEdit) => Promise<void>;
   readonly onUnsetField: (documentIndex: number, path: string) => Promise<void>;
+  /** Called when the user scrolls near the last row. */
+  readonly onNearEnd?: (() => void) | undefined;
 }
 
 interface EditState {
@@ -105,6 +110,7 @@ export function TreeView({
   readFull,
   onSetField,
   onUnsetField,
+  onNearEnd,
 }: TreeViewProps) {
   const [state, setState] = useState<TreeState>(COLLAPSED);
   const [editing, setEditing] = useState<EditState | undefined>(undefined);
@@ -120,6 +126,15 @@ export function TreeView({
     estimateSize: () => ROW_HEIGHT_PX,
     overscan: OVERSCAN_ROWS,
   });
+
+  const lastVisible = virtualizer.getVirtualItems().at(-1)?.index ?? -1;
+  // Keyed on position and count, so a failed load does not retry until the user scrolls again.
+  useEffect(() => {
+    if (rows.length > 0 && lastVisible >= rows.length - NEAR_END_ROWS) {
+      onNearEnd?.();
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [lastVisible, rows.length]);
 
   function toggle(row: TreeRow): void {
     setState((current) => ({

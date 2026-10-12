@@ -180,7 +180,7 @@ describe('ResultsPane previews', () => {
     expect(screen.queryByText('Some values are shortened.')).toBeNull();
   });
 
-  it('disables paging and says the cursor has more once the memory limit is reached', async () => {
+  it('says the cursor has more once the memory limit is reached', async () => {
     const result: ResultSet = {
       ...resultOf([{ n: 1 }]),
       hasMore: true,
@@ -189,7 +189,7 @@ describe('ResultsPane previews', () => {
     };
     await renderPane({ result });
 
-    expect(screen.getByRole('button', { name: 'Load more' })).toBeDisabled();
+    expect(screen.queryByRole('button', { name: 'Load more' })).toBeNull();
     expect(screen.getByTestId('result-capped')).toHaveTextContent(
       'The query has more documents than the 1 shown, and Export writes only those.',
     );

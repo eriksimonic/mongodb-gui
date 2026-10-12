@@ -9,10 +9,12 @@ export interface JsonViewProps {
   readonly source:
     { readonly documents: readonly JsonObject[] } | { readonly printableEjson: string };
   readonly label: string;
+  /** Called when the user scrolls near the end of the text. */
+  readonly onNearEnd?: (() => void) | undefined;
 }
 
 /** The page as read-only Monaco text, with folding and find. Relaxed JSON by default. */
-export function JsonView({ source, label }: JsonViewProps) {
+export function JsonView({ source, label, onNearEnd }: JsonViewProps) {
   const [mode, setMode] = useState<JsonMode>('relaxed');
   const text = useMemo(() => jsonTextFor(source, mode), [source, mode]);
   return (
@@ -31,6 +33,7 @@ export function JsonView({ source, label }: JsonViewProps) {
       <div style={{ flex: 1, minHeight: 0 }}>
         <ReadOnlyCode
           label={label}
+          onNearEnd={onNearEnd}
           value={text}
           language={mode === 'mongosh' ? 'mongosh' : 'json'}
         />
