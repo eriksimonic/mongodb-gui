@@ -2,6 +2,53 @@
 
 All notable changes to Mongo GUI are listed here, newest first.
 
+## 0.3.0 - 2026-10-12
+
+### Added
+
+- Settings has a Performance section with "Disable GPU acceleration". It saves about 90 MB of
+  memory and moves drawing to the CPU. The option is stored in `startup.json` in the app data
+  folder, outside the vault, because Electron reads it before the vault opens. A restart applies it,
+  and the section offers a "Restart now" button. `--disable-gpu` on the command line does the same
+  for one run.
+- Typing in the connection tree filters the siblings of the focused row. Backspace shortens the
+  filter and Escape clears it. Enter on a database or collection does what a double click does,
+  and a tab opened from the tree puts the cursor in its editor.
+- The connection manager shows connections in a sortable table with the time each was last used.
+- Dock tabs have icons and tooltips, and shrink to fit. The operations toolbar is centered.
+- The editor font size setting scales the whole UI, including Mantine components, the connection
+  tree, dock tabs, the result tree and the output panel.
+- Documents open for editing with plain numbers and dates, and the editor grows with its content.
+- Scrolling to the end of a result loads the next page. The Load more button is gone.
+- The diagnostics tabs have refresh buttons, and Top can change its view.
+
+### Changed
+
+- The license is now Apache 2.0 with the Commons Clause, which forbids selling the software. This
+  includes charging for hosting it or for support and consulting where the value comes substantially
+  from the app. Use, modification and sharing stay free. Versions up to 0.2.0 stay under the MIT
+  license.
+- The Docker forwarder requires a client certificate. It listens with mutual TLS, and each
+  forwarder gets a new certificate pair that is valid for 7 days. Before, any local process could
+  reach an unauthenticated MongoDB behind the forwarder.
+- The backup, restore, import, export and generate dialogs and the explain, profiler, monitor and
+  GridFS panels load when first opened. The main window script is 4% smaller.
+- The menu bar is hidden. Alt shows it.
+
+### Fixed
+
+- A result of 50,000 documents took the window to about 620 MB. The JSON view no longer runs the
+  JSON language service on text above 2,000,000 characters, and the read-only editor skips link
+  detection and similar features. The same result now peaks at about 280 MB.
+- The shell process takes 94 MB at first use instead of 138 MB, and its script is 9.8 MB instead of
+  24 MB. The TypeScript compiler was bundled for a function the runtime never calls. Completion
+  works as before.
+- The read-only mongosh views use the mongosh colors, and the JSON view opens on Relaxed JSON.
+- Backup writes the description file for connections without credentials.
+- The Docker-linked connections share the connection menu of other connections.
+- Profiler commands open in the editor, and the profiler layout is tidier.
+- The spacing in the Settings dialog and the padding of the Output panel are even.
+
 ## 0.2.0 - 2026-10-12
 
 ### Added
