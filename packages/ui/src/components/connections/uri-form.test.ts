@@ -163,6 +163,22 @@ describe('validateUriForm', () => {
   });
 });
 
+describe('compressors', () => {
+  it('maps compressors=zlib to the switch and writes it back', () => {
+    const uri = 'mongodb://localhost/?compressors=zlib';
+    const form = parsed(uri);
+    expect(form.zlibCompression).toBe(true);
+    expect(form.extraOptions).toEqual([]);
+    expect(buildMongoUri(form)).toBe(uri);
+  });
+
+  it('keeps other compressor lists as extra options', () => {
+    const form = parsed('mongodb://localhost/?compressors=snappy,zlib');
+    expect(form.zlibCompression).toBe(false);
+    expect(form.extraOptions).toEqual([['compressors', 'snappy,zlib']]);
+  });
+});
+
 describe('profileOptionsFromUri', () => {
   it('returns the TLS, read preference and timeout options of a URI', () => {
     expect(
