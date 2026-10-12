@@ -443,7 +443,7 @@ function AboutSection() {
           Repository
         </Button>
         <Button variant="default" onClick={() => open(LICENCE_URL)}>
-          Licence (MIT)
+          Project licence
         </Button>
       </Group>
       {bundled === undefined ? null : (

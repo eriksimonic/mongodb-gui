@@ -3,7 +3,7 @@
   "version": "0.0.0",
   "private": true,
   "description": "A desktop MongoDB client with a mongosh-compatible editor.",
-  "license": "MIT",
+  "license": "SEE LICENSE IN LICENSE",
   "type": "module",
   "packageManager": "pnpm@12.10.1",
   "engines": {

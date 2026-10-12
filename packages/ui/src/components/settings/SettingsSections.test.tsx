@@ -159,7 +159,7 @@ describe('SettingsModal sections', () => {
     expect(await screen.findByText(/Electron /)).toBeInTheDocument();
 
     fireEvent.click(screen.getByRole('button', { name: 'Repository' }));
-    fireEvent.click(screen.getByRole('button', { name: 'Licence (MIT)' }));
+    fireEvent.click(screen.getByRole('button', { name: 'Project licence' }));
     await waitFor(() => expect(open).toHaveBeenCalledTimes(2));
     expect(open).toHaveBeenNthCalledWith(1, { url: PROJECT_URL });
     expect(open).toHaveBeenNthCalledWith(2, { url: LICENCE_URL });

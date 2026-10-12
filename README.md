@@ -5,19 +5,19 @@ macOS, with no server, no container and no browser tab to set up first.
 
 You run mongosh statements in an editor and read the results as a grid, a tree or JSON. The same
 window shows indexes, explain plans, the profiler, live server metrics and backups. The app is free
-and released under the MIT license.
+to use, modify and share. You may not sell it. The license is Apache 2.0 with the Commons Clause.
 
 ![Shell with connections, welcome and output panels](docs/screenshots/shell.png)
 
 ## Why Mongo GUI
 
-| Tool            | Licence    | Price                                                                                                           |
-| --------------- | ---------- | --------------------------------------------------------------------------------------------------------------- |
-| Mongo GUI       | MIT        | Free                                                                                                            |
-| MongoDB Compass | SSPL       | Free                                                                                                            |
-| Studio 3T       | Commercial | Community Edition is free for non-commercial use and connects to up to three clusters. Paid editions cost more. |
-| NoSQLBooster    | Commercial | Paid licence                                                                                                    |
-| Robo 3T         | GPL v3     | Free                                                                                                            |
+| Tool            | Licence                        | Price                                                                                                           |
+| --------------- | ------------------------------ | --------------------------------------------------------------------------------------------------------------- |
+| Mongo GUI       | Apache 2.0 with Commons Clause | Free                                                                                                            |
+| MongoDB Compass | SSPL                           | Free                                                                                                            |
+| Studio 3T       | Commercial                     | Community Edition is free for non-commercial use and connects to up to three clusters. Paid editions cost more. |
+| NoSQLBooster    | Commercial                     | Paid licence                                                                                                    |
+| Robo 3T         | GPL v3                         | Free                                                                                                            |
 
 - NoSQLBooster and Studio 3T are commercial desktop clients. Their full editions need a paid licence.
 - MongoDB Compass is the official client. It is free, but the SSPL is source-available, not open source as the OSI defines it.
@@ -182,4 +182,8 @@ both for the bundled tools and for downloaded versions.
 
 ## License
 
-MIT. See [LICENSE](LICENSE).
+Apache License 2.0 with the Commons Clause. You may use, modify and share the app, and build on
+it in your own products. You may not sell it, which includes charging for hosting it or for
+support and consulting where the value comes substantially from the app. The source is available,
+but this is not an open source license. See [LICENSE](LICENSE). Versions up to 0.2.0 stay under
+the MIT license.

@@ -4,7 +4,7 @@
 
 A desktop MongoDB client in the spirit of NoSQLBooster: mongosh-compatible editor with
 autocomplete, result grid, visual explain, collection and index management, live
-monitoring, and a profiler. Cross-platform (Linux, Windows, macOS), MIT licensed.
+monitoring, and a profiler. Cross-platform (Linux, Windows, macOS), Apache 2.0 with the Commons Clause.
 
 ## 1. Decisions
 
@@ -21,7 +21,7 @@ monitoring, and a profiler. Cross-platform (Linux, Windows, macOS), MIT licensed
 | Tests | Vitest, Testcontainers (MongoDB 4.4, 6.0, 8.0), Playwright for Electron, Storybook |
 | Build | electron-vite for dev and bundling, electron-builder for installers, GitHub Releases for updates |
 | MongoDB support | 4.4 and newer; standalone, replica set, sharded, Atlas SRV; user/password and TLS in v1, X.509 next |
-| License | MIT |
+| License | Apache 2.0 with the Commons Clause |
 | Package manager | pnpm 12 workspace, Node 24 for development (same major as Electron's bundled Node) |
 
 Native Node modules are banned. Everything the main process needs (SQLite, AES, scrypt)

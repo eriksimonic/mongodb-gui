@@ -91,3 +91,7 @@ Explain the reason in the body when the change is not obvious.
 
 Open the pull request against `main`. Describe what changed and how you tested it. List the gates
 you ran, and note any gate you did not run.
+
+## Licence
+
+By sending a change you agree that it is licensed under the project licence, Apache 2.0 with the Commons Clause, as set out in `LICENSE`.
