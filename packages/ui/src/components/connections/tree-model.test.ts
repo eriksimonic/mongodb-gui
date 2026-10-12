@@ -10,6 +10,7 @@ import {
 import {
   buildTreeRows,
   edgeFocusKey,
+  filterTreeRows,
   firstChildKey,
   memberStateTone,
   nextFocusKey,
@@ -270,5 +271,26 @@ describe('keyboard movement helpers', () => {
   it('finds the first child of a parent', () => {
     expect(firstChildKey(rows, localKey)).toBe(monitorKey);
     expect(firstChildKey(rows, connectionNodeId(staging.id))).toBeUndefined();
+  });
+});
+
+describe('filterTreeRows', () => {
+  it('hides non-matching children of the parent with their descendants and keeps other rows', () => {
+    const rows = buildTreeRows(
+      input({
+        statuses: { [local.id]: connected, [staging.id]: connected },
+        expanded: { [connectionNodeId(local.id)]: true, [connectionNodeId(staging.id)]: true },
+        databases: {
+          [local.id]: { state: 'ready', data: [{ name: 'shop' }, { name: 'perf' }] },
+          [staging.id]: { state: 'ready', data: [{ name: 'shop' }] },
+        },
+      } as Partial<TreeInput>),
+    );
+    const parentKey = connectionNodeId(local.id);
+    const labels = filterTreeRows(rows, { parentKey, text: 'PE' }).map((row) => row.label);
+    expect(labels).toContain('perf');
+    expect(labels.filter((label) => label === 'Monitoring')).toHaveLength(1);
+    expect(labels.filter((label) => label === 'shop')).toHaveLength(1);
+    expect(labels).toContain('Staging');
   });
 });

@@ -235,6 +235,7 @@ export function createEditorActions(access: EditorStoreAccess) {
         : findTab(access.get().editors, input.connectionId, input.database);
     if (existing !== undefined) {
       update((state) => setActiveTab(state, existing.id));
+      editorUiEvents.emit({ type: 'editor:focus', tabId: existing.id });
       return existing.id;
     }
     const id = newId();

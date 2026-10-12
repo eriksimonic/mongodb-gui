@@ -163,8 +163,15 @@ export function MongoshMonaco({
         latest.current.onRunAll(editor.getModel()?.getValue() ?? '');
       },
     });
+    // A tab that was just opened has the cursor in its editor. One that was already open gets an
+    // editor:focus event.
+    editor.focus();
     const subscription = editorUiEvents.subscribe((event) => {
       if (event.tabId !== tabId) {
+        return;
+      }
+      if (event.type === 'editor:focus') {
+        editor.focus();
         return;
       }
       if (event.type === 'editor:command') {

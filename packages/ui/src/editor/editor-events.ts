@@ -6,6 +6,8 @@ import { createUiEventBus } from '../profiler/profiler-events';
  */
 export type EditorUiEvent =
   | { readonly type: 'editor:insert'; readonly tabId: string; readonly text: string }
+  /** Puts the cursor in the tab's editor, as when the tab is opened from the tree. */
+  | { readonly type: 'editor:focus'; readonly tabId: string }
   /** Runs what the keyboard runs: the selection or the statement, or all of the text. */
   | {
       readonly type: 'editor:command';

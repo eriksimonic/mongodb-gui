@@ -1,5 +1,5 @@
-import { Alert, Button, Loader, Stack, Text } from '@mantine/core';
-import { IconPlus } from '@tabler/icons-react';
+import { Alert, Button, CloseButton, Group, Loader, Stack, Text } from '@mantine/core';
+import { IconPlus, IconSearch } from '@tabler/icons-react';
 import { useEffect, useMemo, useRef, useState, type KeyboardEvent, type MouseEvent } from 'react';
 import type { ConnectionProfileSummary, ConnectionStatus } from '@mongo-gui/core';
 import type { Selection } from '../../state/app-store';
@@ -26,9 +26,11 @@ import {
   buildTreeRows,
   edgeFocusKey,
   firstChildKey,
+  filterTreeRows,
   focusableRows,
   nextFocusKey,
   parentKeyOf,
+  type TreeFilter,
   type TreeRow as TreeRowModel,
 } from './tree-model';
 
@@ -173,6 +175,7 @@ export function ConnectionTree() {
   const openCollectionQuery = useAppStore((state) => state.openCollectionQuery);
   const [focusKey, setFocusKey] = useState<string | undefined>(undefined);
   const [menu, setMenu] = useState<MenuAnchor | undefined>(undefined);
+  const [quickFind, setQuickFind] = useState<TreeFilter | undefined>(undefined);
   const items = useRef(new Map<string, HTMLDivElement>());
   // A double click sends two clicks. This set keeps one connect call per container in flight.
   const connectingContainers = useRef(new Set<string>());
@@ -186,7 +189,7 @@ export function ConnectionTree() {
     };
   }, [loadDocker, watchDocker]);
 
-  const rows = useMemo(
+  const allRows = useMemo(
     () =>
       list === undefined
         ? []
@@ -201,6 +204,10 @@ export function ConnectionTree() {
             replicaSets,
           }),
     [list, statuses, expanded, databases, collections, docker, gridfsBuckets, replicaSets],
+  );
+  const rows = useMemo(
+    () => (quickFind === undefined ? allRows : filterTreeRows(allRows, quickFind)),
+    [allRows, quickFind],
   );
 
   // An open connection that reports a set name loads its members once, so the primary shows.
@@ -401,6 +408,14 @@ export function ConnectionTree() {
       openProfiler(row);
       return;
     }
+    if (row.kind === 'database') {
+      openDatabaseEditor(row);
+      return;
+    }
+    if (row.kind === 'collection') {
+      openCollectionRow(row);
+      return;
+    }
     if (row.kind !== 'connection') {
       openToolRow(row);
       return;
@@ -423,6 +438,45 @@ export function ConnectionTree() {
     setMenu({ target, x, y });
   }
 
+  /**
+   * Typing filters the siblings of the focused row, so a focused database filters the databases of
+   * its connection. Backspace shortens the text and Escape clears it. True when the key was used.
+   */
+  function handleQuickFindKey(event: KeyboardEvent<HTMLDivElement>, row: TreeRowModel): boolean {
+    if (event.ctrlKey || event.metaKey || event.altKey) {
+      return false;
+    }
+    let next: TreeFilter | undefined;
+    if (event.key.length === 1 && (quickFind !== undefined || event.key !== ' ')) {
+      next = {
+        parentKey: quickFind?.parentKey ?? row.parentKey,
+        text: (quickFind?.text ?? '') + event.key,
+      };
+    } else if (quickFind !== undefined && event.key === 'Backspace') {
+      next =
+        quickFind.text.length > 1 ? { ...quickFind, text: quickFind.text.slice(0, -1) } : undefined;
+    } else if (quickFind !== undefined && event.key === 'Escape') {
+      next = undefined;
+    } else {
+      return false;
+    }
+    event.preventDefault();
+    setQuickFind(next);
+    // Keep focus on a row that stays visible. Otherwise move to the first match.
+    if (next !== undefined) {
+      const visible = filterTreeRows(allRows, next);
+      if (!visible.some((item) => item.key === row.key)) {
+        const first = visible.find(
+          (item) => item.kind !== 'message' && item.parentKey === next.parentKey,
+        );
+        if (first !== undefined) {
+          focusRow(first.key);
+        }
+      }
+    }
+    return true;
+  }
+
   function handleKeyDown(event: KeyboardEvent<HTMLDivElement>) {
     // The key event belongs to the row that has focus, so that row is the one to act on.
     const targetKey =
@@ -431,6 +485,9 @@ export function ConnectionTree() {
         : undefined;
     const row = rows.find((item) => item.key === (targetKey ?? activeKey));
     if (row === undefined) {
+      return;
+    }
+    if (handleQuickFindKey(event, row)) {
       return;
     }
     let target: string | undefined;
@@ -607,6 +664,27 @@ export function ConnectionTree() {
             New connection
           </Button>
         </Stack>
+      )}
+      {quickFind === undefined ? null : (
+        <Group gap={6} wrap="nowrap" className="mg-tree-find">
+          <IconSearch size={12} />
+          <Text size="xs" truncate style={{ flex: 1 }}>
+            {quickFind.text}
+          </Text>
+          <Text size="xs" c="dimmed">
+            {
+              rows.filter(
+                (item) => item.parentKey === quickFind.parentKey && item.kind !== 'message',
+              ).length
+            }{' '}
+            matches
+          </Text>
+          <CloseButton
+            size="xs"
+            aria-label="Clear the filter"
+            onClick={() => setQuickFind(undefined)}
+          />
+        </Group>
       )}
       <div
         role="tree"

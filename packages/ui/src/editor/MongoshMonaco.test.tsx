@@ -77,6 +77,7 @@ function fakeEditor(
   };
   const point = (offset: number) => ({ offset });
   return {
+    focus: vi.fn(),
     addAction: (action: RecordedAction) => {
       actions.push(action);
     },

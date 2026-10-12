@@ -138,4 +138,26 @@ describe('ConnectionTree', () => {
     renderWithApp(<ConnectionTree />, { api });
     expect(await screen.findByText('No connections yet.')).toBeInTheDocument();
   });
+
+  it('filters the siblings of the focused database as you type and clears on Escape', async () => {
+    renderWithApp(<ConnectionTree />, { mock: { preset: 'unlocked' } });
+    const local = await screen.findByRole('treeitem', { name: 'Local dev' });
+    local.focus();
+    fireEvent.keyDown(local, { key: 'ArrowRight' });
+    const shop = await screen.findByRole('treeitem', { name: 'shop' });
+    shop.focus();
+
+    fireEvent.keyDown(shop, { key: 'l' });
+    fireEvent.keyDown(document.activeElement as HTMLElement, { key: 'o' });
+    expect(screen.getByRole('treeitem', { name: 'logs' })).toBeInTheDocument();
+    expect(screen.queryByRole('treeitem', { name: 'shop' })).not.toBeInTheDocument();
+    expect(screen.queryByRole('treeitem', { name: 'analytics' })).not.toBeInTheDocument();
+    expect(screen.getByRole('treeitem', { name: 'Local dev' })).toBeInTheDocument();
+    expect(screen.getByRole('treeitem', { name: 'Staging' })).toBeInTheDocument();
+    expect(screen.getByRole('treeitem', { name: 'logs' })).toHaveFocus();
+
+    fireEvent.keyDown(screen.getByRole('treeitem', { name: 'logs' }), { key: 'Escape' });
+    expect(screen.getByRole('treeitem', { name: 'shop' })).toBeInTheDocument();
+    expect(screen.getByRole('treeitem', { name: 'analytics' })).toBeInTheDocument();
+  });
 });
