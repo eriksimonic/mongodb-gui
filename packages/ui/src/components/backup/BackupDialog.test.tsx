@@ -212,4 +212,41 @@ describe('BackupDialog', () => {
     await chooseFolder();
     await waitFor(() => expect(screen.getByRole('button', { name: 'Start backup' })).toBeEnabled());
   });
+
+  it('saves the settings, loads them again, renames and deletes them', async () => {
+    const api = await renderDialog();
+    fireEvent.click(screen.getByLabelText('Compress with gzip'));
+    fireEvent.change(screen.getByLabelText('Saved backup name'), { target: { value: 'Plain' } });
+    fireEvent.click(screen.getByRole('button', { name: 'Save' }));
+    await waitFor(async () => expect(await api.rpc.savedBackups.list()).toHaveLength(1));
+    expect((await api.rpc.savedBackups.list())[0]).toMatchObject({
+      label: 'Plain',
+      scope: { kind: 'database', database: 'shop' },
+      options: { gzip: false },
+    });
+
+    // The second save selects it, so Plain can be picked.
+    fireEvent.click(screen.getByLabelText('Compress with gzip'));
+    fireEvent.change(screen.getByLabelText('Saved backup name'), { target: { value: 'Gzipped' } });
+    fireEvent.click(screen.getByRole('button', { name: 'Save' }));
+    await waitFor(async () => expect(await api.rpc.savedBackups.list()).toHaveLength(2));
+    await waitFor(() => expect(screen.getByLabelText('Compress with gzip')).toBeChecked());
+    fireEvent.click(screen.getByRole('textbox', { name: 'Saved backups' }));
+    fireEvent.click(await screen.findByRole('option', { name: 'Plain' }));
+    await waitFor(() => expect(screen.getByLabelText('Compress with gzip')).not.toBeChecked());
+
+    fireEvent.change(screen.getByLabelText('Saved backup name'), { target: { value: 'Raw' } });
+    fireEvent.click(screen.getByRole('button', { name: 'Rename' }));
+    await waitFor(async () =>
+      expect((await api.rpc.savedBackups.list()).map((item) => item.label)).toEqual([
+        'Raw',
+        'Gzipped',
+      ]),
+    );
+
+    fireEvent.click(screen.getByRole('button', { name: 'Delete' }));
+    await waitFor(async () =>
+      expect((await api.rpc.savedBackups.list()).map((item) => item.label)).toEqual(['Gzipped']),
+    );
+  });
 });

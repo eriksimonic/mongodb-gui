@@ -381,6 +381,7 @@ describe('locked vault', () => {
     expectError(await router.handle('connections.list', undefined), 'VAULT_LOCKED');
     expectError(await router.handle('settings.get', undefined), 'VAULT_LOCKED');
     expectError(await router.handle('favourites.list', undefined), 'VAULT_LOCKED');
+    expectError(await router.handle('savedBackups.list', undefined), 'VAULT_LOCKED');
   });
 });
 
@@ -520,6 +521,31 @@ describe('settings, history and favourites', () => {
 
     expectValue(await router.handle('favourites.remove', { id: saved.id }));
     expect(expectValue(await router.handle('favourites.list', undefined))).toEqual([]);
+  });
+
+  it('saves, renames, lists and removes saved backups', async () => {
+    harness = buildHarness();
+    const { router } = harness;
+    expectValue(await router.handle('vault.initialise', { password: PASSWORD }));
+    const connection = expectValue(await router.handle('connections.create', profileInput)) as {
+      id: string;
+    };
+
+    const saved = expectValue(
+      await router.handle('savedBackups.save', {
+        label: 'Nightly',
+        connectionId: connection.id,
+        scope: { kind: 'server' },
+        options: {},
+      }),
+    ) as { id: string };
+    expectValue(await router.handle('savedBackups.rename', { id: saved.id, label: 'Weekly' }));
+    expect(expectValue(await router.handle('savedBackups.list', undefined))).toEqual([
+      expect.objectContaining({ id: saved.id, label: 'Weekly', scope: { kind: 'server' } }),
+    ]);
+
+    expectValue(await router.handle('savedBackups.remove', { id: saved.id }));
+    expect(expectValue(await router.handle('savedBackups.list', undefined))).toEqual([]);
   });
 
   it('lists and clears history', async () => {

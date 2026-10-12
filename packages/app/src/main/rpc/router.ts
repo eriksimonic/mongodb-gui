@@ -183,6 +183,7 @@ import {
   FavouritesRepository,
   HistoryRepository,
   LayoutRepository,
+  SavedBackupsRepository,
   SettingsRepository,
   Vault,
   type KdfParams,
@@ -238,6 +239,7 @@ export interface RouterRepos {
   readonly connections: ConnectionsRepository;
   readonly history: HistoryRepository;
   readonly favourites: FavouritesRepository;
+  readonly savedBackups: SavedBackupsRepository;
   readonly settings: SettingsRepository;
   readonly layout: LayoutRepository;
 }
@@ -1605,6 +1607,16 @@ export function createRouter(deps: RouterDeps): Router {
       }
       return { jobId: await tools().backups.startRestore({ ...input, source }) };
     }),
+    entry('savedBackups.list', rpcContract.savedBackups.list, () => repos().savedBackups.list()),
+    entry('savedBackups.save', rpcContract.savedBackups.save, (input) =>
+      repos().savedBackups.save(input),
+    ),
+    entry('savedBackups.rename', rpcContract.savedBackups.rename, (input) =>
+      repos().savedBackups.rename(input.id, input.label),
+    ),
+    entry('savedBackups.remove', rpcContract.savedBackups.remove, (input) => {
+      repos().savedBackups.remove(input.id);
+    }),
     entry('backup.cancel', rpcContract.backup.cancel, (input) => {
       tools().backups.cancel(input.jobId);
     }),
@@ -2302,6 +2314,7 @@ export function createRepos(store: EncryptedStore): RouterRepos {
     connections: new ConnectionsRepository(store),
     history: new HistoryRepository(store, settings),
     favourites: new FavouritesRepository(store),
+    savedBackups: new SavedBackupsRepository(store),
     settings,
     layout: new LayoutRepository(store),
   };
