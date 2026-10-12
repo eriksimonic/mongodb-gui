@@ -31,8 +31,19 @@ The window opens on the display in `$DISPLAY`. The log fills with `libEGL warnin
 harmless. The line `shell state changed` means the main process is up. The renderer reloads on
 source changes, so leave the process running while you edit.
 
-Stop it with `fuser -k 5173/tcp`, which ends the dev server, then `pkill -f "electron/dist"`. Do not
-use `pkill -f vite`, because it also matches the shell that runs the command.
+Stop it with `fuser -k 5173/tcp`, which ends the dev server, then `pkill -f "[e]lectron/dist"`. The
+call can exit with code 144 even though the kill worked, so check with
+`pgrep -fc "[e]lectron/dist"`, which prints 0 when the app is gone. Do not use `pkill -f vite`,
+because it also matches the shell that runs the command.
+
+### Restart
+
+Always stop a running app before you start one, because a second instance fights over port 5173
+and the vault. To restart, run the stop commands above in their own call, confirm the count is 0,
+then repeat step 3 in a new call. Check
+the log for `shell state changed` before you say the app is up. Do this whenever the user asks to
+run the app again, and after changes under `packages/shell-runtime` or `packages/app/src/main`,
+which the renderer reload does not pick up.
 
 ## Browser mock UI
 
