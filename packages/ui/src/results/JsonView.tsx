@@ -11,9 +11,9 @@ export interface JsonViewProps {
   readonly label: string;
 }
 
-/** The page as read-only Monaco text, with folding and find. Mongosh syntax by default. */
+/** The page as read-only Monaco text, with folding and find. Relaxed JSON by default. */
 export function JsonView({ source, label }: JsonViewProps) {
-  const [mode, setMode] = useState<JsonMode>('mongosh');
+  const [mode, setMode] = useState<JsonMode>('relaxed');
   const text = useMemo(() => jsonTextFor(source, mode), [source, mode]);
   return (
     <Stack gap={6} h="100%">
@@ -32,7 +32,7 @@ export function JsonView({ source, label }: JsonViewProps) {
         <ReadOnlyCode
           label={label}
           value={text}
-          language={mode === 'mongosh' ? 'javascript' : 'json'}
+          language={mode === 'mongosh' ? 'mongosh' : 'json'}
         />
       </div>
     </Stack>

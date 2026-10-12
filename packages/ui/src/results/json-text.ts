@@ -1,11 +1,11 @@
-export type JsonMode = 'mongosh' | 'canonical' | 'relaxed';
+export type JsonMode = 'relaxed' | 'canonical' | 'mongosh';
 import { formatMongoshSyntax, formatRelaxedJson } from '@mongo-gui/core';
 import type { JsonObject } from './result-model';
 
 export const MODE_LABELS: Readonly<Record<JsonMode, string>> = {
-  mongosh: 'mongosh',
-  canonical: 'Canonical JSON',
   relaxed: 'Relaxed JSON',
+  canonical: 'Canonical JSON',
+  mongosh: 'mongosh',
 };
 
 const INDENT = 2;

@@ -73,7 +73,7 @@ export function SqlPreview({ sql, sampler, onOpenInMongo }: SqlPreviewProps) {
       </Group>
       <div style={{ flex: 1, minHeight: 0 }}>
         {shown.state === 'ok' ? (
-          <ReadOnlyCode label="Mongo query" language="javascript" value={shown.mongosh} wrap />
+          <ReadOnlyCode label="Mongo query" language="mongosh" value={shown.mongosh} wrap />
         ) : (
           <Text size="sm" c={shown.state === 'error' ? 'red' : 'dimmed'} p="xs" role="status">
             {shown.state === 'error'

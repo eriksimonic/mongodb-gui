@@ -4,8 +4,8 @@ import { lazy, Suspense } from 'react';
 export interface ReadOnlyCodeProps {
   readonly label: string;
   readonly value: string;
-  /** `json` for canonical and relaxed text, `javascript` for mongosh syntax. */
-  readonly language: 'json' | 'javascript';
+  /** `json` for canonical and relaxed text, `mongosh` for mongosh syntax. */
+  readonly language: 'json' | 'mongosh';
   /** Wraps long lines instead of scrolling sideways. */
   readonly wrap?: boolean | undefined;
 }
