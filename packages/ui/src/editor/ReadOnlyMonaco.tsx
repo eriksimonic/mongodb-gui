@@ -6,6 +6,7 @@ import { defineEditorThemes, themeFor } from './editor-theme';
 import { registerMongoshLanguage } from './mongosh-language';
 import { useEditorFontSize } from './use-editor-font-size';
 import type { ReadOnlyCodeProps } from './ReadOnlyCode';
+import { readOnlyLanguage } from './read-only-language';
 
 /** Scrolling within this many pixels of the end asks for more. */
 const NEAR_END_PX = 200;
@@ -21,7 +22,7 @@ export function ReadOnlyMonaco({ label, value, language, wrap, onNearEnd }: Read
   return (
     <Editor
       height="100%"
-      language={language}
+      language={readOnlyLanguage(language, value.length)}
       theme={themeFor(scheme)}
       beforeMount={(monaco) => {
         defineEditorThemes(monaco);
@@ -48,6 +49,12 @@ export function ReadOnlyMonaco({ label, value, language, wrap, onNearEnd }: Read
         automaticLayout: true,
         folding: true,
         lineNumbersMinChars: 3,
+        // Each of these sends the whole text to the editor worker, which keeps a second copy.
+        links: false,
+        occurrencesHighlight: 'off',
+        matchBrackets: 'never',
+        colorDecorators: false,
+        quickSuggestions: false,
       }}
     />
   );
