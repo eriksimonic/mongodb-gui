@@ -1,4 +1,4 @@
-import { Menu, Text } from '@mantine/core';
+import { Menu } from '@mantine/core';
 import { modals } from '@mantine/modals';
 import { notifications } from '@mantine/notifications';
 import type {
@@ -6,10 +6,8 @@ import type {
   ConnectionStatus,
   DockerMongoContainerSummary,
 } from '@mongo-gui/core';
-import { useAppStore } from '../../state/app-store-context';
-import { usePanelOpener } from '../../state/panel-opener';
-import { BackupMenuItems } from '../backup/BackupMenuItems';
 import { runReported } from '../notify-error';
+import { ConnectionContextMenu } from './ConnectionContextMenu';
 import { DockerContainerDetails } from './DockerContainerDetails';
 
 export interface DockerLinkedContextMenuProps {
@@ -22,7 +20,10 @@ export interface DockerLinkedContextMenuProps {
   readonly onClose: () => void;
 }
 
-/** Right-click menu for a container that already has a connection. */
+/**
+ * Right-click menu for a container that already has a connection. The shared connection menu
+ * supplies every common action, so the two cannot drift apart.
+ */
 export function DockerLinkedContextMenu({
   connection,
   container,
@@ -30,39 +31,6 @@ export function DockerLinkedContextMenu({
   position,
   onClose,
 }: DockerLinkedContextMenuProps) {
-  const connect = useAppStore((state) => state.connect);
-  const disconnect = useAppStore((state) => state.disconnect);
-  const removeConnection = useAppStore((state) => state.removeConnection);
-  const refreshConnection = useAppStore((state) => state.refreshConnection);
-  const setDialog = useAppStore((state) => state.setDialog);
-  const setManagementDialog = useAppStore((state) => state.setManagementDialog);
-  const openPanel = usePanelOpener();
-  const canConnect = status.state === 'disconnected' || status.state === 'error';
-  const canDisconnect = status.state === 'connected' || status.state === 'connecting';
-
-  function runAndClose(action: () => Promise<void>) {
-    onClose();
-    void runReported(action);
-  }
-
-  function confirmRemove() {
-    onClose();
-    modals.openConfirmModal({
-      title: 'Remove connection',
-      centered: true,
-      children: (
-        <Text size="sm">
-          Remove {connection.name}? Its saved URI is deleted. This cannot be undone.
-        </Text>
-      ),
-      labels: { confirm: 'Remove', cancel: 'Cancel' },
-      confirmProps: { color: 'red' },
-      onConfirm: () => {
-        void runReported(() => removeConnection(connection.id));
-      },
-    });
-  }
-
   function copyRedactedUri() {
     onClose();
     void runReported(async () => {
@@ -84,78 +52,22 @@ export function DockerLinkedContextMenu({
   }
 
   return (
-    <Menu opened withinPortal position="bottom-start" shadow="md" width={220} onClose={onClose}>
-      <Menu.Target>
-        <div
-          style={{ position: 'fixed', left: position.x, top: position.y, width: 1, height: 1 }}
-        />
-      </Menu.Target>
-      <Menu.Dropdown>
-        {/* A missing container has nothing to connect to, so Connect stays off until it is back. */}
-        <Menu.Item
-          disabled={!canConnect || container === undefined}
-          onClick={() => runAndClose(() => connect(connection.id))}
-        >
-          Connect
-        </Menu.Item>
-        <Menu.Item
-          disabled={!canDisconnect}
-          onClick={() => runAndClose(() => disconnect(connection.id))}
-        >
-          Disconnect
-        </Menu.Item>
-        <Menu.Item
-          disabled={status.state !== 'connected'}
-          onClick={() => {
-            onClose();
-            openPanel({
-              kind: 'monitor',
-              connectionId: connection.id,
-              connectionName: connection.name,
-            });
-          }}
-        >
-          Monitor
-        </Menu.Item>
-        <Menu.Item
-          disabled={status.state !== 'connected'}
-          onClick={() => {
-            onClose();
-            setManagementDialog({ kind: 'createDatabase', connectionId: connection.id });
-          }}
-        >
-          New database
-        </Menu.Item>
-        <BackupMenuItems
-          connectionId={connection.id}
-          connected={status.state === 'connected'}
-          onClose={onClose}
-        />
-        <Menu.Item
-          onClick={() => {
-            onClose();
-            setDialog({ kind: 'edit', connectionId: connection.id });
-          }}
-        >
-          Edit
-        </Menu.Item>
-        <Menu.Item
-          onClick={() => {
-            onClose();
-            refreshConnection(connection.id);
-          }}
-        >
-          Refresh
-        </Menu.Item>
-        <Menu.Item color="red" onClick={confirmRemove}>
-          Remove
-        </Menu.Item>
-        <Menu.Divider />
-        <Menu.Item onClick={copyRedactedUri}>Copy URI (redacted)</Menu.Item>
-        <Menu.Item disabled={container === undefined} onClick={openDetails}>
-          Open container details
-        </Menu.Item>
-      </Menu.Dropdown>
-    </Menu>
+    <ConnectionContextMenu
+      connection={connection}
+      status={status}
+      position={position}
+      onClose={onClose}
+      // A missing container has nothing to connect to, so Connect stays off until it is back.
+      connectDisabled={container === undefined}
+      extraItems={
+        <>
+          <Menu.Divider />
+          <Menu.Item onClick={copyRedactedUri}>Copy URI (redacted)</Menu.Item>
+          <Menu.Item disabled={container === undefined} onClick={openDetails}>
+            Open container details
+          </Menu.Item>
+        </>
+      }
+    />
   );
 }

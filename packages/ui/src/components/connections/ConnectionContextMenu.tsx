@@ -1,5 +1,6 @@
 import { Box, Menu, Text } from '@mantine/core';
 import { modals } from '@mantine/modals';
+import type { ReactNode } from 'react';
 import type { ConnectionProfileSummary, ConnectionStatus } from '@mongo-gui/core';
 import { useChangesOpener } from '../../changes/changes-opener';
 import { useAppStore } from '../../state/app-store-context';
@@ -16,6 +17,10 @@ export interface ConnectionContextMenuProps {
   readonly status: ConnectionStatus;
   readonly position: { readonly x: number; readonly y: number };
   readonly onClose: () => void;
+  /** Turns Connect off, for a connection whose target is gone. */
+  readonly connectDisabled?: boolean;
+  /** Items after the shared ones, for menus that add actions of their own. */
+  readonly extraItems?: ReactNode;
 }
 
 /** Right-click menu for a connection. Opens at the pointer and closes after one action. */
@@ -24,6 +29,8 @@ export function ConnectionContextMenu({
   status,
   position,
   onClose,
+  connectDisabled = false,
+  extraItems,
 }: ConnectionContextMenuProps) {
   const connect = useAppStore((state) => state.connect);
   const disconnect = useAppStore((state) => state.disconnect);
@@ -76,7 +83,10 @@ export function ConnectionContextMenu({
         />
       </Menu.Target>
       <Menu.Dropdown>
-        <Menu.Item disabled={!canConnect} onClick={() => runAndClose(() => connect(connection.id))}>
+        <Menu.Item
+          disabled={!canConnect || connectDisabled}
+          onClick={() => runAndClose(() => connect(connection.id))}
+        >
           Connect
         </Menu.Item>
         <Menu.Item
@@ -206,6 +216,7 @@ export function ConnectionContextMenu({
         <Menu.Item color="red" onClick={confirmRemove}>
           Remove
         </Menu.Item>
+        {extraItems}
       </Menu.Dropdown>
     </Menu>
   );
