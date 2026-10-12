@@ -22,10 +22,11 @@ export function OutputPanel() {
       keepMounted={false}
       styles={{
         root: { height: '100%', display: 'flex', flexDirection: 'column' },
-        panel: { flex: 1, minHeight: 0, padding: 8 },
+        tab: { padding: '6px 14px' },
+        panel: { flex: 1, minHeight: 0, padding: '8px 14px 10px' },
       }}
     >
-      <Tabs.List>
+      <Tabs.List px={6}>
         <Tabs.Tab value="output">Output</Tabs.Tab>
         <Tabs.Tab value="history">History</Tabs.Tab>
         <Tabs.Tab value="favourites">Favourites</Tabs.Tab>
@@ -67,12 +68,12 @@ export function OutputLines() {
 
   return (
     <>
-      <Group justify="space-between" mb={4}>
+      <Group justify="space-between" mb={6} wrap="nowrap" style={{ flex: '0 0 auto' }}>
         <Text size="xs" c="dimmed">
           {output.length === 0 ? 'No output yet' : countOf(output.length, 'line')}
         </Text>
         <Button
-          size="xs"
+          size="compact-xs"
           variant="subtle"
           onClick={() => store.getState().clearOutput()}
           disabled={output.length === 0}

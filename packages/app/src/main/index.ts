@@ -249,6 +249,8 @@ function createMainWindow(): void {
     height: 800,
     minWidth: 1024,
     show: false,
+    // Alt shows the File, Edit, View and Window menu. Its shortcuts work while it is hidden.
+    autoHideMenuBar: true,
     webPreferences: {
       preload: preloadPath,
       contextIsolation: true,
