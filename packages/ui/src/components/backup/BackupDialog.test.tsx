@@ -185,13 +185,13 @@ describe('BackupDialog', () => {
   it('drops exclude prefixes once the scope is the whole server', async () => {
     const api = await renderDialog();
     const spy = vi.spyOn(api.rpc.backup, 'start');
-    const prefixes = screen.getByRole('textbox', { name: 'Exclude prefixes' });
+    const prefixes = screen.getByRole('textbox', { name: /^Exclude prefixes/ });
     fireEvent.change(prefixes, { target: { value: 'tmp_' } });
     fireEvent.keyDown(prefixes, { key: 'Enter' });
     expect(screen.getByText('tmp_')).toBeInTheDocument();
     fireEvent.keyDown(screen.getByRole('textbox', { name: 'Databases' }), { key: 'Backspace' });
     await waitFor(() =>
-      expect(screen.queryByRole('textbox', { name: 'Exclude prefixes' })).toBeNull(),
+      expect(screen.queryByRole('textbox', { name: /^Exclude prefixes/ })).toBeNull(),
     );
     await chooseFolder();
     await waitFor(() => expect(screen.getByRole('button', { name: 'Start backup' })).toBeEnabled());
