@@ -2,6 +2,7 @@ import {
   Button,
   Divider,
   Group,
+  Input,
   Modal,
   NumberInput,
   SegmentedControl,
@@ -66,7 +67,7 @@ function SettingsForm() {
   }
 
   return (
-    <Stack gap="lg">
+    <Stack gap="xl">
       <AppearanceSection settings={settings} />
       <Divider />
       <SecuritySection settings={settings} />
@@ -99,7 +100,7 @@ function Section({
   readonly children: ReactNode;
 }) {
   return (
-    <Stack gap="sm" component="section" aria-labelledby={id}>
+    <Stack gap="md" component="section" aria-labelledby={id}>
       <Title order={5} id={id}>
         {title}
       </Title>
@@ -122,10 +123,7 @@ function AppearanceSection({ settings }: SectionProps) {
   const resetLayout = useAppStore((state) => state.resetLayout);
   return (
     <Section id="settings-appearance" title="Appearance">
-      <Stack gap={4}>
-        <Text size="sm" fw={500} id="settings-theme-label">
-          Theme
-        </Text>
+      <Input.Wrapper id="settings-theme" label="Theme">
         <SegmentedControl
           aria-labelledby="settings-theme-label"
           value={settings.theme}
@@ -140,7 +138,7 @@ function AppearanceSection({ settings }: SectionProps) {
             { label: 'System', value: 'system' },
           ]}
         />
-      </Stack>
+      </Input.Wrapper>
       <NumericField
         label="Editor font size"
         description="Font size in pixels for the query and JSON editors."
@@ -148,10 +146,7 @@ function AppearanceSection({ settings }: SectionProps) {
         value={settings.editorFontSize}
         onSave={(editorFontSize) => save({ editorFontSize })}
       />
-      <Stack gap={4}>
-        <Text size="sm" fw={500} id="settings-density-label">
-          Tree density
-        </Text>
+      <Input.Wrapper id="settings-density" label="Tree density">
         <SegmentedControl
           aria-labelledby="settings-density-label"
           value={settings.treeDensity}
@@ -165,7 +160,7 @@ function AppearanceSection({ settings }: SectionProps) {
             { label: 'Comfortable', value: 'comfortable' },
           ]}
         />
-      </Stack>
+      </Input.Wrapper>
       <Group>
         <Button
           variant="default"
@@ -262,10 +257,12 @@ function UpdatesSection({ settings }: SectionProps) {
           });
         }}
       />
-      <Text size="sm">Current version {updates.current}</Text>
-      <Text size="sm" c="dimmed">
-        Last checked: {lastChecked}
-      </Text>
+      <Stack gap={2}>
+        <Text size="sm">Current version {updates.current}</Text>
+        <Text size="sm" c="dimmed">
+          Last checked: {lastChecked}
+        </Text>
+      </Stack>
       <Group>
         <Button
           variant="default"
@@ -391,15 +388,17 @@ function AboutSection() {
   const open = (url: string) => void runReported(() => rpc.app.openExternal({ url }));
   return (
     <Section id="settings-about" title="About">
-      <Text size="sm" fw={600}>
-        Mongo GUI
-      </Text>
-      <Text size="sm">Version {version}</Text>
-      <Text size="sm" c="dimmed">
-        {versions === undefined
-          ? 'Loading runtime versions'
-          : `Electron ${versions.electron}, Chromium ${versions.chrome}, Node.js ${versions.node}`}
-      </Text>
+      <Stack gap={2}>
+        <Text size="sm" fw={600}>
+          Mongo GUI
+        </Text>
+        <Text size="sm">Version {version}</Text>
+        <Text size="sm" c="dimmed">
+          {versions === undefined
+            ? 'Loading runtime versions'
+            : `Electron ${versions.electron}, Chromium ${versions.chrome}, Node.js ${versions.node}`}
+        </Text>
+      </Stack>
       <Group gap="xs">
         <Button variant="default" onClick={() => open(PROJECT_URL)}>
           Repository
