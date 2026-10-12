@@ -2,7 +2,7 @@
 
 All notable changes to Mongo GUI are listed here, newest first.
 
-## Unreleased
+## 0.2.0 - 2026-10-12
 
 ### Added
 
@@ -72,6 +72,14 @@ All notable changes to Mongo GUI are listed here, newest first.
   documents".
 - Right-click a dock tab to close it, close the other tabs, close the tabs to its left or right,
   or close all tabs. The connections, welcome and output panels stay open.
+- A connection can compress its traffic: the "Compress traffic (zlib)" switch in the connection
+  form adds `compressors=zlib` to the URI. snappy and zstd are not bundled, so they are not offered.
+- Every option in the backup, restore, export and import dialogs has an info icon. Hover or focus
+  it to read what the option does and, for backup and restore, which tool flag it sets.
+- A backup configuration can be saved under a name, then loaded back into the backup dialog and
+  renamed or deleted. A restore configuration can be saved the same way, and loading it checks that
+  the backup is still there. Both are stored encrypted, per connection, without credentials, and
+  are removed with the connection. A saved backup does not keep its folder.
 
 ### Changed
 
@@ -79,6 +87,8 @@ All notable changes to Mongo GUI are listed here, newest first.
 
 ### Fixed
 
+- After a restore dry run, "Back to options" returns to the form with its options kept, so the
+  run can be repeated or turned into the real restore.
 - Completion offers the BSON constructors (`ISODate`, `ObjectId`, `Long`, `UUID` and others)
   where a value starts, the cursor methods after a `find` or `aggregate` chain, fields after a
   dotted parent and inside quoted keys, and keeps its context in a statement that spans lines.
