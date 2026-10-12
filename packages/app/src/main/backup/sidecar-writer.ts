@@ -2,8 +2,10 @@ import {
   appError,
   AppErrorException,
   BackupSidecarSchema,
+  MONGO_SCHEME,
   SIDECAR_FORMAT,
   SIDECAR_VERSION,
+  userInfoEnd,
   type BackupSidecar,
 } from '@mongo-gui/core';
 import { replaceFile } from '../rpc/export-file';
@@ -45,13 +47,23 @@ function leaks(text: string, secret: string): boolean {
 }
 
 /**
+ * A connection URI with no user info holds no credential, and the sidecar names the same host and
+ * port, so the raw URI would otherwise match as a prefix of the sidecar's own URI.
+ */
+function isUriWithoutUserInfo(secret: string): boolean {
+  const scheme = MONGO_SCHEME.exec(secret)?.[0];
+  return scheme !== undefined && userInfoEnd(secret.slice(scheme.length)) === -1;
+}
+
+/**
  * Writes the sidecar next to the backup. The text is checked first and nothing is written when it
  * holds any of the secrets (the password in both forms, the raw URI). A short password counts only
  * when it appears as user info (":password@").
  */
 export function writeSidecar(path: string, sidecar: BackupSidecar, secrets: string[]): void {
   const text = `${JSON.stringify(sidecar, null, 2)}\n`;
-  if (secrets.some((secret) => leaks(text, secret))) {
+  const checked = secrets.filter((secret) => !isUriWithoutUserInfo(secret));
+  if (checked.some((secret) => leaks(text, secret))) {
     throw new AppErrorException(
       appError(
         'INTERNAL',

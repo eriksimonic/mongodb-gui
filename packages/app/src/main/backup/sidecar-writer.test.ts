@@ -111,6 +111,14 @@ describe('writeSidecar', () => {
     expect(existsSync(path)).toBe(false);
   });
 
+  it('writes when the raw profile URI has no credentials and equals the sidecar URI', () => {
+    const path = join(dir, 'x.json');
+    const uri = 'mongodb://127.0.0.1:27017/?directConnection=true';
+    const sidecar = buildSidecar({ ...facts(), source: { ...facts().source, uri } });
+    writeSidecar(path, sidecar, [uri, 'mongodb://127.0.0.1:27017']);
+    expect(existsSync(path)).toBe(true);
+  });
+
   it('ignores empty secrets', () => {
     writeSidecar(join(dir, 'x.json'), buildSidecar(facts()), ['']);
     expect(existsSync(join(dir, 'x.json'))).toBe(true);

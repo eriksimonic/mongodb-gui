@@ -610,7 +610,7 @@ export function BackupDialogBody({
           }}
         />
       ) : null}
-      <Group align="flex-end" wrap="nowrap">
+      <Group align="flex-start" wrap="nowrap">
         <TextInput
           label="Folder"
           placeholder="Choose a folder"
@@ -621,6 +621,7 @@ export function BackupDialogBody({
         />
         <Button
           variant="default"
+          mt="calc(var(--mantine-font-size-sm) * var(--mantine-line-height) + var(--mantine-spacing-xs) / 2)"
           onClick={() => {
             void chooseFolder();
           }}
