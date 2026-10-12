@@ -39,6 +39,8 @@ export interface BackupJob {
   start(kind: 'dump', input: BackupStartInput): Promise<void>;
   start(kind: 'restore', input: RestoreStartInput): Promise<void>;
   cancel(): void;
+  /** Forgets a finished job so the form can be shown again. */
+  reset(): void;
 }
 
 /** Starts a dump or restore job and follows its progress events. */
@@ -100,6 +102,22 @@ export function useBackupJob(): BackupJob {
     });
   }
 
+  function reset() {
+    jobIdRef.current = undefined;
+    setJobId(undefined);
+    setView(undefined);
+    setProblem(undefined);
+  }
+
   const running = starting || (jobId !== undefined && view?.progress.done !== true);
-  return { view, jobId, starting, problem, running, start: run as BackupJob['start'], cancel };
+  return {
+    view,
+    jobId,
+    starting,
+    problem,
+    running,
+    start: run as BackupJob['start'],
+    cancel,
+    reset,
+  };
 }

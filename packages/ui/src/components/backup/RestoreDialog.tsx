@@ -310,6 +310,11 @@ export function RestoreDialogBody({
         )}
         {job.running ? null : (
           <Group justify="flex-end">
+            {draft?.dryRun === true ? (
+              <Button variant="default" onClick={job.reset}>
+                Back to options
+              </Button>
+            ) : null}
             <Button onClick={onClose}>Close</Button>
           </Group>
         )}

@@ -185,4 +185,31 @@ describe('RestoreDialog', () => {
     fireEvent.click(screen.getByLabelText('Dry run'));
     expect(screen.getByRole('button', { name: 'Run dry run' })).toBeInTheDocument();
   });
+
+  it('returns to the options after a dry run', async () => {
+    const onClose = vi.fn();
+    const api = createMockUiApi({ preset: 'unlocked' });
+    await api.rpc.connections.connect({ id: localConnectionId });
+    renderWithApp(<RestoreDialogBody connectionId={localConnectionId} onClose={onClose} />, {
+      api,
+    });
+    await chooseArchive();
+    fireEvent.click(screen.getByLabelText('Dry run'));
+    const typed = screen.queryByLabelText(/^Type .* to restore anyway$/);
+    if (typed !== null) {
+      fireEvent.change(typed, { target: { value: 'Local dev' } });
+    }
+    for (const box of screen.queryAllByLabelText('I understand')) {
+      fireEvent.click(box);
+    }
+    const run = screen.getByRole('button', { name: 'Run dry run' });
+    await waitFor(() => expect(run).toBeEnabled());
+    fireEvent.click(run);
+    fireEvent.click(
+      await screen.findByRole('button', { name: 'Back to options' }, { timeout: 4000 }),
+    );
+    expect(screen.getByRole('button', { name: 'Run dry run' })).toBeInTheDocument();
+    expect(screen.getByLabelText('Dry run')).toBeChecked();
+    expect(onClose).not.toHaveBeenCalled();
+  });
 });
