@@ -29,3 +29,14 @@ export function valueText(parameter: ServerParameter): string {
   }
   return typeof parameter.value === 'string' ? parameter.value : String(parameter.value);
 }
+
+/** The colour a value reads in: true green, false grey, numbers blue, everything else default. */
+export function valueColor(text: string): string | undefined {
+  if (text === 'true') {
+    return 'green';
+  }
+  if (text === 'false') {
+    return 'dimmed';
+  }
+  return text !== '' && Number.isFinite(Number(text)) ? 'blue' : undefined;
+}

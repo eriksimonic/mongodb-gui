@@ -29,7 +29,10 @@ export function DiagnosticsPanel({ connectionId, initialTab = 'logs' }: Diagnost
       <Tabs
         value={tab}
         onChange={(value) => setTab(toTab(value))}
-        styles={{ panel: { flex: 1, minHeight: 0, overflow: 'auto' } }}
+        styles={{
+          root: { height: '100%', display: 'flex', flexDirection: 'column' },
+          panel: { flex: 1, minHeight: 0, overflow: 'auto' },
+        }}
       >
         <Tabs.List px="sm" pt="xs">
           <Tabs.Tab value="logs">Logs</Tabs.Tab>
@@ -41,30 +44,37 @@ export function DiagnosticsPanel({ connectionId, initialTab = 'logs' }: Diagnost
           <Tabs.Tab value="pools">Connection pools</Tabs.Tab>
           <Tabs.Tab value="sessions">Sessions</Tabs.Tab>
         </Tabs.List>
-        <Tabs.Panel value="logs">
+        <Tabs.Panel value="logs" style={FILL}>
           {tab === 'logs' ? <LogsTab store={store} kind="global" /> : null}
         </Tabs.Panel>
-        <Tabs.Panel value="warnings">
+        <Tabs.Panel value="warnings" style={FILL}>
           {tab === 'warnings' ? <LogsTab store={store} kind="startupWarnings" /> : null}
         </Tabs.Panel>
-        <Tabs.Panel value="parameters">
+        <Tabs.Panel value="parameters" style={FILL}>
           {tab === 'parameters' ? <ParametersTab store={store} /> : null}
         </Tabs.Panel>
-        <Tabs.Panel value="status">
+        <Tabs.Panel value="status" style={FILL}>
           {tab === 'status' ? <ServerStatusTab store={store} /> : null}
         </Tabs.Panel>
-        <Tabs.Panel value="host">
+        <Tabs.Panel value="host" style={FILL}>
           {tab === 'host' ? <HostBuildTab store={store} /> : null}
         </Tabs.Panel>
-        <Tabs.Panel value="top">{tab === 'top' ? <TopTab store={store} /> : null}</Tabs.Panel>
-        <Tabs.Panel value="pools">{tab === 'pools' ? <PoolsTab store={store} /> : null}</Tabs.Panel>
-        <Tabs.Panel value="sessions">
+        <Tabs.Panel value="top" style={FILL}>
+          {tab === 'top' ? <TopTab store={store} /> : null}
+        </Tabs.Panel>
+        <Tabs.Panel value="pools" style={FILL}>
+          {tab === 'pools' ? <PoolsTab store={store} /> : null}
+        </Tabs.Panel>
+        <Tabs.Panel value="sessions" style={FILL}>
           {tab === 'sessions' ? <SessionsTab store={store} /> : null}
         </Tabs.Panel>
       </Tabs>
     </Stack>
   );
 }
+
+/** Lets a tab fill the panel height, so a long list uses the room under the tab bar. */
+const FILL = { display: 'flex', flexDirection: 'column' } as const;
 
 const TABS: readonly DiagnosticsTab[] = [
   'logs',

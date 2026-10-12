@@ -1,10 +1,10 @@
-import { ActionIcon, Badge, Group, Stack, Text, TextInput } from '@mantine/core';
+import { ActionIcon, Badge, Group, Paper, SimpleGrid, Text, TextInput } from '@mantine/core';
 import { IconChevronDown, IconChevronRight } from '@tabler/icons-react';
 import { useEffect, useMemo, useState } from 'react';
 import { useStore } from 'zustand';
-import { CopyIcon, LoadState, RefreshButton } from './common';
+import { CopyIcon, LoadState, ScrollLayout, Toolbar } from './common';
 import type { DiagnosticsStore } from './diagnostics-store';
-import { formatTimestamp } from './format';
+import { formatBytes, formatCount, formatDuration, formatTimestamp, unitHint } from './format';
 import { relaxEjson } from './relax-ejson';
 import {
   childEntries,
@@ -54,49 +54,59 @@ export function ServerStatusTab({ store }: ServerStatusTabProps) {
   }
 
   return (
-    <Stack gap="xs" p="sm">
-      <Group gap="xs" align="flex-end">
-        <TextInput
-          aria-label="Search paths"
-          placeholder="Search paths, for example wiredTiger.cache"
-          value={query}
-          onChange={(event) => setQuery(event.currentTarget.value)}
-          w={360}
-          size="xs"
-        />
-        <RefreshButton loading={state.loading} onRefresh={() => void load()} />
-        {state.data === undefined ? null : (
-          <Text size="xs" c="dimmed">
-            Read at {formatTimestamp(state.data.at)}. Stripped:{' '}
-            {state.data.stripped.join(', ') || 'none'}
-          </Text>
-        )}
-      </Group>
+    <ScrollLayout
+      toolbar={
+        <Toolbar
+          loading={state.loading}
+          onRefresh={() => void load()}
+          status={
+            state.data === undefined
+              ? undefined
+              : `Read at ${formatTimestamp(state.data.at)}. Stripped: ${state.data.stripped.join(', ') || 'none'}`
+          }
+        >
+          <TextInput
+            aria-label="Search paths"
+            placeholder="Search paths, for example wiredTiger.cache"
+            value={query}
+            onChange={(event) => setQuery(event.currentTarget.value)}
+            w={320}
+            size="xs"
+          />
+        </Toolbar>
+      }
+    >
       <LoadState state={state}>
         {() =>
           relaxed === undefined || canonical === undefined ? null : (
-            <div
-              style={{ fontFamily: 'monospace', fontSize: 'calc(var(--mg-font-scale, 1) * 12px)' }}
-            >
-              {childEntries(relaxed).map(([key, child]) => (
-                <TreeNode
-                  key={key}
-                  label={key}
-                  segments={[key]}
-                  value={child}
-                  canonical={canonical}
-                  depth={0}
-                  open={open}
-                  visible={visible}
-                  query={query}
-                  onToggle={toggle}
-                />
-              ))}
-            </div>
+            <>
+              <SummaryCards document={relaxed} />
+              <div
+                style={{
+                  fontFamily: 'monospace',
+                  fontSize: 'calc(var(--mg-font-scale, 1) * 12px)',
+                }}
+              >
+                {childEntries(relaxed).map(([key, child]) => (
+                  <TreeNode
+                    key={key}
+                    label={key}
+                    segments={[key]}
+                    value={child}
+                    canonical={canonical}
+                    depth={0}
+                    open={open}
+                    visible={visible}
+                    query={query}
+                    onToggle={toggle}
+                  />
+                ))}
+              </div>
+            </>
           )
         }
       </LoadState>
-    </Stack>
+    </ScrollLayout>
   );
 }
 
@@ -159,6 +169,7 @@ function TreeNode({
         ) : (
           <Text size="xs" c="dimmed" style={{ wordBreak: 'break-all' }}>
             {previewOf(value)}
+            {hintOf(label, value)}
           </Text>
         )}
         {expandable ? (
@@ -196,4 +207,73 @@ function previewOf(value: unknown): string {
     return JSON.stringify(value);
   }
   return String(value);
+}
+
+function hintOf(label: string, value: unknown) {
+  const hint = typeof value === 'number' ? unitHint(label, value) : undefined;
+  return hint === undefined ? null : (
+    <Text span inherit c="blue">
+      {' '}
+      ({hint})
+    </Text>
+  );
+}
+
+function numberAt(document: unknown, ...path: string[]): number | undefined {
+  let current: unknown = document;
+  for (const segment of path) {
+    if (typeof current !== 'object' || current === null) {
+      return undefined;
+    }
+    current = (current as Record<string, unknown>)[segment];
+  }
+  return typeof current === 'number' ? current : undefined;
+}
+
+/** The numbers most people look for first, above the full tree. */
+function SummaryCards({ document }: { readonly document: unknown }) {
+  const uptime = numberAt(document, 'uptime');
+  const current = numberAt(document, 'connections', 'current');
+  const available = numberAt(document, 'connections', 'available');
+  const resident = numberAt(document, 'mem', 'resident');
+  const operations = ['insert', 'query', 'update', 'delete', 'getmore', 'command']
+    .map((name) => numberAt(document, 'opcounters', name))
+    .reduce<number | undefined>(
+      (sum, value) => (value === undefined ? sum : (sum ?? 0) + value),
+      undefined,
+    );
+  const version = (document as { version?: unknown }).version;
+  const cards: { label: string; value: string | undefined }[] = [
+    { label: 'Version', value: typeof version === 'string' ? version : undefined },
+    { label: 'Uptime', value: uptime === undefined ? undefined : formatDuration(uptime) },
+    {
+      label: 'Connections',
+      value:
+        current === undefined
+          ? undefined
+          : `${formatCount(current)}${available === undefined ? '' : ` of ${formatCount(current + available)}`}`,
+    },
+    {
+      label: 'Resident memory',
+      value: resident === undefined ? undefined : formatBytes(resident * 1024 * 1024),
+    },
+    {
+      label: 'Operations since start',
+      value: operations === undefined ? undefined : formatCount(operations),
+    },
+  ];
+  return (
+    <SimpleGrid cols={{ base: 2, sm: 5 }} spacing="xs" mb="xs">
+      {cards
+        .filter((card) => card.value !== undefined)
+        .map((card) => (
+          <Paper key={card.label} withBorder p="xs">
+            <Text size="xs" c="dimmed">
+              {card.label}
+            </Text>
+            <Text fw={600}>{card.value}</Text>
+          </Paper>
+        ))}
+    </SimpleGrid>
+  );
 }

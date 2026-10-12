@@ -1,9 +1,10 @@
-import { Code, Group, Stack, Text } from '@mantine/core';
+import { Code, Group, Text } from '@mantine/core';
 import { useEffect } from 'react';
 import { useStore } from 'zustand';
-import { CopyIcon, KeyValueTable, LoadState, RefreshButton, Section } from './common';
+import { CopyIcon, KeyValueTable, LoadState, Section, ScrollLayout, Toolbar } from './common';
 import type { DiagnosticsStore } from './diagnostics-store';
 import { formatBytes, formatCount } from './format';
+import { relaxEjson } from './relax-ejson';
 
 export interface HostBuildTabProps {
   readonly store: DiagnosticsStore;
@@ -21,13 +22,10 @@ export function HostBuildTab({ store }: HostBuildTabProps) {
   }, [load]);
 
   return (
-    <Stack gap="md" p="sm">
-      <Group>
-        <RefreshButton loading={state.loading} onRefresh={() => void load()} />
-      </Group>
+    <ScrollLayout toolbar={<Toolbar loading={state.loading} onRefresh={() => void load()} />}>
       <LoadState state={state}>
         {({ host, build, cmdLine }) => {
-          const parsed = JSON.stringify(cmdLine.parsed, null, 2) ?? '';
+          const parsed = JSON.stringify(relaxEjson(cmdLine.parsed), null, 2) ?? '';
           return (
             <>
               <Section title="Host">
@@ -105,6 +103,6 @@ export function HostBuildTab({ store }: HostBuildTabProps) {
           );
         }}
       </LoadState>
-    </Stack>
+    </ScrollLayout>
   );
 }

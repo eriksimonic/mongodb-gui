@@ -1,6 +1,6 @@
 import type { ServerParameter } from '@mongo-gui/core';
 import { describe, expect, it } from 'vitest';
-import { filterParameters, valueText } from './parameter-search';
+import { filterParameters, valueColor, valueText } from './parameter-search';
 
 const PARAMETERS: ServerParameter[] = [
   { name: 'logLevel', value: 0, valueEjson: '{"$numberInt":"0"}' },
@@ -37,5 +37,15 @@ describe('filterParameters', () => {
       valueEjson: '{"enabled":true}',
     };
     expect(valueText(parameter)).toBe('{"enabled":true}');
+  });
+});
+
+describe('valueColor', () => {
+  it('colours booleans and numbers', () => {
+    expect(valueColor('true')).toBe('green');
+    expect(valueColor('false')).toBe('dimmed');
+    expect(valueColor('7776000')).toBe('blue');
+    expect(valueColor('automatic')).toBeUndefined();
+    expect(valueColor('')).toBeUndefined();
   });
 });

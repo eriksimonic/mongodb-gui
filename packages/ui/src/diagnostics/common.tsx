@@ -1,4 +1,15 @@
-import { ActionIcon, Alert, Button, Group, Loader, Table, Text, Tooltip } from '@mantine/core';
+import {
+  ActionIcon,
+  Alert,
+  Box,
+  Button,
+  Group,
+  Loader,
+  Stack,
+  Table,
+  Text,
+  Tooltip,
+} from '@mantine/core';
 import { IconCheck, IconCopy, IconRefresh } from '@tabler/icons-react';
 import { useState, type ReactNode } from 'react';
 import { copyText } from './copy';
@@ -121,5 +132,57 @@ export function Section({ title, children }: SectionProps) {
       </Group>
       {children}
     </section>
+  );
+}
+
+export interface ScrollLayoutProps {
+  /** Stays in view while the content scrolls, so the search box and Refresh are always reachable. */
+  readonly toolbar: ReactNode;
+  readonly gap?: 'xs' | 'md';
+  readonly children: ReactNode;
+}
+
+/** A tab body with a fixed toolbar and a scrolling content area under it. */
+export function ScrollLayout({ toolbar, gap = 'xs', children }: ScrollLayoutProps) {
+  return (
+    <Stack gap={0} style={{ flex: 1, minHeight: 0 }}>
+      <Box
+        px="sm"
+        py="xs"
+        style={{
+          flexShrink: 0,
+          borderBottom: '1px solid var(--mantine-color-default-border)',
+        }}
+      >
+        {toolbar}
+      </Box>
+      <Stack gap={gap} px="sm" pb="sm" style={{ flex: 1, minHeight: 0, overflow: 'auto' }}>
+        {children}
+      </Stack>
+    </Stack>
+  );
+}
+
+export interface ToolbarProps {
+  readonly loading: boolean;
+  readonly onRefresh: () => void;
+  /** Inputs, selects, switches and actions, in that order. */
+  readonly children?: ReactNode;
+  /** Dimmed text at the right edge, such as a count or the time of the last read. */
+  readonly status?: ReactNode;
+}
+
+/** The control row of every tab. Refresh comes first, so it is always in the same place. */
+export function Toolbar({ loading, onRefresh, children, status }: ToolbarProps) {
+  return (
+    <Group gap="xs" align="center" wrap="wrap">
+      <RefreshButton loading={loading} onRefresh={onRefresh} />
+      {children}
+      {status === undefined ? null : (
+        <Text size="xs" c="dimmed" ml="auto">
+          {status}
+        </Text>
+      )}
+    </Group>
   );
 }

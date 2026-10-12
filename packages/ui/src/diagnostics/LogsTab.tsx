@@ -1,22 +1,22 @@
 import {
   ActionIcon,
   Alert,
+  Badge,
   Code,
-  Group,
-  Loader,
   Select,
   Stack,
   Switch,
-  Text,
   TextInput,
+  Tooltip,
 } from '@mantine/core';
 import { useVirtualizer } from '@tanstack/react-virtual';
 import { IconChevronDown, IconChevronRight } from '@tabler/icons-react';
 import type { LogLine, ServerLogKind } from '@mongo-gui/core';
 import { memo, useCallback, useEffect, useMemo, useRef, useState, type CSSProperties } from 'react';
 import { useStore } from 'zustand';
-import { CopyIcon, LoadState, RefreshButton } from './common';
+import { CopyIcon, LoadState, Toolbar } from './common';
 import type { DiagnosticsStore } from './diagnostics-store';
+import { severityStyle } from './log-severity';
 import { formatTimestamp } from './format';
 import {
   componentsOf,
@@ -31,7 +31,7 @@ const ROW_HEIGHT_PX = 28;
 const ATTRIBUTES_HEIGHT_PX = 160;
 const OVERSCAN_ROWS = 12;
 const NO_LINES: readonly LogLine[] = [];
-const GRID_TEMPLATE = '28px 170px 64px 130px minmax(0, 1fr) 36px';
+const GRID_TEMPLATE = '28px 170px 72px 130px minmax(0, 1fr) 36px';
 
 const LEVEL_OPTIONS: readonly { value: MinSeverity; label: string }[] = [
   { value: 'all', label: 'All levels' },
@@ -110,8 +110,12 @@ export function LogsTab({ store, kind }: LogsTabProps) {
   }, []);
 
   return (
-    <Stack gap="xs" p="sm">
-      <Group gap="xs" align="flex-end" wrap="wrap">
+    <Stack gap="xs" p="sm" style={{ flex: 1, minHeight: 0 }}>
+      <Toolbar
+        loading={state.loading}
+        onRefresh={() => void loadLog(kind)}
+        status={`Showing ${shown.length} of ${lines.length} lines${state.data === undefined ? '' : `, ${state.data.total} written since start`}`}
+      >
         <Select
           aria-label="Level"
           data={LEVEL_OPTIONS.map((option) => ({ value: option.value, label: option.label }))}
@@ -141,7 +145,7 @@ export function LogsTab({ store, kind }: LogsTabProps) {
           placeholder="Search message or attributes"
           value={filter.text}
           onChange={(event) => setFilter({ ...filter, text: event.currentTarget.value })}
-          w={260}
+          w={320}
           size="xs"
         />
         {kind === 'global' ? (
@@ -153,13 +157,7 @@ export function LogsTab({ store, kind }: LogsTabProps) {
             size="xs"
           />
         ) : null}
-        <RefreshButton loading={state.loading} onRefresh={() => void loadLog(kind)} />
-        {state.loading && state.data !== undefined ? <Loader size="xs" /> : null}
-      </Group>
-      <Text size="xs" c="dimmed">
-        Showing {shown.length} of {lines.length} lines
-        {state.data === undefined ? '' : `, ${state.data.total} written since start`}
-      </Text>
+      </Toolbar>
       <LoadState state={state}>
         {() =>
           shown.length === 0 ? (
@@ -189,7 +187,7 @@ export function LogsTab({ store, kind }: LogsTabProps) {
                 role="grid"
                 aria-label="Server log lines"
                 className="mg-virtual-scroll"
-                style={{ height: 'min(70vh, 640px)', overflow: 'auto', position: 'relative' }}
+                style={{ flex: 1, minHeight: 240, overflow: 'auto', position: 'relative' }}
               >
                 <div style={{ height: virtualizer.getTotalSize(), position: 'relative' }}>
                   {virtualizer.getVirtualItems().map((virtualRow) => {
@@ -254,8 +252,16 @@ const LogRow = memo(function LogRow({ item, expanded, onToggle, style }: LogRowP
       </div>
     );
   }
+  const severity = severityStyle(line.severity);
   return (
-    <div role="row" style={{ ...style, ...rowStyle() }}>
+    <div
+      role="row"
+      style={{
+        ...style,
+        ...rowStyle(),
+        background: severity.tint ? `var(--mantine-color-${severity.color}-light)` : undefined,
+      }}
+    >
       {line.attributes === undefined ? (
         <span />
       ) : (
@@ -270,8 +276,22 @@ const LogRow = memo(function LogRow({ item, expanded, onToggle, style }: LogRowP
         </ActionIcon>
       )}
       <span role="gridcell">{formatTimestamp(line.ts)}</span>
-      <span role="gridcell">{line.severity ?? ''}</span>
-      <span role="gridcell">{line.component ?? ''}</span>
+      <span role="gridcell">
+        {line.severity === undefined ? null : (
+          <Tooltip label={severity.label} withArrow>
+            <Badge size="xs" variant="light" color={severity.color} radius="sm" h={18} px={6}>
+              {line.severity}
+            </Badge>
+          </Tooltip>
+        )}
+      </span>
+      <span role="gridcell">
+        {line.component === undefined || line.component === '-' ? null : (
+          <Badge size="xs" variant="outline" color="gray" radius="sm" h={18} px={6}>
+            {line.component}
+          </Badge>
+        )}
+      </span>
       <span
         role="gridcell"
         style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}

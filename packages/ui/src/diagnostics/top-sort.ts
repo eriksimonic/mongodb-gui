@@ -62,3 +62,43 @@ function valueOf(entry: TopEntry, column: Exclude<TopColumn, 'ns'>): number {
       return entry.commands.count;
   }
 }
+
+const NO_STAT = { timeMs: 0, count: 0 };
+
+function statDelta(current: TopEntry['total'], previous: TopEntry['total']): TopEntry['total'] {
+  return {
+    timeMs: Math.max(0, current.timeMs - previous.timeMs),
+    count: Math.max(0, current.count - previous.count),
+  };
+}
+
+/**
+ * What each namespace did between two snapshots, like mongotop. A namespace missing from the
+ * earlier snapshot counts from zero. A counter that went down (server restart) counts as zero.
+ * Namespaces with no activity are dropped.
+ */
+export function topDelta(previous: readonly TopEntry[], current: readonly TopEntry[]): TopEntry[] {
+  const earlier = new Map(previous.map((entry) => [entry.ns, entry]));
+  return current
+    .map((entry): TopEntry => {
+      const before = earlier.get(entry.ns);
+      return {
+        ns: entry.ns,
+        total: statDelta(entry.total, before?.total ?? NO_STAT),
+        readLock: statDelta(entry.readLock, before?.readLock ?? NO_STAT),
+        writeLock: statDelta(entry.writeLock, before?.writeLock ?? NO_STAT),
+        queries: statDelta(entry.queries, before?.queries ?? NO_STAT),
+        getmore: statDelta(entry.getmore, before?.getmore ?? NO_STAT),
+        insert: statDelta(entry.insert, before?.insert ?? NO_STAT),
+        update: statDelta(entry.update, before?.update ?? NO_STAT),
+        remove: statDelta(entry.remove, before?.remove ?? NO_STAT),
+        commands: statDelta(entry.commands, before?.commands ?? NO_STAT),
+      };
+    })
+    .filter(
+      (entry) =>
+        entry.total.timeMs > 0 ||
+        readCount(entry) + writeCount(entry) > 0 ||
+        entry.commands.count > 0,
+    );
+}

@@ -1,7 +1,7 @@
-import { Stack, Table } from '@mantine/core';
+import { Table } from '@mantine/core';
 import { useEffect } from 'react';
 import { useStore } from 'zustand';
-import { KeyValueTable, LoadState, RefreshButton, Section } from './common';
+import { KeyValueTable, LoadState, Section, ScrollLayout, Toolbar } from './common';
 import type { DiagnosticsStore } from './diagnostics-store';
 import { formatCount } from './format';
 
@@ -19,8 +19,7 @@ export function PoolsTab({ store }: PoolsTabProps) {
   }, [load]);
 
   return (
-    <Stack gap="md" p="sm">
-      <RefreshButton loading={state.loading} onRefresh={() => void load()} />
+    <ScrollLayout toolbar={<Toolbar loading={state.loading} onRefresh={() => void load()} />}>
       <LoadState state={state}>
         {(pools) => (
           <>
@@ -58,6 +57,6 @@ export function PoolsTab({ store }: PoolsTabProps) {
           </>
         )}
       </LoadState>
-    </Stack>
+    </ScrollLayout>
   );
 }

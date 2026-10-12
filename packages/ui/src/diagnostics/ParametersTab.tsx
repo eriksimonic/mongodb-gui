@@ -1,10 +1,10 @@
-import { Group, Stack, Table, Text, TextInput } from '@mantine/core';
+import { Table, TextInput } from '@mantine/core';
 import { useEffect, useMemo, useState } from 'react';
 import type { ServerParameter } from '@mongo-gui/core';
 import { useStore } from 'zustand';
-import { CopyIcon, LoadState, RefreshButton } from './common';
+import { CopyIcon, LoadState, ScrollLayout, Toolbar } from './common';
 import type { DiagnosticsStore } from './diagnostics-store';
-import { filterParameters, valueText } from './parameter-search';
+import { filterParameters, valueColor, valueText } from './parameter-search';
 
 const NO_PARAMETERS: readonly ServerParameter[] = [];
 
@@ -26,24 +26,27 @@ export function ParametersTab({ store }: ParametersTabProps) {
   const shown = useMemo(() => filterParameters(all, query), [all, query]);
 
   return (
-    <Stack gap="xs" p="sm">
-      <Group gap="xs" align="flex-end">
-        <TextInput
-          aria-label="Search parameters"
-          placeholder="Search by name or value"
-          value={query}
-          onChange={(event) => setQuery(event.currentTarget.value)}
-          w={320}
-          size="xs"
-        />
-        <RefreshButton loading={state.loading} onRefresh={() => void load()} />
-      </Group>
-      <Text size="xs" c="dimmed">
-        Showing {shown.length} of {all.length} parameters
-      </Text>
+    <ScrollLayout
+      toolbar={
+        <Toolbar
+          loading={state.loading}
+          onRefresh={() => void load()}
+          status={`Showing ${shown.length} of ${all.length} parameters`}
+        >
+          <TextInput
+            aria-label="Search parameters"
+            placeholder="Search by name or value"
+            value={query}
+            onChange={(event) => setQuery(event.currentTarget.value)}
+            w={320}
+            size="xs"
+          />
+        </Toolbar>
+      }
+    >
       <LoadState state={state}>
         {() => (
-          <Table withTableBorder verticalSpacing={2} fz="xs" layout="fixed" striped>
+          <Table withTableBorder stickyHeader verticalSpacing={2} fz="xs" layout="fixed" striped>
             <Table.Thead>
               <Table.Tr>
                 <Table.Th w="40%">Name</Table.Th>
@@ -57,7 +60,10 @@ export function ParametersTab({ store }: ParametersTabProps) {
                   <Table.Td style={{ fontFamily: 'monospace', wordBreak: 'break-all' }}>
                     {parameter.name}
                   </Table.Td>
-                  <Table.Td style={{ fontFamily: 'monospace', wordBreak: 'break-all' }}>
+                  <Table.Td
+                    {...colorProps(valueText(parameter))}
+                    style={{ fontFamily: 'monospace', wordBreak: 'break-all' }}
+                  >
                     {valueText(parameter)}
                   </Table.Td>
                   <Table.Td>
@@ -72,6 +78,11 @@ export function ParametersTab({ store }: ParametersTabProps) {
           </Table>
         )}
       </LoadState>
-    </Stack>
+    </ScrollLayout>
   );
+}
+
+function colorProps(text: string): { c?: string } {
+  const color = valueColor(text);
+  return color === undefined ? {} : { c: color };
 }

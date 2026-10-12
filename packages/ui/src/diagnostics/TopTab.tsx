@@ -1,15 +1,24 @@
-import { Group, Stack, Table, Text, UnstyledButton } from '@mantine/core';
+import {
+  Group,
+  Select,
+  Switch,
+  Table,
+  Text,
+  UnstyledButton,
+  type MantineStyleProp,
+} from '@mantine/core';
 import { IconArrowDown, IconArrowUp } from '@tabler/icons-react';
 import type { TopEntry } from '@mongo-gui/core';
 import { useEffect, useMemo, useState } from 'react';
 import { useStore } from 'zustand';
-import { LoadState, RefreshButton } from './common';
+import { LoadState, ScrollLayout, Toolbar } from './common';
 import type { DiagnosticsStore } from './diagnostics-store';
 import { formatCount, formatMs } from './format';
 import {
   DEFAULT_TOP_SORT,
   readCount,
   sortTop,
+  topDelta,
   topTotals,
   writeCount,
   type TopColumn,
@@ -21,6 +30,13 @@ const NO_ENTRIES: readonly TopEntry[] = [];
 export interface TopTabProps {
   readonly store: DiagnosticsStore;
 }
+
+const INTERVALS = [
+  { value: '0', label: 'Manual' },
+  { value: '1000', label: 'Every 1s' },
+  { value: '5000', label: 'Every 5s' },
+  { value: '10000', label: 'Every 10s' },
+];
 
 const COLUMNS: readonly { key: TopColumn; label: string; time: boolean }[] = [
   { key: 'ns', label: 'Namespace', time: false },
@@ -42,8 +58,35 @@ export function TopTab({ store }: TopTabProps) {
     void load();
   }, [load]);
 
-  const entries = state.data ?? NO_ENTRIES;
+  const [intervalMs, setIntervalMs] = useState<number>(0);
+  const [delta, setDelta] = useState(false);
+  const [pair, setPair] = useState<{
+    readonly previous: readonly TopEntry[] | undefined;
+    readonly current: readonly TopEntry[] | undefined;
+  }>({ previous: undefined, current: undefined });
+
+  // Keeps the snapshot before the newest one. Adjusting state while rendering avoids an extra pass.
+  if (state.data !== undefined && state.data !== pair.current) {
+    setPair({ previous: pair.current, current: state.data });
+  }
+
+  useEffect(() => {
+    if (intervalMs === 0) {
+      return undefined;
+    }
+    const timer = setInterval(() => void load(), intervalMs);
+    return () => clearInterval(timer);
+  }, [intervalMs, load]);
+
+  const waitingForDelta = delta && pair.previous === undefined;
+  const entries =
+    delta && pair.previous !== undefined && pair.current !== undefined
+      ? topDelta(pair.previous, pair.current)
+      : waitingForDelta
+        ? NO_ENTRIES
+        : (state.data ?? NO_ENTRIES);
   const rows = useMemo(() => sortTop(entries, sort), [entries, sort]);
+  const totals = useMemo(() => topTotals(entries), [entries]);
 
   function sortBy(column: TopColumn) {
     setSort((current) =>
@@ -54,13 +97,30 @@ export function TopTab({ store }: TopTabProps) {
   }
 
   return (
-    <Stack gap="xs" p="sm">
-      <Group>
-        <RefreshButton loading={state.loading} onRefresh={() => void load()} />
-      </Group>
+    <ScrollLayout
+      toolbar={
+        <Toolbar loading={state.loading} onRefresh={() => void load()}>
+          <Select
+            size="xs"
+            w={130}
+            aria-label="Refresh interval"
+            allowDeselect={false}
+            data={INTERVALS}
+            value={String(intervalMs)}
+            onChange={(value) => setIntervalMs(Number(value ?? 0))}
+          />
+          <Switch
+            size="xs"
+            label="Change since last refresh"
+            checked={delta}
+            onChange={(event) => setDelta(event.currentTarget.checked)}
+          />
+        </Toolbar>
+      }
+    >
       <LoadState state={state}>
         {() => (
-          <Table withTableBorder verticalSpacing={2} fz="xs" striped>
+          <Table withTableBorder stickyHeader verticalSpacing={2} fz="xs" striped>
             <Table.Thead>
               <Table.Tr>
                 {COLUMNS.map((column) => (
@@ -91,10 +151,21 @@ export function TopTab({ store }: TopTabProps) {
             <Table.Tbody>
               {rows.map((entry) => (
                 <Table.Tr key={entry.ns}>
-                  <Table.Td style={{ fontFamily: 'monospace' }}>{entry.ns}</Table.Td>
-                  <Table.Td ta="right">{formatMs(entry.total.timeMs)}</Table.Td>
-                  <Table.Td ta="right">{formatMs(entry.readLock.timeMs)}</Table.Td>
-                  <Table.Td ta="right">{formatMs(entry.writeLock.timeMs)}</Table.Td>
+                  <Table.Td style={{ fontFamily: 'monospace' }}>
+                    <Namespace ns={entry.ns} />
+                  </Table.Td>
+                  <Table.Td ta="right" style={shareStyle(entry.total.timeMs, totals.total)}>
+                    {formatMs(entry.total.timeMs)}
+                  </Table.Td>
+                  <Table.Td ta="right" style={shareStyle(entry.readLock.timeMs, totals.readLock)}>
+                    {formatMs(entry.readLock.timeMs)}
+                  </Table.Td>
+                  <Table.Td
+                    ta="right"
+                    style={shareStyle(entry.writeLock.timeMs, totals.writeLock, 'orange')}
+                  >
+                    {formatMs(entry.writeLock.timeMs)}
+                  </Table.Td>
                   <Table.Td ta="right">{formatCount(readCount(entry))}</Table.Td>
                   <Table.Td ta="right">{formatCount(writeCount(entry))}</Table.Td>
                   <Table.Td ta="right">{formatCount(entry.commands.count)}</Table.Td>
@@ -105,12 +176,48 @@ export function TopTab({ store }: TopTabProps) {
           </Table>
         )}
       </LoadState>
-      {state.data !== undefined && state.data.length === 0 ? (
+      {waitingForDelta ? (
+        <Text size="sm" c="dimmed">
+          Refresh once more to see what changed.
+        </Text>
+      ) : delta && entries.length === 0 ? (
+        <Text size="sm" c="dimmed">
+          No activity since the last refresh.
+        </Text>
+      ) : state.data !== undefined && state.data.length === 0 ? (
         <Text size="sm" c="dimmed">
           The server reports no namespaces yet.
         </Text>
       ) : null}
-    </Stack>
+    </ScrollLayout>
+  );
+}
+
+/** A bar behind the cell, as wide as the namespace's share of the column total. */
+function shareStyle(value: number, total: number, color = 'blue'): MantineStyleProp {
+  const share = total > 0 ? Math.min(100, Math.round((value / total) * 100)) : 0;
+  if (share === 0) {
+    return {};
+  }
+  return {
+    background: `linear-gradient(to left, var(--mantine-color-${color}-light) ${share}%, transparent ${share}%)`,
+    fontWeight: share >= 50 ? 600 : undefined,
+  };
+}
+
+/** The database in a dimmer tone, so the collection name stands out. */
+function Namespace({ ns }: { readonly ns: string }) {
+  const dot = ns.indexOf('.');
+  if (dot < 0) {
+    return <>{ns}</>;
+  }
+  return (
+    <>
+      <Text span inherit c="dimmed">
+        {ns.slice(0, dot + 1)}
+      </Text>
+      {ns.slice(dot + 1)}
+    </>
   );
 }
 
