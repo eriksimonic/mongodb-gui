@@ -1,5 +1,6 @@
 // @vitest-environment jsdom
 import { fireEvent, screen, waitFor, within } from '@testing-library/react';
+import { RestoreOptionsSchema } from '@mongo-gui/core';
 import { describe, expect, it, vi } from 'vitest';
 import { createMockUiApi, type MockUiApiOptions } from '../../api/mock-rpc-client';
 import { localConnectionId } from '../../api/mock-fixtures';
@@ -211,5 +212,55 @@ describe('RestoreDialog', () => {
     expect(screen.getByRole('button', { name: 'Run dry run' })).toBeInTheDocument();
     expect(screen.getByLabelText('Dry run')).toBeChecked();
     expect(onClose).not.toHaveBeenCalled();
+  });
+
+  it('saves the form, reopens it from the list and renames and deletes it', async () => {
+    const api = await renderDialog();
+    await chooseArchive();
+    fireEvent.change(screen.getByLabelText('Restore shop as'), { target: { value: 'shop_copy' } });
+    fireEvent.change(screen.getByLabelText('Saved restore name'), {
+      target: { value: 'Nightly' },
+    });
+    fireEvent.click(screen.getByRole('button', { name: 'Save' }));
+    const row = await screen.findByRole('button', { name: 'Nightly' });
+    const [saved] = await api.rpc.savedRestores.list();
+    expect(saved?.options.renames).toEqual([{ from: 'shop', to: 'shop_copy' }]);
+
+    fireEvent.change(screen.getByLabelText('Restore shop as'), { target: { value: 'other' } });
+    fireEvent.click(row);
+    await waitFor(() => expect(screen.getByLabelText('Restore shop as')).toHaveValue('shop_copy'));
+
+    fireEvent.click(screen.getByRole('button', { name: 'Rename Nightly' }));
+    fireEvent.change(screen.getByLabelText('Rename Nightly'), { target: { value: 'Weekly' } });
+    fireEvent.click(screen.getByRole('button', { name: 'Confirm rename of Nightly' }));
+    await screen.findByRole('button', { name: 'Weekly' });
+
+    fireEvent.click(screen.getByRole('button', { name: 'Delete Weekly' }));
+    await waitFor(() => expect(screen.queryByRole('button', { name: 'Weekly' })).toBeNull());
+    expect(await api.rpc.savedRestores.list()).toEqual([]);
+  });
+
+  it('keeps the form and says so when the saved source is gone', async () => {
+    const api = createMockUiApi({ preset: 'unlocked' });
+    await api.rpc.connections.connect({ id: localConnectionId });
+    const saved = await api.rpc.savedRestores.save({
+      name: 'Old',
+      connectionId: localConnectionId,
+      source: '/backups/gone.archive',
+      toolsVersion: '100.9.4',
+      options: RestoreOptionsSchema.parse({}),
+    });
+    vi.spyOn(api.rpc.savedRestores, 'open').mockRejectedValue(
+      Object.assign(new Error('The backup was not found.'), { code: 'NOT_FOUND' }),
+    );
+    renderWithApp(
+      <RestoreDialogBody connectionId={localConnectionId} onClose={() => undefined} />,
+      { api },
+    );
+    fireEvent.click(await screen.findByRole('button', { name: saved.name }));
+    expect(await screen.findByRole('alert')).toHaveTextContent(
+      'cannot be opened from /backups/gone.archive',
+    );
+    expect(screen.getByRole('button', { name: 'Restore' })).toBeDisabled();
   });
 });

@@ -5,6 +5,8 @@ import {
   type DatabaseRename,
   type RestoreOptions,
   type RestoreStartInput,
+  type SavedRestore,
+  type SavedRestoreInput,
   type FindingCode,
 } from '@mongo-gui/core';
 import type { BackupProblem } from './backup-model';
@@ -99,6 +101,36 @@ export function draftFromInspection(
     numParallelCollections: 4,
     numInsertionWorkersPerCollection: 1,
     verifyChecksum: true,
+  };
+}
+
+/**
+ * The draft a saved restore starts from. A namespace the saved restore did not select stays
+ * unchecked, so one the backup gained since is not restored. The saved tools version applies
+ * when it is installed.
+ */
+export function draftFromSaved(
+  inspection: Pick<BackupInspection, 'namespaces' | 'sidecar' | 'prelude'>,
+  saved: Pick<SavedRestore, 'toolsVersion' | 'options'>,
+  input: Omit<DraftFromInspectionInput, 'targetDatabase'>,
+): RestoreDraft {
+  const base = draftFromInspection(inspection, input);
+  const { include, renames, oplogLimit, ...flags } = saved.options;
+  const selected = (namespace: ContentsNamespace) =>
+    include === undefined ||
+    include.includes(`${namespace.database}.*`) ||
+    include.includes(keyOf(namespace.database, namespace.collection));
+  return {
+    ...base,
+    ...flags,
+    unchecked: base.contents
+      .filter((namespace) => !selected(namespace))
+      .map((namespace) => keyOf(namespace.database, namespace.collection)),
+    renameTo: Object.fromEntries(renames.map((rename) => [rename.from, rename.to])),
+    oplogLimit: oplogLimit ?? '',
+    toolsVersion: input.installedVersions.includes(saved.toolsVersion)
+      ? saved.toolsVersion
+      : base.toolsVersion,
   };
 }
 
@@ -280,5 +312,20 @@ export function restoreStartInput(
     ...(context.confirmation === undefined || context.confirmation === ''
       ? {}
       : { confirmation: context.confirmation }),
+  };
+}
+
+/** What `savedRestores.save` takes. Call it only when `restoreProblemsOf` returns nothing. */
+export function savedRestoreInput(
+  draft: RestoreDraft,
+  context: { readonly name: string; readonly connectionId: string; readonly source: string },
+): SavedRestoreInput {
+  const { toolsVersion, options } = restoreStartInput(draft, context);
+  return {
+    name: context.name,
+    connectionId: context.connectionId,
+    source: context.source,
+    toolsVersion,
+    options,
   };
 }

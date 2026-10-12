@@ -6,8 +6,8 @@ import { afterEach, describe, expect, it } from 'vitest';
 import { seal } from '../crypto/aead';
 import { Vault } from '../vault/vault';
 import { EncryptedStore } from './encrypted-store';
-import { migrations } from './migrations';
 import { FAST_KDF, TEST_PASSWORD, openTestStore, type TestStore } from './fixtures';
+import { migrations } from './migrations';
 
 const cleanups: Array<() => void> = [];
 
@@ -33,7 +33,7 @@ function caughtCode(action: () => unknown): AppErrorCode | undefined {
 }
 
 describe('EncryptedStore setup', () => {
-  it('enables WAL and foreign keys and applies schema the latest schema version', () => {
+  it('enables WAL and foreign keys and applies the latest schema version', () => {
     const test = track(openTestStore());
     const journal = test.store.db.prepare('PRAGMA journal_mode').get();
     const foreignKeys = test.store.db.prepare('PRAGMA foreign_keys').get();
@@ -42,7 +42,7 @@ describe('EncryptedStore setup', () => {
       .get();
     expect(journal?.['journal_mode']).toBe('wal');
     expect(foreignKeys?.['foreign_keys']).toBe(1);
-    expect(version?.['version']).toBe(migrations.at(-1)?.version);
+    expect(version?.['version']).toBe(migrations.length);
   });
 
   it('does not rerun migrations when an existing file is reopened', () => {
@@ -67,6 +67,7 @@ describe('EncryptedStore setup', () => {
       'settings',
       'layout',
       'saved_backups',
+      'saved_restores',
       'history_connection_started',
     ]) {
       expect(names).toContain(name);

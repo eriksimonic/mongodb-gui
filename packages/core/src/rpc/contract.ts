@@ -119,6 +119,11 @@ import {
   SavedBackupRenameInputSchema,
   SavedBackupSchema,
 } from '../backup/saved';
+import {
+  SavedRestoreInputSchema,
+  SavedRestoreRenameInputSchema,
+  SavedRestoreSchema,
+} from '../backup/saved-restore';
 import { BackupInspectionSchema, InspectBackupInputSchema } from '../backup/inspection';
 import { BackupServerInfoSchema, DescribeServerInputSchema } from '../backup/server-info';
 import {
@@ -633,6 +638,18 @@ export const rpcContract = {
     save: defineCall(SavedBackupInputSchema, SavedBackupSchema),
     rename: defineCall(SavedBackupRenameInputSchema, SavedBackupSchema),
     remove: defineCall(idParam, z.void()),
+  },
+  // Restore configurations saved to run again. Credentials stay with the connection profile.
+  savedRestores: {
+    list: defineCall(z.void(), z.array(SavedRestoreSchema)),
+    save: defineCall(SavedRestoreInputSchema, SavedRestoreSchema),
+    rename: defineCall(SavedRestoreRenameInputSchema, SavedRestoreSchema),
+    remove: defineCall(idParam, z.void()),
+    /**
+     * Inspects the saved source again, which a restore needs before it may start. NOT_FOUND
+     * when the file or folder is gone.
+     */
+    open: defineCall(idParam, BackupInspectionSchema),
   },
   tools: {
     list: defineCall(z.void(), ToolsListOutputSchema),

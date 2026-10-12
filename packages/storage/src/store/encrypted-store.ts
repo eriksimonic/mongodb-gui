@@ -7,7 +7,13 @@ import { applyMigrations } from './migrations';
 import { parseStored, type PayloadSchema } from './validation';
 
 export type StoreTable =
-  'connections' | 'history' | 'favourites' | 'settings' | 'layout' | 'saved_backups';
+  | 'connections'
+  | 'history'
+  | 'favourites'
+  | 'settings'
+  | 'layout'
+  | 'saved_backups'
+  | 'saved_restores';
 
 export interface EncryptedStoreOptions {
   readonly path: string;

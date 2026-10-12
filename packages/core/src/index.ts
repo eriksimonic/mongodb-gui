@@ -14,6 +14,7 @@ export * from './backup/options';
 export * from './backup/progress';
 export * from './backup/restore-args';
 export * from './backup/saved';
+export * from './backup/saved-restore';
 export * from './backup/server-info';
 export * from './backup/sidecar';
 export * from './backup/tools-uri';

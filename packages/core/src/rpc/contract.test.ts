@@ -27,6 +27,7 @@ describe('rpcContract', () => {
         'profiler',
         'replication',
         'savedBackups',
+        'savedRestores',
         'schema',
         'security',
         'settings',

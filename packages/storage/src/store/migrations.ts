@@ -53,6 +53,17 @@ export const migrations: readonly Migration[] = [
       );
     `,
   },
+  {
+    version: 3,
+    sql: `
+      CREATE TABLE saved_restores (
+        id TEXT PRIMARY KEY,
+        connection_id TEXT NOT NULL REFERENCES connections(id) ON DELETE CASCADE,
+        created_at TEXT NOT NULL,
+        payload BLOB NOT NULL
+      );
+    `,
+  },
 ];
 
 /**
