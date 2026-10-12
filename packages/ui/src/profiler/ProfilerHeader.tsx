@@ -49,6 +49,7 @@ export function ProfilerHeader({ panelId, panel }: ProfilerHeaderProps) {
   const applyLevel = useProfilerStore((state) => state.applyLevel);
   const setTailEnabled = useProfilerStore((state) => state.setTailEnabled);
   const setPollMs = useProfilerStore((state) => state.setPollMs);
+  const setFilters = useProfilerStore((state) => state.setFilters);
   const draft = panel.levelDraft;
   const dirty = isDraftDirty(draft, panel.level);
   const tailOnLevelTwo = panel.tailEnabled && panel.level?.level === 2;
@@ -57,79 +58,99 @@ export function ProfilerHeader({ panelId, panel }: ProfilerHeaderProps) {
     setLevelDraft(panelId, change);
   }
 
+  const serverLevel =
+    panel.level === undefined
+      ? 'Not read yet'
+      : `${LEVEL_NAMES[panel.level.level]}${panel.level.level === 0 ? '' : `, ${panel.level.slowMs} ms`}`;
+
   return (
     <Stack gap={6}>
-      <Group gap={8} align="flex-end" wrap="wrap">
-        <Stack gap={2}>
-          <Text size="xs" c="dimmed">
-            Profiling level
-          </Text>
-          <SegmentedControl
-            aria-label="Profiling level"
-            data={LEVEL_OPTIONS}
-            value={String(draft.level)}
-            onChange={(value) => patchDraft({ level: levelFromText(value) })}
-          />
-        </Stack>
+      <Group gap="xs" align="center" wrap="wrap">
+        <SegmentedControl
+          size="xs"
+          aria-label="Profiling level"
+          data={LEVEL_OPTIONS}
+          value={String(draft.level)}
+          onChange={(value) => patchDraft({ level: levelFromText(value) })}
+        />
         {draft.level === 1 ? (
           <NumberInput
-            label="Slow threshold (ms)"
+            size="xs"
+            aria-label="Slow threshold (ms)"
+            leftSection={
+              <Text size="xs" c="dimmed">
+                Slow ms
+              </Text>
+            }
+            leftSectionWidth={64}
             min={0}
             step={10}
             value={draft.slowMs}
             onChange={(value) => patchDraft({ slowMs: typeof value === 'number' ? value : 0 })}
-            w={150}
+            w={140}
           />
         ) : null}
         {draft.level === 1 ? (
           <NumberInput
-            label="Sample rate"
+            size="xs"
+            aria-label="Sample rate"
+            leftSection={
+              <Text size="xs" c="dimmed">
+                Sample
+              </Text>
+            }
+            leftSectionWidth={56}
             min={0}
             max={1}
             step={0.1}
             decimalScale={2}
             value={draft.sampleRate}
             onChange={(value) => patchDraft({ sampleRate: typeof value === 'number' ? value : 0 })}
-            w={120}
+            w={130}
           />
         ) : null}
-        <Button variant="default" disabled={!dirty} onClick={() => void applyLevel(panelId)}>
+        <Button
+          size="xs"
+          variant="default"
+          disabled={!dirty}
+          onClick={() => void applyLevel(panelId)}
+        >
           Apply
         </Button>
-        <Stack gap={2}>
-          <Text size="xs" c="dimmed">
-            Server level
+        <Switch
+          size="xs"
+          label="Tail"
+          checked={panel.tailEnabled}
+          onChange={(event) => void setTailEnabled(panelId, event.currentTarget.checked)}
+        />
+        <Select
+          size="xs"
+          aria-label="Tail poll interval"
+          data={POLL_OPTIONS}
+          value={String(panel.pollMs)}
+          onChange={(value) => {
+            if (value !== null) {
+              void setPollMs(panelId, Number(value));
+            }
+          }}
+          allowDeselect={false}
+          w={90}
+        />
+        <Switch
+          size="xs"
+          label="Only problematic"
+          checked={panel.filters.onlyProblematic}
+          onChange={(event) =>
+            setFilters(panelId, { onlyProblematic: event.currentTarget.checked })
+          }
+        />
+        <Text size="xs" c="dimmed" ml="auto">
+          Server level:{' '}
+          <Text span inherit c="default">
+            {serverLevel}
           </Text>
-          <Text size="sm">
-            {panel.level === undefined
-              ? 'Not read yet'
-              : `${LEVEL_NAMES[panel.level.level]}${panel.level.level === 0 ? '' : `, ${panel.level.slowMs} ms`}`}
-          </Text>
-        </Stack>
-        <Stack gap={2}>
-          <Text size="xs" c="dimmed">
-            system.profile
-          </Text>
-          <Text size="sm">{describeProfileCollection(panel)}</Text>
-        </Stack>
-        <Group gap={8} align="center" wrap="nowrap" h={28}>
-          <Switch
-            label="Tail"
-            checked={panel.tailEnabled}
-            onChange={(event) => void setTailEnabled(panelId, event.currentTarget.checked)}
-          />
-          <Select
-            aria-label="Tail poll interval"
-            data={POLL_OPTIONS}
-            value={String(panel.pollMs)}
-            onChange={(value) => {
-              if (value !== null) {
-                void setPollMs(panelId, Number(value));
-              }
-            }}
-            w={100}
-          />
-        </Group>
+          . system.profile: {describeProfileCollection(panel)}.
+        </Text>
       </Group>
       {tailOnLevelTwo ? (
         <Alert color="yellow" variant="light" p="xs">

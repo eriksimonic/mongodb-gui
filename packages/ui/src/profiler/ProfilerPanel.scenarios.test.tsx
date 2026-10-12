@@ -156,7 +156,7 @@ describe('ProfilerPanel scenarios: one row per entry', () => {
         (typeof entry.command !== 'object' ||
           entry.command === null ||
           !('originatingCommand' in entry.command));
-      const explain = screen.getByRole('button', { name: 'Explain this' });
+      const explain = screen.getByRole('button', { name: 'Explain' });
       if (orphanGetMore) {
         expect(explain).toBeDisabled();
       } else {

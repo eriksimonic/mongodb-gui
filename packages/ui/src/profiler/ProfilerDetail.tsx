@@ -150,38 +150,38 @@ function EntryDetail({ connectionId, database, entry }: EntryDetailProps) {
 
   return (
     <Stack gap={8}>
-      <Stack gap={2}>
-        <Group gap={6} wrap="nowrap">
-          <Text fw={600} size="sm" truncate>
-            {entry.ns}
-          </Text>
-          <Badge tt="none" variant="light" size="xs" color="gray">
+      <Stack gap={4}>
+        <Text fw={600} size="sm" style={{ wordBreak: 'break-all' }}>
+          {entry.ns}
+        </Text>
+        <Group gap={6} wrap="wrap">
+          <Badge tt="none" variant="light" size="sm" color="gray">
             {entry.op}
           </Badge>
           {isCollscan(entry.planSummary) ? (
-            <Badge tt="none" color="red" variant="filled" size="xs">
+            <Badge tt="none" color="red" variant="filled" size="sm">
               COLLSCAN
             </Badge>
           ) : null}
+          <Text size="xs" c="dimmed">
+            {formatLocalTime(entry.ts)} · {entry.millis} ms
+          </Text>
         </Group>
-        <Text size="xs" c="dimmed">
-          {formatLocalTime(entry.ts)} · {entry.millis} ms
-        </Text>
         {entry.errMsg === undefined ? null : (
           <Text size="xs" c="red">
             {entry.errMsg}
           </Text>
         )}
       </Stack>
-      <Group gap={6}>
+      <Group gap={6} wrap="wrap">
         <Button size="xs" onClick={explain} disabled={explainUnavailable}>
-          Explain this
+          Explain
         </Button>
         <Button size="xs" variant="default" onClick={openInEditor}>
           Open in editor
         </Button>
         <Button size="xs" variant="default" onClick={() => void copyCommand()}>
-          Copy command
+          Copy
         </Button>
       </Group>
       <Stack gap={4}>

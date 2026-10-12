@@ -23,28 +23,52 @@ const OVERSCAN_ROWS = 12;
 const COLUMN_GAP_PX = 6;
 const GRID_PADDING_PX = 16;
 
+/** A width in pixels that follows the UI font scale, so text does not outgrow its column. */
+function scaled(pixels: number): string {
+  return `calc(${pixels}px * var(--mg-font-scale, 1))`;
+}
+
+const TIME_PX = 160;
+const NAMESPACE_PX = 230;
+const OP_PX = 76;
+const DURATION_PX = 118;
+const EXAMINED_PX = 78;
+const RETURNED_PX = 72;
+const RATIO_PX = 66;
+const PLAN_MIN_PX = 160;
+const CLIENT_PX = 150;
+const ERROR_PX = 70;
+
 /**
- * Column tracks in order. The plan column takes the remaining width but never less than 150 px,
- * so COLLSCAN and the start of the plan stay visible at 1440 px with the detail pane open.
+ * Column tracks in order. The plan column takes the remaining width but never less than 160 px,
+ * so COLLSCAN and the start of the plan stay visible with the detail pane open.
  */
 const BASE_TRACKS = [
-  '92px',
-  '130px',
-  '70px',
-  '104px',
-  '64px',
-  '62px',
-  '66px',
-  'minmax(150px, 1fr)',
+  scaled(TIME_PX),
+  scaled(NAMESPACE_PX),
+  scaled(OP_PX),
+  scaled(DURATION_PX),
+  scaled(EXAMINED_PX),
+  scaled(RETURNED_PX),
+  scaled(RATIO_PX),
+  `minmax(${scaled(PLAN_MIN_PX)}, 1fr)`,
 ];
-const CLIENT_TRACK = '140px';
-const ERROR_TRACK = '64px';
-const PLAN_MIN_PX = 150;
-/** The narrowest the grid may get before it scrolls sideways: fixed tracks, gaps, plan and padding. */
-const BASE_FIXED_PX = 92 + 130 + 70 + 104 + 64 + 62 + 66;
-const BASE_MIN_WIDTH_PX = BASE_FIXED_PX + PLAN_MIN_PX + 7 * COLUMN_GAP_PX + GRID_PADDING_PX;
-const CLIENT_MIN_WIDTH_PX = 140 + COLUMN_GAP_PX;
-const ERROR_MIN_WIDTH_PX = 64 + COLUMN_GAP_PX;
+const CLIENT_TRACK = scaled(CLIENT_PX);
+const ERROR_TRACK = scaled(ERROR_PX);
+/** The narrowest the grid may get before it scrolls sideways: the tracks, gaps and padding. */
+const BASE_MIN_WIDTH_PX =
+  TIME_PX +
+  NAMESPACE_PX +
+  OP_PX +
+  DURATION_PX +
+  EXAMINED_PX +
+  RETURNED_PX +
+  RATIO_PX +
+  PLAN_MIN_PX +
+  7 * COLUMN_GAP_PX +
+  GRID_PADDING_PX;
+const CLIENT_MIN_WIDTH_PX = CLIENT_PX + COLUMN_GAP_PX;
+const ERROR_MIN_WIDTH_PX = ERROR_PX + COLUMN_GAP_PX;
 
 export interface SlowQueryTableProps {
   readonly entries: readonly ProfileEntry[];
@@ -69,7 +93,7 @@ function gridTemplate(columns: ProfilerColumns): string {
   return tracks.join(' ');
 }
 
-function minWidthPx(columns: ProfilerColumns): number {
+function minWidth(columns: ProfilerColumns): string {
   let width = BASE_MIN_WIDTH_PX;
   if (columns.client) {
     width += CLIENT_MIN_WIDTH_PX;
@@ -77,7 +101,7 @@ function minWidthPx(columns: ProfilerColumns): number {
   if (columns.error) {
     width += ERROR_MIN_WIDTH_PX;
   }
-  return width;
+  return scaled(width);
 }
 
 /**
@@ -98,7 +122,7 @@ export function SlowQueryTable({
 }: SlowQueryTableProps) {
   const scrollRef = useRef<HTMLDivElement>(null);
   const template = useMemo(() => gridTemplate(columns), [columns]);
-  const width = minWidthPx(columns);
+  const width = minWidth(columns);
   const maxMillis = useMemo(
     () => entries.reduce((max, entry) => Math.max(max, entry.millis), 0),
     [entries],

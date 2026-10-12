@@ -320,7 +320,7 @@ Copy and export:
 
 ## Explain
 
-Open an explain from the editor with "Explain", or from a profiler entry with "Explain this".
+Open an explain from the editor with "Explain", or from a profiler entry with "Explain".
 The panel has two tabs. "Plan" shows the plan as a tree. "Raw" shows the document that the
 server returned.
 
@@ -546,8 +546,8 @@ Open the profiler from the database menu with "Open profiler". The profiler has 
 4. Turn on "Tail" to read new entries as they arrive. "Tail poll interval" sets how often the
    app checks, from 0.5 s to 10 s.
 5. Select an entry to read its command, plan summary and lock statistics in the detail pane.
-   "Explain this" opens an explain of the command. "Open in editor" opens the command in an
-   editor. "Copy command" copies it.
+   "Explain" opens an explain of the command. "Open in editor" opens the command in an
+   editor. "Copy" copies it.
 6. Open "Top shapes" to see the query shapes that take the most time. Click a shape to filter the
    slow queries to that shape.
 

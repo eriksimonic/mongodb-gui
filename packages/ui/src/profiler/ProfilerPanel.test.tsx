@@ -230,7 +230,7 @@ describe('ProfilerPanel', () => {
     const events: ProfilerUiEvent[] = [];
     const unsubscribe = profilerUiEvents.subscribe((event) => events.push(event));
     try {
-      fireEvent.click(screen.getByRole('button', { name: 'Explain this' }));
+      fireEvent.click(screen.getByRole('button', { name: 'Explain' }));
       fireEvent.click(screen.getByRole('button', { name: 'Open in editor' }));
       expect(await screen.findByRole('button', { name: 'Open in editor' })).toBeInTheDocument();
       expect(events.map((event) => event.type)).toEqual(['profiler:explain', 'profiler:open']);

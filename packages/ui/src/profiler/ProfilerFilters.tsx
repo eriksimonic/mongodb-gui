@@ -1,4 +1,4 @@
-import { Autocomplete, Button, Group, NumberInput, Select, Switch, TextInput } from '@mantine/core';
+import { Autocomplete, Button, Group, NumberInput, Select, TextInput } from '@mantine/core';
 import { IconSearch } from '@tabler/icons-react';
 import type { ProfilerPanelState } from './profiler-store';
 import { useProfilerStore } from './profiler-store-context';
@@ -43,7 +43,7 @@ export function ProfilerFilterRow({ panelId, panel, namespaces }: ProfilerFilter
   }
 
   return (
-    <Group gap={8} align="flex-end" wrap="wrap">
+    <Group gap="xs" align="flex-end" wrap="wrap">
       <Autocomplete
         size="xs"
         label="Namespace"
@@ -54,6 +54,7 @@ export function ProfilerFilterRow({ panelId, panel, namespaces }: ProfilerFilter
         w={200}
       />
       <Select
+        size="xs"
         label="Operation"
         data={OP_DATA}
         value={filters.op}
@@ -67,6 +68,7 @@ export function ProfilerFilterRow({ panelId, panel, namespaces }: ProfilerFilter
         w={150}
       />
       <NumberInput
+        size="xs"
         label="Min duration (ms)"
         min={0}
         value={filters.minMillis ?? ''}
@@ -74,6 +76,7 @@ export function ProfilerFilterRow({ panelId, panel, namespaces }: ProfilerFilter
         w={130}
       />
       <Select
+        size="xs"
         label="Time range"
         data={RANGE_DATA}
         value={filters.range}
@@ -88,6 +91,7 @@ export function ProfilerFilterRow({ panelId, panel, namespaces }: ProfilerFilter
       />
       {filters.range === 'custom' ? (
         <TextInput
+          size="xs"
           label="Since"
           type="datetime-local"
           value={filters.since}
@@ -97,6 +101,7 @@ export function ProfilerFilterRow({ panelId, panel, namespaces }: ProfilerFilter
       ) : null}
       {filters.range === 'custom' ? (
         <TextInput
+          size="xs"
           label="Until"
           type="datetime-local"
           value={filters.until}
@@ -105,6 +110,7 @@ export function ProfilerFilterRow({ panelId, panel, namespaces }: ProfilerFilter
         />
       ) : null}
       <TextInput
+        size="xs"
         label="Text search"
         placeholder="Command, plan or error"
         leftSection={<IconSearch size={14} aria-hidden="true" />}
@@ -113,6 +119,7 @@ export function ProfilerFilterRow({ panelId, panel, namespaces }: ProfilerFilter
         w={220}
       />
       <NumberInput
+        size="xs"
         label="Limit"
         min={1}
         max={5000}
@@ -125,14 +132,12 @@ export function ProfilerFilterRow({ panelId, panel, namespaces }: ProfilerFilter
         }}
         w={100}
       />
-      <Switch
-        label="Only problematic"
-        checked={filters.onlyProblematic}
-        onChange={(event) => patch({ onlyProblematic: event.currentTarget.checked })}
-        h={30}
-        style={{ alignSelf: 'center' }}
-      />
-      <Button loading={panel.loading} onClick={() => void refresh(panelId)}>
+      <Button
+        size="xs"
+        variant="default"
+        loading={panel.loading}
+        onClick={() => void refresh(panelId)}
+      >
         Refresh
       </Button>
     </Group>
