@@ -118,6 +118,11 @@ Locking the app also disconnects every connection. Quitting locks first, then cl
   history, favourites, settings and layout. `migrations.ts` holds the schema versions. Add a new
   migration for each schema change.
 
+One setting lives outside the vault. `startup.json` in the app data folder holds options that
+Electron reads before the vault can open, such as `disableGpu`. It holds no secrets.
+`packages/app/src/main/startup-settings.ts` reads and writes it, and the `app.getStartupSettings`,
+`app.setStartupSettings` and `app.restart` calls expose it to the Settings screen.
+
 Repositories encrypt each payload before they write it, and they decrypt it after they read it.
 They never store plaintext in a content column. See [security.md](security.md) for the columns.
 

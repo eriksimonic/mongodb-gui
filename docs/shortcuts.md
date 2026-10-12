@@ -29,6 +29,8 @@ it.
 | Right, Left              | Expand or collapse a node, or move to its child or parent |
 | Enter                    | Connect, or open the selected row                         |
 | Shift+F10 or ContextMenu | Open the context menu for the row                         |
+| Type letters             | Filter the siblings of the focused row                    |
+| Backspace, Escape        | Shorten the filter, or clear it                           |
 
 ## Tables
 

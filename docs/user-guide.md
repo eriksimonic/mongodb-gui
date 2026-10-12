@@ -113,9 +113,11 @@ when it is already open.
 ### Connection manager
 
 The "Connections" button in the toolbar opens the connection manager. It lists every saved
-connection with two icon buttons for each row. The "Edit" button opens the connection dialog. The
-"Delete" button opens a "Remove connection" confirmation. Removing a connection also deletes its saved
-query history.
+connection as a table row with the columns "Name", "Server", "Security", "Color" and "Last
+accessed". Click a column heading to sort by it, and click it again to reverse the order. Type in
+the field under a heading to filter the rows by that column. Each row has two icon buttons. The
+"Edit" button opens the connection dialog. The "Delete" button opens a "Remove connection"
+confirmation. Removing a connection also deletes its saved query history.
 
 ## Docker discovery
 
@@ -187,8 +189,11 @@ Keyboard use in the tree:
 1. Press Up and Down to move between rows.
 2. Press Right to expand a node, and Left to collapse it.
 3. Press Home and End to jump to the first or last row.
-4. Press Enter to connect or open the selected row.
+4. Press Enter to connect or open the selected row. On a database or collection it does what a
+   double-click does, and the editor tab it opens has the cursor in it.
 5. Press Shift+F10, or the context menu key, to open the menu for the row.
+6. Type letters to filter the siblings of the focused row. Backspace shortens the filter, and
+   Escape clears it.
 
 Right-click a database or collection to see its menu. Related items sit in submenus, which open
 when the pointer is over them or with Right. The collection menu offers these items:
@@ -299,12 +304,14 @@ The results pane shows the documents of the last run. Switch between three views
   all" folds the tree. Each row has "Copy path" and "Copy value" buttons. Double-click the
   top-level row of a document, the one marked with its position such as "#1", to open the whole
   document. Double-click a field name, or use its pencil button, to edit the value in place.
-- JSON view shows the result as read-only mongosh-style text.
+- JSON view shows the result as read-only text in relaxed JSON, canonical JSON or mongosh notation.
+  Above 2,000,000 characters the text appears without JSON colors, which keeps the window's memory
+  low. Folding and find still work.
 
 Paging:
 
 1. The first batch loads with the size you chose in "Batch size".
-2. Click "Load more" to load the next batch.
+2. Scroll to the end of the results to load the next batch.
 3. Click "Load all up to 5,000" to load up to 5,000 documents at once.
 
 Editing values in tree view:
@@ -953,8 +960,9 @@ report the error and the tools version through the steps in
 Open Settings with the "Settings" button in the toolbar, or with Ctrl+, on Windows and Linux, or
 Cmd+, on macOS. The screen has these sections:
 
-- Appearance. "Dark", "Light" or "System" set the theme. "Editor font size" sets the editor font.
-  "Compact" or "Comfortable" sets the density.
+- Appearance. "Dark", "Light" or "System" set the theme. "Editor font size" sets the editor font and
+  scales the rest of the window with it, including the connection tree, the tabs and the output
+  panel. "Compact" or "Comfortable" sets the density.
 - Security. "Idle lock (minutes)", "Change master password" and "Lock now".
 - Connections. "Connect Docker instances automatically".
 - Updates. "Check for updates".
@@ -973,9 +981,13 @@ Cmd+, on macOS. The screen has these sections:
   The result line gives the counts, and the connection tree reloads.
 - MongoDB tools. The installed tools versions, the default version and the downloads. See
   [Managing tools versions](#managing-tools-versions).
-- About. The version, the project page and the licence.
+- Performance. "Disable GPU acceleration" saves about 90 MB of memory and moves drawing to the CPU.
+  It takes effect after a restart, and "Restart now" appears when you change it. The setting is
+  stored outside the vault. See [troubleshooting.md](troubleshooting.md#use-less-memory).
+- About. The version, the project page and the project licence, which is Apache 2.0 with the
+  Commons Clause.
 
-The layout of panels and the window size are saved. The next launch opens where you left off.
+The menu bar is hidden. Press Alt to show it. The layout of panels and the window size are saved. The next launch opens where you left off.
 
 To read the keyboard shortcuts, choose "Keyboard shortcuts" from the "Help" menu in the toolbar,
 or press Shift+?. See [shortcuts.md](shortcuts.md) for the full list.

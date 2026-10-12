@@ -55,6 +55,18 @@ export const SHORTCUTS: readonly Shortcut[] = [
   },
   { id: 'tree-open', keys: 'Enter', action: 'Connect or open the selected row', scope: 'tree' },
   {
+    id: 'tree-find',
+    keys: 'Type letters',
+    action: 'Filter the siblings of the focused row',
+    scope: 'tree',
+  },
+  {
+    id: 'tree-find-edit',
+    keys: 'Backspace, Escape',
+    action: 'Shorten the tree filter, or clear it',
+    scope: 'tree',
+  },
+  {
     id: 'tree-menu',
     keys: 'Shift+F10, ContextMenu',
     action: 'Open the context menu for the row',
