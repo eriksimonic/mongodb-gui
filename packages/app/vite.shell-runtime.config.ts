@@ -11,8 +11,13 @@ const appRoot = import.meta.dirname;
 
 const BUILTIN_MODULES = new Set(builtinModules);
 
+// mongosh imports this module in initNewAutocompleter, which only the mongosh command line calls.
+// The runtime completes through the older completer, which needs no TypeScript. Bundling the module
+// adds the TypeScript compiler, about 13 MB of source that V8 keeps in memory for nothing.
+const UNUSED_MODULES = new Set(['@mongodb-js/mongodb-ts-autocomplete']);
+
 function isExternal(id: string): boolean {
-  if (id.startsWith('node:') || BUILTIN_MODULES.has(id)) {
+  if (id.startsWith('node:') || BUILTIN_MODULES.has(id) || UNUSED_MODULES.has(id)) {
     return true;
   }
   return isOptionalModule(id);
