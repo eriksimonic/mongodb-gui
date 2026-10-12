@@ -293,6 +293,52 @@ function relax(value: unknown): unknown {
   return out;
 }
 
+/**
+ * A canonical EJSON value as text a person edits: int32 and fractional doubles are plain numbers,
+ * and a date holds its ISO text. Wrappers stay where a plain value would change the type on save:
+ * $numberLong, and $numberDouble for whole or special values such as 3.0 and NaN. The result is
+ * still valid EJSON, so it saves with the types it had.
+ */
+export function editableValue(value: unknown): unknown {
+  if (Array.isArray(value)) {
+    return value.map((item) => editableValue(item));
+  }
+  if (!isPlain(value)) {
+    return value;
+  }
+  const keys = Object.keys(value);
+  if (keys.length === 1) {
+    const key = keys[0] ?? '';
+    const inner = value[key];
+    if (key === '$numberInt' && typeof inner === 'string' && Number.isInteger(Number(inner))) {
+      return Number(inner);
+    }
+    if (key === '$numberDouble' && typeof inner === 'string') {
+      const parsed = Number(inner);
+      if (Number.isFinite(parsed) && !Number.isInteger(parsed)) {
+        return parsed;
+      }
+    }
+    if (key === '$date' && isPlain(inner) && typeof inner.$numberLong === 'string') {
+      const iso = isoFromMillis(Number(inner.$numberLong));
+      if (iso !== undefined) {
+        return { $date: iso };
+      }
+    }
+  }
+  const out: Plain = {};
+  for (const key of keys) {
+    // defineProperty, so a key named __proto__ stays an ordinary property.
+    Object.defineProperty(out, key, {
+      value: editableValue(value[key]),
+      enumerable: true,
+      writable: true,
+      configurable: true,
+    });
+  }
+  return out;
+}
+
 /** Decodes standard base64 to lowercase hex. Returns undefined for text that is not base64. */
 function base64ToHex(text: string): string | undefined {
   const clean = text.replace(/=+$/, '');

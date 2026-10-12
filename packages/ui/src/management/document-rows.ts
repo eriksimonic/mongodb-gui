@@ -1,3 +1,4 @@
+import { editableValue } from '@mongo-gui/core';
 import { formatJson } from './input-rules';
 
 const CELL_LIMIT = 80;
@@ -49,7 +50,7 @@ export function toDocumentRow(documentEjson: string): DocumentRow | undefined {
   return {
     idEjson: JSON.stringify(parsed[ID_FIELD]),
     fields,
-    text: formatJson(parsed),
+    text: formatJson(editableValue(parsed)),
     document: parsed,
   };
 }
@@ -86,5 +87,5 @@ export function duplicateText(row: DocumentRow): string {
   const withoutId = Object.fromEntries(
     Object.entries(row.document).filter(([key]) => key !== ID_FIELD),
   );
-  return formatJson(withoutId);
+  return formatJson(editableValue(withoutId));
 }

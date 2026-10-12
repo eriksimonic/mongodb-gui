@@ -2,7 +2,7 @@ import { Alert, Badge, Button, Group, Modal, SegmentedControl, Stack, Text } fro
 import { modals } from '@mantine/modals';
 import { IconCopy } from '@tabler/icons-react';
 import { useEffect, useMemo, useState } from 'react';
-import { isUnkeptPreview, previewInfo, type AppError } from '@mongo-gui/core';
+import { editableValue, isUnkeptPreview, previewInfo, type AppError } from '@mongo-gui/core';
 import { errorText, notifyError } from '../components/notify-error';
 import { LOAD_ALL_LIMIT, type ResultSet, type ResultView, type RunState } from '../state/editors';
 import { DocumentEditorDialog } from '../components/management/DocumentEditorDialog';
@@ -181,7 +181,11 @@ export function ResultsPane({
         setOpened({ index, full });
       } else {
         const parsed = JSON.parse(full) as JsonObject;
-        setOpened({ index, initialText: formatJson(parsed), idEjson: JSON.stringify(parsed._id) });
+        setOpened({
+          index,
+          initialText: formatJson(editableValue(parsed)),
+          idEjson: JSON.stringify(parsed._id),
+        });
       }
     } catch (failure) {
       setNotice(errorText(failure));

@@ -90,7 +90,13 @@ export function DocumentEditorDialog({
   }
 
   return (
-    <Modal opened onClose={onClose} title={`${TITLES[mode]} in ${collection}`} centered size="lg">
+    <Modal
+      opened
+      onClose={onClose}
+      title={`${TITLES[mode]} in ${collection}`}
+      centered
+      size="min(1100px, 94vw)"
+    >
       <form
         onSubmit={(event) => {
           event.preventDefault();
@@ -101,17 +107,29 @@ export function DocumentEditorDialog({
           <Text size="xs" c="dimmed">
             {mode === 'duplicate'
               ? 'The _id is removed, so the server makes a new one.'
-              : 'Values use EJSON, so ObjectId, dates and Long values keep their types.'}
+              : 'Numbers and dates are plain. ObjectId, long values and whole doubles keep their wrapper so the type stays.'}
           </Text>
-          <JsonEditor
-            label="Document as EJSON"
-            height={360}
-            value={text}
-            onChange={(value) => {
-              setText(value);
-              setError(undefined);
+          {/* The corner handle drags the editor taller. The editor lays itself out to the new size. */}
+          <div
+            style={{
+              height: 'max(360px, 50vh)',
+              minHeight: 200,
+              maxHeight: '80vh',
+              resize: 'vertical',
+              overflow: 'hidden',
+              border: '1px solid var(--mantine-color-default-border)',
             }}
-          />
+          >
+            <JsonEditor
+              label="Document as EJSON"
+              height="100%"
+              value={text}
+              onChange={(value) => {
+                setText(value);
+                setError(undefined);
+              }}
+            />
+          </div>
           {error === undefined ? null : (
             <Alert color="red" variant="light">
               {error}

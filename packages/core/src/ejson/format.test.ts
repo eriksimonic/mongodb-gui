@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { formatMongoshSyntax, formatRelaxedJson } from './format';
+import { editableValue, formatMongoshSyntax, formatRelaxedJson } from './format';
 import { toCanonicalValue } from './canonical';
 
 const ONE_LINE = { indent: 0 };
@@ -343,5 +343,33 @@ describe('formatRelaxedJson', () => {
 
   it('indents with two spaces', () => {
     expect(formatRelaxedJson('{"a":{"$numberInt":"1"}}')).toBe('{\n  "a": 1\n}');
+  });
+});
+
+describe('editableValue', () => {
+  it('writes int32 and fractional doubles as plain numbers and dates as ISO text', () => {
+    const value = {
+      _id: { $oid: '65f0c0ffee00000000000001' },
+      count: { $numberInt: '20' },
+      price: { $numberDouble: '9.5' },
+      at: { $date: { $numberLong: '1760270400000' } },
+      nested: [{ $numberInt: '1' }, { deep: { $numberInt: '2' } }],
+    };
+    expect(editableValue(value)).toEqual({
+      _id: { $oid: '65f0c0ffee00000000000001' },
+      count: 20,
+      price: 9.5,
+      at: { $date: '2025-10-12T12:00:00.000Z' },
+      nested: [1, { deep: 2 }],
+    });
+  });
+
+  it('keeps the wrapper where a plain value would change the type', () => {
+    const value = {
+      big: { $numberLong: '5' },
+      whole: { $numberDouble: '3.0' },
+      nan: { $numberDouble: 'NaN' },
+    };
+    expect(editableValue(value)).toEqual(value);
   });
 });
