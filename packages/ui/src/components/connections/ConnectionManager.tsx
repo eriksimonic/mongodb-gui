@@ -85,7 +85,7 @@ export function ConnectionManager() {
   const [testing, setTesting] = useState(false);
   const [importPath, setImportPath] = useState<string | undefined>(undefined);
 
-  const all = connections.state === 'ready' ? connections.data : [];
+  const all = useMemo(() => (connections.state === 'ready' ? connections.data : []), [connections]);
   const rows = useMemo(() => visibleConnections(all, filters, sort), [all, filters, sort]);
   // A removed connection leaves the selection, so a toolbar action never targets a missing row.
   const chosen = all.filter((connection) => selected.includes(connection.id));

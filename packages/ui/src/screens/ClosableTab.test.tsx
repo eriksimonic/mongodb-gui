@@ -17,7 +17,12 @@ vi.mock('dockview-react', async (importOriginal) => ({
 /** The header props the tab menu reads: the panel id and a dock without other panels. */
 function headerProps(): IDockviewPanelHeaderProps {
   const props = {
-    api: { id: EDITOR_TAB_ID },
+    api: {
+      id: EDITOR_TAB_ID,
+      title: 'Editor tab',
+      component: 'editor',
+      onDidTitleChange: () => ({ dispose: () => undefined }),
+    },
     containerApi: { getPanel: () => undefined, panels: [], removePanel: vi.fn() },
   };
   return props as unknown as IDockviewPanelHeaderProps;
