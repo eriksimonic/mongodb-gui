@@ -114,6 +114,11 @@ import {
   RestoreStartInputSchema,
   BackupStartInputSchema,
 } from '../backup/options';
+import {
+  SavedBackupInputSchema,
+  SavedBackupRenameInputSchema,
+  SavedBackupSchema,
+} from '../backup/saved';
 import { BackupInspectionSchema, InspectBackupInputSchema } from '../backup/inspection';
 import { BackupServerInfoSchema, DescribeServerInputSchema } from '../backup/server-info';
 import {
@@ -622,6 +627,12 @@ export const rpcContract = {
     inspect: defineCall(InspectBackupInputSchema, BackupInspectionSchema),
     startRestore: defineCall(RestoreStartInputSchema, BackupStartOutputSchema),
     cancel: defineCall(BackupCancelInputSchema, z.void()),
+  },
+  savedBackups: {
+    list: defineCall(z.void(), z.array(SavedBackupSchema)),
+    save: defineCall(SavedBackupInputSchema, SavedBackupSchema),
+    rename: defineCall(SavedBackupRenameInputSchema, SavedBackupSchema),
+    remove: defineCall(idParam, z.void()),
   },
   tools: {
     list: defineCall(z.void(), ToolsListOutputSchema),

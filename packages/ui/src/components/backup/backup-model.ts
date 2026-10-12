@@ -10,6 +10,8 @@ import {
   type ConnectionStatus,
   type DumpOptions,
   type FindingCode,
+  type SavedBackup,
+  type SavedBackupInput,
   type ReadPreferenceMode,
   type WireCompressor,
 } from '@mongo-gui/core';
@@ -138,6 +140,50 @@ function dumpOptionsOf(draft: BackupDraft): DumpOptions {
     forceTableScan: draft.forceTableScan,
     numParallelCollections: draft.numParallelCollections,
     compressors: [...draft.compressors],
+  };
+}
+
+/** The draft's scope and options as a saved configuration. Folder and file name are not kept. */
+export function savedBackupInput(
+  draft: BackupDraft,
+  connectionId: string,
+  label: string,
+): SavedBackupInput {
+  return {
+    label: label.trim(),
+    connectionId,
+    scope: scopeOf(draft) ?? { kind: 'server' },
+    options: dumpOptionsOf(draft),
+    ...(draft.toolsVersion === '' ? {} : { toolsVersion: draft.toolsVersion }),
+  };
+}
+
+/** The draft with a saved configuration applied. The folder and file name stay as they are. */
+export function draftFromSaved(draft: BackupDraft, saved: SavedBackup): BackupDraft {
+  const { scope, options } = saved;
+  return {
+    ...draft,
+    target: scope.kind === 'collection' ? 'collection' : 'connection',
+    databases:
+      scope.kind === 'server'
+        ? []
+        : scope.kind === 'databases'
+          ? scope.databases
+          : [scope.database],
+    collection: scope.kind === 'collection' ? scope.collection : '',
+    excludeCollections: options.excludeCollections,
+    excludePrefixes: options.excludeCollectionsWithPrefix,
+    query: options.query ?? '',
+    output: options.output,
+    gzip: options.gzip,
+    readPreference: options.readPreference,
+    oplog: options.oplog,
+    dumpDbUsersAndRoles: options.dumpDbUsersAndRoles,
+    viewsAsCollections: options.viewsAsCollections,
+    forceTableScan: options.forceTableScan,
+    numParallelCollections: options.numParallelCollections,
+    compressors: options.compressors,
+    toolsVersion: saved.toolsVersion ?? draft.toolsVersion,
   };
 }
 

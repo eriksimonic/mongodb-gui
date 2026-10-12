@@ -26,6 +26,7 @@ import {
   type ProfileEntry,
   type RpcClient,
   type RpcEvent,
+  type SavedBackup,
   type Settings,
   type ShellRuntimeState,
   type SettingsPatch,
@@ -133,6 +134,7 @@ interface MockState {
   settings: Settings;
   history: HistoryEntry[];
   favourites: Favourite[];
+  savedBackups: SavedBackup[];
   /** Layout values by key. Stored as-is, like the encrypted store keeps them. */
   layout: Map<string, unknown>;
   /** Databases and collections per connection id. Mutated by the management calls. */
@@ -168,6 +170,7 @@ function initialState(preset: MockPreset): MockState {
     settings: { ...defaultSettings },
     history: [],
     favourites: [],
+    savedBackups: [],
     layout: new Map(),
     catalogs: new Map(),
     builds: new Map(),
@@ -682,6 +685,34 @@ export function createMockUiApi(options: MockUiApiOptions = {}): UiApi {
   const backup = createMockBackup({ emit, picks, catalogOf, statusOf });
 
   const rpc: RpcClient = {
+    savedBackups: {
+      list: method(rpcContract.savedBackups.list, latencyMs, () => {
+        requireUnlocked();
+        return [...state.savedBackups];
+      }),
+      save: method(rpcContract.savedBackups.save, latencyMs, (input) => {
+        requireUnlocked();
+        findConnection(input.connectionId);
+        const saved: SavedBackup = { ...input, id: newId(), createdAt: new Date().toISOString() };
+        state.savedBackups.push(saved);
+        return saved;
+      }),
+      rename: method(rpcContract.savedBackups.rename, latencyMs, ({ id, label }) => {
+        requireUnlocked();
+        const index = state.savedBackups.findIndex((item) => item.id === id);
+        const existing = state.savedBackups[index];
+        if (existing === undefined) {
+          throw fail('VALIDATION', 'Saved backup not found');
+        }
+        const renamed = { ...existing, label };
+        state.savedBackups[index] = renamed;
+        return renamed;
+      }),
+      remove: method(rpcContract.savedBackups.remove, latencyMs, ({ id }) => {
+        requireUnlocked();
+        state.savedBackups = state.savedBackups.filter((item) => item.id !== id);
+      }),
+    },
     backup: {
       describeServer: method(rpcContract.backup.describeServer, latencyMs, (input) => {
         requireUnlocked();
@@ -881,6 +912,7 @@ export function createMockUiApi(options: MockUiApiOptions = {}): UiApi {
         state.settings = { ...defaultSettings };
         state.history = [];
         state.favourites = [];
+        state.savedBackups = [];
         state.layout.clear();
         state.catalogs.clear();
         state.builds.clear();
@@ -990,6 +1022,7 @@ export function createMockUiApi(options: MockUiApiOptions = {}): UiApi {
         requireUnlocked();
         findConnection(id);
         state.connections = state.connections.filter((item) => item.id !== id);
+        state.savedBackups = state.savedBackups.filter((item) => item.connectionId !== id);
         state.statuses.delete(id);
         state.catalogs.delete(id);
         state.builds.delete(id);

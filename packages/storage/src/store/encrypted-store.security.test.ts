@@ -1,5 +1,5 @@
 import { existsSync, readFileSync } from 'node:fs';
-import { AppErrorException, type AppErrorCode } from '@mongo-gui/core';
+import { AppErrorException, DumpOptionsSchema, type AppErrorCode } from '@mongo-gui/core';
 import { afterEach, describe, expect, it } from 'vitest';
 import { EncryptedStore } from './encrypted-store';
 import {
@@ -150,6 +150,12 @@ describe('locked vault', () => {
       durationMs: 1,
     });
     const favourite = test.favourites.save({ name: 'f', code: 'x' });
+    const savedBackup = test.savedBackups.save({
+      label: 'b',
+      connectionId: connection.id,
+      scope: { kind: 'server' },
+      options: DumpOptionsSchema.parse({}),
+    });
     test.settings.update({ theme: 'light' });
     test.layout.set('main', { a: 1 });
 
@@ -178,6 +184,9 @@ describe('locked vault', () => {
       ['favourites.list', () => test.favourites.list()],
       ['favourites.save', () => test.favourites.save({ name: 'x', code: 'y' })],
       ['favourites.remove', () => test.favourites.remove(favourite.id)],
+      ['savedBackups.list', () => test.savedBackups.list()],
+      ['savedBackups.rename', () => test.savedBackups.rename(savedBackup.id, 'x')],
+      ['savedBackups.remove', () => test.savedBackups.remove(savedBackup.id)],
       ['settings.get', () => test.settings.get()],
       ['settings.update', () => test.settings.update({ theme: 'dark' })],
       ['layout.get', () => test.layout.get('main')],

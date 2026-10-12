@@ -5,7 +5,9 @@ import {
   DEFAULT_BACKUP_DRAFT,
   defaultReadPreference,
   draftForTarget,
+  draftFromSaved,
   outputPreview,
+  savedBackupInput,
   scopeOf,
   type BackupDraft,
 } from './backup-model';
@@ -194,5 +196,57 @@ describe('backup model', () => {
       'C:\\Backups\\shop.archive.gz',
     );
     expect(outputPreview({ ...READY, folder: '' })).toBeUndefined();
+  });
+});
+
+describe('saved backups', () => {
+  it('round trips a draft through a saved configuration and keeps the folder and name', () => {
+    const draft: BackupDraft = {
+      ...READY,
+      databases: ['shop', 'blog'],
+      excludeCollections: ['logs'],
+      excludePrefixes: ['tmp_'],
+      output: 'directory',
+      gzip: false,
+      readPreference: 'secondary',
+      numParallelCollections: 2,
+      compressors: ['zstd'],
+    };
+    const input = savedBackupInput(draft, ID, '  Nightly ');
+    expect(input).toMatchObject({
+      label: 'Nightly',
+      connectionId: ID,
+      scope: { kind: 'databases', databases: ['shop', 'blog'] },
+      toolsVersion: '100.9.4',
+    });
+    const saved = { ...input, id: ID, createdAt: '2026-10-10T18:42:00.000Z' };
+    const other: BackupDraft = { ...DEFAULT_BACKUP_DRAFT, folder: '/elsewhere', name: 'other' };
+    expect(draftFromSaved(other, saved)).toEqual({
+      ...draft,
+      folder: '/elsewhere',
+      name: 'other',
+    });
+  });
+
+  it('round trips a collection target with a query', () => {
+    const draft: BackupDraft = {
+      ...READY,
+      target: 'collection',
+      databases: ['shop'],
+      collection: 'orders',
+      query: '{"status":"paid"}',
+    };
+    const input = savedBackupInput(draft, ID, 'Paid');
+    expect(input.scope).toEqual({ kind: 'collection', database: 'shop', collection: 'orders' });
+    expect(
+      draftFromSaved(READY, { ...input, id: ID, createdAt: '2026-10-10T18:42:00.000Z' }),
+    ).toEqual(draft);
+  });
+
+  it('leaves out an unset tools version and keeps the current one on load', () => {
+    const input = savedBackupInput({ ...READY, toolsVersion: '' }, ID, 'x');
+    expect(input.toolsVersion).toBeUndefined();
+    const saved = { ...input, id: ID, createdAt: '2026-10-10T18:42:00.000Z' };
+    expect(draftFromSaved(READY, saved).toolsVersion).toBe('100.9.4');
   });
 });

@@ -1,4 +1,4 @@
-import type { RpcEvent } from '@mongo-gui/core';
+import { DumpOptionsSchema, type RpcEvent } from '@mongo-gui/core';
 import { describe, expect, it } from 'vitest';
 import { createMockUiApi } from './mock-rpc-client';
 import { localConnectionId, mockMasterPassword, stagingConnectionId } from './mock-fixtures';
@@ -276,6 +276,20 @@ describe('mock settings, history and favourites', () => {
     expect((await api.rpc.favourites.list()).map((item) => item.id)).toContain(saved.id);
     await api.rpc.favourites.remove({ id: saved.id });
     expect((await api.rpc.favourites.list()).map((item) => item.id)).not.toContain(saved.id);
+  });
+
+  it('saves, renames and removes a saved backup', async () => {
+    const api = createMockUiApi({ preset: 'unlocked' });
+    const saved = await api.rpc.savedBackups.save({
+      label: 'Nightly',
+      connectionId: localConnectionId,
+      scope: { kind: 'server' },
+      options: DumpOptionsSchema.parse({}),
+    });
+    await api.rpc.savedBackups.rename({ id: saved.id, label: 'Weekly' });
+    expect((await api.rpc.savedBackups.list()).map((item) => item.label)).toEqual(['Weekly']);
+    await api.rpc.savedBackups.remove({ id: saved.id });
+    expect(await api.rpc.savedBackups.list()).toEqual([]);
   });
 });
 

@@ -23,6 +23,7 @@ import {
   type BackupServerInfo,
   type FindingCode,
   type ReadPreferenceMode,
+  type SavedBackup,
   type ToolsListOutput,
   type ToolsVersion,
   type WireCompressor,
@@ -40,7 +41,9 @@ import {
   backupStartInput,
   defaultReadPreference,
   draftForTarget,
+  draftFromSaved,
   outputPreview,
+  savedBackupInput,
   scopeOf,
   type BackupDraft,
   type BackupProblem,
@@ -149,10 +152,32 @@ export function BackupDialogBody({
   const [acknowledged, setAcknowledged] = useState<readonly FindingCode[]>([]);
   const [confirmation, setConfirmation] = useState('');
   const [loadProblem, setLoadProblem] = useState<string | undefined>(undefined);
+  const [savedList, setSavedList] = useState<readonly SavedBackup[]>([]);
+  const [savedId, setSavedId] = useState<string | null>(null);
+  const [savedLabel, setSavedLabel] = useState('');
 
   useEffect(() => {
     onRunningChange?.(job.running);
   }, [job.running, onRunningChange]);
+
+  useEffect(() => {
+    let active = true;
+    rpc.savedBackups.list().then(
+      (list) => {
+        if (active) {
+          setSavedList(list.filter((item) => item.connectionId === connectionId));
+        }
+      },
+      (failure: unknown) => {
+        if (active) {
+          setLoadProblem(errorText(failure));
+        }
+      },
+    );
+    return () => {
+      active = false;
+    };
+  }, [rpc, connectionId]);
 
   useEffect(() => {
     let active = true;
@@ -343,6 +368,56 @@ export function BackupDialogBody({
     });
   }
 
+  function chooseSaved(id: string | null) {
+    setSavedId(id);
+    const saved = savedList.find((item) => item.id === id);
+    if (saved === undefined) {
+      return;
+    }
+    setSavedLabel(saved.label);
+    setDraft((current) => {
+      const next = draftFromSaved(current, saved);
+      return nameTouched.current
+        ? next
+        : {
+            ...next,
+            name: defaultBackupName(connectionName, scopeOf(next) ?? { kind: 'server' }, now),
+          };
+    });
+  }
+
+  function saveSettings() {
+    void runReported(async () => {
+      const saved = await rpc.savedBackups.save(
+        savedBackupInput(effective, connectionId, savedLabel),
+      );
+      setSavedList((current) => [...current, saved]);
+      setSavedId(saved.id);
+    });
+  }
+
+  function renameSaved() {
+    if (savedId === null) {
+      return;
+    }
+    void runReported(async () => {
+      const renamed = await rpc.savedBackups.rename({ id: savedId, label: savedLabel.trim() });
+      setSavedList((current) => current.map((item) => (item.id === renamed.id ? renamed : item)));
+    });
+  }
+
+  function removeSaved() {
+    if (savedId === null) {
+      return;
+    }
+    void runReported(async () => {
+      await rpc.savedBackups.remove({ id: savedId });
+      setSavedList((current) => current.filter((item) => item.id !== savedId));
+      setSavedId(null);
+      setSavedLabel('');
+    });
+  }
+
   function start() {
     void job.start('dump', backupStartInput(effective, connectionId, acknowledged));
   }
@@ -380,8 +455,39 @@ export function BackupDialogBody({
     </Tooltip>
   );
 
+  const labelReady = savedLabel.trim() !== '';
   return (
     <Stack gap="md">
+      <Group align="flex-end" wrap="nowrap">
+        <Select
+          label="Saved backups"
+          placeholder={savedList.length === 0 ? 'None saved' : 'Load saved settings'}
+          data={savedList.map((item) => ({ value: item.id, label: item.label }))}
+          value={savedId}
+          disabled={savedList.length === 0}
+          allowDeselect={false}
+          onChange={chooseSaved}
+          style={{ flex: 1 }}
+        />
+        <TextInput
+          aria-label="Saved backup name"
+          placeholder="Name for these settings"
+          value={savedLabel}
+          onChange={(event) => {
+            setSavedLabel(event.currentTarget.value);
+          }}
+          style={{ flex: 1 }}
+        />
+        <Button variant="default" disabled={!labelReady} onClick={saveSettings}>
+          Save
+        </Button>
+        <Button variant="default" disabled={savedId === null || !labelReady} onClick={renameSaved}>
+          Rename
+        </Button>
+        <Button variant="default" color="red" disabled={savedId === null} onClick={removeSaved}>
+          Delete
+        </Button>
+      </Group>
       <SegmentedControl
         aria-label="What to back up"
         data={[

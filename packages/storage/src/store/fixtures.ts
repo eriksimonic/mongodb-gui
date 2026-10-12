@@ -8,6 +8,7 @@ import { ConnectionsRepository } from './connections-repo';
 import { FavouritesRepository } from './favourites-repo';
 import { HistoryRepository } from './history-repo';
 import { LayoutRepository } from './layout-repo';
+import { SavedBackupsRepository } from './saved-backups-repo';
 import { SettingsRepository } from './settings-repo';
 
 /** Test-only helpers. Production code does not import this file. */
@@ -23,6 +24,7 @@ export interface TestStore {
   readonly connections: ConnectionsRepository;
   readonly history: HistoryRepository;
   readonly favourites: FavouritesRepository;
+  readonly savedBackups: SavedBackupsRepository;
   readonly settings: SettingsRepository;
   readonly layout: LayoutRepository;
   dispose(): void;
@@ -44,6 +46,7 @@ export function openTestStore(): TestStore {
     connections: new ConnectionsRepository(store),
     history: new HistoryRepository(store, settings),
     favourites: new FavouritesRepository(store),
+    savedBackups: new SavedBackupsRepository(store),
     settings,
     layout: new LayoutRepository(store),
     dispose(): void {
