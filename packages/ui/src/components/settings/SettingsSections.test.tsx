@@ -21,11 +21,22 @@ describe('SettingsModal sections', () => {
       'Connections',
       'Updates',
       'Data',
+      'Performance',
       'MongoDB tools',
       'About',
     ]) {
       expect(await screen.findByRole('heading', { name: title })).toBeInTheDocument();
     }
+  });
+
+  it('saves the GPU option and offers a restart', async () => {
+    const { api } = renderSettings();
+    fireEvent.click(await screen.findByRole('switch', { name: /Disable GPU acceleration/ }));
+
+    await waitFor(async () =>
+      expect(await api.rpc.app.getStartupSettings()).toEqual({ disableGpu: true }),
+    );
+    expect(await screen.findByRole('button', { name: 'Restart now' })).toBeInTheDocument();
   });
 
   it('saves the theme and shows the choice', async () => {

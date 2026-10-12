@@ -125,13 +125,9 @@ server. A query that scans a large collection takes as long as the query itself.
 
 ## Use less memory
 
-With a vault open and one connection, the app uses about 400 MB, and the GPU process is about 125 MB of that. Start the app with `--disable-gpu` to drop the GPU process to about 30 MB. This saves about 90 MB in total, and rendering moves to the CPU, so scrolling a large grid and the monitor charts use more CPU.
+With a vault open and one connection, the app uses about 400 MB, and the GPU process is about 125 MB of that. Turn on Settings > Performance > Disable GPU acceleration and restart. The GPU process drops to about 30 MB, which saves about 90 MB in total. Rendering moves to the CPU, so scrolling a large grid and the monitor charts use more CPU.
 
-```sh
-mongo-gui --disable-gpu
-```
-
-On Linux, add the flag to the `Exec` line of your launcher. The app has no setting for this, because Chromium reads the flag before the vault can be opened.
+The option is stored in `startup.json` in the app data folder, outside the vault, because Electron reads it before the vault can be opened. Starting the app with `--disable-gpu` has the same effect for one run.
 
 Large results cost more. A result of 50,000 documents (about 14 MB of data) takes about 320 MB in the window, and the memory returns about 15 seconds after you run a smaller query. Use the batch size, `limit` or a projection instead of `toArray()` on a large collection.
 

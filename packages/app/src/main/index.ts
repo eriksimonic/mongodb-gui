@@ -30,6 +30,7 @@ import {
 } from './rpc/router';
 import { registerIpc, sendEvent } from './rpc/ipc';
 import { utilityFork } from './shell/utility-fork';
+import { readStartupSettings, writeStartupSettings } from './startup-settings';
 
 const preloadPath = join(import.meta.dirname, '../preload/index.cjs');
 // Built next to this file by the build:shell-runtime script.
@@ -39,6 +40,12 @@ const shellRuntimePath = join(import.meta.dirname, 'shell-runtime.cjs');
 const userDataOverride = app.isPackaged ? undefined : process.env['MONGO_GUI_USER_DATA'];
 if (userDataOverride !== undefined && userDataOverride !== '') {
   app.setPath('userData', userDataOverride);
+}
+
+// Electron reads this before it is ready, and the vault opens after that, so the option is kept
+// in a plain file. The --disable-gpu command line flag also works without it.
+if (readStartupSettings(app.getPath('userData')).disableGpu) {
+  app.disableHardwareAcceleration();
 }
 
 let mainWindow: BrowserWindow | undefined;
@@ -383,6 +390,22 @@ app
         node: process.versions.node,
       }),
       dialogs: nativeDialogs,
+      startup: {
+        read: () => readStartupSettings(app.getPath('userData')),
+        write: (settings) => {
+          writeStartupSettings(app.getPath('userData'), settings);
+        },
+        restart: () => {
+          // An AppImage runs from a temporary mount, so it has to relaunch the image file itself.
+          const appImage = process.env['APPIMAGE'];
+          app.relaunch(
+            appImage === undefined
+              ? undefined
+              : { execPath: appImage, args: process.argv.slice(1) },
+          );
+          app.quit();
+        },
+      },
     });
     // Forwarders left behind by a crash or a force quit are removed before the user can connect.
     void appServices.docker.cleanupAll();

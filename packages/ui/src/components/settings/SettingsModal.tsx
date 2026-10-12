@@ -13,7 +13,7 @@ import {
 } from '@mantine/core';
 import { modals } from '@mantine/modals';
 import { notifications } from '@mantine/notifications';
-import type { AppVersions, Settings, SettingsPatch } from '@mongo-gui/core';
+import type { AppVersions, Settings, SettingsPatch, StartupSettings } from '@mongo-gui/core';
 import { useEffect, useState, type ReactNode } from 'react';
 import { useUiApi } from '../../api/ui-api';
 import { LICENCE_URL, PROJECT_URL } from './links';
@@ -77,6 +77,8 @@ function SettingsForm() {
       <UpdatesSection settings={settings} />
       <Divider />
       <DataSection settings={settings} />
+      <Divider />
+      <PerformanceSection />
       <Divider />
       <ToolsSettings settings={settings} />
       <Divider />
@@ -230,6 +232,43 @@ function ConnectionsSection() {
           void runReported(() => setDockerAutoConnect(enabled));
         }}
       />
+    </Section>
+  );
+}
+
+function PerformanceSection() {
+  const { rpc } = useUiApi();
+  const [startup, setStartup] = useState<StartupSettings | undefined>(undefined);
+  const [changed, setChanged] = useState(false);
+  useEffect(() => {
+    void runReported(async () => {
+      setStartup(await rpc.app.getStartupSettings());
+    });
+  }, [rpc]);
+  return (
+    <Section id="settings-performance" title="Performance">
+      <Switch
+        label="Disable GPU acceleration"
+        description="Saves about 90 MB of memory. Drawing moves to the CPU, so large grids and charts use more of it. Takes effect after a restart."
+        checked={startup?.disableGpu ?? false}
+        disabled={startup === undefined}
+        onChange={(event) => {
+          const disableGpu = event.currentTarget.checked;
+          void runReported(async () => {
+            setStartup(await rpc.app.setStartupSettings({ disableGpu }));
+            setChanged(true);
+          });
+        }}
+      />
+      {changed && (
+        <Button
+          variant="default"
+          size="xs"
+          onClick={() => void runReported(() => rpc.app.restart())}
+        >
+          Restart now
+        </Button>
+      )}
     </Section>
   );
 }

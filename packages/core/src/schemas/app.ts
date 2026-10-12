@@ -9,3 +9,7 @@ export const AppVersionsSchema = z.object({
 });
 
 export type AppVersions = z.infer<typeof AppVersionsSchema>;
+
+/** Options Electron reads before the vault opens, so they live in a plain file next to it. */
+export const StartupSettingsSchema = z.object({ disableGpu: z.boolean() });
+export type StartupSettings = z.infer<typeof StartupSettingsSchema>;
