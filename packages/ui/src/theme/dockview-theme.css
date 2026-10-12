@@ -42,3 +42,39 @@
 .mg-editor-toolbar > * {
   flex-shrink: 0;
 }
+
+/* Tabs shrink to fit the strip like Chrome. The overflow list only appears below the minimum width. */
+.dv-tab {
+  flex: 0 1 auto;
+  min-width: 40px;
+  max-width: 200px;
+}
+
+/* The active tab keeps room for its title and close button while the others squeeze to icons. */
+.dv-tab.dv-active-tab {
+  flex-shrink: 0;
+  min-width: 140px;
+}
+
+.dv-default-tab-content {
+  min-width: 0;
+}
+
+.dv-tab .dv-default-tab-content {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.dv-default-tab {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  height: 100%;
+  padding: 0;
+}
+
+.dv-default-tab-action {
+  display: flex;
+  align-items: center;
+}

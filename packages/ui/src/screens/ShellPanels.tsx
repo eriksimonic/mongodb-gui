@@ -11,17 +11,36 @@ import {
   Title,
 } from '@mantine/core';
 import {
+  IconActivity,
+  IconBinaryTree2,
   IconBrandDocker,
+  IconBroadcast,
+  IconChartDots,
+  IconChartLine,
   IconChevronDown,
   IconChevronUp,
+  IconDatabase,
+  IconFileText,
+  IconFiles,
+  IconKey,
   IconKeyboard,
+  IconListDetails,
   IconLock,
+  IconPlugConnected,
   IconPlus,
+  IconRoute,
   IconSettings,
+  IconShieldCheck,
+  IconSitemap,
+  IconStethoscope,
+  IconTable,
+  IconTerminal2,
+  IconUsers,
+  IconX,
+  type Icon,
 } from '@tabler/icons-react';
-import { useEffect, useState } from 'react';
+import { useEffect, useState, type HTMLAttributes } from 'react';
 import {
-  DockviewDefaultTab,
   type DockviewApi,
   type IDockviewHeaderActionsProps,
   type IDockviewPanelHeaderProps,
@@ -162,9 +181,79 @@ export function GroupHeaderActions({ group, containerApi }: IDockviewHeaderActio
   );
 }
 
-/** Tab for the three fixed panels. Same as dockview's default tab without the close button. */
+/** The icon of each panel kind, so tabs are easy to tell apart. */
+const TAB_ICONS: Record<string, Icon> = {
+  connections: IconPlugConnected,
+  output: IconFileText,
+  editor: IconTerminal2,
+  explain: IconRoute,
+  documents: IconTable,
+  profiler: IconChartLine,
+  monitor: IconActivity,
+  operations: IconListDetails,
+  diagnostics: IconStethoscope,
+  sharding: IconSitemap,
+  replication: IconBinaryTree2,
+  indexes: IconKey,
+  validation: IconShieldCheck,
+  schema: IconChartDots,
+  users: IconUsers,
+  gridfs: IconFiles,
+  changes: IconBroadcast,
+  dbStats: IconDatabase,
+  collStats: IconDatabase,
+};
+
+/** Dockview's default tab with the panel kind's icon in front of the title. */
+function IconTab(
+  props: IDockviewPanelHeaderProps &
+    HTMLAttributes<HTMLDivElement> & { readonly hideClose?: boolean },
+) {
+  const { api, hideClose, onPointerDown, onPointerLeave } = props;
+  const [title, setTitle] = useState(api.title ?? '');
+  useEffect(() => {
+    const subscription = api.onDidTitleChange((event) => setTitle(event.title));
+    return () => subscription.dispose();
+  }, [api]);
+  const TabIcon = TAB_ICONS[api.component];
+  return (
+    <div
+      onPointerDown={onPointerDown}
+      onPointerLeave={onPointerLeave}
+      className="dv-default-tab"
+      title={title}
+      onPointerUp={(event) => {
+        if (event.button === 1 && !hideClose) {
+          event.preventDefault();
+          api.close();
+        }
+      }}
+    >
+      {TabIcon === undefined ? null : (
+        <TabIcon size={14} style={{ flexShrink: 0 }} aria-hidden="true" />
+      )}
+      <span className="dv-default-tab-content">{title}</span>
+      {hideClose === true ? null : (
+        <button
+          type="button"
+          className="dv-default-tab-action"
+          aria-label="Close tab"
+          onPointerDown={(event) => event.preventDefault()}
+          onClick={(event) => {
+            event.preventDefault();
+            api.close();
+          }}
+        >
+          <IconX size={12} />
+        </button>
+      )}
+    </div>
+  );
+}
+
+/** Tab for the three fixed panels. Same as the closable tab without the close button. */
 export function FixedTab(props: IDockviewPanelHeaderProps) {
-  return <DockviewDefaultTab {...props} hideClose />;
+  return <IconTab {...props} hideClose />;
 }
 
 /**
@@ -210,7 +299,7 @@ export function ClosableTab(props: IDockviewPanelHeaderProps) {
         setPosition({ x: event.clientX, y: event.clientY });
       }}
     >
-      <DockviewDefaultTab {...props} />
+      <IconTab {...props} />
       {position === undefined ? null : (
         // The tab strip is a containing block for fixed elements and clips them, so the menu's
         // anchor goes to the body, where `position: fixed` matches the pointer.
