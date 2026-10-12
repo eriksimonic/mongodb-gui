@@ -136,7 +136,6 @@ function EntryDetail({ connectionId, database, entry }: EntryDetailProps) {
       type: 'profiler:open',
       ref: { connectionId, database, entry, command: runnable },
     });
-    notifications.show({ title: 'Open in editor', message: 'Open in editor arrives in phase 2.' });
   }
 
   async function copyCommand() {
