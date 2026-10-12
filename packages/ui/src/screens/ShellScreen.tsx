@@ -13,7 +13,7 @@ import {
 } from '@tabler/icons-react';
 import type { ChangeTarget, RpcClient } from '@mongo-gui/core';
 import { targetLabelOf } from '../changes/changes-model';
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { lazy, Suspense, useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import {
   DockviewReact,
   themeDark,
@@ -32,7 +32,7 @@ import { ShortcutsModal } from '../shortcuts/ShortcutsModal';
 import { shellHotkeys } from '../shortcuts/shortcuts';
 import { TransferModals } from '../components/transfers/TransferModals';
 import { BackupDialogs } from '../components/backup/BackupDialogs';
-import { GenerateDataDialog } from '../components/generate/GenerateDataDialog';
+import { useGenerateDialog } from '../components/generate/generate-store';
 import { UpdateBanner } from '../components/updates/UpdateBanner';
 import { ProfilerOpenerContext, type ProfilerOpener } from '../profiler/profiler-opener';
 import type { AppData, PanelRequest } from '../state/app-store';
@@ -486,8 +486,16 @@ function stopSamplerWhenUnused(
   }
 }
 
+// The dialog is large and rarely open, so it loads the first time a target is set.
+const GenerateDataDialog = lazy(() =>
+  import('../components/generate/GenerateDataDialog').then((module) => ({
+    default: module.GenerateDataDialog,
+  })),
+);
+
 /** The unlocked main window: toolbar, dockable panels, connection dialog and manager. */
 export function ShellScreen() {
+  const generateOpen = useGenerateDialog((state) => state.target !== undefined);
   const lock = useAppStore((state) => state.lock);
   const stopMonitor = useAppStore((state) => state.stopMonitor);
   const dialog = useAppStore((state) => state.dialog);
@@ -833,7 +841,11 @@ export function ShellScreen() {
               <SettingsModal />
               <ShortcutsModal />
               <TransferModals />
-              <GenerateDataDialog />
+              {generateOpen && (
+                <Suspense fallback={null}>
+                  <GenerateDataDialog />
+                </Suspense>
+              )}
               <BackupDialogs />
             </Flex>
           </ChangesOpenerContext.Provider>

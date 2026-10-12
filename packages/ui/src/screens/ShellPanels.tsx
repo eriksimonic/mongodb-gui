@@ -39,7 +39,7 @@ import {
   IconX,
   type Icon,
 } from '@tabler/icons-react';
-import { useEffect, useState, type HTMLAttributes } from 'react';
+import { lazy, Suspense, useEffect, useState, type HTMLAttributes } from 'react';
 import {
   type DockviewApi,
   type IDockviewHeaderActionsProps,
@@ -50,17 +50,14 @@ import { ConnectionTree } from '../components/connections/ConnectionTree';
 import { TreeMenu, type TreeMenuEntry } from '../components/connections/TreeMenu';
 import { isOutputCollapsed, toggleOutputPanel } from './output-collapse';
 import { DocumentsPanel } from '../components/management/DocumentsPanel';
-import { GridFsPanel } from '../components/gridfs/GridFsPanel';
 import { IndexesPanel } from '../components/management/IndexesPanel';
 import { UsersRolesPanel } from '../components/security/UsersRolesPanel';
 import { ShardingPanel } from '../components/sharding/ShardingPanel';
 import { ValidationPanel } from '../components/management/ValidationPanel';
-import { ExplainPanel } from '../explain/ExplainPanel';
 import { ChangesPanel } from '../changes/ChangesPanel';
 import type { ChangeTarget } from '@mongo-gui/core';
 import { useUiApi } from '../api/ui-api';
 import { createCompletionSource } from '../editor/completion-source';
-import { ProfilerPanel } from '../profiler/ProfilerPanel';
 import { ReplicationPanel } from '../replication/ReplicationPanel';
 import { EditorView } from '../components/editor/EditorView';
 import { DiagnosticsPanel } from '../diagnostics/DiagnosticsPanel';
@@ -68,7 +65,6 @@ import { CollectionStatsPanel, DatabaseStatsPanel } from '../diagnostics/StatsPa
 
 export { OutputPanel } from '../components/editor/OutputPanel';
 import { SchemaPanel } from '../schema/SchemaPanel';
-import { MonitorDashboard } from '../monitor/MonitorDashboard';
 import { OperationsPanel } from '../monitor/OperationsPanel';
 import { useAppStore, useAppStoreApi } from '../state/app-store-context';
 import type { EditorTab } from '../state/editors';
@@ -85,6 +81,20 @@ export interface CollectionPanelParams {
 }
 
 /** Params of a profiler panel. The shell sets them when it opens the panel. */
+// These panels pull in uPlot, the plan tree and the GridFS table, so each loads when first opened.
+const ExplainPanel = lazy(() =>
+  import('../explain/ExplainPanel').then((module) => ({ default: module.ExplainPanel })),
+);
+const ProfilerPanel = lazy(() =>
+  import('../profiler/ProfilerPanel').then((module) => ({ default: module.ProfilerPanel })),
+);
+const MonitorDashboard = lazy(() =>
+  import('../monitor/MonitorDashboard').then((module) => ({ default: module.MonitorDashboard })),
+);
+const GridFsPanel = lazy(() =>
+  import('../components/gridfs/GridFsPanel').then((module) => ({ default: module.GridFsPanel })),
+);
+
 export interface ProfilerPanelParams {
   readonly connectionId: string;
   readonly database: string;
@@ -99,14 +109,20 @@ export interface ExplainPanelParams {
 export function ExplainDockPanel({ params }: IDockviewPanelProps<ExplainPanelParams>) {
   return (
     <Box h="100%" style={{ overflow: 'auto' }}>
-      <ExplainPanel panelId={params.panelId} />
+      <Suspense fallback={null}>
+        <ExplainPanel panelId={params.panelId} />
+      </Suspense>
     </Box>
   );
 }
 
 /** A profiler panel of one database. Closing the tab drops its state and stops its tail. */
 export function ProfilerDockPanel({ params }: IDockviewPanelProps<ProfilerPanelParams>) {
-  return <ProfilerPanel connectionId={params.connectionId} database={params.database} />;
+  return (
+    <Suspense fallback={null}>
+      <ProfilerPanel connectionId={params.connectionId} database={params.database} />
+    </Suspense>
+  );
 }
 
 /** Params of a change stream panel. The panel id keys its state in the store. */
@@ -520,7 +536,9 @@ interface ConnectionPanelParams {
 export function MonitorPanel(props: IDockviewPanelProps<ConnectionPanelParams>) {
   return (
     <Box h="100%" style={{ overflow: 'auto' }}>
-      <MonitorDashboard connectionId={props.params.connectionId} />
+      <Suspense fallback={null}>
+        <MonitorDashboard connectionId={props.params.connectionId} />
+      </Suspense>
     </Box>
   );
 }
@@ -648,7 +666,9 @@ export interface GridFsDockPanelParams {
 export function GridFsDockPanel({ params }: IDockviewPanelProps<GridFsDockPanelParams>) {
   return (
     <Box h="100%" style={{ overflow: 'hidden' }}>
-      <GridFsPanel {...params} />
+      <Suspense fallback={null}>
+        <GridFsPanel {...params} />
+      </Suspense>
     </Box>
   );
 }
