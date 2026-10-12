@@ -26,6 +26,7 @@ import {
 import { useState } from 'react';
 import { useUiApi } from '../../api/ui-api';
 import { useAppStore } from '../../state/app-store-context';
+import { TipLabel } from '../InfoTip';
 import { errorText } from '../notify-error';
 import { TransferProgressView } from './TransferProgressView';
 import { cellText, DELIMITER_LABELS, DELIMITERS, FORMAT_LABELS } from './transfer-model';
@@ -400,7 +401,7 @@ export function ChooseFileStep({
         </Button>
       </Group>
       <Select
-        label="Format"
+        label={<TipLabel label="Format" tip="The file format. Auto detects it from the file." />}
         data={FORMAT_CHOICES.map((choice) => ({ value: choice.value, label: choice.label }))}
         value={draft.formatChoice}
         onChange={(value) => {
@@ -413,7 +414,12 @@ export function ChooseFileStep({
       {csvShown ? (
         <Stack gap="xs" aria-label="CSV options">
           <Select
-            label="Delimiter"
+            label={
+              <TipLabel
+                label="Delimiter"
+                tip="The character that separates columns in the CSV file."
+              />
+            }
             data={DELIMITERS.map((value) => ({ value, label: DELIMITER_LABELS[value] }))}
             value={draft.csv.delimiter}
             onChange={(value) => {
@@ -427,7 +433,12 @@ export function ChooseFileStep({
             allowDeselect={false}
           />
           <Switch
-            label="First row is a header"
+            label={
+              <TipLabel
+                label="First row is a header"
+                tip="Uses the first row as field names instead of importing it as data."
+              />
+            }
             checked={draft.csv.hasHeader}
             onChange={(event) =>
               onChange({
@@ -437,7 +448,12 @@ export function ChooseFileStep({
             }
           />
           <Switch
-            label="Trim spaces around values"
+            label={
+              <TipLabel
+                label="Trim spaces around values"
+                tip="Removes leading and trailing spaces from each CSV value."
+              />
+            }
             checked={draft.csv.trim}
             onChange={(event) =>
               onChange({
@@ -447,7 +463,7 @@ export function ChooseFileStep({
             }
           />
           <TextInput
-            label="Null values"
+            label={<TipLabel label="Null values" tip="Cell texts imported as null." />}
             description="Comma separated. Empty cells are always null."
             value={draft.csv.nullText}
             onChange={(event) =>
@@ -645,7 +661,12 @@ export function OptionsStep({ draft, target, rowCount, problems, onChange }: Opt
         into <strong>{target}</strong>.
       </Text>
       <Select
-        label="Mode"
+        label={
+          <TipLabel
+            label="Mode"
+            tip="Insert adds every record. Upsert replaces the document with the same upsert key, or inserts it when none matches."
+          />
+        }
         data={[
           { value: 'insert', label: 'Insert new documents' },
           { value: 'upsert', label: 'Replace documents that match the upsert key, or insert them' },
@@ -660,14 +681,19 @@ export function OptionsStep({ draft, target, rowCount, problems, onChange }: Opt
       />
       {draft.mode === 'upsert' ? (
         <TextInput
-          label="Upsert key"
+          label={
+            <TipLabel
+              label="Upsert key"
+              tip="The field used to find an existing document to replace."
+            />
+          }
           description="A field of the target documents, for example _id or sku"
           value={draft.upsertKey}
           onChange={(event) => onChange({ upsertKey: event.currentTarget.value })}
         />
       ) : null}
       <NumberInput
-        label="Batch size"
+        label={<TipLabel label="Batch size" tip="Documents sent to the server in one write." />}
         description={`Documents written per round trip, 1 to ${MAX_IMPORT_BATCH_SIZE}`}
         min={1}
         max={MAX_IMPORT_BATCH_SIZE}
@@ -679,7 +705,12 @@ export function OptionsStep({ draft, target, rowCount, problems, onChange }: Opt
         }}
       />
       <Switch
-        label="Stop at the first error"
+        label={
+          <TipLabel
+            label="Stop at the first error"
+            tip="Stops the import at the first failing record. Otherwise failures are counted and the rest continues."
+          />
+        }
         checked={draft.stopOnError}
         onChange={(event) => onChange({ stopOnError: event.currentTarget.checked })}
       />

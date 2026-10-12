@@ -22,6 +22,7 @@ import {
 import { useState } from 'react';
 import { useUiApi } from '../../api/ui-api';
 import { useAppStore } from '../../state/app-store-context';
+import { TipLabel } from '../InfoTip';
 import { errorText } from '../notify-error';
 import { TransferProgressView } from './TransferProgressView';
 import {
@@ -180,7 +181,9 @@ export function ExportDialogBody({
         {database}.{collection}
       </Text>
       <Select
-        label="Format"
+        label={
+          <TipLabel label="Format" tip="JSON array, one document per line (NDJSON), or CSV." />
+        }
         data={(['json-array', 'ndjson', 'csv'] as ExportFormat[]).map((value) => ({
           value,
           label: EXPORT_FORMAT_LABELS[value],
@@ -205,7 +208,12 @@ export function ExportDialogBody({
         />
       )}
       <TextInput
-        label="Filter"
+        label={
+          <TipLabel
+            label="Filter"
+            tip="Only documents matching this Extended JSON query are exported."
+          />
+        }
         placeholder='{"status": "paid"}'
         description="Extended JSON. Empty exports every document."
         value={draft.filter}
@@ -213,21 +221,30 @@ export function ExportDialogBody({
         onChange={(event) => patch({ filter: event.currentTarget.value })}
       />
       <TextInput
-        label="Projection"
+        label={
+          <TipLabel
+            label="Projection"
+            tip="Extended JSON listing the fields to include (1) or leave out (0)."
+          />
+        }
         placeholder='{"customer": 1, "total": 1}'
         value={draft.projection}
         error={fieldError(problems, 'projection')}
         onChange={(event) => patch({ projection: event.currentTarget.value })}
       />
       <TextInput
-        label="Sort"
+        label={
+          <TipLabel label="Sort" tip="Extended JSON sort: 1 for ascending, -1 for descending." />
+        }
         placeholder='{"createdAt": -1}'
         value={draft.sort}
         error={fieldError(problems, 'sort')}
         onChange={(event) => patch({ sort: event.currentTarget.value })}
       />
       <TextInput
-        label="Limit"
+        label={
+          <TipLabel label="Limit" tip="Maximum number of documents to export. Empty exports all." />
+        }
         placeholder="No limit"
         value={draft.limit}
         error={fieldError(problems, 'limit')}
@@ -236,7 +253,12 @@ export function ExportDialogBody({
       {draft.format === 'csv' ? (
         <Stack gap="xs" aria-label="CSV options">
           <Select
-            label="Delimiter"
+            label={
+              <TipLabel
+                label="Delimiter"
+                tip="The character that separates columns in the CSV file."
+              />
+            }
             data={DELIMITERS.map((value) => ({ value, label: DELIMITER_LABELS[value] }))}
             value={draft.delimiter}
             allowDeselect={false}
@@ -247,7 +269,12 @@ export function ExportDialogBody({
             }}
           />
           <Select
-            label="Arrays and objects"
+            label={
+              <TipLabel
+                label="Arrays and objects"
+                tip="A CSV cell holds one value. Choose how arrays and objects are written into it."
+              />
+            }
             data={[
               { value: 'json', label: 'Write as JSON text' },
               { value: 'join', label: 'Join scalar items with a comma' },
@@ -262,7 +289,7 @@ export function ExportDialogBody({
           />
           <TagsInput
             size="sm"
-            label="Columns"
+            label={<TipLabel label="Columns" tip="The CSV columns to write, in order." />}
             description="In this order. Empty writes every field found in the first 1,000 documents."
             placeholder="Add a field name"
             value={[...draft.columns]}
@@ -272,7 +299,7 @@ export function ExportDialogBody({
       ) : null}
       <Group align="flex-end" wrap="nowrap">
         <TextInput
-          label="File"
+          label={<TipLabel label="File" tip="Where the export is written." />}
           placeholder="/home/you/orders.ndjson"
           value={draft.path}
           onChange={(event) => patch({ path: event.currentTarget.value })}

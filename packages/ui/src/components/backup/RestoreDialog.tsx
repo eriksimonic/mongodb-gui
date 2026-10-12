@@ -22,6 +22,7 @@ import {
   type ToolsVersion,
 } from '@mongo-gui/core';
 import { useEffect, useMemo, useState } from 'react';
+import { TipLabel } from '../InfoTip';
 import { useUiApi } from '../../api/ui-api';
 import { useAppStore } from '../../state/app-store-context';
 import { errorText, runReported } from '../notify-error';
@@ -402,7 +403,12 @@ export function RestoreDialogBody({
             )}
           </Stack>
           <Checkbox
-            label="Drop collections before restoring"
+            label={
+              <TipLabel
+                label="Drop collections before restoring"
+                tip="Deletes each collection that is about to be restored, then recreates it (--drop). Existing data in it is lost."
+              />
+            }
             styles={{ label: { color: 'var(--mantine-color-red-text)' } }}
             checked={draft?.drop ?? false}
             onChange={(event) => {
@@ -410,7 +416,12 @@ export function RestoreDialogBody({
             }}
           />
           <Checkbox
-            label="Dry run"
+            label={
+              <TipLabel
+                label="Dry run"
+                tip="Reads the backup and reports what would be restored without writing anything (--dryRun)."
+              />
+            }
             checked={draft?.dryRun ?? false}
             onChange={(event) => {
               patch({ dryRun: event.currentTarget.checked });
@@ -419,7 +430,12 @@ export function RestoreDialogBody({
           {inspection.hasOplog ? (
             <Tooltip label={oplogReason} disabled={oplogReason === undefined}>
               <Checkbox
-                label="Replay oplog"
+                label={
+                  <TipLabel
+                    label="Replay oplog"
+                    tip="Applies the oplog recorded in the backup after restoring, for a consistent point in time (--oplogReplay)."
+                  />
+                }
                 checked={effective.oplogReplay}
                 disabled={oplogReason !== undefined}
                 error={fieldError(problems, 'oplogReplay')}
@@ -431,7 +447,12 @@ export function RestoreDialogBody({
           ) : null}
           {inspection.hasUsersAndRoles ? (
             <Checkbox
-              label="Restore users and roles"
+              label={
+                <TipLabel
+                  label="Restore users and roles"
+                  tip="Restores the users and roles stored in the backup (--restoreDbUsersAndRoles)."
+                />
+              }
               checked={effective.restoreDbUsersAndRoles}
               error={fieldError(problems, 'restoreDbUsersAndRoles')}
               onChange={(event) => {
@@ -441,7 +462,12 @@ export function RestoreDialogBody({
           ) : null}
           <Tooltip label="Preserving UUIDs needs Drop." disabled={effective.drop}>
             <Checkbox
-              label="Preserve UUIDs"
+              label={
+                <TipLabel
+                  label="Preserve UUIDs"
+                  tip="Keeps the original collection UUIDs (--preserveUUID). Needs Drop."
+                />
+              }
               checked={effective.preserveUUID}
               disabled={!effective.drop}
               onChange={(event) => {
@@ -451,7 +477,12 @@ export function RestoreDialogBody({
           </Tooltip>
           {inspection.sidecar === undefined ? null : (
             <Checkbox
-              label="Verify checksum"
+              label={
+                <TipLabel
+                  label="Verify checksum"
+                  tip="Checks the archive against the checksum saved with the backup before restoring."
+                />
+              }
               checked={effective.verifyChecksum}
               onChange={(event) => {
                 patch({ verifyChecksum: event.currentTarget.checked });
@@ -464,56 +495,96 @@ export function RestoreDialogBody({
               <Accordion.Panel>
                 <Stack gap="sm">
                   <Checkbox
-                    label="Skip indexes"
+                    label={
+                      <TipLabel
+                        label="Skip indexes"
+                        tip="Restores documents only and does not rebuild indexes (--noIndexRestore)."
+                      />
+                    }
                     checked={effective.noIndexRestore}
                     onChange={(event) => {
                       patch({ noIndexRestore: event.currentTarget.checked });
                     }}
                   />
                   <Checkbox
-                    label="Skip collection options"
+                    label={
+                      <TipLabel
+                        label="Skip collection options"
+                        tip="Does not apply collection options such as capped size or validation rules (--noOptionsRestore)."
+                      />
+                    }
                     checked={effective.noOptionsRestore}
                     onChange={(event) => {
                       patch({ noOptionsRestore: event.currentTarget.checked });
                     }}
                   />
                   <Checkbox
-                    label="Convert legacy indexes"
+                    label={
+                      <TipLabel
+                        label="Convert legacy indexes"
+                        tip="Converts old index formats and names to the current ones (--convertLegacyIndexes)."
+                      />
+                    }
                     checked={effective.convertLegacyIndexes}
                     onChange={(event) => {
                       patch({ convertLegacyIndexes: event.currentTarget.checked });
                     }}
                   />
                   <Checkbox
-                    label="Maintain insertion order"
+                    label={
+                      <TipLabel
+                        label="Maintain insertion order"
+                        tip="Inserts documents in the order they appear in the backup (--maintainInsertionOrder)."
+                      />
+                    }
                     checked={effective.maintainInsertionOrder}
                     onChange={(event) => {
                       patch({ maintainInsertionOrder: event.currentTarget.checked });
                     }}
                   />
                   <Checkbox
-                    label="Stop on first error"
+                    label={
+                      <TipLabel
+                        label="Stop on first error"
+                        tip="Stops at the first insert error instead of continuing (--stopOnError)."
+                      />
+                    }
                     checked={effective.stopOnError}
                     onChange={(event) => {
                       patch({ stopOnError: event.currentTarget.checked });
                     }}
                   />
                   <Checkbox
-                    label="Bypass document validation"
+                    label={
+                      <TipLabel
+                        label="Bypass document validation"
+                        tip="Skips the collection validation rules while inserting (--bypassDocumentValidation)."
+                      />
+                    }
                     checked={effective.bypassDocumentValidation}
                     onChange={(event) => {
                       patch({ bypassDocumentValidation: event.currentTarget.checked });
                     }}
                   />
                   <Checkbox
-                    label="Validate objects"
+                    label={
+                      <TipLabel
+                        label="Validate objects"
+                        tip="Checks each document is valid before inserting it (--objcheck)."
+                      />
+                    }
                     checked={effective.objcheck}
                     onChange={(event) => {
                       patch({ objcheck: event.currentTarget.checked });
                     }}
                   />
                   <Select
-                    label="Write concern"
+                    label={
+                      <TipLabel
+                        label="Write concern"
+                        tip="How many members must confirm each write (--writeConcern)."
+                      />
+                    }
                     data={['majority', '1', '0']}
                     value={effective.writeConcern}
                     allowDeselect={false}
@@ -524,7 +595,12 @@ export function RestoreDialogBody({
                     }}
                   />
                   <NumberInput
-                    label="Parallel collections"
+                    label={
+                      <TipLabel
+                        label="Parallel collections"
+                        tip="How many collections are restored at the same time (--numParallelCollections)."
+                      />
+                    }
                     min={1}
                     max={16}
                     allowDecimal={false}
@@ -534,7 +610,12 @@ export function RestoreDialogBody({
                     }}
                   />
                   <NumberInput
-                    label="Insertion workers"
+                    label={
+                      <TipLabel
+                        label="Insertion workers"
+                        tip="Insert workers per collection (--numInsertionWorkersPerCollection). More is faster."
+                      />
+                    }
                     min={1}
                     max={16}
                     allowDecimal={false}

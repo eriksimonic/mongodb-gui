@@ -28,6 +28,7 @@ import {
   type WireCompressor,
 } from '@mongo-gui/core';
 import { useEffect, useMemo, useRef, useState } from 'react';
+import { TipLabel } from '../InfoTip';
 import { useUiApi } from '../../api/ui-api';
 import { useAppStore } from '../../state/app-store-context';
 import { errorText, runReported } from '../notify-error';
@@ -439,7 +440,12 @@ export function BackupDialogBody({
         <>
           {draft.databases.length === 1 ? (
             <MultiSelect
-              label="Exclude collections"
+              label={
+                <TipLabel
+                  label="Exclude collections"
+                  tip="Skips these collections (mongodump --excludeCollection)."
+                />
+              }
               data={collections}
               value={[...draft.excludeCollections]}
               searchable
@@ -450,7 +456,12 @@ export function BackupDialogBody({
             />
           ) : (
             <TagsInput
-              label="Exclude collections"
+              label={
+                <TipLabel
+                  label="Exclude collections"
+                  tip="Skips these collections (mongodump --excludeCollection)."
+                />
+              }
               placeholder="Add a collection name"
               value={[...draft.excludeCollections]}
               onChange={(value) => {
@@ -459,7 +470,12 @@ export function BackupDialogBody({
             />
           )}
           <TagsInput
-            label="Exclude prefixes"
+            label={
+              <TipLabel
+                label="Exclude prefixes"
+                tip="Skips collections whose names start with any of these (--excludeCollectionsWithPrefix)."
+              />
+            }
             description="Collections whose names start with one of these are skipped."
             placeholder="Add a prefix"
             value={[...draft.excludePrefixes]}
@@ -471,7 +487,12 @@ export function BackupDialogBody({
       ) : null}
       {draft.target === 'collection' ? (
         <Textarea
-          label="Query"
+          label={
+            <TipLabel
+              label="Query"
+              tip="Dumps only documents matching this Extended JSON filter (--query)."
+            />
+          }
           description="Extended JSON. Empty backs up every document."
           placeholder='{"status": "paid"}'
           autosize
@@ -531,7 +552,12 @@ export function BackupDialogBody({
         </Text>
       ) : null}
       <Checkbox
-        label="Compress with gzip"
+        label={
+          <TipLabel
+            label="Compress with gzip"
+            tip="Compresses the output (--gzip). Smaller backup, a little slower."
+          />
+        }
         checked={draft.gzip}
         onChange={(event) => {
           patch({ gzip: event.currentTarget.checked });
@@ -543,7 +569,12 @@ export function BackupDialogBody({
           : `Writes ${preview.outputPath} and ${preview.sidecarPath}`}
       </Text>
       <Select
-        label="Read preference"
+        label={
+          <TipLabel
+            label="Read preference"
+            tip="Which replica set member is read from (--readPreference). Empty keeps the connection setting."
+          />
+        }
         data={[...READ_PREFERENCES]}
         value={effective.readPreference ?? null}
         allowDeselect={false}
@@ -553,7 +584,12 @@ export function BackupDialogBody({
       />
       <Tooltip label={oplogReason} disabled={oplogReason === undefined}>
         <Checkbox
-          label="Point-in-time (oplog)"
+          label={
+            <TipLabel
+              label="Point-in-time (oplog)"
+              tip="Also records oplog entries written during the dump so a restore can replay to a consistent point (--oplog). Replica sets, whole server only."
+            />
+          }
           checked={effective.oplog}
           disabled={oplogReason !== undefined}
           onChange={(event) => {
@@ -563,7 +599,12 @@ export function BackupDialogBody({
       </Tooltip>
       <Tooltip label={usersReason} disabled={usersReason === undefined}>
         <Checkbox
-          label="Users and roles"
+          label={
+            <TipLabel
+              label="Users and roles"
+              tip="Includes the database users and custom roles (--dumpDbUsersAndRoles). Not for the admin database."
+            />
+          }
           checked={effective.dumpDbUsersAndRoles}
           disabled={usersReason !== undefined}
           onChange={(event) => {
@@ -572,7 +613,12 @@ export function BackupDialogBody({
         />
       </Tooltip>
       <Checkbox
-        label="Views as collections"
+        label={
+          <TipLabel
+            label="Views as collections"
+            tip="Dumps each view as a regular collection of its results instead of its definition (--viewsAsCollections)."
+          />
+        }
         checked={draft.viewsAsCollections}
         onChange={(event) => {
           patch({ viewsAsCollections: event.currentTarget.checked });
@@ -584,14 +630,24 @@ export function BackupDialogBody({
           <Accordion.Panel>
             <Stack gap="sm">
               <Checkbox
-                label="Force table scan"
+                label={
+                  <TipLabel
+                    label="Force table scan"
+                    tip="Reads documents in natural order instead of through the _id index (--forceTableScan). Can help when the _id index is damaged."
+                  />
+                }
                 checked={draft.forceTableScan}
                 onChange={(event) => {
                   patch({ forceTableScan: event.currentTarget.checked });
                 }}
               />
               <NumberInput
-                label="Parallel collections"
+                label={
+                  <TipLabel
+                    label="Parallel collections"
+                    tip="How many collections are dumped at the same time (--numParallelCollections)."
+                  />
+                }
                 min={1}
                 max={16}
                 allowDecimal={false}
@@ -602,7 +658,12 @@ export function BackupDialogBody({
                 }}
               />
               <MultiSelect
-                label="Network compression"
+                label={
+                  <TipLabel
+                    label="Network compression"
+                    tip="Compresses traffic between the tool and the server (--compressors). The server must support the chosen algorithm."
+                  />
+                }
                 data={[...COMPRESSORS]}
                 value={[...draft.compressors]}
                 clearable
