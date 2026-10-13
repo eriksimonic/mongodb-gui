@@ -5,7 +5,7 @@ import type {
   TransferKind,
   TransferProgress,
 } from '@mongo-gui/core';
-import { formatBytes, formatDuration } from '../../monitor/format';
+import { formatBytes, formatDuration } from '../../monitor';
 
 /** Format names for the selects. Labels are plain sentence case. */
 export const FORMAT_LABELS: Record<ImportFormat, string> = {

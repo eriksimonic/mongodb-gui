@@ -10,7 +10,7 @@ import {
   type RpcEvent,
   type RunningOperation,
 } from '@mongo-gui/core';
-import { mergeSamples } from '../monitor/series';
+import { mergeSamples } from './series';
 
 export interface MockMonitorOptions {
   readonly emit: (event: RpcEvent) => void;

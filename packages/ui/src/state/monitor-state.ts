@@ -4,7 +4,7 @@ import {
   type MonitorConfig,
   type MonitorSample,
 } from '@mongo-gui/core';
-import { mergeSamples } from '../monitor/series';
+import { mergeSamples } from '../monitor';
 
 /** What the store keeps per connection for the monitor. Samples are bounded by retention. */
 export interface MonitorView {

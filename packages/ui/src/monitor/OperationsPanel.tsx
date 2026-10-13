@@ -16,6 +16,7 @@ import { IconSearch } from '@tabler/icons-react';
 import { toAppError, type AppError, type RunningOperation } from '@mongo-gui/core';
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { useUiApi } from '../api/ui-api';
+import { usePolling } from '../kit/use-polling';
 import { formatDuration } from './format';
 import { commandExcerpt, filterOperations, killBlockReason } from './operations-view';
 
@@ -91,6 +92,11 @@ export function OperationsPanel({ connectionId, visible = true }: OperationsPane
     }
   }, [rpc, connectionId, includeIdle, includeSystem]);
 
+  const poll = useCallback((): void => {
+    void refresh();
+  }, [refresh]);
+  usePolling(poll, visible ? OPERATIONS_REFRESH_MS : undefined);
+
   useEffect(() => {
     if (!visible) {
       return undefined;
@@ -100,11 +106,7 @@ export function OperationsPanel({ connectionId, visible = true }: OperationsPane
     };
     // The first load runs on a zero timeout, so the effect itself never sets state.
     const first = setTimeout(load, 0);
-    const timer = setInterval(load, OPERATIONS_REFRESH_MS);
-    return () => {
-      clearTimeout(first);
-      clearInterval(timer);
-    };
+    return () => clearTimeout(first);
   }, [visible, refresh]);
 
   const visibleRows = useMemo(() => filterOperations(rows ?? [], search), [rows, search]);

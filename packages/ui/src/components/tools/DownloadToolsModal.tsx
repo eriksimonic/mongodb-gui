@@ -2,7 +2,7 @@ import { Alert, Button, Group, Modal, Progress, Select, Stack, Text } from '@man
 import type { ToolsAvailableOutput, ToolsVersion } from '@mongo-gui/core';
 import { useEffect, useRef, useState } from 'react';
 import { useUiApi } from '../../api/ui-api';
-import { formatBytes } from '../../diagnostics/format';
+import { formatBytes } from '../../diagnostics';
 import { errorText, runReported } from '../../kit/notify-error';
 import { useMongoTools } from './use-mongo-tools';
 

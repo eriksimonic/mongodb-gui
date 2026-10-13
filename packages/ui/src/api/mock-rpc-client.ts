@@ -49,7 +49,7 @@ import {
 } from './mock-catalog';
 import { createManagementCalls } from './mock-management';
 import { createSecurityCalls, fixtureSecurity, type MockSecurity } from './mock-security';
-import { createDiagnosticsCalls } from './mock-diagnostics';
+import { createDiagnosticsCalls } from '../diagnostics/mock';
 import {
   fixtureConnections,
   DOCKER_PROFILE_ID,
@@ -66,7 +66,7 @@ import { createMockShell } from './mock-shell';
 import { createMockPicks } from './mock-picks';
 import { CONNECTIONS_EXTENSION, createMockConnectionFiles } from './mock-connection-files';
 import { delay, fail, method } from './mock-support';
-import { createMockMonitor } from './mock-monitor';
+import { createMockMonitor } from '../monitor/mock';
 import {
   createMockTransfers,
   MOCK_DIALOG_PATH,

@@ -6,7 +6,7 @@ import {
   type SessionInfo,
   type SessionUserInput,
 } from '@mongo-gui/core';
-import { method } from './mock-support';
+import { method } from '../api/mock-support';
 import {
   fixtureBuildInfo,
   fixtureConnPool,
@@ -18,7 +18,7 @@ import {
   fixtureStartupWarnings,
   fixtureTop,
   type MockSession,
-} from './mock-diagnostics-fixtures';
+} from './mock-fixtures';
 
 /** What the diagnostics calls need from the mock backend. */
 export interface MockDiagnosticsContext {

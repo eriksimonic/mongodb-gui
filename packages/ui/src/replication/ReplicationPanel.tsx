@@ -12,11 +12,12 @@ import {
   Tooltip,
 } from '@mantine/core';
 import { IconPlus, IconRefresh } from '@tabler/icons-react';
-import { useEffect, useState } from 'react';
+import { useCallback, useEffect, useState } from 'react';
 import { useStore } from 'zustand';
 import type { ReplicaSetMember } from '@mongo-gui/core';
 import { useUiApi } from '../api/ui-api';
 import { errorText } from '../kit/notify-error';
+import { usePolling } from '../kit/use-polling';
 import { FreezeDialog, InitiateDialog, StepDownDialog } from './ReplicationDialogs';
 import { MemberDialog, type MemberDialogMode } from './MemberDialogs';
 import {
@@ -68,13 +69,8 @@ export function ReplicationPanel({ connectionId }: ReplicationPanelProps) {
     void store.getState().loadSelfHost();
   }, [store]);
 
-  useEffect(() => {
-    if (!autoRefresh) {
-      return undefined;
-    }
-    const timer = setInterval(() => void store.getState().refresh(), AUTO_REFRESH_MS);
-    return () => clearInterval(timer);
-  }, [autoRefresh, store]);
+  const pollRefresh = useCallback(() => void store.getState().refresh(), [store]);
+  usePolling(pollRefresh, autoRefresh ? AUTO_REFRESH_MS : undefined);
 
   const uninitiated = status === undefined && isUninitiatedError(error);
   const standalone = status === undefined && isNoReplicationError(error);

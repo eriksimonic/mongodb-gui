@@ -9,8 +9,9 @@ import {
 } from '@mantine/core';
 import { IconArrowDown, IconArrowUp } from '@tabler/icons-react';
 import type { TopEntry } from '@mongo-gui/core';
-import { useEffect, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useState } from 'react';
 import { useStore } from 'zustand';
+import { usePolling } from '../kit/use-polling';
 import { LoadState, ScrollLayout, Toolbar } from './common';
 import type { DiagnosticsStore } from './diagnostics-store';
 import { formatCount, formatMs } from './format';
@@ -70,13 +71,8 @@ export function TopTab({ store }: TopTabProps) {
     setPair({ previous: pair.current, current: state.data });
   }
 
-  useEffect(() => {
-    if (intervalMs === 0) {
-      return undefined;
-    }
-    const timer = setInterval(() => void load(), intervalMs);
-    return () => clearInterval(timer);
-  }, [intervalMs, load]);
+  const pollLoad = useCallback(() => void load(), [load]);
+  usePolling(pollLoad, intervalMs);
 
   const waitingForDelta = delta && pair.previous === undefined;
   const entries =

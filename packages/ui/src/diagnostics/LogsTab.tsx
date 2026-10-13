@@ -14,6 +14,7 @@ import { IconChevronDown, IconChevronRight } from '@tabler/icons-react';
 import type { LogLine, ServerLogKind } from '@mongo-gui/core';
 import { memo, useCallback, useEffect, useMemo, useRef, useState, type CSSProperties } from 'react';
 import { useStore } from 'zustand';
+import { usePolling } from '../kit/use-polling';
 import { CopyIcon, LoadState, Toolbar } from './common';
 import type { DiagnosticsStore } from './diagnostics-store';
 import { severityStyle } from './log-severity';
@@ -67,13 +68,8 @@ export function LogsTab({ store, kind }: LogsTabProps) {
     void loadLog(kind);
   }, [kind, loadLog]);
 
-  useEffect(() => {
-    if (!autoRefresh || kind !== 'global') {
-      return undefined;
-    }
-    const timer = setInterval(() => void loadLog(kind), AUTO_REFRESH_MS);
-    return () => clearInterval(timer);
-  }, [autoRefresh, kind, loadLog]);
+  const pollLog = useCallback(() => void loadLog(kind), [kind, loadLog]);
+  usePolling(pollLog, autoRefresh && kind === 'global' ? AUTO_REFRESH_MS : undefined);
 
   const lines = state.data?.lines ?? NO_LINES;
   const components = useMemo(() => componentsOf(lines), [lines]);

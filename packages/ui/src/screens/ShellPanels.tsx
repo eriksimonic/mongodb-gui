@@ -60,12 +60,11 @@ import { useUiApi } from '../api/ui-api';
 import { createCompletionSource } from '../editor/completion-source';
 import { ReplicationPanel } from '../replication/ReplicationPanel';
 import { EditorView } from '../components/editor/EditorView';
-import { DiagnosticsPanel } from '../diagnostics/DiagnosticsPanel';
-import { CollectionStatsPanel, DatabaseStatsPanel } from '../diagnostics/StatsPanels';
+import { CollectionStatsPanel, DatabaseStatsPanel, DiagnosticsPanel } from '../diagnostics';
 
 export { OutputPanel } from '../components/editor/OutputPanel';
 import { SchemaPanel } from '../schema/SchemaPanel';
-import { OperationsPanel } from '../monitor/OperationsPanel';
+import { OperationsPanel } from '../monitor';
 import { useAppStore, useAppStoreApi } from '../state/app-store-context';
 import type { EditorTab } from '../state/editors';
 import type { ExplainRestore } from '../explain/explain-model';

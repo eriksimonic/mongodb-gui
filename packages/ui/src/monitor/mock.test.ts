@@ -1,6 +1,6 @@
 import { AppErrorException, type RpcEvent } from '@mongo-gui/core';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
-import { createMockMonitor } from './mock-monitor';
+import { createMockMonitor } from './mock';
 
 const CONNECTION = '3f2b8c1e-5d4a-4b7e-9c1f-2a6d8e0b7f10';
 const ALL_OPERATIONS = { includeIdle: true, includeSystem: true };

@@ -17,7 +17,6 @@ import {
   normaliseExplain,
   rewriteForExplain,
   redactUri,
-  redactUriText,
   rpcContract,
   toAppError,
   type AppError,
@@ -33,15 +32,6 @@ import {
   type ConnectionProfileInput,
   type ConnectionStatus,
   type DialogResult,
-  type LogLine,
-  type ServerLog,
-  type ServerParameter,
-  capDiagnosticText,
-  redactArgv,
-  redactDiagnosticRecord,
-  redactDiagnosticValue,
-  redactRawLine,
-  isSecretKey,
   type OpenDialogInput,
   type SaveDialogInput,
   type ExplainResult,
@@ -116,20 +106,6 @@ import {
   toCanonicalEjson,
   changePassword,
   connectionStatus,
-  getBuildInfo,
-  getCollStats,
-  getCommandLineOptions,
-  getConnPoolStats,
-  getDbStats,
-  getHostInfo,
-  getParameters,
-  getServerLog,
-  getServerStatusTree,
-  getTop,
-  killAllSessionsByUser,
-  killSessions,
-  listSessions,
-  serverStatusDocument,
   createRole,
   createUser,
   dropRole,
@@ -193,12 +169,9 @@ import {
   type Updater,
   type UpdaterBackend,
 } from '../updates/updater';
-import {
-  createMonitorService,
-  defaultSamplerFactory,
-  type SamplerFactory,
-} from './monitor-service';
-import { driverCall, entry, type Operation } from './operation';
+import { createMonitorService, defaultSamplerFactory, type SamplerFactory } from './monitor';
+import { diagnosticsOperations } from './diagnostics';
+import { connectionCalls, driverCall, entry, type Operation } from './operation';
 import { adapterProfilerPort, createProfilerService, type ProfilerPort } from './profiler';
 import { createTransferService, type TransferAdapter } from './transfer-service';
 import { createGenerateService } from './generate-service';
@@ -445,9 +418,6 @@ interface ConnectionScoped {
   readonly connectionId: string;
 }
 
-/** The part of the catalog a mutation touched. Sent with catalog:changed. */
-type CatalogScope = Omit<Extract<RpcEvent, { type: 'catalog:changed' }>, 'type' | 'connectionId'>;
-
 const KEYRING_DIR_MODE = 0o700;
 const MS_PER_MINUTE = 60_000;
 /** The most text one part of a streamed export may carry. */
@@ -472,6 +442,11 @@ export function createRouter(deps: RouterDeps): Router {
   const profiler = createProfilerService({
     port: deps.profiler ?? adapterProfilerPort,
     getClient: (connectionId) => deps.connections.getClient(connectionId),
+    emit: deps.onEvent,
+  });
+  const monitor = createMonitorService({
+    getClient: (connectionId) => deps.connections.getClient(connectionId),
+    createSampler: deps.createSampler ?? defaultSamplerFactory,
     emit: deps.onEvent,
   });
   const replicationPlans = createReplicationPlans();
@@ -607,36 +582,10 @@ export function createRouter(deps: RouterDeps): Router {
     active = deps.reopenStore();
   };
 
-  /**
-   * A management call that changes the server. It runs against the connection's client and,
-   * after success, tells the UI which database or collection changed.
-   */
-  function managed<C extends RpcCall>(
-    method: string,
-    call: C,
-    run: (client: ClientOf, input: CallInput<C>) => Promise<unknown>,
-    scope: (input: CallInput<C>) => CatalogScope,
-  ): [string, Operation] {
-    return entry(method, call, async (input) => {
-      const { connectionId } = input as ConnectionScoped;
-      const value = await driverCall(() => run(deps.connections.getClient(connectionId), input));
-      deps.onEvent({ type: 'catalog:changed', connectionId, ...scope(input) });
-      return value;
-    });
-  }
-
-  /** A management call that only reads. It reports no change. */
-  function readOnly<C extends RpcCall>(
-    method: string,
-    call: C,
-    run: (client: ClientOf, input: CallInput<C>) => Promise<unknown>,
-  ): [string, Operation] {
-    return entry(method, call, (input) =>
-      driverCall(() =>
-        run(deps.connections.getClient((input as ConnectionScoped).connectionId), input),
-      ),
-    );
-  }
+  const { managed, readOnly } = connectionCalls(
+    (connectionId) => deps.connections.getClient(connectionId),
+    deps.onEvent,
+  );
 
   function managementOperations(): [string, Operation][] {
     const m = rpcContract.management;
@@ -884,56 +833,6 @@ export function createRouter(deps: RouterDeps): Router {
         userManagementCapabilities(client, input.database),
       ),
       entry('security.privilegeActions', s.privilegeActions, () => privilegeActionCatalog()),
-    ];
-  }
-
-  /**
-   * Server logs, parameters, host and build facts, sessions and the other diagnostics. Secret fields
-   * are masked and URIs redacted before a reply leaves. The kill calls report no catalog change.
-   */
-  function diagnosticsOperations(): [string, Operation][] {
-    const d = rpcContract.diagnostics;
-    return [
-      readOnly('diagnostics.getLog', d.getLog, async (client, input) =>
-        redactLog(await getServerLog(client, input.kind)),
-      ),
-      readOnly('diagnostics.cmdLineOpts', d.cmdLineOpts, async (client) => {
-        const options = await getCommandLineOptions(client);
-        return {
-          argv: redactArgv(options.argv),
-          parsed: toCanonicalEjson(redactDiagnosticValue(options.parsed)),
-        };
-      }),
-      readOnly('diagnostics.parameters', d.parameters, async (client) =>
-        (await getParameters(client)).map(redactParameter),
-      ),
-      readOnly('diagnostics.hostInfo', d.hostInfo, (client) => getHostInfo(client)),
-      readOnly('diagnostics.buildInfo', d.buildInfo, (client) => getBuildInfo(client)),
-      readOnly('diagnostics.serverStatus', d.serverStatus, async (client) => {
-        const tree = await getServerStatusTree(client);
-        return {
-          at: tree.at,
-          stripped: tree.stripped,
-          document: redactDiagnosticRecord(serverStatusDocument(tree)),
-        };
-      }),
-      readOnly('diagnostics.top', d.top, (client) => getTop(client)),
-      readOnly('diagnostics.dbStats', d.dbStats, (client, input) =>
-        getDbStats(client, input.database),
-      ),
-      readOnly('diagnostics.collStats', d.collStats, (client, input) =>
-        getCollStats(client, input.database, input.collection),
-      ),
-      readOnly('diagnostics.connPoolStats', d.connPoolStats, (client) => getConnPoolStats(client)),
-      readOnly('diagnostics.listSessions', d.listSessions, (client, input) =>
-        listSessions(client, { allUsers: input.allUsers === true }),
-      ),
-      readOnly('diagnostics.killSessions', d.killSessions, (client, input) =>
-        killSessions(client, input.ids),
-      ),
-      readOnly('diagnostics.killAllSessionsByUser', d.killAllSessionsByUser, (client, input) =>
-        killAllSessionsByUser(client, input.users),
-      ),
     ];
   }
 
@@ -1292,29 +1191,12 @@ export function createRouter(deps: RouterDeps): Router {
     ...managementOperations(),
     ...securityOperations(),
     ...shardingOperations(),
-    ...diagnosticsOperations(),
-
-    entry('monitor.start', rpcContract.monitor.start, (input) =>
-      monitor.start(input.connectionId, input.intervalMs),
-    ),
-    entry('monitor.stop', rpcContract.monitor.stop, (input) => {
-      monitor.stop(input.connectionId);
+    ...diagnosticsOperations({
+      getClient: (connectionId) => deps.connections.getClient(connectionId),
+      emit: deps.onEvent,
     }),
-    entry('monitor.samples', rpcContract.monitor.samples, (input) =>
-      monitor.samples(input.connectionId, input.sinceIso),
-    ),
-    entry('monitor.operations', rpcContract.monitor.operations, (input) =>
-      monitor.operations(input.connectionId, {
-        includeIdle: input.includeIdle === true,
-        includeSystem: input.includeSystem === true,
-      }),
-    ),
-    entry('monitor.killOperation', rpcContract.monitor.killOperation, (input) =>
-      monitor.killOperation(input.connectionId, input.opid),
-    ),
-    entry('monitor.setInterval', rpcContract.monitor.setInterval, (input) =>
-      monitor.setInterval(input.connectionId, input.intervalMs),
-    ),
+
+    ...monitor.rpcOperations(),
 
     entry('replication.getStatus', rpcContract.replication.getStatus, (input) =>
       driverCall(() => getReplicaSetStatus(deps.connections.getClient(input.connectionId))),
@@ -1746,12 +1628,6 @@ export function createRouter(deps: RouterDeps): Router {
     inspectedSources.clear();
     backupTools?.backups.cancelAll();
     backupTools?.downloads.cancelAll();
-  });
-
-  const monitor = createMonitorService({
-    getClient: (connectionId) => deps.connections.getClient(connectionId),
-    createSampler: deps.createSampler ?? defaultSamplerFactory,
-    emit: deps.onEvent,
   });
 
   // A reload or a closed window must not leave samplers running for a page that is gone.
@@ -2264,64 +2140,6 @@ export function createRepos(store: EncryptedStore): RouterRepos {
 const refuseFork: ForkFunction = () => {
   throw new Error('no shell runtime is configured');
 };
-
-/** The text the log viewer shows: secrets masked, URIs redacted, attributes in canonical EJSON. */
-function redactLog(log: ServerLog): ServerLog {
-  return { ...log, lines: log.lines.map(redactLogLine) };
-}
-
-function redactLogLine(line: LogLine): LogLine {
-  const { attributes, ...rest } = line;
-  return {
-    ...rest,
-    message: redactUriText(line.message),
-    raw: redactRawLine(line.raw),
-    ...(attributes === undefined
-      ? {}
-      : { attributes: toCanonicalEjson(redactDiagnosticValue(attributes)) }),
-  };
-}
-
-const PARAMETER_MASK = '***';
-
-/**
- * A parameter with secrets masked. Strings and object or array values are redacted recursively,
- * and a structured value longer than the cap is cut short with truncated set.
- */
-function redactParameter(parameter: ServerParameter): ServerParameter {
-  if (isSecretKey(parameter.name)) {
-    return {
-      name: parameter.name,
-      value: PARAMETER_MASK,
-      valueEjson: JSON.stringify(PARAMETER_MASK),
-    };
-  }
-  if (parameter.value !== undefined) {
-    if (typeof parameter.value !== 'string') {
-      return parameter;
-    }
-    const value = redactUriText(parameter.value);
-    return { name: parameter.name, value, valueEjson: JSON.stringify(value) };
-  }
-  // An object or array has no scalar value. Its canonical text is redacted as a parsed document.
-  let redacted: unknown;
-  try {
-    redacted = redactDiagnosticValue(JSON.parse(parameter.valueEjson) as unknown);
-  } catch {
-    const text = capDiagnosticText(redactUriText(parameter.valueEjson));
-    return {
-      name: parameter.name,
-      value: text.text,
-      valueEjson: text.text,
-      truncated: text.truncated,
-    };
-  }
-  const text = capDiagnosticText(JSON.stringify(redacted));
-  if (text.truncated) {
-    return { name: parameter.name, value: text.text, valueEjson: text.text, truncated: true };
-  }
-  return { name: parameter.name, value: redacted, valueEjson: text.text };
-}
 
 /**
  * Builds the explain result from a server explain document. The text is canonical EJSON, which

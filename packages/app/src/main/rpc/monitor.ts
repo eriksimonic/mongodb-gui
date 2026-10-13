@@ -6,6 +6,7 @@ import {
   isSyntheticOpid,
   type MonitorConfig,
   type MonitorSample,
+  rpcContract,
   type RpcEvent,
   type RunningOperation,
 } from '@mongo-gui/core';
@@ -15,6 +16,7 @@ import {
   listOperations,
   type ListOperationsOptions,
 } from '@mongo-gui/mongo-adapter';
+import { entry, type Operation } from './operation';
 
 /** The client a sampler or an operations call runs against. */
 export type MonitorClient = Parameters<typeof killServerOperation>[0];
@@ -46,6 +48,8 @@ export interface MonitorService {
   killOperation(connectionId: string, opid: string | number): Promise<void>;
   /** Stops every sampler. Used on lock and on quit. */
   stopAll(): void;
+  /** The six monitor RPC calls. The router spreads them into its operation table. */
+  rpcOperations(): [string, Operation][];
 }
 
 interface Running {
@@ -73,7 +77,7 @@ export function createMonitorService(deps: MonitorServiceDeps): MonitorService {
     entry.sampler.stop();
   }
 
-  return {
+  const service: MonitorService = {
     start(connectionId, intervalMs) {
       const existing = running.get(connectionId);
       if (existing !== undefined) {
@@ -141,7 +145,34 @@ export function createMonitorService(deps: MonitorServiceDeps): MonitorService {
         stop(connectionId);
       }
     },
+
+    rpcOperations() {
+      return [
+        entry('monitor.start', rpcContract.monitor.start, (input) =>
+          service.start(input.connectionId, input.intervalMs),
+        ),
+        entry('monitor.stop', rpcContract.monitor.stop, (input) => {
+          service.stop(input.connectionId);
+        }),
+        entry('monitor.samples', rpcContract.monitor.samples, (input) =>
+          service.samples(input.connectionId, input.sinceIso),
+        ),
+        entry('monitor.operations', rpcContract.monitor.operations, (input) =>
+          service.operations(input.connectionId, {
+            includeIdle: input.includeIdle === true,
+            includeSystem: input.includeSystem === true,
+          }),
+        ),
+        entry('monitor.killOperation', rpcContract.monitor.killOperation, (input) =>
+          service.killOperation(input.connectionId, input.opid),
+        ),
+        entry('monitor.setInterval', rpcContract.monitor.setInterval, (input) =>
+          service.setInterval(input.connectionId, input.intervalMs),
+        ),
+      ];
+    },
   };
+  return service;
 }
 
 function applyInterval(entry: Running, intervalMs: number): MonitorConfig {
