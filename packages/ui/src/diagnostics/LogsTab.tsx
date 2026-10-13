@@ -110,7 +110,7 @@ export function LogsTab({ store, kind }: LogsTabProps) {
   }, []);
 
   return (
-    <Stack gap="xs" p="sm" style={{ flex: 1, minHeight: 0 }}>
+    <Stack gap="sm" p="md" style={{ flex: 1, minHeight: 0 }}>
       <Toolbar
         loading={state.loading}
         onRefresh={() => void loadLog(kind)}

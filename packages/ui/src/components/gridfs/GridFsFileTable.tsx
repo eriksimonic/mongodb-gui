@@ -7,7 +7,7 @@ import { formatBytes, formatMetadata, formatUploadDate, metadataFieldCount } fro
 
 const ROW_HEIGHT_PX = 36;
 const OVERSCAN_ROWS = 8;
-const GRID_COLUMNS = '32px minmax(180px, 2fr) 90px 90px 170px minmax(110px, 1fr) 110px 120px';
+const GRID_COLUMNS = '32px minmax(140px, 2fr) 80px 100px 190px minmax(130px, 1fr) 110px 120px';
 /** The file name looks like text and opens the detail drawer when clicked. */
 const NAME_BUTTON_STYLE: CSSProperties = {
   background: 'none',
@@ -70,7 +70,13 @@ export function GridFsFileTable({
       <div
         role="row"
         className="mg-gridfs-row mg-gridfs-head"
-        style={{ display: 'grid', gridTemplateColumns: GRID_COLUMNS, alignItems: 'center' }}
+        style={{
+          display: 'grid',
+          gridTemplateColumns: GRID_COLUMNS,
+          columnGap: 8,
+          alignItems: 'center',
+          whiteSpace: 'nowrap',
+        }}
       >
         <div role="columnheader">
           <Checkbox
@@ -116,7 +122,9 @@ export function GridFsFileTable({
                   transform: `translateY(${item.start}px)`,
                   display: 'grid',
                   gridTemplateColumns: GRID_COLUMNS,
+                  columnGap: 8,
                   alignItems: 'center',
+                  whiteSpace: 'nowrap',
                   borderBottom: '1px solid var(--mantine-color-dark-5)',
                 }}
               >
@@ -141,7 +149,10 @@ export function GridFsFileTable({
                 <div role="gridcell">{formatBytes(file.length)}</div>
                 <div role="gridcell">{formatBytes(file.chunkSize)}</div>
                 <div role="gridcell">{formatUploadDate(file.uploadDate)}</div>
-                <div role="gridcell" style={{ minWidth: 0 }}>
+                <div
+                  role="gridcell"
+                  style={{ minWidth: 0, overflow: 'hidden', textOverflow: 'ellipsis' }}
+                >
                   {file.contentType ?? '-'}
                 </div>
                 <div role="gridcell">

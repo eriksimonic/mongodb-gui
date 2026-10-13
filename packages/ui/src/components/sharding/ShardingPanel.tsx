@@ -67,7 +67,7 @@ export function ShardingPanel({ connectionId }: ShardingPanelProps) {
   const balancerOn = overview?.balancer?.mode === 'full';
 
   return (
-    <Stack gap="xs" p="sm">
+    <Stack gap="sm" p="md">
       {loading && overview === undefined ? (
         <Text size="sm" c="dimmed">
           Loading the cluster

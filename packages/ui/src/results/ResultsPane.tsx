@@ -195,9 +195,9 @@ export function ResultsPane({
   }
 
   return (
-    <Stack gap={6} h="100%" style={{ minHeight: 0 }} data-testid="results-pane">
-      <Group justify="space-between" wrap="nowrap" gap="xs">
-        <Group gap="xs" wrap="nowrap">
+    <Stack gap={8} h="100%" style={{ minHeight: 0 }} data-testid="results-pane">
+      <Group justify="space-between" wrap="nowrap" gap={8}>
+        <Group gap={8} wrap="nowrap">
           <SegmentedControl
             size="xs"
             aria-label="Result view"
@@ -225,7 +225,7 @@ export function ResultsPane({
             </Badge>
           )}
         </Group>
-        <Group gap="xs" wrap="nowrap">
+        <Group gap={8} wrap="nowrap">
           {running !== undefined && elapsed !== undefined ? (
             <Text size="xs" c="dimmed">
               Running {seconds(elapsed)}

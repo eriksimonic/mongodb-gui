@@ -110,7 +110,7 @@ export function DocumentsPanel({ connectionId, database, collection }: Collectio
   }
 
   return (
-    <Stack gap="sm" p="sm">
+    <Stack gap="sm" p="md">
       <Group justify="space-between" wrap="wrap">
         <Text size="sm" c="dimmed">
           Showing {rows.length} of the first {limit} documents

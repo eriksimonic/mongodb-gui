@@ -34,7 +34,7 @@ export function DiagnosticsPanel({ connectionId, initialTab = 'logs' }: Diagnost
           panel: { flex: 1, minHeight: 0, overflow: 'auto' },
         }}
       >
-        <Tabs.List px="sm" pt="xs">
+        <Tabs.List px="md" pt="sm">
           <Tabs.Tab value="logs">Logs</Tabs.Tab>
           <Tabs.Tab value="warnings">Startup warnings</Tabs.Tab>
           <Tabs.Tab value="parameters">Parameters</Tabs.Tab>

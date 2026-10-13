@@ -128,9 +128,9 @@ function ChangesBody({ panelId, panel }: ChangesBodyProps) {
   );
 
   return (
-    <Stack gap={8} h="100%" p={8} style={{ minHeight: 0 }}>
+    <Stack gap={8} h="100%" p="md" style={{ minHeight: 0 }}>
       <Group align="flex-end" gap={8} wrap="wrap">
-        <TextInput label="Target" size="xs" value={targetLabelOf(panel.target)} readOnly w={240} />
+        <TextInput label="Target" size="xs" value={targetLabelOf(panel.target)} readOnly w={220} />
         <Select
           label="Full document"
           size="xs"
@@ -147,7 +147,7 @@ function ChangesBody({ panelId, panel }: ChangesBodyProps) {
         <Select
           label="Full document before change"
           size="xs"
-          w={190}
+          w={220}
           allowDeselect={false}
           value={panel.fullDocumentBeforeChange}
           onChange={(value) => {
@@ -185,7 +185,7 @@ function ChangesBody({ panelId, panel }: ChangesBodyProps) {
             </Text>
           )}
         </Box>
-        <Group gap={6} wrap="nowrap">
+        <Group gap={8} wrap="nowrap">
           <Button size="xs" disabled={!startable} onClick={() => void start(panelId)}>
             Start
           </Button>

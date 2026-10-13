@@ -243,8 +243,8 @@ export function TableView({
   );
 
   return (
-    <Stack gap={6} h="100%">
-      <Group gap="xs" wrap="nowrap">
+    <Stack gap={8} h="100%">
+      <Group gap={8} wrap="nowrap">
         <Popover width={280} position="bottom-start" shadow="md" withinPortal>
           <Popover.Target>
             <Button size="xs" variant="default" leftSection={<IconColumns size={14} />}>

@@ -1,4 +1,5 @@
 import {
+  ActionIcon,
   Badge,
   Button,
   Group,
@@ -286,10 +287,10 @@ export function EditorView({ tabId }: EditorViewProps) {
     <Stack gap={0} h="100%" style={{ minHeight: 0 }} data-testid="editor-view">
       <Group
         className="mg-editor-toolbar"
-        gap="xs"
+        gap={8}
         wrap="wrap"
-        px={8}
-        py={6}
+        px="md"
+        py={8}
         style={{ borderBottom: '1px solid var(--mantine-color-dark-4)' }}
       >
         <Tooltip label={RUNTIME_LABELS[runtimeState]} withArrow>
@@ -315,7 +316,7 @@ export function EditorView({ tabId }: EditorViewProps) {
           data={databaseOptions}
           value={current.database}
           allowDeselect={false}
-          w={140}
+          w={130}
           onChange={(value) => {
             if (value !== null) {
               api.setEditorDatabase(tabId, value);
@@ -383,7 +384,7 @@ export function EditorView({ tabId }: EditorViewProps) {
           data={BATCH_SIZES.map((size) => ({ value: String(size), label: `${size} per batch` }))}
           value={String(current.batchSize)}
           allowDeselect={false}
-          w="calc(150px * var(--mg-font-scale, 1))"
+          w="calc(140px * var(--mg-font-scale, 1))"
           onChange={(value) => {
             const size = BATCH_SIZES.find((item) => String(item) === value);
             if (size !== undefined) {
@@ -391,23 +392,25 @@ export function EditorView({ tabId }: EditorViewProps) {
             }
           }}
         />
-        <Button size="xs" variant="default" leftSection={<IconWand size={13} />} onClick={format}>
-          Format
-        </Button>
+        <Tooltip label="Format" withArrow>
+          <ActionIcon size="input-xs" variant="default" aria-label="Format" onClick={format}>
+            <IconWand size={14} />
+          </ActionIcon>
+        </Tooltip>
         <Tooltip label="Save as favourite" withArrow>
-          <Button
-            size="xs"
+          <ActionIcon
+            size="input-xs"
             variant="default"
             aria-label="Save as favourite"
             onClick={() => setSaveOpen(true)}
           >
             <IconBookmark size={14} />
-          </Button>
+          </ActionIcon>
         </Tooltip>
         <Tooltip label="Reload the collection names of this connection" withArrow>
-          <Button
-            size="xs"
-            variant="subtle"
+          <ActionIcon
+            size="input-xs"
+            variant="default"
             aria-label="Refresh databases"
             onClick={() => {
               void api
@@ -416,27 +419,33 @@ export function EditorView({ tabId }: EditorViewProps) {
             }}
           >
             <IconRefresh size={14} />
-          </Button>
+          </ActionIcon>
         </Tooltip>
         <Tooltip label="Refresh field names from the sample" withArrow>
-          <Button
-            size="xs"
-            variant="subtle"
+          <ActionIcon
+            size="input-xs"
+            variant="default"
             aria-label="Refresh field names"
             onClick={() => source?.refreshFields()}
           >
             <IconChecklist size={14} />
-          </Button>
+          </ActionIcon>
         </Tooltip>
-        <span style={{ flex: 1 }} />
         {unsaved ? (
-          <Badge tt="none" size="sm" variant="dot" color="yellow" aria-label="Unsaved changes">
+          <Badge
+            tt="none"
+            size="sm"
+            variant="dot"
+            color="yellow"
+            ml="auto"
+            aria-label="Unsaved changes"
+          >
             Unsaved
           </Badge>
         ) : null}
       </Group>
       <div ref={split} style={{ flex: 1, minHeight: 0, display: 'flex', flexDirection: 'column' }}>
-        <div style={{ height: `${share * 100}%`, minHeight: 80, padding: '6px 8px 0' }}>
+        <div style={{ height: `${share * 100}%`, minHeight: 80, padding: '8px 10px 0' }}>
           <div style={{ display: 'flex', gap: 8, height: '100%' }}>
             <div style={{ flex: 1, minWidth: 0 }}>
               <MongoshEditor
@@ -487,7 +496,7 @@ export function EditorView({ tabId }: EditorViewProps) {
             flex: '0 0 auto',
           }}
         />
-        <div style={{ flex: 1, minHeight: 120, padding: '6px 8px 8px' }}>
+        <div style={{ flex: 1, minHeight: 120, padding: '8px 10px 10px' }}>
           <ResultsPane
             target={editTarget}
             onDocumentSaved={(index, documentEjson) =>

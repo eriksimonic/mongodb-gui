@@ -28,7 +28,7 @@ export function UsersRolesPanel({ connectionId, database }: UsersRolesPanelProps
   }, [store]);
 
   return (
-    <Stack gap="xs" p="sm">
+    <Stack gap="sm" p="md">
       <Text size="sm" c="dimmed">
         Users and roles of {database}
       </Text>
@@ -42,10 +42,10 @@ export function UsersRolesPanel({ connectionId, database }: UsersRolesPanelProps
           <Tabs.Tab value="users">Users</Tabs.Tab>
           <Tabs.Tab value="roles">Roles</Tabs.Tab>
         </Tabs.List>
-        <Tabs.Panel value="users">
+        <Tabs.Panel value="users" pt="sm">
           <UsersTab store={store} connectionId={connectionId} database={database} />
         </Tabs.Panel>
-        <Tabs.Panel value="roles">
+        <Tabs.Panel value="roles" pt="sm">
           <RolesTab store={store} database={database} />
         </Tabs.Panel>
       </Tabs>

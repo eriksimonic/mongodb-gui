@@ -78,9 +78,9 @@ export function SchemaPanel({ connectionId, database, collection }: SchemaTarget
   const narrowed = filtersActive(filters);
 
   return (
-    <Stack gap="sm" p="sm" h="100%" style={{ minHeight: 0, overflow: 'hidden' }}>
-      <Group justify="space-between" wrap="wrap" gap="xs">
-        <Group gap="xs" align="flex-end" wrap="wrap">
+    <Stack gap="sm" p="md" h="100%" style={{ minHeight: 0, overflow: 'hidden' }}>
+      <Group justify="space-between" wrap="wrap" gap={8}>
+        <Group gap={8} align="flex-end" wrap="wrap">
           <Select
             label="Sample size"
             data={SIZE_OPTIONS}
@@ -148,7 +148,7 @@ export function SchemaPanel({ connectionId, database, collection }: SchemaTarget
       {report !== undefined && report.sampled > 0 ? (
         <>
           <SchemaSummaryView totals={totals} topTypes={topTypes} legend={legend} />
-          <Group gap="sm" align="flex-end" wrap="wrap">
+          <Group gap={8} align="flex-end" wrap="wrap">
             <TextInput
               label="Path contains"
               placeholder="customer.address"

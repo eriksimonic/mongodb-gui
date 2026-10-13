@@ -147,8 +147,8 @@ export function ScrollLayout({ toolbar, gap = 'xs', children }: ScrollLayoutProp
   return (
     <Stack gap={0} style={{ flex: 1, minHeight: 0 }}>
       <Box
-        px="sm"
-        py="xs"
+        px="md"
+        py="sm"
         style={{
           flexShrink: 0,
           borderBottom: '1px solid var(--mantine-color-default-border)',
@@ -156,7 +156,7 @@ export function ScrollLayout({ toolbar, gap = 'xs', children }: ScrollLayoutProp
       >
         {toolbar}
       </Box>
-      <Stack gap={gap} px="sm" pb="sm" style={{ flex: 1, minHeight: 0, overflow: 'auto' }}>
+      <Stack gap={gap} px="md" py="sm" style={{ flex: 1, minHeight: 0, overflow: 'auto' }}>
         {children}
       </Stack>
     </Stack>
@@ -175,7 +175,7 @@ export interface ToolbarProps {
 /** The control row of every tab. Refresh comes first, so it is always in the same place. */
 export function Toolbar({ loading, onRefresh, children, status }: ToolbarProps) {
   return (
-    <Group gap="xs" align="center" wrap="wrap">
+    <Group gap={8} align="center" wrap="wrap">
       <RefreshButton loading={loading} onRefresh={onRefresh} />
       {children}
       {status === undefined ? null : (

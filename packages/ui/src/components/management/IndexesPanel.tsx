@@ -201,17 +201,17 @@ export function IndexesPanel({ connectionId, database, collection }: CollectionP
 
   if (loadError !== undefined) {
     return (
-      <Alert color="red" variant="light" m="sm">
+      <Alert color="red" variant="light" m="md">
         {loadError}
       </Alert>
     );
   }
   if (indexes === undefined) {
-    return <Loader size="xs" m="sm" aria-label="Loading indexes" />;
+    return <Loader size="xs" m="md" aria-label="Loading indexes" />;
   }
 
   return (
-    <Stack gap="sm" p="sm">
+    <Stack gap="sm" p="md">
       <Group justify="space-between">
         <Text size="sm" c="dimmed">
           {indexes.length} {indexes.length === 1 ? 'index' : 'indexes'} on {database}.{collection}

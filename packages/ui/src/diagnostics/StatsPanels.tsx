@@ -1,4 +1,4 @@
-import { Alert, Stack, Table, Text } from '@mantine/core';
+import { Alert, Group, Stack, Table, Text } from '@mantine/core';
 import type { CollectionStats } from '@mongo-gui/core';
 import { useCallback, useEffect, useState } from 'react';
 import { useUiApi } from '../api/ui-api';
@@ -21,8 +21,10 @@ export function DatabaseStatsPanel({ connectionId, database }: DatabaseStatsPane
   const { data: stats, loading, error, reload } = useRead(read);
 
   return (
-    <Stack gap="md" p="sm">
-      <RefreshButton loading={loading} onRefresh={reload} />
+    <Stack gap="md" p="md">
+      <Group>
+        <RefreshButton loading={loading} onRefresh={reload} />
+      </Group>
       {error === undefined ? null : (
         <Alert color="red" variant="light">
           {error}
@@ -67,8 +69,10 @@ export function CollectionStatsPanel({
   const { data: stats, loading, error, reload } = useRead(read);
 
   return (
-    <Stack gap="md" p="sm">
-      <RefreshButton loading={loading} onRefresh={reload} />
+    <Stack gap="md" p="md">
+      <Group>
+        <RefreshButton loading={loading} onRefresh={reload} />
+      </Group>
       {error === undefined ? null : (
         <Alert color="red" variant="light">
           {error}

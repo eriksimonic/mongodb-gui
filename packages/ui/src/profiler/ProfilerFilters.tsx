@@ -43,7 +43,7 @@ export function ProfilerFilterRow({ panelId, panel, namespaces }: ProfilerFilter
   }
 
   return (
-    <Group gap="xs" align="flex-end" wrap="wrap">
+    <Group gap={8} align="flex-end" wrap="wrap">
       <Autocomplete
         size="xs"
         label="Namespace"
@@ -51,7 +51,7 @@ export function ProfilerFilterRow({ panelId, panel, namespaces }: ProfilerFilter
         data={[...namespaces]}
         value={filters.namespace}
         onChange={(value) => patch({ namespace: value })}
-        w={200}
+        w={180}
       />
       <Select
         size="xs"
@@ -65,7 +65,7 @@ export function ProfilerFilterRow({ panelId, panel, namespaces }: ProfilerFilter
           }
         }}
         allowDeselect={false}
-        w={150}
+        w={140}
       />
       <NumberInput
         size="xs"
@@ -87,7 +87,7 @@ export function ProfilerFilterRow({ panelId, panel, namespaces }: ProfilerFilter
           }
         }}
         allowDeselect={false}
-        w={140}
+        w={130}
       />
       {filters.range === 'custom' ? (
         <TextInput
@@ -116,7 +116,8 @@ export function ProfilerFilterRow({ panelId, panel, namespaces }: ProfilerFilter
         leftSection={<IconSearch size={14} aria-hidden="true" />}
         value={filters.textSearch}
         onChange={(event) => patch({ textSearch: event.currentTarget.value })}
-        w={220}
+        miw={160}
+        style={{ flex: 1 }}
       />
       <NumberInput
         size="xs"
@@ -130,7 +131,7 @@ export function ProfilerFilterRow({ panelId, panel, namespaces }: ProfilerFilter
             patch({ limit });
           }
         }}
-        w={100}
+        w={90}
       />
       <Button
         size="xs"

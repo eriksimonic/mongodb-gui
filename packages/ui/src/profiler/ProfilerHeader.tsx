@@ -64,8 +64,8 @@ export function ProfilerHeader({ panelId, panel }: ProfilerHeaderProps) {
       : `${LEVEL_NAMES[panel.level.level]}${panel.level.level === 0 ? '' : `, ${panel.level.slowMs} ms`}`;
 
   return (
-    <Stack gap={6}>
-      <Group gap="xs" align="center" wrap="wrap">
+    <Stack gap={8}>
+      <Group gap={8} align="center" wrap="wrap">
         <SegmentedControl
           size="xs"
           aria-label="Profiling level"

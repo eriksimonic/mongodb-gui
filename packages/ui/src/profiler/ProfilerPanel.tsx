@@ -120,7 +120,7 @@ function ProfilerBody({ panelId, connectionId, database, namespaces, panel }: Pr
   }
 
   return (
-    <Stack gap={8} h="100%" p={8} style={{ minHeight: 0 }}>
+    <Stack gap={8} h="100%" p="md" style={{ minHeight: 0 }}>
       <ProfilerHeader panelId={panelId} panel={panel} />
       <ProfilerFilterRow panelId={panelId} panel={panel} namespaces={suggestions} />
       {panel.error === undefined ? null : (

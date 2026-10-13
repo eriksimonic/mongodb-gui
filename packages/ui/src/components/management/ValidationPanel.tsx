@@ -224,7 +224,7 @@ export function ValidationPanel({ connectionId, database, collection }: Collecti
   const failingText = check?.failingIds.join('\n') ?? '';
 
   return (
-    <Stack gap="sm" p="sm">
+    <Stack gap="sm" p="md">
       <JsonEditor
         label="Validator as EJSON"
         height={260}

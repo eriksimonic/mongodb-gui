@@ -83,7 +83,7 @@ export function ReplicationPanel({ connectionId }: ReplicationPanelProps) {
   const selfIsPrimary = self?.state === 'PRIMARY';
 
   return (
-    <Stack gap="sm" p="sm" h="100%" style={{ overflow: 'auto' }} data-testid="replication-panel">
+    <Stack gap="sm" p="md" h="100%" style={{ overflow: 'auto' }} data-testid="replication-panel">
       <Group justify="space-between" wrap="nowrap" gap="sm">
         <Group gap="sm" wrap="wrap">
           <Title order={4}>
@@ -99,7 +99,7 @@ export function ReplicationPanel({ connectionId }: ReplicationPanelProps) {
             </>
           )}
         </Group>
-        <Group gap="xs" wrap="nowrap">
+        <Group gap={8} wrap="nowrap" style={{ flexShrink: 0 }}>
           <Button
             variant="default"
             size="xs"
@@ -170,7 +170,13 @@ export function ReplicationPanel({ connectionId }: ReplicationPanelProps) {
       {status === undefined ? null : (
         <>
           <Box style={{ overflowX: 'auto' }}>
-            <Table striped withTableBorder verticalSpacing="xs" fz="sm">
+            <Table
+              striped
+              withTableBorder
+              verticalSpacing="xs"
+              fz="sm"
+              style={{ whiteSpace: 'nowrap' }}
+            >
               <Table.Thead>
                 <Table.Tr>
                   <Table.Th>Member</Table.Th>
@@ -309,7 +315,12 @@ function MemberRow({ member, disabled, onAction }: MemberRowProps) {
         ) : null}
       </Table.Td>
       <Table.Td>
-        <Badge color={MEMBER_MEANING_COLOUR[meaning]} variant="light" data-meaning={meaning}>
+        <Badge
+          color={MEMBER_MEANING_COLOUR[meaning]}
+          variant="light"
+          data-meaning={meaning}
+          miw="max-content"
+        >
           {memberMeaningLabel(meaning)}
         </Badge>
       </Table.Td>

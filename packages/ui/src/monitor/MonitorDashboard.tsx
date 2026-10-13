@@ -224,8 +224,8 @@ export function MonitorDashboard({ connectionId }: MonitorDashboardProps) {
   }
 
   return (
-    <Stack gap="sm" p="sm" data-testid="monitor-dashboard">
-      <Group justify="space-between" align="flex-start" wrap="wrap" gap="xs">
+    <Stack gap="sm" p="md" data-testid="monitor-dashboard">
+      <Group justify="space-between" align="flex-start" wrap="wrap" gap={8}>
         <Stack gap={0}>
           <Text fw={600} size="md">
             {connectionName ?? 'Connection'}
@@ -234,7 +234,7 @@ export function MonitorDashboard({ connectionId }: MonitorDashboardProps) {
             {frozen === undefined ? subtitle : `${subtitle} · Paused`}
           </Text>
         </Stack>
-        <Group gap="xs" wrap="wrap">
+        <Group gap={8} wrap="wrap">
           <SegmentedControl
             size="xs"
             data={RANGE_OPTIONS}

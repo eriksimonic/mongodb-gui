@@ -248,8 +248,8 @@ export function GridFsPanel({ connectionId, database, bucket }: GridFsPanelProps
   const current = overwrite?.items[0];
 
   return (
-    <Stack h="100%" gap="xs" p="sm" style={{ minHeight: 0 }}>
-      <Group gap="xs" wrap="wrap">
+    <Stack h="100%" gap="sm" p="md" style={{ minHeight: 0 }}>
+      <Group gap={8} wrap="wrap">
         <Button
           size="xs"
           leftSection={<IconUpload size={14} />}
@@ -303,7 +303,7 @@ export function GridFsPanel({ connectionId, database, bucket }: GridFsPanelProps
           w={120}
         />
       </Group>
-      <Group gap="xs" wrap="wrap" aria-label="Selection actions">
+      <Group gap={8} wrap="wrap" aria-label="Selection actions">
         <Text size="xs" c="dimmed">
           {chosen.length} selected
         </Text>

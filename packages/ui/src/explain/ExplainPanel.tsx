@@ -59,7 +59,7 @@ function ExplainPanelBody({ panel }: { readonly panel: ExplainPanelState }) {
     request.source.kind === 'statement' ? request.source.code : request.source.commandEjson;
 
   return (
-    <Stack gap="xs" p="sm" className="mg-explain" h="100%" style={{ minHeight: 0 }}>
+    <Stack gap="sm" p="md" className="mg-explain" h="100%" style={{ minHeight: 0 }}>
       <button
         type="button"
         className={
@@ -72,8 +72,8 @@ function ExplainPanelBody({ panel }: { readonly panel: ExplainPanelState }) {
         <code>{statement}</code>
       </button>
 
-      <Group gap="xs" wrap="wrap" justify="space-between">
-        <Group gap="xs" wrap="wrap">
+      <Group gap={8} wrap="wrap" justify="space-between">
+        <Group gap={8} wrap="wrap">
           {refused ? null : (
             <SegmentedControl
               size="xs"
@@ -98,7 +98,7 @@ function ExplainPanelBody({ panel }: { readonly panel: ExplainPanelState }) {
             Re-run
           </Button>
         </Group>
-        <Group gap="xs" wrap="wrap">
+        <Group gap={8} wrap="wrap">
           {outcome.state === 'ready' ? (
             <Text size="xs" c="dimmed">
               {outcome.result.elapsedMs} ms
@@ -141,7 +141,7 @@ function ExplainPanelBody({ panel }: { readonly panel: ExplainPanelState }) {
             <Tabs.Tab value="plan">Plan</Tabs.Tab>
             <Tabs.Tab value="raw">Raw</Tabs.Tab>
           </Tabs.List>
-          <Tabs.Panel value="plan" pt="xs" style={{ minHeight: 0, overflow: 'auto' }}>
+          <Tabs.Panel value="plan" pt="sm" style={{ minHeight: 0, overflow: 'auto' }}>
             <PlanView
               tree={outcome.result.tree}
               collection={panel.collection}
@@ -151,7 +151,7 @@ function ExplainPanelBody({ panel }: { readonly panel: ExplainPanelState }) {
           </Tabs.Panel>
           <Tabs.Panel
             value="raw"
-            pt="xs"
+            pt="sm"
             style={{ flex: 1, minHeight: 0, display: 'flex', flexDirection: 'column' }}
           >
             <ExplainRaw text={outcome.result.rawEjson} />

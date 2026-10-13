@@ -131,9 +131,9 @@ export function OperationsPanel({ connectionId, visible = true }: OperationsPane
   }
 
   return (
-    <Stack gap="sm" p="sm" data-testid="operations-panel">
-      <Group justify="space-between" align="center" wrap="wrap" gap="xs">
-        <Group gap="sm" wrap="wrap" align="center">
+    <Stack gap="sm" p="md" data-testid="operations-panel">
+      <Group justify="space-between" align="center" wrap="wrap" gap={8}>
+        <Group gap="md" wrap="wrap" align="center">
           <TextInput
             size="xs"
             w={240}
