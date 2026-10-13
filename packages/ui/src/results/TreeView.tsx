@@ -20,7 +20,7 @@ import {
 } from '@tabler/icons-react';
 import { previewInfo } from '@mongo-gui/core';
 import { useEffect, useMemo, useRef, useState } from 'react';
-import { DestructiveDialog } from '../components/management/DestructiveDialog';
+import { ConfirmDialog } from '../kit/ConfirmDialog';
 import { isInsideControl } from '../kit/is-inside-control';
 import { errorText } from '../kit/notify-error';
 import { useFontScale } from '../theme/font-scale';
@@ -442,7 +442,7 @@ export function TreeView({
         </div>
       </div>
       {pendingRemoval === undefined ? null : (
-        <DestructiveDialog
+        <ConfirmDialog
           title="Remove field"
           description={`Remove ${pendingRemoval.path} from document ${pendingRemoval.documentIndex + 1}? The document is written without the field.`}
           confirmLabel="Remove"

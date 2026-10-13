@@ -4,7 +4,7 @@ import type { RoleInfo } from '@mongo-gui/core';
 import { useState } from 'react';
 import { useStore } from 'zustand';
 import type { SecurityStore } from '../../security/security-store';
-import { DestructiveDialog } from '../management/DestructiveDialog';
+import { ConfirmDialog } from '../../kit/ConfirmDialog';
 import { capabilityReason, MANAGE_ROLES_REASON } from '../../security/capability-reasons';
 import { GatedButton } from './GatedButton';
 import { RoleBadges } from './RoleBadges';
@@ -130,7 +130,7 @@ export function RolesTab({ store, database }: RolesTabProps) {
         />
       )}
       {dropping === undefined ? null : (
-        <DestructiveDialog
+        <ConfirmDialog
           title={`Drop role ${dropping.role}`}
           description={`Drop the role ${dropping.role} from ${dropping.db}? Users that hold it lose its privileges. This cannot be undone.`}
           confirmLabel="Drop role"

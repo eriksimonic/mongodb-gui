@@ -2,7 +2,7 @@ import { Text } from '@mantine/core';
 import { errorText } from '../../kit/notify-error';
 import { useEffect, useState } from 'react';
 import { useUiApi } from '../../api/ui-api';
-import { DestructiveDialog } from './DestructiveDialog';
+import { ConfirmDialog } from '../../kit/ConfirmDialog';
 
 export interface DropCollectionDialogProps {
   readonly connectionId: string;
@@ -20,7 +20,7 @@ export function DropCollectionDialog({
 }: DropCollectionDialogProps) {
   const { rpc } = useUiApi();
   return (
-    <DestructiveDialog
+    <ConfirmDialog
       title={`Drop ${collection}`}
       description={`Drop ${database}.${collection}? Its documents and indexes are deleted. This cannot be undone.`}
       confirmLabel="Drop collection"
@@ -48,7 +48,7 @@ export function DropDatabaseDialog({
 }: DropDatabaseDialogProps) {
   const { rpc } = useUiApi();
   return (
-    <DestructiveDialog
+    <ConfirmDialog
       title={`Drop ${database}`}
       description={`Drop the database ${database}? Every collection and index in it is deleted. This cannot be undone.`}
       confirmLabel="Drop database"
@@ -117,7 +117,7 @@ export function ClearCollectionDialog({
     );
 
   return (
-    <DestructiveDialog
+    <ConfirmDialog
       title={`Clear ${collection}`}
       description={description}
       confirmLabel="Clear collection"

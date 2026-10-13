@@ -6,7 +6,7 @@ import { connectedMockApi } from '../../api/connected-mock';
 import { localConnectionId } from '../../api/mock-fixtures';
 import { renderWithApp } from '../../test-support/render';
 import { CreateDatabaseDialog } from './CreateDatabaseDialog';
-import { DestructiveDialog } from './DestructiveDialog';
+import { ConfirmDialog } from '../../kit/ConfirmDialog';
 
 describe('CreateDatabaseDialog', () => {
   it('submits from the form, so Enter in a field creates the database', async () => {
@@ -58,11 +58,11 @@ describe('CreateDatabaseDialog', () => {
   });
 });
 
-describe('DestructiveDialog', () => {
+describe('ConfirmDialog', () => {
   it('does not confirm on Enter, so a drop needs the button press', async () => {
     const onConfirm = vi.fn(() => Promise.resolve());
     renderWithApp(
-      <DestructiveDialog
+      <ConfirmDialog
         title="Drop orders"
         description="Drop it?"
         confirmLabel="Drop collection"

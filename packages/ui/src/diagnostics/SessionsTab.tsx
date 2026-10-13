@@ -3,7 +3,7 @@ import { IconTrash } from '@tabler/icons-react';
 import type { SessionInfo, SessionUserInput } from '@mongo-gui/core';
 import { useEffect, useState } from 'react';
 import { useStore } from 'zustand';
-import { DestructiveDialog } from '../components/management/DestructiveDialog';
+import { ConfirmDialog } from '../kit/ConfirmDialog';
 import { CopyIcon, LoadState, ScrollLayout, Toolbar } from './common';
 import type { DiagnosticsStore } from './diagnostics-store';
 import { formatRelative, formatTimestamp, shortId } from './format';
@@ -106,7 +106,7 @@ export function SessionsTab({ store }: SessionsTabProps) {
         }
       </LoadState>
       {confirmation?.kind === 'selected' ? (
-        <DestructiveDialog
+        <ConfirmDialog
           title={`Kill ${selected.length} ${selected.length === 1 ? 'session' : 'sessions'}`}
           description={
             <>
@@ -133,7 +133,7 @@ export function SessionsTab({ store }: SessionsTabProps) {
         />
       ) : null}
       {confirmation?.kind === 'user' ? (
-        <DestructiveDialog
+        <ConfirmDialog
           title={`Kill all sessions of ${confirmation.user.user}`}
           description={
             <Text size="sm">

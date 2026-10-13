@@ -1,8 +1,8 @@
 import { Alert, Button, Group, Modal, Stack, Text, TextInput } from '@mantine/core';
-import { errorText } from '../../kit/notify-error';
+import { errorText } from './notify-error';
 import { useState, type ReactNode } from 'react';
 
-export interface DestructiveDialogProps {
+export interface ConfirmDialogProps {
   readonly title: string;
   readonly description: ReactNode;
   readonly confirmLabel: string;
@@ -20,7 +20,7 @@ export interface DestructiveDialogProps {
  * A confirmation for an action that destroys data. Drops type the name first. Other actions
  * need only the button press, and the description says what the action deletes.
  */
-export function DestructiveDialog({
+export function ConfirmDialog({
   title,
   description,
   confirmLabel,
@@ -29,7 +29,7 @@ export function DestructiveDialog({
   confirmColor = 'red',
   onConfirm,
   onClose,
-}: DestructiveDialogProps) {
+}: ConfirmDialogProps) {
   const [typed, setTyped] = useState('');
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | undefined>(undefined);

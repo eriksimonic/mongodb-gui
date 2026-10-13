@@ -22,7 +22,7 @@ import {
 } from '../../management/document-rows';
 import { parseJsonObject } from '../../kit/input-rules';
 import { isInsideControl } from '../../kit/is-inside-control';
-import { DestructiveDialog } from './DestructiveDialog';
+import { ConfirmDialog } from '../../kit/ConfirmDialog';
 import { DocumentEditorDialog } from './DocumentEditorDialog';
 import type { CollectionPanelProps } from './IndexesPanel';
 
@@ -299,7 +299,7 @@ function PendingDelete({
   switch (pending.kind) {
     case 'deleteRow':
       return (
-        <DestructiveDialog
+        <ConfirmDialog
           title="Delete document"
           description={`Delete the document with _id ${pending.row.idEjson}? This cannot be undone.`}
           confirmLabel="Delete"
@@ -313,7 +313,7 @@ function PendingDelete({
       );
     case 'deleteShown':
       return (
-        <DestructiveDialog
+        <ConfirmDialog
           title="Delete shown documents"
           description={`Delete the ${shownIds.length} documents shown? Documents past the first ${limit} stay. This cannot be undone.`}
           confirmLabel={`Delete ${shownIds.length} documents`}
@@ -327,7 +327,7 @@ function PendingDelete({
       );
     case 'deleteMatching':
       return (
-        <DestructiveDialog
+        <ConfirmDialog
           title="Delete matching documents"
           description={`Delete ${pending.count} documents that match ${pending.filter}? The server checks the count again before it deletes. This cannot be undone.`}
           confirmLabel={`Delete ${pending.count} documents`}

@@ -9,7 +9,7 @@ import { formatBytes } from '../../kit/input-rules';
 import { runReported } from '../../kit/notify-error';
 import { canEditIndex } from '../../management/index-builder';
 import { CreateIndexDialog } from './CreateIndexDialog';
-import { DestructiveDialog } from './DestructiveDialog';
+import { ConfirmDialog } from '../../kit/ConfirmDialog';
 
 export interface CollectionPanelProps {
   readonly connectionId: string;
@@ -337,7 +337,7 @@ export function IndexesPanel({ connectionId, database, collection }: CollectionP
         />
       )}
       {dropping === undefined ? null : (
-        <DestructiveDialog
+        <ConfirmDialog
           title={`Drop index ${dropping.name}`}
           description={`Drop the index ${dropping.name} on ${database}.${collection}? Queries that used it fall back to other indexes or a scan.`}
           confirmLabel="Drop index"

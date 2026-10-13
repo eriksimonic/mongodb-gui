@@ -4,7 +4,7 @@ import { useState } from 'react';
 import { useUiApi } from '../../api/ui-api';
 import { useAppStore } from '../../state/app-store-context';
 import type { GridFsDialogState } from '../../state/app-store';
-import { DestructiveDialog } from '../management/DestructiveDialog';
+import { ConfirmDialog } from '../../kit/ConfirmDialog';
 import { runReported } from '../../kit/notify-error';
 import { useGridFsOpener } from './gridfs-opener';
 
@@ -88,7 +88,7 @@ export function DropBucketDialog({ dialog, onClose }: DropBucketDialogProps) {
   const opener = useGridFsOpener();
   const { connectionId, database, bucket } = dialog;
   return (
-    <DestructiveDialog
+    <ConfirmDialog
       title={`Drop ${bucket}`}
       description={`Drop the bucket ${database}.${bucket}? Every file and chunk in it is deleted. This cannot be undone.`}
       confirmLabel="Drop bucket"

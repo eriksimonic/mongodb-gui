@@ -4,7 +4,7 @@ import { useEffect, useState } from 'react';
 import { useStore } from 'zustand';
 import { useUiApi } from '../../api/ui-api';
 import { createShardingStore, type ShardingStore } from '../../sharding/sharding-store';
-import { DestructiveDialog } from '../management/DestructiveDialog';
+import { ConfirmDialog } from '../../kit/ConfirmDialog';
 import { DistributionDialog } from './DistributionDialog';
 import { CollectionsTable, DatabasesTable, ShardsTable, ZonesTable } from './ShardingTables';
 
@@ -158,7 +158,7 @@ export function ShardingPanel({ connectionId }: ShardingPanelProps) {
         </>
       ) : null}
       {pending === undefined ? null : (
-        <DestructiveDialog
+        <ConfirmDialog
           title={
             pending.kind === 'balancer'
               ? pending.enabled

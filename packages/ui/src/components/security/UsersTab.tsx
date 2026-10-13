@@ -16,7 +16,7 @@ import {
 import { ChangePasswordDialog } from './ChangePasswordDialog';
 import { GatedButton } from './GatedButton';
 import { CreateUserDialog } from './CreateUserDialog';
-import { DestructiveDialog } from '../management/DestructiveDialog';
+import { ConfirmDialog } from '../../kit/ConfirmDialog';
 import { RoleBadges } from './RoleBadges';
 import { RolesOfUserDialog } from './RolesOfUserDialog';
 
@@ -173,7 +173,7 @@ export function UsersTab({ store, connectionId, database }: UsersTabProps) {
         <RolesOfUserDialog store={store} user={rolesOf} onClose={() => setRolesOf(undefined)} />
       )}
       {dropping === undefined ? null : (
-        <DestructiveDialog
+        <ConfirmDialog
           title={`Drop user ${dropping.user}`}
           description={`Drop the user ${dropping.user} from ${dropping.db}? It can no longer log in. This cannot be undone.`}
           confirmLabel="Drop user"

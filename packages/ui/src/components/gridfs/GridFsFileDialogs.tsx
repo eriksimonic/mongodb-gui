@@ -3,7 +3,7 @@ import type { GridFsFile } from '@mongo-gui/core';
 import { useState } from 'react';
 import { useUiApi } from '../../api/ui-api';
 import { useAppStore } from '../../state/app-store-context';
-import { DestructiveDialog } from '../management/DestructiveDialog';
+import { ConfirmDialog } from '../../kit/ConfirmDialog';
 import { errorText } from '../../kit/notify-error';
 import { filenameProblem, formatMetadata, parseMetadataDraft } from './gridfs-model';
 
@@ -162,7 +162,7 @@ export function DeleteFilesDialog({
   const more = files.length - listed.length;
   const count = files.length === 1 ? '1 file' : `${files.length} files`;
   return (
-    <DestructiveDialog
+    <ConfirmDialog
       title={`Delete ${count}`}
       description={
         <Stack gap={4}>
