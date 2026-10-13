@@ -211,6 +211,9 @@ interface Harness {
   readonly dir: string;
 }
 
+// Each test opens a real encrypted store, which takes several seconds on the Windows runner.
+vi.setConfig({ testTimeout: 30_000 });
+
 const harnesses: Harness[] = [];
 
 function buildHarness(

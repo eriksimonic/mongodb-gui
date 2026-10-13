@@ -22,9 +22,7 @@ describe('connections file form rules', () => {
   });
 
   it('applies the same length rule to an existing file', () => {
-    expect(validateExistingPassphrase('abc')).toBe(
-      'The passphrase must be at least 4 characters.',
-    );
+    expect(validateExistingPassphrase('abc')).toBe('The passphrase must be at least 4 characters.');
     expect(validateExistingPassphrase('long enough')).toBeUndefined();
   });
 

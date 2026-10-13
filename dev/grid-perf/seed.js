@@ -20,13 +20,18 @@ function fill(name, count, make, batch = 1000) {
 }
 
 // 1M flat small docs: the baseline.
-fill('flat_1m', 1000000, (i) => ({
-  n: i,
-  user: 'u' + rnd(50000),
-  amount: Math.random() * 500,
-  at: new Date(Date.now() - rnd(3e10)),
-  tags: ['a', 'b'].slice(0, 1 + rnd(2)),
-}), 10000);
+fill(
+  'flat_1m',
+  1000000,
+  (i) => ({
+    n: i,
+    user: 'u' + rnd(50000),
+    amount: Math.random() * 500,
+    at: new Date(Date.now() - rnd(3e10)),
+    tags: ['a', 'b'].slice(0, 1 + rnd(2)),
+  }),
+  10000,
+);
 
 // Deep nesting: 15 levels, each level has siblings, so flattening yields many dotted columns.
 function nest(depth) {
@@ -37,37 +42,66 @@ function nest(depth) {
 fill('nested_deep', 100000, (i) => ({ n: i, root: nest(15) }));
 
 // Wide: 400 top-level fields per doc, same schema.
-fill('wide_400', 20000, (i) => {
-  const d = { n: i };
-  for (let f = 0; f < 400; f++) d['f' + f] = f % 3 ? rnd(1e6) : word();
-  return d;
-}, 500);
+fill(
+  'wide_400',
+  20000,
+  (i) => {
+    const d = { n: i };
+    for (let f = 0; f < 400; f++) d['f' + f] = f % 3 ? rnd(1e6) : word();
+    return d;
+  },
+  500,
+);
 
 // Heterogeneous: every doc has ~20 random keys from a pool of 5000, so column discovery explodes.
-fill('sparse_keys', 20000, (i) => {
-  const d = { n: i };
-  for (let f = 0; f < 20; f++) d['k' + rnd(5000)] = rnd(1000);
-  return d;
-}, 500);
+fill(
+  'sparse_keys',
+  20000,
+  (i) => {
+    const d = { n: i };
+    for (let f = 0; f < 20; f++) d['k' + rnd(5000)] = rnd(1000);
+    return d;
+  },
+  500,
+);
 
 // Big documents: ~256 KB each, large strings plus long arrays of subdocs.
-fill('big_docs', 2000, (i) => ({
-  n: i,
-  title: word(),
-  body: text(100000),
-  items: Array.from({ length: 500 }, (_, k) => ({ k, label: word(), price: Math.random(), dims: { w: rnd(99), h: rnd(99) } })),
-  log: Array.from({ length: 1000 }, () => ({ at: new Date(), msg: text(40) })),
-}), 50);
+fill(
+  'big_docs',
+  2000,
+  (i) => ({
+    n: i,
+    title: word(),
+    body: text(100000),
+    items: Array.from({ length: 500 }, (_, k) => ({
+      k,
+      label: word(),
+      price: Math.random(),
+      dims: { w: rnd(99), h: rnd(99) },
+    })),
+    log: Array.from({ length: 1000 }, () => ({ at: new Date(), msg: text(40) })),
+  }),
+  50,
+);
 
 // Huge arrays: 5 MB of numbers in one field, a few docs near the 16 MB limit's low end.
-fill('huge_arrays', 100, (i) => ({
-  n: i,
-  series: Array.from({ length: 200000 }, () => Math.random()),
-}), 5);
+fill(
+  'huge_arrays',
+  100,
+  (i) => ({
+    n: i,
+    series: Array.from({ length: 200000 }, () => Math.random()),
+  }),
+  5,
+);
 
 // Mixed: nested and arrays of nested with varying BSON types in the same field.
 fill('mixed_types', 100000, (i) => ({
   n: i,
   val: [i, String(i), null, new Date(), { x: i }, [i], NumberLong(i), NumberDecimal('1.5')][i % 8],
-  orders: Array.from({ length: rnd(20) }, () => ({ sku: word(), qty: rnd(9), meta: { tags: [word(), word()] } })),
+  orders: Array.from({ length: rnd(20) }, () => ({
+    sku: word(),
+    qty: rnd(9),
+    meta: { tags: [word(), word()] },
+  })),
 }));
