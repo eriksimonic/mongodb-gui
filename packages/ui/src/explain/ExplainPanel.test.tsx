@@ -52,6 +52,11 @@ function renderPanel(api: UiApi, panel: ExplainPanelState) {
   });
 }
 
+/** Switches the plan from the graph to the list. */
+function showList(): void {
+  fireEvent.click(screen.getByText('List'));
+}
+
 /** The row of the plan tree that is selected, by its stage name. */
 function selectedStageName(): string | null {
   const selected = document.querySelector('[role="treeitem"][aria-selected="true"]');
@@ -95,10 +100,12 @@ describe('ExplainPanel warnings', () => {
     expect(selectedStageName()).toBe('SORT');
   });
 
-  it('shows the plain-language sentences from the core', async () => {
+  it('shows a warning that several stages raise once, with the number of stages', async () => {
     const api = await connectedApi();
-    renderPanel(api, panelFor(SORT_FIXTURE));
-    expect(screen.getByText(/The planner chose the index status_1/)).toBeInTheDocument();
+    renderPanel(api, panelFor('lab/facet-dashboard'));
+    const sorts = screen.getAllByRole('button', { name: /IN_MEMORY_SORT/ });
+    expect(sorts).toHaveLength(1);
+    expect(sorts[0]?.textContent).toContain('4 stages');
   });
 });
 
@@ -121,6 +128,7 @@ describe('ExplainPanel plan tree', () => {
   it('collapses a stage with Arrow Left and expands it with Arrow Right', async () => {
     const api = await connectedApi();
     renderPanel(api, panelFor(SORT_FIXTURE));
+    showList();
     const root = screen.getAllByRole('treeitem')[0] as HTMLElement;
     expect(root.getAttribute('aria-expanded')).toBe('true');
     const count = screen.getAllByRole('treeitem').length;
@@ -134,6 +142,7 @@ describe('ExplainPanel plan tree', () => {
   it('shows the bounds of an index stage only when they are opened', async () => {
     const api = await connectedApi();
     renderPanel(api, panelFor(SORT_FIXTURE));
+    showList();
     const bounds = document.querySelector('.mg-explain-bounds') as HTMLDetailsElement | null;
     expect(bounds).not.toBeNull();
     expect(bounds?.open).toBe(false);
@@ -258,6 +267,7 @@ describe('ExplainPanel states', () => {
   it('shows the plan of a sharded explain under one heading per shard', async () => {
     const api = await connectedApi();
     renderPanel(api, panelFor('sharded/find-sort'));
+    showList();
     expect(document.querySelector('.mg-explain-tree')?.textContent).toContain('shard shard01');
     expect(document.querySelector('.mg-explain-tree')?.textContent).toContain('shard shard02');
   });
@@ -289,6 +299,7 @@ describe('ExplainPanel stage catalogue', () => {
   it('shows a category icon and the catalogue description on hover for a known stage', async () => {
     const api = await connectedApi();
     renderPanel(api, panelFor('8.0.17/collscan'));
+    showList();
     const row = rowNamed('COLLSCAN');
     expect(row.querySelector('[data-category="scan"]')).not.toBeNull();
     fireEvent.mouseEnter(row.querySelector('.mg-explain-stage-head') as HTMLElement);
@@ -313,6 +324,7 @@ describe('ExplainPanel stage catalogue', () => {
       executionStats: { executionSuccess: true, nReturned: 0, executionStages: {} },
     };
     renderPanel(api, rawPanel(raw));
+    showList();
     expect(screen.getByText('Unknown stage')).toBeInTheDocument();
     const row = document.querySelector('[role="treeitem"]') as HTMLElement;
     expect(row.querySelector('[data-category="unknown"]')).not.toBeNull();
@@ -324,6 +336,7 @@ describe('ExplainPanel per-stage metrics', () => {
   it('shows the metrics that apply to each stage and no others', async () => {
     const api = await connectedApi();
     renderPanel(api, panelFor('8.0.17/collscan'));
+    showList();
     const scan = rowNamed('COLLSCAN').closest('[role="treeitem"]') as HTMLElement;
     expect(scan.textContent).toContain('Docs');
     expect(scan.textContent).not.toContain('Keys');
@@ -332,6 +345,7 @@ describe('ExplainPanel per-stage metrics', () => {
   it('marks an examined-to-returned ratio badge on a fetch that reads many documents', async () => {
     const api = await connectedApi();
     renderPanel(api, panelFor('8.0.17/collscan'));
+    showList();
     const scan = rowNamed('COLLSCAN').closest('[role="treeitem"]') as HTMLElement;
     expect(scan.textContent).toContain('examined per returned');
   });
@@ -341,6 +355,7 @@ describe('ExplainPanel sub-trees', () => {
   it('labels the inner pipeline of a $lookup as a collapsible sub-tree', async () => {
     const api = await connectedApi();
     renderPanel(api, panelFor('8.0.17/lookup-pipeline', 'db.orders.aggregate([{ $lookup: {} }])'));
+    showList();
     const heading = screen.getByRole('button', {
       name: /inner pipeline of \$lookup from customers/,
     });
@@ -356,6 +371,7 @@ describe('ExplainPanel sub-trees', () => {
       'shard02 is down',
     );
     renderPanel(api, rawPanel(raw));
+    showList();
     const message = document.querySelector('.mg-explain-shard-error');
     expect(message?.textContent).toBe('shard02 is down');
     expect(rowNamed('SHARD_ERROR')).toBeInTheDocument();
@@ -382,6 +398,7 @@ describe('ExplainPanel rejected plans', () => {
       api,
       panelFor('8.0.17/competing', `db.orders.find({ customerId: 7, status: 'paid' })`),
     );
+    showList();
     fireEvent.click(screen.getByText(/Rejected plans/));
     const compare = screen.getByRole('button', { name: 'Compare' });
     expect(compare).toHaveAttribute('aria-pressed', 'false');
@@ -469,5 +486,77 @@ describe('ExplainPanel warning advice', () => {
     const sortAdvice = describeStage('SORT').advice;
     expect(sortAdvice).toBeDefined();
     expect(document.querySelector('.mg-explain-warning-advice')?.textContent).toBe(sortAdvice);
+  });
+});
+
+describe('ExplainPanel plan graph', () => {
+  const WIDE = 'lab/sort-merge-wide';
+
+  function card(name: string, nth = 0): HTMLElement {
+    const cards = [...document.querySelectorAll<HTMLElement>('.mg-explain-node')].filter(
+      (element) => element.querySelector('.mg-explain-stage-name')?.textContent === name,
+    );
+    const match = cards[nth];
+    if (match === undefined) {
+      throw new Error(`no card named ${name}`);
+    }
+    return match;
+  }
+
+  it('draws one card per stage and one line per input', async () => {
+    const api = await connectedApi();
+    renderPanel(api, panelFor(WIDE));
+    expect(screen.getAllByRole('treeitem')).toHaveLength(12);
+    expect(document.querySelectorAll('.mg-explain-graph-edges path')).toHaveLength(11);
+    expect(card('SORT_MERGE').textContent).toContain('100 out');
+  });
+
+  it('hides the inputs of a card with Space and tells how many it hides', async () => {
+    const api = await connectedApi();
+    renderPanel(api, panelFor(WIDE));
+    const merge = card('SORT_MERGE');
+    fireEvent.keyDown(merge, { key: ' ' });
+    expect(merge).toHaveAttribute('aria-expanded', 'false');
+    expect(screen.getAllByRole('treeitem')).toHaveLength(4);
+    fireEvent.click(screen.getByRole('button', { name: 'Show 8 hidden stages' }));
+    expect(screen.getAllByRole('treeitem')).toHaveLength(12);
+  });
+
+  it('moves down to the first input and across to its sibling with the arrow keys', async () => {
+    const api = await connectedApi();
+    renderPanel(api, panelFor(WIDE));
+    const merge = card('SORT_MERGE');
+    merge.focus();
+    fireEvent.keyDown(merge, { key: 'ArrowDown' });
+    expect(document.activeElement).toBe(card('FETCH', 1));
+    fireEvent.keyDown(document.activeElement as HTMLElement, { key: 'ArrowRight' });
+    expect(document.activeElement).toBe(card('IXSCAN', 1));
+    fireEvent.keyDown(document.activeElement as HTMLElement, { key: 'ArrowUp' });
+    expect(document.activeElement).toBe(merge);
+  });
+
+  it('opens the details of a clicked card with its bounds and closes them', async () => {
+    const api = await connectedApi();
+    renderPanel(api, panelFor(SORT_FIXTURE));
+    expect(screen.queryByRole('complementary', { name: 'Stage details' })).toBeNull();
+    fireEvent.click(card('IXSCAN'));
+    const details = screen.getByRole('complementary', { name: 'Stage details' });
+    expect(within(details).getByText('Index bounds')).toBeInTheDocument();
+    expect(within(details).getByText('Keys')).toBeInTheDocument();
+    fireEvent.click(within(details).getByRole('button', { name: 'Close stage details' }));
+    expect(screen.queryByRole('complementary', { name: 'Stage details' })).toBeNull();
+  });
+
+  it('labels the cards of a sub-tree and shows a failed shard in red', async () => {
+    const api = await connectedApi();
+    const raw = withFailedShard(
+      rawFixture('sharded/find-sort', 'executionStats'),
+      'shard02 is down',
+    );
+    renderPanel(api, rawPanel(raw));
+    expect(document.querySelector('.mg-explain-graph')?.textContent).toContain('shard shard01');
+    expect(card('SHARD_ERROR').querySelector('.mg-explain-shard-error')?.textContent).toBe(
+      'shard02 is down',
+    );
   });
 });

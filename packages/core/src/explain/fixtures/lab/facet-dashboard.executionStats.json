@@ -1,0 +1,716 @@
+{
+  "explainVersion": "1",
+  "stages": [
+    {
+      "$cursor": {
+        "queryPlanner": {
+          "namespace": "explain_lab.orders",
+          "parsedQuery": {
+            "$and": [
+              {
+                "createdAt": {
+                  "$lt": {
+                    "$date": {
+                      "$numberLong": "1767225600000"
+                    }
+                  }
+                }
+              },
+              {
+                "createdAt": {
+                  "$gte": {
+                    "$date": {
+                      "$numberLong": "1735689600000"
+                    }
+                  }
+                }
+              }
+            ]
+          },
+          "indexFilterSet": false,
+          "queryHash": "DA091DBC",
+          "planCacheShapeHash": "DA091DBC",
+          "planCacheKey": "4773F327",
+          "optimizationTimeMillis": {
+            "$numberInt": "0"
+          },
+          "maxIndexedOrSolutionsReached": false,
+          "maxIndexedAndSolutionsReached": false,
+          "maxScansToExplodeReached": false,
+          "prunedSimilarIndexes": false,
+          "winningPlan": {
+            "isCached": false,
+            "stage": "PROJECTION_SIMPLE",
+            "transformBy": {
+              "channel": {
+                "$numberInt": "1"
+              },
+              "createdAt": {
+                "$numberInt": "1"
+              },
+              "customerId": {
+                "$numberInt": "1"
+              },
+              "status": {
+                "$numberInt": "1"
+              },
+              "total": {
+                "$numberInt": "1"
+              },
+              "_id": {
+                "$numberInt": "0"
+              }
+            },
+            "inputStage": {
+              "stage": "COLLSCAN",
+              "filter": {
+                "$and": [
+                  {
+                    "createdAt": {
+                      "$lt": {
+                        "$date": {
+                          "$numberLong": "1767225600000"
+                        }
+                      }
+                    }
+                  },
+                  {
+                    "createdAt": {
+                      "$gte": {
+                        "$date": {
+                          "$numberLong": "1735689600000"
+                        }
+                      }
+                    }
+                  }
+                ]
+              },
+              "direction": "forward"
+            }
+          },
+          "rejectedPlans": []
+        },
+        "executionStats": {
+          "executionSuccess": true,
+          "nReturned": {
+            "$numberInt": "60000"
+          },
+          "executionTimeMillis": {
+            "$numberInt": "176"
+          },
+          "totalKeysExamined": {
+            "$numberInt": "0"
+          },
+          "totalDocsExamined": {
+            "$numberInt": "60000"
+          },
+          "executionStages": {
+            "isCached": false,
+            "stage": "PROJECTION_SIMPLE",
+            "nReturned": {
+              "$numberInt": "60000"
+            },
+            "executionTimeMillisEstimate": {
+              "$numberInt": "35"
+            },
+            "works": {
+              "$numberInt": "60001"
+            },
+            "advanced": {
+              "$numberInt": "60000"
+            },
+            "needTime": {
+              "$numberInt": "0"
+            },
+            "needYield": {
+              "$numberInt": "0"
+            },
+            "saveState": {
+              "$numberInt": "14"
+            },
+            "restoreState": {
+              "$numberInt": "14"
+            },
+            "isEOF": {
+              "$numberInt": "1"
+            },
+            "transformBy": {
+              "channel": {
+                "$numberInt": "1"
+              },
+              "createdAt": {
+                "$numberInt": "1"
+              },
+              "customerId": {
+                "$numberInt": "1"
+              },
+              "status": {
+                "$numberInt": "1"
+              },
+              "total": {
+                "$numberInt": "1"
+              },
+              "_id": {
+                "$numberInt": "0"
+              }
+            },
+            "inputStage": {
+              "stage": "COLLSCAN",
+              "filter": {
+                "$and": [
+                  {
+                    "createdAt": {
+                      "$lt": {
+                        "$date": {
+                          "$numberLong": "1767225600000"
+                        }
+                      }
+                    }
+                  },
+                  {
+                    "createdAt": {
+                      "$gte": {
+                        "$date": {
+                          "$numberLong": "1735689600000"
+                        }
+                      }
+                    }
+                  }
+                ]
+              },
+              "nReturned": {
+                "$numberInt": "60000"
+              },
+              "executionTimeMillisEstimate": {
+                "$numberInt": "32"
+              },
+              "works": {
+                "$numberInt": "60001"
+              },
+              "advanced": {
+                "$numberInt": "60000"
+              },
+              "needTime": {
+                "$numberInt": "0"
+              },
+              "needYield": {
+                "$numberInt": "0"
+              },
+              "saveState": {
+                "$numberInt": "14"
+              },
+              "restoreState": {
+                "$numberInt": "14"
+              },
+              "isEOF": {
+                "$numberInt": "1"
+              },
+              "direction": "forward",
+              "docsExamined": {
+                "$numberInt": "60000"
+              }
+            }
+          }
+        }
+      },
+      "nReturned": {
+        "$numberLong": "60000"
+      },
+      "executionTimeMillisEstimate": {
+        "$numberLong": "65"
+      }
+    },
+    {
+      "$facet": {
+        "byStatus": [
+          {
+            "$internalFacetTeeConsumer": {},
+            "nReturned": {
+              "$numberLong": "60000"
+            },
+            "executionTimeMillisEstimate": {
+              "$numberLong": "65"
+            }
+          },
+          {
+            "$group": {
+              "_id": "$status",
+              "n": {
+                "$sum": {
+                  "$const": {
+                    "$numberInt": "1"
+                  }
+                }
+              },
+              "revenue": {
+                "$sum": "$total"
+              }
+            },
+            "maxAccumulatorMemoryUsageBytes": {
+              "n": {
+                "$numberLong": "768"
+              },
+              "revenue": {
+                "$numberLong": "768"
+              }
+            },
+            "totalOutputDataSizeBytes": {
+              "$numberLong": "1662"
+            },
+            "usedDisk": false,
+            "spills": {
+              "$numberLong": "0"
+            },
+            "spilledDataStorageSize": {
+              "$numberLong": "0"
+            },
+            "numBytesSpilledEstimate": {
+              "$numberLong": "0"
+            },
+            "spilledRecords": {
+              "$numberLong": "0"
+            },
+            "nReturned": {
+              "$numberLong": "6"
+            },
+            "executionTimeMillisEstimate": {
+              "$numberLong": "85"
+            }
+          },
+          {
+            "$sort": {
+              "sortKey": {
+                "n": {
+                  "$numberInt": "-1"
+                }
+              }
+            },
+            "totalDataSizeSortedBytesEstimate": {
+              "$numberLong": "1710"
+            },
+            "usedDisk": false,
+            "spills": {
+              "$numberLong": "0"
+            },
+            "spilledDataStorageSize": {
+              "$numberLong": "0"
+            },
+            "nReturned": {
+              "$numberLong": "6"
+            },
+            "executionTimeMillisEstimate": {
+              "$numberLong": "85"
+            }
+          }
+        ],
+        "byChannel": [
+          {
+            "$internalFacetTeeConsumer": {},
+            "nReturned": {
+              "$numberLong": "60000"
+            },
+            "executionTimeMillisEstimate": {
+              "$numberLong": "0"
+            }
+          },
+          {
+            "$group": {
+              "_id": "$channel",
+              "count": {
+                "$sum": {
+                  "$const": {
+                    "$numberInt": "1"
+                  }
+                }
+              }
+            },
+            "maxAccumulatorMemoryUsageBytes": {
+              "count": {
+                "$numberLong": "512"
+              }
+            },
+            "totalOutputDataSizeBytes": {
+              "$numberLong": "980"
+            },
+            "usedDisk": false,
+            "spills": {
+              "$numberLong": "0"
+            },
+            "spilledDataStorageSize": {
+              "$numberLong": "0"
+            },
+            "numBytesSpilledEstimate": {
+              "$numberLong": "0"
+            },
+            "spilledRecords": {
+              "$numberLong": "0"
+            },
+            "nReturned": {
+              "$numberLong": "4"
+            },
+            "executionTimeMillisEstimate": {
+              "$numberLong": "30"
+            }
+          },
+          {
+            "$sort": {
+              "sortKey": {
+                "count": {
+                  "$numberInt": "-1"
+                }
+              }
+            },
+            "totalDataSizeSortedBytesEstimate": {
+              "$numberLong": "1012"
+            },
+            "usedDisk": false,
+            "spills": {
+              "$numberLong": "0"
+            },
+            "spilledDataStorageSize": {
+              "$numberLong": "0"
+            },
+            "nReturned": {
+              "$numberLong": "4"
+            },
+            "executionTimeMillisEstimate": {
+              "$numberLong": "30"
+            }
+          }
+        ],
+        "topCustomers": [
+          {
+            "$internalFacetTeeConsumer": {},
+            "nReturned": {
+              "$numberLong": "60000"
+            },
+            "executionTimeMillisEstimate": {
+              "$numberLong": "0"
+            }
+          },
+          {
+            "$group": {
+              "_id": "$customerId",
+              "spent": {
+                "$sum": "$total"
+              }
+            },
+            "maxAccumulatorMemoryUsageBytes": {
+              "spent": {
+                "$numberLong": "640000"
+              }
+            },
+            "totalOutputDataSizeBytes": {
+              "$numberLong": "1225000"
+            },
+            "usedDisk": false,
+            "spills": {
+              "$numberLong": "0"
+            },
+            "spilledDataStorageSize": {
+              "$numberLong": "0"
+            },
+            "numBytesSpilledEstimate": {
+              "$numberLong": "0"
+            },
+            "spilledRecords": {
+              "$numberLong": "0"
+            },
+            "nReturned": {
+              "$numberLong": "5000"
+            },
+            "executionTimeMillisEstimate": {
+              "$numberLong": "23"
+            }
+          },
+          {
+            "$sort": {
+              "sortKey": {
+                "spent": {
+                  "$numberInt": "-1"
+                }
+              },
+              "limit": {
+                "$numberLong": "10"
+              }
+            },
+            "totalDataSizeSortedBytesEstimate": {
+              "$numberLong": "2530"
+            },
+            "usedDisk": false,
+            "spills": {
+              "$numberLong": "0"
+            },
+            "spilledDataStorageSize": {
+              "$numberLong": "0"
+            },
+            "nReturned": {
+              "$numberLong": "10"
+            },
+            "executionTimeMillisEstimate": {
+              "$numberLong": "23"
+            }
+          },
+          {
+            "$lookup": {
+              "from": "customers",
+              "as": "customer",
+              "localField": "_id",
+              "foreignField": "_id"
+            },
+            "totalDocsExamined": {
+              "$numberLong": "10"
+            },
+            "totalKeysExamined": {
+              "$numberLong": "10"
+            },
+            "collectionScans": {
+              "$numberLong": "0"
+            },
+            "indexesUsed": [
+              "_id_"
+            ],
+            "nReturned": {
+              "$numberLong": "10"
+            },
+            "executionTimeMillisEstimate": {
+              "$numberLong": "25"
+            }
+          }
+        ],
+        "byMonth": [
+          {
+            "$internalFacetTeeConsumer": {},
+            "nReturned": {
+              "$numberLong": "60000"
+            },
+            "executionTimeMillisEstimate": {
+              "$numberLong": "17"
+            }
+          },
+          {
+            "$group": {
+              "_id": {
+                "$month": {
+                  "date": "$createdAt"
+                }
+              },
+              "n": {
+                "$sum": {
+                  "$const": {
+                    "$numberInt": "1"
+                  }
+                }
+              }
+            },
+            "maxAccumulatorMemoryUsageBytes": {
+              "n": {
+                "$numberLong": "1536"
+              }
+            },
+            "totalOutputDataSizeBytes": {
+              "$numberLong": "2940"
+            },
+            "usedDisk": false,
+            "spills": {
+              "$numberLong": "0"
+            },
+            "spilledDataStorageSize": {
+              "$numberLong": "0"
+            },
+            "numBytesSpilledEstimate": {
+              "$numberLong": "0"
+            },
+            "spilledRecords": {
+              "$numberLong": "0"
+            },
+            "nReturned": {
+              "$numberLong": "12"
+            },
+            "executionTimeMillisEstimate": {
+              "$numberLong": "37"
+            }
+          },
+          {
+            "$sort": {
+              "sortKey": {
+                "_id": {
+                  "$numberInt": "1"
+                }
+              }
+            },
+            "totalDataSizeSortedBytesEstimate": {
+              "$numberLong": "3036"
+            },
+            "usedDisk": false,
+            "spills": {
+              "$numberLong": "0"
+            },
+            "spilledDataStorageSize": {
+              "$numberLong": "0"
+            },
+            "nReturned": {
+              "$numberLong": "12"
+            },
+            "executionTimeMillisEstimate": {
+              "$numberLong": "37"
+            }
+          }
+        ]
+      },
+      "nReturned": {
+        "$numberLong": "1"
+      },
+      "executionTimeMillisEstimate": {
+        "$numberLong": "177"
+      }
+    }
+  ],
+  "queryShapeHash": "2998DA4C7EB3E7422B793FA034E2CE002D5D685F0D061ACA491120857223E224",
+  "serverInfo": {
+    "host": "fdbd5b54de48",
+    "port": {
+      "$numberInt": "27017"
+    },
+    "version": "8.0.17",
+    "gitVersion": "b20e43625b72f4bb43cc15107f80ac966ae13b6d"
+  },
+  "serverParameters": {
+    "internalQueryFacetBufferSizeBytes": {
+      "$numberInt": "104857600"
+    },
+    "internalQueryFacetMaxOutputDocSizeBytes": {
+      "$numberInt": "104857600"
+    },
+    "internalLookupStageIntermediateDocumentMaxSizeBytes": {
+      "$numberInt": "104857600"
+    },
+    "internalDocumentSourceGroupMaxMemoryBytes": {
+      "$numberInt": "104857600"
+    },
+    "internalQueryMaxBlockingSortMemoryUsageBytes": {
+      "$numberInt": "104857600"
+    },
+    "internalQueryProhibitBlockingMergeOnMongoS": {
+      "$numberInt": "0"
+    },
+    "internalQueryMaxAddToSetBytes": {
+      "$numberInt": "104857600"
+    },
+    "internalDocumentSourceSetWindowFieldsMaxMemoryBytes": {
+      "$numberInt": "104857600"
+    },
+    "internalQueryFrameworkControl": "trySbeRestricted",
+    "internalQueryPlannerIgnoreIndexWithCollationForRegex": {
+      "$numberInt": "1"
+    }
+  },
+  "command": {
+    "aggregate": "orders",
+    "pipeline": [
+      {
+        "$match": {
+          "createdAt": {
+            "$gte": {
+              "$date": {
+                "$numberLong": "1735689600000"
+              }
+            },
+            "$lt": {
+              "$date": {
+                "$numberLong": "1767225600000"
+              }
+            }
+          }
+        }
+      },
+      {
+        "$facet": {
+          "byStatus": [
+            {
+              "$group": {
+                "_id": "$status",
+                "n": {
+                  "$sum": {
+                    "$numberInt": "1"
+                  }
+                },
+                "revenue": {
+                  "$sum": "$total"
+                }
+              }
+            },
+            {
+              "$sort": {
+                "n": {
+                  "$numberInt": "-1"
+                }
+              }
+            }
+          ],
+          "byChannel": [
+            {
+              "$sortByCount": "$channel"
+            }
+          ],
+          "topCustomers": [
+            {
+              "$group": {
+                "_id": "$customerId",
+                "spent": {
+                  "$sum": "$total"
+                }
+              }
+            },
+            {
+              "$sort": {
+                "spent": {
+                  "$numberInt": "-1"
+                }
+              }
+            },
+            {
+              "$limit": {
+                "$numberInt": "10"
+              }
+            },
+            {
+              "$lookup": {
+                "from": "customers",
+                "localField": "_id",
+                "foreignField": "_id",
+                "as": "customer"
+              }
+            }
+          ],
+          "byMonth": [
+            {
+              "$group": {
+                "_id": {
+                  "$month": "$createdAt"
+                },
+                "n": {
+                  "$sum": {
+                    "$numberInt": "1"
+                  }
+                }
+              }
+            },
+            {
+              "$sort": {
+                "_id": {
+                  "$numberInt": "1"
+                }
+              }
+            }
+          ]
+        }
+      }
+    ],
+    "cursor": {},
+    "$db": "explain_lab"
+  },
+  "ok": {
+    "$numberInt": "1"
+  }
+}

@@ -9,6 +9,7 @@ import {
   nextMatchIndex,
   previousMatchIndex,
   shardErrorMessage,
+  groupWarnings,
   sortWarnings,
   stageMetricItems,
 } from './stage-view';
@@ -198,5 +199,26 @@ describe('match stepping', () => {
   it('has no current match when there are none', () => {
     expect(nextMatchIndex(0, 0)).toBe(-1);
     expect(previousMatchIndex(0, 0)).toBe(-1);
+  });
+});
+
+describe('groupWarnings', () => {
+  it('keeps one row per code with its count, most severe first', () => {
+    const sort = {
+      code: 'IN_MEMORY_SORT',
+      severity: 'warning',
+      message: 'm',
+      stageName: 'SORT',
+    } as const;
+    const scan = {
+      code: 'COLLSCAN',
+      severity: 'critical',
+      message: 'm',
+      stageName: 'COLLSCAN',
+    } as const;
+    expect(groupWarnings([sort, scan, sort])).toEqual([
+      { warning: scan, count: 1 },
+      { warning: sort, count: 2 },
+    ]);
   });
 });

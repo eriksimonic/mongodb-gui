@@ -35,3 +35,19 @@ describe('mock explain verbosity', () => {
     expect(result.tree.verbosity).toBe('executionStats');
   });
 });
+
+describe('mock explain of the lab statements', () => {
+  it('answers a statement from dev/explain-lab/queries.js with the plan captured from it', async () => {
+    const api = await connectedApi();
+    const result = await api.rpc.explain.run({
+      connectionId: localConnectionId,
+      database: 'explain_lab',
+      code: `db.orders.find({ status: { $in: ['paid', 'shipped', 'refunded', 'cancelled'] } })
+        .sort({ createdAt: -1 }).limit(20);`,
+      verbosity: 'executionStats',
+    });
+    const merge = result.tree.winning.children[0]?.children[0];
+    expect(merge?.name).toBe('SORT_MERGE');
+    expect(merge?.children).toHaveLength(4);
+  });
+});

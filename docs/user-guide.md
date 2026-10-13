@@ -324,10 +324,10 @@ Copy and export:
 ## Explain
 
 Open an explain from the editor with "Explain", or from a profiler entry with "Explain".
-The panel has two tabs. "Plan" shows the plan as a tree. "Raw" shows the document that the
+The panel has two tabs. "Plan" shows the plan as a graph or a list. "Raw" shows the document that the
 server returned.
 
-![Explain panel with the summary, a collection scan warning and the plan stages](screenshots/explain.png)
+![Explain panel with the summary, the warnings and the plan graph](screenshots/explain.png)
 
 Use the "Verbosity" control to choose how much the server reports:
 
@@ -338,10 +338,26 @@ Use the "Verbosity" control to choose how much the server reports:
 The summary row shows the index used, keys examined, documents examined, documents returned,
 the ratio of examined to returned documents, and the time.
 
-The plan tree shows one row for each stage. Each stage has an icon and a category. The
-categories are scan, fetch, filter, sort, projection, limit, lookup, group, merge, sharding,
-text, geo, write, cache, express and unknown. Hover over a stage to read what it does and
-which metrics apply to it.
+"Warnings" lists each warning code once. When several stages raise the same warning, the row
+shows how many. Click a row to select the first stage it names. When an index would remove the
+top warning, the panel shows its `createIndex` line with a "Copy" button.
+
+"Graph" shows the plan as a tree of cards, the root at the top and its inputs below. Each card
+shows the stage, its own time without its inputs and that time's share of the plan, the index or
+the collection it reads, and the documents it returns and examines. The marks "slowest",
+"largest" and "most examined" point at the stages with the highest values. A thicker line means
+more documents. Click a card to open its details beside the graph: every metric, the index
+bounds, the filter and the raw stage. Press Space on a card, or click the button under it, to
+hide or show its inputs. Use the zoom buttons, or "Fit" to fit the width. When the server reports
+rejected plans, the "Plan" list switches between them.
+
+The server reports no counters for the stages inside a `$lookup` pipeline. Those cards show the
+stage spec and "not measured".
+
+"List" shows one row for each stage, with a bar for documents or time. Each stage has an icon
+and a category. The categories are scan, fetch, filter, sort, projection, limit, lookup, group,
+merge, sharding, text, geo, write, cache, express and unknown. Hover over a stage to read what it
+does and which metrics apply to it.
 
 The panel adds warnings and advice below the tree. Examples include a collection scan, an
 in-memory sort, a stage that spilled to disk, and a ratio of examined to returned documents

@@ -3,7 +3,6 @@ import { notifications } from '@mantine/notifications';
 import type { ReactNode } from 'react';
 import {
   describeStage,
-  explainInWords,
   suggestedIndexKeys,
   type PlanTree,
   type PlanWarning,
@@ -11,7 +10,7 @@ import {
 } from '@mongo-gui/core';
 import { notifyError } from '../components/notify-error';
 import { createIndexLine } from './explain-model';
-import { sortWarnings } from './stage-view';
+import { groupWarnings } from './stage-view';
 
 const INTEGER_LOCALE = 'en-US';
 const RATIO_DIGITS = 1;
@@ -104,58 +103,86 @@ export function ExplainWarnings({ warnings, onSelect }: ExplainWarningsProps) {
       </Text>
     );
   }
+  const groups = groupWarnings(warnings);
+  const counts = (['critical', 'warning', 'info'] as const)
+    .map((severity) => ({
+      severity,
+      count: groups.filter((group) => group.warning.severity === severity).length,
+    }))
+    .filter((entry) => entry.count > 0);
   return (
-    <Stack gap={4} className="mg-explain-warnings">
-      <Text fw={600} size="sm">
-        Warnings
-      </Text>
-      {sortWarnings(warnings).map((warning, index) => {
-        const stageName = warning.stageName;
-        // The core fills the advice from the catalogue. The catalogue is the fallback when it did not.
-        const advice =
-          warning.advice ?? (stageName === undefined ? undefined : describeStage(stageName).advice);
-        return (
-          <button
-            key={`${warning.code}-${index}`}
-            type="button"
-            className="mg-explain-warning"
-            data-severity={warning.severity}
-            disabled={stageName === undefined}
-            onClick={() => {
-              if (stageName !== undefined) {
-                onSelect(stageName);
-              }
-            }}
+    <details className="mg-explain-fold">
+      <summary>
+        Warnings{' '}
+        {counts.map(({ severity, count: n }) => (
+          <Badge
+            key={severity}
+            tt="none"
+            color={SEVERITY_COLOR[severity]}
+            variant="light"
+            size="sm"
+            ml={4}
           >
-            <Badge tt="none" color={SEVERITY_COLOR[warning.severity]} variant="light" size="sm">
-              {warning.severity}
-            </Badge>
-            <Code>{warning.code}</Code>
-            <span className="mg-explain-warning-message">
-              {warning.message}
-              {advice === undefined ? null : (
-                <span className="mg-explain-warning-advice">{advice}</span>
+            {n} {severity}
+          </Badge>
+        ))}
+      </summary>
+      <Stack gap={4} className="mg-explain-warnings">
+        {groups.map(({ warning, count: repeats }) => {
+          const stageName = warning.stageName;
+          // The core fills the advice from the catalogue. The catalogue is the fallback when it did not.
+          const advice =
+            warning.advice ??
+            (stageName === undefined ? undefined : describeStage(stageName).advice);
+          return (
+            <button
+              key={warning.code}
+              type="button"
+              className="mg-explain-warning"
+              data-severity={warning.severity}
+              disabled={stageName === undefined}
+              onClick={() => {
+                if (stageName !== undefined) {
+                  onSelect(stageName);
+                }
+              }}
+            >
+              <Badge tt="none" color={SEVERITY_COLOR[warning.severity]} variant="light" size="sm">
+                {warning.severity}
+              </Badge>
+              <Code>{warning.code}</Code>
+              {repeats > 1 ? (
+                <Badge tt="none" color="gray" variant="outline" size="sm">
+                  {repeats} stages
+                </Badge>
+              ) : null}
+              <span className="mg-explain-warning-message">
+                {warning.message}
+                {advice === undefined ? null : (
+                  <span className="mg-explain-warning-advice">{advice}</span>
+                )}
+              </span>
+              {stageName === undefined ? null : (
+                <span className="mg-explain-warning-stage">
+                  {repeats > 1 ? `First at ${stageName}` : `Stage ${stageName}`}
+                </span>
               )}
-            </span>
-            {stageName === undefined ? null : (
-              <span className="mg-explain-warning-stage">Stage {stageName}</span>
-            )}
-          </button>
-        );
-      })}
-    </Stack>
+            </button>
+          );
+        })}
+      </Stack>
+    </details>
   );
 }
 
-export interface ExplainPlainLanguageProps {
+export interface ExplainIndexSuggestionProps {
   readonly tree: PlanTree;
   /** The collection the plan is for. The index line needs it. */
   readonly collection: string | undefined;
 }
 
-/** The plan in sentences, and the index that would remove the top warning, ready to copy. */
-export function ExplainPlainLanguage({ tree, collection }: ExplainPlainLanguageProps) {
-  const sentences = explainInWords(tree);
+/** The index that would remove the top warning, ready to copy. Nothing when there is none. */
+export function ExplainIndexSuggestion({ tree, collection }: ExplainIndexSuggestionProps) {
   const keys = suggestedIndexKeys(tree);
   const line =
     keys === undefined || collection === undefined ? undefined : createIndexLine(collection, keys);
@@ -172,24 +199,18 @@ export function ExplainPlainLanguage({ tree, collection }: ExplainPlainLanguageP
     }
   }
 
+  if (line === undefined) {
+    return null;
+  }
   return (
-    <Stack gap={4} className="mg-explain-words">
-      <Text fw={600} size="sm">
-        In plain words
+    <Group gap="xs" wrap="nowrap" align="center">
+      <Text size="sm" c="dimmed" style={{ flex: 'none' }}>
+        Suggested index
       </Text>
-      {sentences.map((sentence, index) => (
-        <Text key={`${index}-${sentence}`} size="sm">
-          {sentence}
-        </Text>
-      ))}
-      {line === undefined ? null : (
-        <Group gap="xs" wrap="nowrap" align="center">
-          <Code className="mg-explain-index-line">{line}</Code>
-          <Button size="xs" variant="default" onClick={() => void copyLine()}>
-            Copy
-          </Button>
-        </Group>
-      )}
-    </Stack>
+      <Code className="mg-explain-index-line">{line}</Code>
+      <Button size="xs" variant="default" onClick={() => void copyLine()}>
+        Copy
+      </Button>
+    </Group>
   );
 }

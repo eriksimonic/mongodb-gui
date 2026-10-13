@@ -84,7 +84,7 @@ Results of a find open as a grid. The tree and JSON views show the same result.
 
 A SQL tab shows the mongosh it runs, beside the editor.
 
-![Explain panel with the summary, a collection scan warning and the plan stages](docs/screenshots/explain.png)
+![Explain panel with the summary, the warnings and the plan graph](docs/screenshots/explain.png)
 
 ## Development
 

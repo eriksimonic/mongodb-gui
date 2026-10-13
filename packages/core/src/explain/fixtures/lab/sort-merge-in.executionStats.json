@@ -1,0 +1,652 @@
+{
+  "explainVersion": "1",
+  "queryPlanner": {
+    "namespace": "explain_lab.orders",
+    "parsedQuery": {
+      "status": {
+        "$in": [
+          "cancelled",
+          "paid",
+          "refunded",
+          "shipped"
+        ]
+      }
+    },
+    "indexFilterSet": false,
+    "queryHash": "9B62F519",
+    "planCacheShapeHash": "9B62F519",
+    "planCacheKey": "5AF4E09C",
+    "optimizationTimeMillis": {
+      "$numberInt": "0"
+    },
+    "maxIndexedOrSolutionsReached": false,
+    "maxIndexedAndSolutionsReached": false,
+    "maxScansToExplodeReached": false,
+    "prunedSimilarIndexes": false,
+    "winningPlan": {
+      "isCached": false,
+      "stage": "LIMIT",
+      "limitAmount": {
+        "$numberInt": "20"
+      },
+      "inputStage": {
+        "stage": "FETCH",
+        "inputStage": {
+          "stage": "SORT_MERGE",
+          "sortPattern": {
+            "createdAt": {
+              "$numberInt": "-1"
+            }
+          },
+          "inputStages": [
+            {
+              "stage": "IXSCAN",
+              "keyPattern": {
+                "status": {
+                  "$numberInt": "1"
+                },
+                "createdAt": {
+                  "$numberInt": "-1"
+                }
+              },
+              "indexName": "status_1_createdAt_-1",
+              "isMultiKey": false,
+              "multiKeyPaths": {
+                "status": [],
+                "createdAt": []
+              },
+              "isUnique": false,
+              "isSparse": false,
+              "isPartial": false,
+              "indexVersion": {
+                "$numberInt": "2"
+              },
+              "direction": "forward",
+              "indexBounds": {
+                "status": [
+                  "[\"cancelled\", \"cancelled\"]"
+                ],
+                "createdAt": [
+                  "[MaxKey, MinKey]"
+                ]
+              }
+            },
+            {
+              "stage": "IXSCAN",
+              "keyPattern": {
+                "status": {
+                  "$numberInt": "1"
+                },
+                "createdAt": {
+                  "$numberInt": "-1"
+                }
+              },
+              "indexName": "status_1_createdAt_-1",
+              "isMultiKey": false,
+              "multiKeyPaths": {
+                "status": [],
+                "createdAt": []
+              },
+              "isUnique": false,
+              "isSparse": false,
+              "isPartial": false,
+              "indexVersion": {
+                "$numberInt": "2"
+              },
+              "direction": "forward",
+              "indexBounds": {
+                "status": [
+                  "[\"paid\", \"paid\"]"
+                ],
+                "createdAt": [
+                  "[MaxKey, MinKey]"
+                ]
+              }
+            },
+            {
+              "stage": "IXSCAN",
+              "keyPattern": {
+                "status": {
+                  "$numberInt": "1"
+                },
+                "createdAt": {
+                  "$numberInt": "-1"
+                }
+              },
+              "indexName": "status_1_createdAt_-1",
+              "isMultiKey": false,
+              "multiKeyPaths": {
+                "status": [],
+                "createdAt": []
+              },
+              "isUnique": false,
+              "isSparse": false,
+              "isPartial": false,
+              "indexVersion": {
+                "$numberInt": "2"
+              },
+              "direction": "forward",
+              "indexBounds": {
+                "status": [
+                  "[\"refunded\", \"refunded\"]"
+                ],
+                "createdAt": [
+                  "[MaxKey, MinKey]"
+                ]
+              }
+            },
+            {
+              "stage": "IXSCAN",
+              "keyPattern": {
+                "status": {
+                  "$numberInt": "1"
+                },
+                "createdAt": {
+                  "$numberInt": "-1"
+                }
+              },
+              "indexName": "status_1_createdAt_-1",
+              "isMultiKey": false,
+              "multiKeyPaths": {
+                "status": [],
+                "createdAt": []
+              },
+              "isUnique": false,
+              "isSparse": false,
+              "isPartial": false,
+              "indexVersion": {
+                "$numberInt": "2"
+              },
+              "direction": "forward",
+              "indexBounds": {
+                "status": [
+                  "[\"shipped\", \"shipped\"]"
+                ],
+                "createdAt": [
+                  "[MaxKey, MinKey]"
+                ]
+              }
+            }
+          ]
+        }
+      }
+    },
+    "rejectedPlans": []
+  },
+  "executionStats": {
+    "executionSuccess": true,
+    "nReturned": {
+      "$numberInt": "20"
+    },
+    "executionTimeMillis": {
+      "$numberInt": "0"
+    },
+    "totalKeysExamined": {
+      "$numberInt": "23"
+    },
+    "totalDocsExamined": {
+      "$numberInt": "20"
+    },
+    "executionStages": {
+      "isCached": false,
+      "stage": "LIMIT",
+      "nReturned": {
+        "$numberInt": "20"
+      },
+      "executionTimeMillisEstimate": {
+        "$numberInt": "0"
+      },
+      "works": {
+        "$numberInt": "44"
+      },
+      "advanced": {
+        "$numberInt": "20"
+      },
+      "needTime": {
+        "$numberInt": "23"
+      },
+      "needYield": {
+        "$numberInt": "0"
+      },
+      "saveState": {
+        "$numberInt": "0"
+      },
+      "restoreState": {
+        "$numberInt": "0"
+      },
+      "isEOF": {
+        "$numberInt": "1"
+      },
+      "limitAmount": {
+        "$numberInt": "20"
+      },
+      "inputStage": {
+        "stage": "FETCH",
+        "nReturned": {
+          "$numberInt": "20"
+        },
+        "executionTimeMillisEstimate": {
+          "$numberInt": "0"
+        },
+        "works": {
+          "$numberInt": "43"
+        },
+        "advanced": {
+          "$numberInt": "20"
+        },
+        "needTime": {
+          "$numberInt": "23"
+        },
+        "needYield": {
+          "$numberInt": "0"
+        },
+        "saveState": {
+          "$numberInt": "0"
+        },
+        "restoreState": {
+          "$numberInt": "0"
+        },
+        "isEOF": {
+          "$numberInt": "0"
+        },
+        "docsExamined": {
+          "$numberInt": "20"
+        },
+        "alreadyHasObj": {
+          "$numberInt": "0"
+        },
+        "inputStage": {
+          "stage": "SORT_MERGE",
+          "nReturned": {
+            "$numberInt": "20"
+          },
+          "executionTimeMillisEstimate": {
+            "$numberInt": "0"
+          },
+          "works": {
+            "$numberInt": "43"
+          },
+          "advanced": {
+            "$numberInt": "20"
+          },
+          "needTime": {
+            "$numberInt": "23"
+          },
+          "needYield": {
+            "$numberInt": "0"
+          },
+          "saveState": {
+            "$numberInt": "0"
+          },
+          "restoreState": {
+            "$numberInt": "0"
+          },
+          "isEOF": {
+            "$numberInt": "0"
+          },
+          "sortPattern": {
+            "createdAt": {
+              "$numberInt": "-1"
+            }
+          },
+          "dupsTested": {
+            "$numberInt": "0"
+          },
+          "dupsDropped": {
+            "$numberInt": "0"
+          },
+          "inputStages": [
+            {
+              "stage": "IXSCAN",
+              "nReturned": {
+                "$numberInt": "4"
+              },
+              "executionTimeMillisEstimate": {
+                "$numberInt": "0"
+              },
+              "works": {
+                "$numberInt": "4"
+              },
+              "advanced": {
+                "$numberInt": "4"
+              },
+              "needTime": {
+                "$numberInt": "0"
+              },
+              "needYield": {
+                "$numberInt": "0"
+              },
+              "saveState": {
+                "$numberInt": "0"
+              },
+              "restoreState": {
+                "$numberInt": "0"
+              },
+              "isEOF": {
+                "$numberInt": "0"
+              },
+              "keyPattern": {
+                "status": {
+                  "$numberInt": "1"
+                },
+                "createdAt": {
+                  "$numberInt": "-1"
+                }
+              },
+              "indexName": "status_1_createdAt_-1",
+              "isMultiKey": false,
+              "multiKeyPaths": {
+                "status": [],
+                "createdAt": []
+              },
+              "isUnique": false,
+              "isSparse": false,
+              "isPartial": false,
+              "indexVersion": {
+                "$numberInt": "2"
+              },
+              "direction": "forward",
+              "indexBounds": {
+                "status": [
+                  "[\"cancelled\", \"cancelled\"]"
+                ],
+                "createdAt": [
+                  "[MaxKey, MinKey]"
+                ]
+              },
+              "keysExamined": {
+                "$numberInt": "4"
+              },
+              "seeks": {
+                "$numberInt": "1"
+              },
+              "dupsTested": {
+                "$numberInt": "0"
+              },
+              "dupsDropped": {
+                "$numberInt": "0"
+              }
+            },
+            {
+              "stage": "IXSCAN",
+              "nReturned": {
+                "$numberInt": "6"
+              },
+              "executionTimeMillisEstimate": {
+                "$numberInt": "0"
+              },
+              "works": {
+                "$numberInt": "6"
+              },
+              "advanced": {
+                "$numberInt": "6"
+              },
+              "needTime": {
+                "$numberInt": "0"
+              },
+              "needYield": {
+                "$numberInt": "0"
+              },
+              "saveState": {
+                "$numberInt": "0"
+              },
+              "restoreState": {
+                "$numberInt": "0"
+              },
+              "isEOF": {
+                "$numberInt": "0"
+              },
+              "keyPattern": {
+                "status": {
+                  "$numberInt": "1"
+                },
+                "createdAt": {
+                  "$numberInt": "-1"
+                }
+              },
+              "indexName": "status_1_createdAt_-1",
+              "isMultiKey": false,
+              "multiKeyPaths": {
+                "status": [],
+                "createdAt": []
+              },
+              "isUnique": false,
+              "isSparse": false,
+              "isPartial": false,
+              "indexVersion": {
+                "$numberInt": "2"
+              },
+              "direction": "forward",
+              "indexBounds": {
+                "status": [
+                  "[\"paid\", \"paid\"]"
+                ],
+                "createdAt": [
+                  "[MaxKey, MinKey]"
+                ]
+              },
+              "keysExamined": {
+                "$numberInt": "6"
+              },
+              "seeks": {
+                "$numberInt": "1"
+              },
+              "dupsTested": {
+                "$numberInt": "0"
+              },
+              "dupsDropped": {
+                "$numberInt": "0"
+              }
+            },
+            {
+              "stage": "IXSCAN",
+              "nReturned": {
+                "$numberInt": "9"
+              },
+              "executionTimeMillisEstimate": {
+                "$numberInt": "0"
+              },
+              "works": {
+                "$numberInt": "9"
+              },
+              "advanced": {
+                "$numberInt": "9"
+              },
+              "needTime": {
+                "$numberInt": "0"
+              },
+              "needYield": {
+                "$numberInt": "0"
+              },
+              "saveState": {
+                "$numberInt": "0"
+              },
+              "restoreState": {
+                "$numberInt": "0"
+              },
+              "isEOF": {
+                "$numberInt": "0"
+              },
+              "keyPattern": {
+                "status": {
+                  "$numberInt": "1"
+                },
+                "createdAt": {
+                  "$numberInt": "-1"
+                }
+              },
+              "indexName": "status_1_createdAt_-1",
+              "isMultiKey": false,
+              "multiKeyPaths": {
+                "status": [],
+                "createdAt": []
+              },
+              "isUnique": false,
+              "isSparse": false,
+              "isPartial": false,
+              "indexVersion": {
+                "$numberInt": "2"
+              },
+              "direction": "forward",
+              "indexBounds": {
+                "status": [
+                  "[\"refunded\", \"refunded\"]"
+                ],
+                "createdAt": [
+                  "[MaxKey, MinKey]"
+                ]
+              },
+              "keysExamined": {
+                "$numberInt": "9"
+              },
+              "seeks": {
+                "$numberInt": "1"
+              },
+              "dupsTested": {
+                "$numberInt": "0"
+              },
+              "dupsDropped": {
+                "$numberInt": "0"
+              }
+            },
+            {
+              "stage": "IXSCAN",
+              "nReturned": {
+                "$numberInt": "4"
+              },
+              "executionTimeMillisEstimate": {
+                "$numberInt": "0"
+              },
+              "works": {
+                "$numberInt": "4"
+              },
+              "advanced": {
+                "$numberInt": "4"
+              },
+              "needTime": {
+                "$numberInt": "0"
+              },
+              "needYield": {
+                "$numberInt": "0"
+              },
+              "saveState": {
+                "$numberInt": "0"
+              },
+              "restoreState": {
+                "$numberInt": "0"
+              },
+              "isEOF": {
+                "$numberInt": "0"
+              },
+              "keyPattern": {
+                "status": {
+                  "$numberInt": "1"
+                },
+                "createdAt": {
+                  "$numberInt": "-1"
+                }
+              },
+              "indexName": "status_1_createdAt_-1",
+              "isMultiKey": false,
+              "multiKeyPaths": {
+                "status": [],
+                "createdAt": []
+              },
+              "isUnique": false,
+              "isSparse": false,
+              "isPartial": false,
+              "indexVersion": {
+                "$numberInt": "2"
+              },
+              "direction": "forward",
+              "indexBounds": {
+                "status": [
+                  "[\"shipped\", \"shipped\"]"
+                ],
+                "createdAt": [
+                  "[MaxKey, MinKey]"
+                ]
+              },
+              "keysExamined": {
+                "$numberInt": "4"
+              },
+              "seeks": {
+                "$numberInt": "1"
+              },
+              "dupsTested": {
+                "$numberInt": "0"
+              },
+              "dupsDropped": {
+                "$numberInt": "0"
+              }
+            }
+          ]
+        }
+      }
+    }
+  },
+  "queryShapeHash": "FA35AB86D7C3C819425ABBFCCBEBB2C9787BB1FA8F9E6D8818250954B2D03681",
+  "command": {
+    "find": "orders",
+    "filter": {
+      "status": {
+        "$in": [
+          "paid",
+          "shipped",
+          "refunded",
+          "cancelled"
+        ]
+      }
+    },
+    "sort": {
+      "createdAt": {
+        "$numberInt": "-1"
+      }
+    },
+    "limit": {
+      "$numberInt": "20"
+    },
+    "$db": "explain_lab"
+  },
+  "serverInfo": {
+    "host": "fdbd5b54de48",
+    "port": {
+      "$numberInt": "27017"
+    },
+    "version": "8.0.17",
+    "gitVersion": "b20e43625b72f4bb43cc15107f80ac966ae13b6d"
+  },
+  "serverParameters": {
+    "internalQueryFacetBufferSizeBytes": {
+      "$numberInt": "104857600"
+    },
+    "internalQueryFacetMaxOutputDocSizeBytes": {
+      "$numberInt": "104857600"
+    },
+    "internalLookupStageIntermediateDocumentMaxSizeBytes": {
+      "$numberInt": "104857600"
+    },
+    "internalDocumentSourceGroupMaxMemoryBytes": {
+      "$numberInt": "104857600"
+    },
+    "internalQueryMaxBlockingSortMemoryUsageBytes": {
+      "$numberInt": "104857600"
+    },
+    "internalQueryProhibitBlockingMergeOnMongoS": {
+      "$numberInt": "0"
+    },
+    "internalQueryMaxAddToSetBytes": {
+      "$numberInt": "104857600"
+    },
+    "internalDocumentSourceSetWindowFieldsMaxMemoryBytes": {
+      "$numberInt": "104857600"
+    },
+    "internalQueryFrameworkControl": "trySbeRestricted",
+    "internalQueryPlannerIgnoreIndexWithCollationForRegex": {
+      "$numberInt": "1"
+    }
+  },
+  "ok": {
+    "$numberInt": "1"
+  }
+}

@@ -36,10 +36,13 @@ import {
   barMetricFor,
   barPercent,
   hotStageId,
+  isMeasured,
   maxMetric,
   metricOf,
   planRows,
   revealKeys,
+  stageDetail,
+  UNMEASURED_TIP,
   type BarMetric,
   type PlanRow,
 } from './explain-model';
@@ -410,7 +413,7 @@ interface StageIconProps {
 }
 
 /** The category icon, in the category colour. Unknown stages get the neutral icon. */
-function StageIcon({ info }: StageIconProps) {
+export function StageIcon({ info }: StageIconProps) {
   const scheme = useComputedColorScheme('dark');
   const Glyph = CATEGORY_ICON[info.category];
   const slot = CATEGORY_SLOT[info.category];
@@ -538,12 +541,19 @@ function StageRowBody({ row, metric, max, hot, onToggle }: StageRowBodyProps) {
           ))}
         </div>
       )}
-      <span className="mg-explain-bar" aria-hidden="true">
-        <span
-          className={hot ? 'mg-explain-bar-fill mg-explain-bar-hot' : 'mg-explain-bar-fill'}
-          style={{ width: `${percent}%` }}
-        />
-      </span>
+      {isMeasured(stage) ? (
+        <span className="mg-explain-bar" aria-hidden="true">
+          <span
+            className={hot ? 'mg-explain-bar-fill mg-explain-bar-hot' : 'mg-explain-bar-fill'}
+            style={{ width: `${percent}%` }}
+          />
+        </span>
+      ) : (
+        <div className="mg-explain-metrics" title={UNMEASURED_TIP}>
+          <code>{stageDetail(stage)}</code>
+          <span className="mg-explain-unmeasured">not measured</span>
+        </div>
+      )}
       {bounds.length === 0 ? null : (
         <details className="mg-explain-bounds" onClick={(event) => event.stopPropagation()}>
           <summary>Index bounds</summary>

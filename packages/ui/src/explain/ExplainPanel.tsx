@@ -20,8 +20,9 @@ import { useState } from 'react';
 import { errorText } from '../components/notify-error';
 import { useAppStore } from '../state/app-store-context';
 import { stageIdByName, type ExplainPanelState } from './explain-model';
-import { ExplainPlainLanguage, ExplainSummaryBar, ExplainWarnings } from './ExplainParts';
+import { ExplainIndexSuggestion, ExplainSummaryBar, ExplainWarnings } from './ExplainParts';
 import { ExplainRaw } from './ExplainRaw';
+import { PlanGraphView } from './PlanGraphView';
 import { PlanTreeView, type StageSelection } from './PlanTreeView';
 import './explain.css';
 
@@ -33,6 +34,11 @@ export interface ExplainPanelProps {
 const VERBOSITIES = PlanVerbositySchema.options;
 
 const VERBOSITY_DATA = VERBOSITIES.map((value) => ({ value, label: value }));
+
+const VIEW_DATA = [
+  { value: 'graph', label: 'Graph' },
+  { value: 'list', label: 'List' },
+];
 
 function isVerbosity(value: string): value is PlanVerbosity {
   return VERBOSITIES.some((verbosity) => verbosity === value);
@@ -141,7 +147,17 @@ function ExplainPanelBody({ panel }: { readonly panel: ExplainPanelState }) {
             <Tabs.Tab value="plan">Plan</Tabs.Tab>
             <Tabs.Tab value="raw">Raw</Tabs.Tab>
           </Tabs.List>
-          <Tabs.Panel value="plan" pt="sm" style={{ minHeight: 0, overflow: 'auto' }}>
+          <Tabs.Panel
+            value="plan"
+            pt="sm"
+            style={{
+              flex: 1,
+              minHeight: 0,
+              overflow: 'auto',
+              display: 'flex',
+              flexDirection: 'column',
+            }}
+          >
             <PlanView
               tree={outcome.result.tree}
               collection={panel.collection}
@@ -170,11 +186,12 @@ interface PlanViewProps {
 }
 
 function PlanView({ tree, collection, selection, onSelect }: PlanViewProps) {
+  const [view, setView] = useState<'graph' | 'list'>('graph');
   if (tree.command === 'unknown') {
     return <NoPlan message={explainInWords(tree)[0] ?? 'The explain output is not a plan.'} />;
   }
   return (
-    <Stack gap="sm">
+    <Stack gap="sm" className="mg-explain-plan" style={{ flex: 1, minHeight: 0 }}>
       <ExplainSummaryBar tree={tree} />
       <ExplainWarnings
         warnings={tree.warnings}
@@ -185,13 +202,30 @@ function PlanView({ tree, collection, selection, onSelect }: PlanViewProps) {
           }
         }}
       />
-      <ExplainPlainLanguage tree={tree} collection={collection} />
-      <PlanTreeView
-        root={tree.winning}
-        rejected={tree.rejected}
-        selection={selection}
-        onSelect={onSelect}
+      <ExplainIndexSuggestion tree={tree} collection={collection} />
+      <SegmentedControl
+        size="xs"
+        aria-label="Plan view"
+        data={VIEW_DATA}
+        value={view}
+        onChange={(value) => setView(value === 'list' ? 'list' : 'graph')}
+        style={{ alignSelf: 'flex-start' }}
       />
+      {view === 'graph' ? (
+        <PlanGraphView
+          root={tree.winning}
+          rejected={tree.rejected}
+          selection={selection}
+          onSelect={onSelect}
+        />
+      ) : (
+        <PlanTreeView
+          root={tree.winning}
+          rejected={tree.rejected}
+          selection={selection}
+          onSelect={onSelect}
+        />
+      )}
     </Stack>
   );
 }

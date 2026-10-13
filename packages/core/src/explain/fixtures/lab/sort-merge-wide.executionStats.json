@@ -1,0 +1,1111 @@
+{
+  "explainVersion": "1",
+  "queryPlanner": {
+    "namespace": "explain_lab.orders",
+    "parsedQuery": {
+      "$or": [
+        {
+          "$and": [
+            {
+              "status": {
+                "$eq": "refunded"
+              }
+            },
+            {
+              "total": {
+                "$gt": {
+                  "$numberInt": "1500"
+                }
+              }
+            }
+          ]
+        },
+        {
+          "channel": {
+            "$in": [
+              "phone",
+              "store"
+            ]
+          }
+        },
+        {
+          "customerId": {
+            "$in": [
+              {
+                "$numberInt": "7"
+              },
+              {
+                "$numberInt": "42"
+              },
+              {
+                "$numberInt": "99"
+              },
+              {
+                "$numberInt": "512"
+              }
+            ]
+          }
+        }
+      ]
+    },
+    "indexFilterSet": false,
+    "queryHash": "567B4531",
+    "planCacheShapeHash": "567B4531",
+    "planCacheKey": "50971EA2",
+    "optimizationTimeMillis": {
+      "$numberInt": "0"
+    },
+    "maxIndexedOrSolutionsReached": false,
+    "maxIndexedAndSolutionsReached": false,
+    "maxScansToExplodeReached": false,
+    "prunedSimilarIndexes": false,
+    "winningPlan": {
+      "isCached": false,
+      "stage": "SUBPLAN",
+      "inputStage": {
+        "stage": "LIMIT",
+        "limitAmount": {
+          "$numberInt": "100"
+        },
+        "inputStage": {
+          "stage": "FETCH",
+          "inputStage": {
+            "stage": "SORT_MERGE",
+            "sortPattern": {
+              "createdAt": {
+                "$numberInt": "-1"
+              }
+            },
+            "inputStages": [
+              {
+                "stage": "FETCH",
+                "filter": {
+                  "total": {
+                    "$gt": {
+                      "$numberInt": "1500"
+                    }
+                  }
+                },
+                "inputStage": {
+                  "stage": "IXSCAN",
+                  "keyPattern": {
+                    "status": {
+                      "$numberInt": "1"
+                    },
+                    "createdAt": {
+                      "$numberInt": "-1"
+                    }
+                  },
+                  "indexName": "status_1_createdAt_-1",
+                  "isMultiKey": false,
+                  "multiKeyPaths": {
+                    "status": [],
+                    "createdAt": []
+                  },
+                  "isUnique": false,
+                  "isSparse": false,
+                  "isPartial": false,
+                  "indexVersion": {
+                    "$numberInt": "2"
+                  },
+                  "direction": "forward",
+                  "indexBounds": {
+                    "status": [
+                      "[\"refunded\", \"refunded\"]"
+                    ],
+                    "createdAt": [
+                      "[MaxKey, MinKey]"
+                    ]
+                  }
+                }
+              },
+              {
+                "stage": "IXSCAN",
+                "keyPattern": {
+                  "channel": {
+                    "$numberInt": "1"
+                  },
+                  "createdAt": {
+                    "$numberInt": "-1"
+                  }
+                },
+                "indexName": "channel_1_createdAt_-1",
+                "isMultiKey": false,
+                "multiKeyPaths": {
+                  "channel": [],
+                  "createdAt": []
+                },
+                "isUnique": false,
+                "isSparse": false,
+                "isPartial": false,
+                "indexVersion": {
+                  "$numberInt": "2"
+                },
+                "direction": "forward",
+                "indexBounds": {
+                  "channel": [
+                    "[\"phone\", \"phone\"]"
+                  ],
+                  "createdAt": [
+                    "[MaxKey, MinKey]"
+                  ]
+                }
+              },
+              {
+                "stage": "IXSCAN",
+                "keyPattern": {
+                  "channel": {
+                    "$numberInt": "1"
+                  },
+                  "createdAt": {
+                    "$numberInt": "-1"
+                  }
+                },
+                "indexName": "channel_1_createdAt_-1",
+                "isMultiKey": false,
+                "multiKeyPaths": {
+                  "channel": [],
+                  "createdAt": []
+                },
+                "isUnique": false,
+                "isSparse": false,
+                "isPartial": false,
+                "indexVersion": {
+                  "$numberInt": "2"
+                },
+                "direction": "forward",
+                "indexBounds": {
+                  "channel": [
+                    "[\"store\", \"store\"]"
+                  ],
+                  "createdAt": [
+                    "[MaxKey, MinKey]"
+                  ]
+                }
+              },
+              {
+                "stage": "IXSCAN",
+                "keyPattern": {
+                  "customerId": {
+                    "$numberInt": "1"
+                  },
+                  "createdAt": {
+                    "$numberInt": "-1"
+                  }
+                },
+                "indexName": "customerId_1_createdAt_-1",
+                "isMultiKey": false,
+                "multiKeyPaths": {
+                  "customerId": [],
+                  "createdAt": []
+                },
+                "isUnique": false,
+                "isSparse": false,
+                "isPartial": false,
+                "indexVersion": {
+                  "$numberInt": "2"
+                },
+                "direction": "forward",
+                "indexBounds": {
+                  "customerId": [
+                    "[7, 7]"
+                  ],
+                  "createdAt": [
+                    "[MaxKey, MinKey]"
+                  ]
+                }
+              },
+              {
+                "stage": "IXSCAN",
+                "keyPattern": {
+                  "customerId": {
+                    "$numberInt": "1"
+                  },
+                  "createdAt": {
+                    "$numberInt": "-1"
+                  }
+                },
+                "indexName": "customerId_1_createdAt_-1",
+                "isMultiKey": false,
+                "multiKeyPaths": {
+                  "customerId": [],
+                  "createdAt": []
+                },
+                "isUnique": false,
+                "isSparse": false,
+                "isPartial": false,
+                "indexVersion": {
+                  "$numberInt": "2"
+                },
+                "direction": "forward",
+                "indexBounds": {
+                  "customerId": [
+                    "[42, 42]"
+                  ],
+                  "createdAt": [
+                    "[MaxKey, MinKey]"
+                  ]
+                }
+              },
+              {
+                "stage": "IXSCAN",
+                "keyPattern": {
+                  "customerId": {
+                    "$numberInt": "1"
+                  },
+                  "createdAt": {
+                    "$numberInt": "-1"
+                  }
+                },
+                "indexName": "customerId_1_createdAt_-1",
+                "isMultiKey": false,
+                "multiKeyPaths": {
+                  "customerId": [],
+                  "createdAt": []
+                },
+                "isUnique": false,
+                "isSparse": false,
+                "isPartial": false,
+                "indexVersion": {
+                  "$numberInt": "2"
+                },
+                "direction": "forward",
+                "indexBounds": {
+                  "customerId": [
+                    "[99, 99]"
+                  ],
+                  "createdAt": [
+                    "[MaxKey, MinKey]"
+                  ]
+                }
+              },
+              {
+                "stage": "IXSCAN",
+                "keyPattern": {
+                  "customerId": {
+                    "$numberInt": "1"
+                  },
+                  "createdAt": {
+                    "$numberInt": "-1"
+                  }
+                },
+                "indexName": "customerId_1_createdAt_-1",
+                "isMultiKey": false,
+                "multiKeyPaths": {
+                  "customerId": [],
+                  "createdAt": []
+                },
+                "isUnique": false,
+                "isSparse": false,
+                "isPartial": false,
+                "indexVersion": {
+                  "$numberInt": "2"
+                },
+                "direction": "forward",
+                "indexBounds": {
+                  "customerId": [
+                    "[512, 512]"
+                  ],
+                  "createdAt": [
+                    "[MaxKey, MinKey]"
+                  ]
+                }
+              }
+            ]
+          }
+        }
+      }
+    },
+    "rejectedPlans": []
+  },
+  "executionStats": {
+    "executionSuccess": true,
+    "nReturned": {
+      "$numberInt": "100"
+    },
+    "executionTimeMillis": {
+      "$numberInt": "1"
+    },
+    "totalKeysExamined": {
+      "$numberInt": "132"
+    },
+    "totalDocsExamined": {
+      "$numberInt": "128"
+    },
+    "executionStages": {
+      "isCached": false,
+      "stage": "SUBPLAN",
+      "nReturned": {
+        "$numberInt": "100"
+      },
+      "executionTimeMillisEstimate": {
+        "$numberInt": "2"
+      },
+      "works": {
+        "$numberInt": "233"
+      },
+      "advanced": {
+        "$numberInt": "100"
+      },
+      "needTime": {
+        "$numberInt": "132"
+      },
+      "needYield": {
+        "$numberInt": "0"
+      },
+      "saveState": {
+        "$numberInt": "0"
+      },
+      "restoreState": {
+        "$numberInt": "0"
+      },
+      "isEOF": {
+        "$numberInt": "1"
+      },
+      "inputStage": {
+        "stage": "LIMIT",
+        "nReturned": {
+          "$numberInt": "100"
+        },
+        "executionTimeMillisEstimate": {
+          "$numberInt": "2"
+        },
+        "works": {
+          "$numberInt": "232"
+        },
+        "advanced": {
+          "$numberInt": "100"
+        },
+        "needTime": {
+          "$numberInt": "132"
+        },
+        "needYield": {
+          "$numberInt": "0"
+        },
+        "saveState": {
+          "$numberInt": "0"
+        },
+        "restoreState": {
+          "$numberInt": "0"
+        },
+        "isEOF": {
+          "$numberInt": "1"
+        },
+        "limitAmount": {
+          "$numberInt": "100"
+        },
+        "inputStage": {
+          "stage": "FETCH",
+          "nReturned": {
+            "$numberInt": "100"
+          },
+          "executionTimeMillisEstimate": {
+            "$numberInt": "2"
+          },
+          "works": {
+            "$numberInt": "232"
+          },
+          "advanced": {
+            "$numberInt": "100"
+          },
+          "needTime": {
+            "$numberInt": "132"
+          },
+          "needYield": {
+            "$numberInt": "0"
+          },
+          "saveState": {
+            "$numberInt": "0"
+          },
+          "restoreState": {
+            "$numberInt": "0"
+          },
+          "isEOF": {
+            "$numberInt": "0"
+          },
+          "docsExamined": {
+            "$numberInt": "100"
+          },
+          "alreadyHasObj": {
+            "$numberInt": "6"
+          },
+          "inputStage": {
+            "stage": "SORT_MERGE",
+            "nReturned": {
+              "$numberInt": "100"
+            },
+            "executionTimeMillisEstimate": {
+              "$numberInt": "2"
+            },
+            "works": {
+              "$numberInt": "232"
+            },
+            "advanced": {
+              "$numberInt": "100"
+            },
+            "needTime": {
+              "$numberInt": "132"
+            },
+            "needYield": {
+              "$numberInt": "0"
+            },
+            "saveState": {
+              "$numberInt": "0"
+            },
+            "restoreState": {
+              "$numberInt": "0"
+            },
+            "isEOF": {
+              "$numberInt": "0"
+            },
+            "sortPattern": {
+              "createdAt": {
+                "$numberInt": "-1"
+              }
+            },
+            "dupsTested": {
+              "$numberInt": "113"
+            },
+            "dupsDropped": {
+              "$numberInt": "7"
+            },
+            "inputStages": [
+              {
+                "stage": "FETCH",
+                "filter": {
+                  "total": {
+                    "$gt": {
+                      "$numberInt": "1500"
+                    }
+                  }
+                },
+                "nReturned": {
+                  "$numberInt": "9"
+                },
+                "executionTimeMillisEstimate": {
+                  "$numberInt": "0"
+                },
+                "works": {
+                  "$numberInt": "28"
+                },
+                "advanced": {
+                  "$numberInt": "9"
+                },
+                "needTime": {
+                  "$numberInt": "19"
+                },
+                "needYield": {
+                  "$numberInt": "0"
+                },
+                "saveState": {
+                  "$numberInt": "0"
+                },
+                "restoreState": {
+                  "$numberInt": "0"
+                },
+                "isEOF": {
+                  "$numberInt": "0"
+                },
+                "docsExamined": {
+                  "$numberInt": "28"
+                },
+                "alreadyHasObj": {
+                  "$numberInt": "0"
+                },
+                "inputStage": {
+                  "stage": "IXSCAN",
+                  "nReturned": {
+                    "$numberInt": "28"
+                  },
+                  "executionTimeMillisEstimate": {
+                    "$numberInt": "0"
+                  },
+                  "works": {
+                    "$numberInt": "28"
+                  },
+                  "advanced": {
+                    "$numberInt": "28"
+                  },
+                  "needTime": {
+                    "$numberInt": "0"
+                  },
+                  "needYield": {
+                    "$numberInt": "0"
+                  },
+                  "saveState": {
+                    "$numberInt": "0"
+                  },
+                  "restoreState": {
+                    "$numberInt": "0"
+                  },
+                  "isEOF": {
+                    "$numberInt": "0"
+                  },
+                  "keyPattern": {
+                    "status": {
+                      "$numberInt": "1"
+                    },
+                    "createdAt": {
+                      "$numberInt": "-1"
+                    }
+                  },
+                  "indexName": "status_1_createdAt_-1",
+                  "isMultiKey": false,
+                  "multiKeyPaths": {
+                    "status": [],
+                    "createdAt": []
+                  },
+                  "isUnique": false,
+                  "isSparse": false,
+                  "isPartial": false,
+                  "indexVersion": {
+                    "$numberInt": "2"
+                  },
+                  "direction": "forward",
+                  "indexBounds": {
+                    "status": [
+                      "[\"refunded\", \"refunded\"]"
+                    ],
+                    "createdAt": [
+                      "[MaxKey, MinKey]"
+                    ]
+                  },
+                  "keysExamined": {
+                    "$numberInt": "28"
+                  },
+                  "seeks": {
+                    "$numberInt": "1"
+                  },
+                  "dupsTested": {
+                    "$numberInt": "0"
+                  },
+                  "dupsDropped": {
+                    "$numberInt": "0"
+                  }
+                }
+              },
+              {
+                "stage": "IXSCAN",
+                "nReturned": {
+                  "$numberInt": "55"
+                },
+                "executionTimeMillisEstimate": {
+                  "$numberInt": "0"
+                },
+                "works": {
+                  "$numberInt": "55"
+                },
+                "advanced": {
+                  "$numberInt": "55"
+                },
+                "needTime": {
+                  "$numberInt": "0"
+                },
+                "needYield": {
+                  "$numberInt": "0"
+                },
+                "saveState": {
+                  "$numberInt": "0"
+                },
+                "restoreState": {
+                  "$numberInt": "0"
+                },
+                "isEOF": {
+                  "$numberInt": "0"
+                },
+                "keyPattern": {
+                  "channel": {
+                    "$numberInt": "1"
+                  },
+                  "createdAt": {
+                    "$numberInt": "-1"
+                  }
+                },
+                "indexName": "channel_1_createdAt_-1",
+                "isMultiKey": false,
+                "multiKeyPaths": {
+                  "channel": [],
+                  "createdAt": []
+                },
+                "isUnique": false,
+                "isSparse": false,
+                "isPartial": false,
+                "indexVersion": {
+                  "$numberInt": "2"
+                },
+                "direction": "forward",
+                "indexBounds": {
+                  "channel": [
+                    "[\"phone\", \"phone\"]"
+                  ],
+                  "createdAt": [
+                    "[MaxKey, MinKey]"
+                  ]
+                },
+                "keysExamined": {
+                  "$numberInt": "55"
+                },
+                "seeks": {
+                  "$numberInt": "1"
+                },
+                "dupsTested": {
+                  "$numberInt": "0"
+                },
+                "dupsDropped": {
+                  "$numberInt": "0"
+                }
+              },
+              {
+                "stage": "IXSCAN",
+                "nReturned": {
+                  "$numberInt": "45"
+                },
+                "executionTimeMillisEstimate": {
+                  "$numberInt": "0"
+                },
+                "works": {
+                  "$numberInt": "45"
+                },
+                "advanced": {
+                  "$numberInt": "45"
+                },
+                "needTime": {
+                  "$numberInt": "0"
+                },
+                "needYield": {
+                  "$numberInt": "0"
+                },
+                "saveState": {
+                  "$numberInt": "0"
+                },
+                "restoreState": {
+                  "$numberInt": "0"
+                },
+                "isEOF": {
+                  "$numberInt": "0"
+                },
+                "keyPattern": {
+                  "channel": {
+                    "$numberInt": "1"
+                  },
+                  "createdAt": {
+                    "$numberInt": "-1"
+                  }
+                },
+                "indexName": "channel_1_createdAt_-1",
+                "isMultiKey": false,
+                "multiKeyPaths": {
+                  "channel": [],
+                  "createdAt": []
+                },
+                "isUnique": false,
+                "isSparse": false,
+                "isPartial": false,
+                "indexVersion": {
+                  "$numberInt": "2"
+                },
+                "direction": "forward",
+                "indexBounds": {
+                  "channel": [
+                    "[\"store\", \"store\"]"
+                  ],
+                  "createdAt": [
+                    "[MaxKey, MinKey]"
+                  ]
+                },
+                "keysExamined": {
+                  "$numberInt": "45"
+                },
+                "seeks": {
+                  "$numberInt": "1"
+                },
+                "dupsTested": {
+                  "$numberInt": "0"
+                },
+                "dupsDropped": {
+                  "$numberInt": "0"
+                }
+              },
+              {
+                "stage": "IXSCAN",
+                "nReturned": {
+                  "$numberInt": "1"
+                },
+                "executionTimeMillisEstimate": {
+                  "$numberInt": "0"
+                },
+                "works": {
+                  "$numberInt": "1"
+                },
+                "advanced": {
+                  "$numberInt": "1"
+                },
+                "needTime": {
+                  "$numberInt": "0"
+                },
+                "needYield": {
+                  "$numberInt": "0"
+                },
+                "saveState": {
+                  "$numberInt": "0"
+                },
+                "restoreState": {
+                  "$numberInt": "0"
+                },
+                "isEOF": {
+                  "$numberInt": "0"
+                },
+                "keyPattern": {
+                  "customerId": {
+                    "$numberInt": "1"
+                  },
+                  "createdAt": {
+                    "$numberInt": "-1"
+                  }
+                },
+                "indexName": "customerId_1_createdAt_-1",
+                "isMultiKey": false,
+                "multiKeyPaths": {
+                  "customerId": [],
+                  "createdAt": []
+                },
+                "isUnique": false,
+                "isSparse": false,
+                "isPartial": false,
+                "indexVersion": {
+                  "$numberInt": "2"
+                },
+                "direction": "forward",
+                "indexBounds": {
+                  "customerId": [
+                    "[7, 7]"
+                  ],
+                  "createdAt": [
+                    "[MaxKey, MinKey]"
+                  ]
+                },
+                "keysExamined": {
+                  "$numberInt": "1"
+                },
+                "seeks": {
+                  "$numberInt": "1"
+                },
+                "dupsTested": {
+                  "$numberInt": "0"
+                },
+                "dupsDropped": {
+                  "$numberInt": "0"
+                }
+              },
+              {
+                "stage": "IXSCAN",
+                "nReturned": {
+                  "$numberInt": "1"
+                },
+                "executionTimeMillisEstimate": {
+                  "$numberInt": "0"
+                },
+                "works": {
+                  "$numberInt": "1"
+                },
+                "advanced": {
+                  "$numberInt": "1"
+                },
+                "needTime": {
+                  "$numberInt": "0"
+                },
+                "needYield": {
+                  "$numberInt": "0"
+                },
+                "saveState": {
+                  "$numberInt": "0"
+                },
+                "restoreState": {
+                  "$numberInt": "0"
+                },
+                "isEOF": {
+                  "$numberInt": "0"
+                },
+                "keyPattern": {
+                  "customerId": {
+                    "$numberInt": "1"
+                  },
+                  "createdAt": {
+                    "$numberInt": "-1"
+                  }
+                },
+                "indexName": "customerId_1_createdAt_-1",
+                "isMultiKey": false,
+                "multiKeyPaths": {
+                  "customerId": [],
+                  "createdAt": []
+                },
+                "isUnique": false,
+                "isSparse": false,
+                "isPartial": false,
+                "indexVersion": {
+                  "$numberInt": "2"
+                },
+                "direction": "forward",
+                "indexBounds": {
+                  "customerId": [
+                    "[42, 42]"
+                  ],
+                  "createdAt": [
+                    "[MaxKey, MinKey]"
+                  ]
+                },
+                "keysExamined": {
+                  "$numberInt": "1"
+                },
+                "seeks": {
+                  "$numberInt": "1"
+                },
+                "dupsTested": {
+                  "$numberInt": "0"
+                },
+                "dupsDropped": {
+                  "$numberInt": "0"
+                }
+              },
+              {
+                "stage": "IXSCAN",
+                "nReturned": {
+                  "$numberInt": "1"
+                },
+                "executionTimeMillisEstimate": {
+                  "$numberInt": "0"
+                },
+                "works": {
+                  "$numberInt": "1"
+                },
+                "advanced": {
+                  "$numberInt": "1"
+                },
+                "needTime": {
+                  "$numberInt": "0"
+                },
+                "needYield": {
+                  "$numberInt": "0"
+                },
+                "saveState": {
+                  "$numberInt": "0"
+                },
+                "restoreState": {
+                  "$numberInt": "0"
+                },
+                "isEOF": {
+                  "$numberInt": "0"
+                },
+                "keyPattern": {
+                  "customerId": {
+                    "$numberInt": "1"
+                  },
+                  "createdAt": {
+                    "$numberInt": "-1"
+                  }
+                },
+                "indexName": "customerId_1_createdAt_-1",
+                "isMultiKey": false,
+                "multiKeyPaths": {
+                  "customerId": [],
+                  "createdAt": []
+                },
+                "isUnique": false,
+                "isSparse": false,
+                "isPartial": false,
+                "indexVersion": {
+                  "$numberInt": "2"
+                },
+                "direction": "forward",
+                "indexBounds": {
+                  "customerId": [
+                    "[99, 99]"
+                  ],
+                  "createdAt": [
+                    "[MaxKey, MinKey]"
+                  ]
+                },
+                "keysExamined": {
+                  "$numberInt": "1"
+                },
+                "seeks": {
+                  "$numberInt": "1"
+                },
+                "dupsTested": {
+                  "$numberInt": "0"
+                },
+                "dupsDropped": {
+                  "$numberInt": "0"
+                }
+              },
+              {
+                "stage": "IXSCAN",
+                "nReturned": {
+                  "$numberInt": "1"
+                },
+                "executionTimeMillisEstimate": {
+                  "$numberInt": "0"
+                },
+                "works": {
+                  "$numberInt": "1"
+                },
+                "advanced": {
+                  "$numberInt": "1"
+                },
+                "needTime": {
+                  "$numberInt": "0"
+                },
+                "needYield": {
+                  "$numberInt": "0"
+                },
+                "saveState": {
+                  "$numberInt": "0"
+                },
+                "restoreState": {
+                  "$numberInt": "0"
+                },
+                "isEOF": {
+                  "$numberInt": "0"
+                },
+                "keyPattern": {
+                  "customerId": {
+                    "$numberInt": "1"
+                  },
+                  "createdAt": {
+                    "$numberInt": "-1"
+                  }
+                },
+                "indexName": "customerId_1_createdAt_-1",
+                "isMultiKey": false,
+                "multiKeyPaths": {
+                  "customerId": [],
+                  "createdAt": []
+                },
+                "isUnique": false,
+                "isSparse": false,
+                "isPartial": false,
+                "indexVersion": {
+                  "$numberInt": "2"
+                },
+                "direction": "forward",
+                "indexBounds": {
+                  "customerId": [
+                    "[512, 512]"
+                  ],
+                  "createdAt": [
+                    "[MaxKey, MinKey]"
+                  ]
+                },
+                "keysExamined": {
+                  "$numberInt": "1"
+                },
+                "seeks": {
+                  "$numberInt": "1"
+                },
+                "dupsTested": {
+                  "$numberInt": "0"
+                },
+                "dupsDropped": {
+                  "$numberInt": "0"
+                }
+              }
+            ]
+          }
+        }
+      }
+    }
+  },
+  "queryShapeHash": "C7C26245D26D83767F974F363DC57F8293EEA8A902B58690C3FC55C7BBA92F7E",
+  "command": {
+    "find": "orders",
+    "filter": {
+      "$or": [
+        {
+          "status": "refunded",
+          "total": {
+            "$gt": {
+              "$numberInt": "1500"
+            }
+          }
+        },
+        {
+          "channel": {
+            "$in": [
+              "phone",
+              "store"
+            ]
+          }
+        },
+        {
+          "customerId": {
+            "$in": [
+              {
+                "$numberInt": "7"
+              },
+              {
+                "$numberInt": "42"
+              },
+              {
+                "$numberInt": "99"
+              },
+              {
+                "$numberInt": "512"
+              }
+            ]
+          }
+        }
+      ]
+    },
+    "sort": {
+      "createdAt": {
+        "$numberInt": "-1"
+      }
+    },
+    "limit": {
+      "$numberInt": "100"
+    },
+    "$db": "explain_lab"
+  },
+  "serverInfo": {
+    "host": "fdbd5b54de48",
+    "port": {
+      "$numberInt": "27017"
+    },
+    "version": "8.0.17",
+    "gitVersion": "b20e43625b72f4bb43cc15107f80ac966ae13b6d"
+  },
+  "serverParameters": {
+    "internalQueryFacetBufferSizeBytes": {
+      "$numberInt": "104857600"
+    },
+    "internalQueryFacetMaxOutputDocSizeBytes": {
+      "$numberInt": "104857600"
+    },
+    "internalLookupStageIntermediateDocumentMaxSizeBytes": {
+      "$numberInt": "104857600"
+    },
+    "internalDocumentSourceGroupMaxMemoryBytes": {
+      "$numberInt": "104857600"
+    },
+    "internalQueryMaxBlockingSortMemoryUsageBytes": {
+      "$numberInt": "104857600"
+    },
+    "internalQueryProhibitBlockingMergeOnMongoS": {
+      "$numberInt": "0"
+    },
+    "internalQueryMaxAddToSetBytes": {
+      "$numberInt": "104857600"
+    },
+    "internalDocumentSourceSetWindowFieldsMaxMemoryBytes": {
+      "$numberInt": "104857600"
+    },
+    "internalQueryFrameworkControl": "trySbeRestricted",
+    "internalQueryPlannerIgnoreIndexWithCollationForRegex": {
+      "$numberInt": "1"
+    }
+  },
+  "ok": {
+    "$numberInt": "1"
+  }
+}

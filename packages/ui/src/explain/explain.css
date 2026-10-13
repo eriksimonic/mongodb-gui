@@ -339,3 +339,238 @@
 .mg-explain-tree-static {
   margin-top: 6px;
 }
+
+.mg-explain-graph-block {
+  display: flex;
+  flex: 1 0 360px;
+  flex-direction: column;
+  min-width: 0;
+}
+
+.mg-explain-graph-layout {
+  display: flex;
+  flex: 1;
+  gap: 8px;
+  min-width: 0;
+  min-height: 0;
+}
+
+.mg-explain-graph-scroll {
+  flex: 1 1 auto;
+  min-width: 0;
+  overflow: auto;
+  border: 1px solid var(--mg-border);
+  border-radius: var(--mantine-radius-sm);
+  background: var(--mg-surface-0);
+}
+
+.mg-explain-graph {
+  position: relative;
+  transform-origin: 0 0;
+}
+
+.mg-explain-graph-edges {
+  position: absolute;
+  inset: 0;
+  overflow: visible;
+  pointer-events: none;
+}
+
+.mg-explain-graph-edges path {
+  fill: none;
+  stroke: var(--mg-text-muted);
+  stroke-linejoin: round;
+  opacity: 0.6;
+}
+
+.mg-explain-node {
+  position: absolute;
+  display: grid;
+  align-content: center;
+  gap: 2px;
+  padding: 6px 10px;
+  border: 1px solid var(--mg-border);
+  border-radius: var(--mantine-radius-md);
+  background: var(--mg-surface-1);
+  cursor: pointer;
+}
+
+.mg-explain-node:hover {
+  border-color: var(--mg-text-muted);
+}
+
+.mg-explain-node:focus-visible {
+  outline: 2px solid var(--mantine-color-blue-5);
+  outline-offset: 2px;
+}
+
+.mg-explain-node[aria-selected='true'] {
+  border-color: var(--mantine-color-blue-5);
+  box-shadow: 0 0 0 1px var(--mantine-color-blue-5);
+}
+
+.mg-explain-node-time {
+  flex: none;
+  margin-left: auto;
+  color: var(--mantine-color-dimmed);
+  font-size: calc(var(--mg-font-scale, 1) * 11px);
+  font-variant-numeric: tabular-nums;
+}
+
+.mg-explain-node-time strong {
+  color: var(--mantine-color-text);
+}
+
+.mg-explain-node-tags {
+  display: flex;
+  gap: 4px;
+  min-height: 16px;
+}
+
+.mg-explain-node-tag {
+  padding: 0 5px;
+  border-radius: var(--mantine-radius-xs);
+  background: var(--mantine-color-red-7);
+  color: #fff;
+  font-size: calc(var(--mg-font-scale, 1) * 10px);
+  font-weight: 600;
+  line-height: 16px;
+}
+
+.mg-explain-node-label {
+  position: absolute;
+  bottom: calc(100% + 4px);
+  left: 0;
+  max-width: 100%;
+  overflow: hidden;
+  color: var(--mg-accent-text);
+  font-size: calc(var(--mg-font-scale, 1) * 11px);
+  font-weight: 600;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.mg-explain-node-head {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  min-width: 0;
+}
+
+.mg-explain-node-name {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.mg-explain-node-sub,
+.mg-explain-node-metrics {
+  min-height: 1.4em;
+  overflow: hidden;
+  color: var(--mantine-color-dimmed);
+  font-size: calc(var(--mg-font-scale, 1) * 11px);
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.mg-explain-node-sub {
+  font-family: var(--mantine-font-family-monospace);
+}
+
+.mg-explain-node-metrics {
+  color: var(--mantine-color-text);
+  font-variant-numeric: tabular-nums;
+}
+
+.mg-explain-node-toggle {
+  position: absolute;
+  bottom: -9px;
+  left: 50%;
+  min-width: 18px;
+  height: 18px;
+  padding: 0 4px;
+  transform: translateX(-50%);
+  border: 1px solid var(--mg-border);
+  border-radius: 9px;
+  background: var(--mg-surface-2);
+  color: inherit;
+  font-size: 11px;
+  line-height: 16px;
+  cursor: pointer;
+}
+
+.mg-explain-details {
+  display: grid;
+  flex: 0 0 300px;
+  gap: 8px;
+  align-content: start;
+  overflow: auto;
+  padding: 8px 10px;
+  border: 1px solid var(--mg-border);
+  border-radius: var(--mantine-radius-sm);
+}
+
+.mg-explain-details-list {
+  display: grid;
+  gap: 4px;
+  margin: 0;
+}
+
+.mg-explain-details-list > div {
+  display: flex;
+  justify-content: space-between;
+  gap: 8px;
+  font-size: calc(var(--mg-font-scale, 1) * 12px);
+}
+
+.mg-explain-details-list dt {
+  color: var(--mantine-color-dimmed);
+}
+
+.mg-explain-details-list dd {
+  margin: 0;
+  font-weight: 600;
+  font-variant-numeric: tabular-nums;
+}
+
+.mg-explain-details-high {
+  color: var(--mantine-color-red-6);
+}
+
+.mg-explain-details-code,
+.mg-explain-details-raw pre {
+  margin: 2px 0 0;
+  overflow-x: auto;
+  font-family: var(--mantine-font-family-monospace);
+  font-size: calc(var(--mg-font-scale, 1) * 11px);
+  white-space: pre;
+}
+
+.mg-explain-details-raw summary,
+.mg-explain-fold summary {
+  color: var(--mantine-color-dimmed);
+  cursor: pointer;
+}
+
+.mg-explain-fold summary {
+  font-size: calc(var(--mg-font-scale, 1) * 13px);
+  font-weight: 600;
+}
+
+.mg-explain-fold[open] summary {
+  margin-bottom: 4px;
+}
+
+.mg-explain-node-sub.mg-explain-shard-error {
+  color: var(--mantine-color-red-6);
+}
+
+.mg-explain-unmeasured {
+  color: var(--mantine-color-dimmed);
+  font-style: italic;
+}
+
+/* Only the graph grows and shrinks. The parts above it keep their height. */
+.mg-explain-plan > * {
+  flex-shrink: 0;
+}

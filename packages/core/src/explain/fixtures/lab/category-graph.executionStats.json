@@ -1,0 +1,515 @@
+{
+  "explainVersion": "1",
+  "stages": [
+    {
+      "$cursor": {
+        "queryPlanner": {
+          "namespace": "explain_lab.products",
+          "parsedQuery": {
+            "categoryId": {
+              "$in": [
+                {
+                  "$numberInt": "4"
+                },
+                {
+                  "$numberInt": "5"
+                },
+                {
+                  "$numberInt": "6"
+                }
+              ]
+            }
+          },
+          "indexFilterSet": false,
+          "queryHash": "4CF971EC",
+          "planCacheShapeHash": "4CF971EC",
+          "planCacheKey": "ADB75608",
+          "optimizationTimeMillis": {
+            "$numberInt": "0"
+          },
+          "maxIndexedOrSolutionsReached": false,
+          "maxIndexedAndSolutionsReached": false,
+          "maxScansToExplodeReached": false,
+          "prunedSimilarIndexes": false,
+          "winningPlan": {
+            "isCached": false,
+            "stage": "PROJECTION_SIMPLE",
+            "transformBy": {
+              "_id": {
+                "$numberInt": "1"
+              },
+              "categoryId": {
+                "$numberInt": "1"
+              },
+              "name": {
+                "$numberInt": "1"
+              }
+            },
+            "inputStage": {
+              "stage": "FETCH",
+              "inputStage": {
+                "stage": "IXSCAN",
+                "keyPattern": {
+                  "categoryId": {
+                    "$numberInt": "1"
+                  }
+                },
+                "indexName": "categoryId_1",
+                "isMultiKey": false,
+                "multiKeyPaths": {
+                  "categoryId": []
+                },
+                "isUnique": false,
+                "isSparse": false,
+                "isPartial": false,
+                "indexVersion": {
+                  "$numberInt": "2"
+                },
+                "direction": "forward",
+                "indexBounds": {
+                  "categoryId": [
+                    "[4, 4]",
+                    "[5, 5]",
+                    "[6, 6]"
+                  ]
+                }
+              }
+            }
+          },
+          "rejectedPlans": []
+        },
+        "executionStats": {
+          "executionSuccess": true,
+          "nReturned": {
+            "$numberInt": "60"
+          },
+          "executionTimeMillis": {
+            "$numberInt": "25"
+          },
+          "totalKeysExamined": {
+            "$numberInt": "61"
+          },
+          "totalDocsExamined": {
+            "$numberInt": "60"
+          },
+          "executionStages": {
+            "isCached": false,
+            "stage": "PROJECTION_SIMPLE",
+            "nReturned": {
+              "$numberInt": "60"
+            },
+            "executionTimeMillisEstimate": {
+              "$numberInt": "0"
+            },
+            "works": {
+              "$numberInt": "61"
+            },
+            "advanced": {
+              "$numberInt": "60"
+            },
+            "needTime": {
+              "$numberInt": "0"
+            },
+            "needYield": {
+              "$numberInt": "0"
+            },
+            "saveState": {
+              "$numberInt": "3"
+            },
+            "restoreState": {
+              "$numberInt": "3"
+            },
+            "isEOF": {
+              "$numberInt": "1"
+            },
+            "transformBy": {
+              "_id": {
+                "$numberInt": "1"
+              },
+              "categoryId": {
+                "$numberInt": "1"
+              },
+              "name": {
+                "$numberInt": "1"
+              }
+            },
+            "inputStage": {
+              "stage": "FETCH",
+              "nReturned": {
+                "$numberInt": "60"
+              },
+              "executionTimeMillisEstimate": {
+                "$numberInt": "0"
+              },
+              "works": {
+                "$numberInt": "61"
+              },
+              "advanced": {
+                "$numberInt": "60"
+              },
+              "needTime": {
+                "$numberInt": "0"
+              },
+              "needYield": {
+                "$numberInt": "0"
+              },
+              "saveState": {
+                "$numberInt": "3"
+              },
+              "restoreState": {
+                "$numberInt": "3"
+              },
+              "isEOF": {
+                "$numberInt": "1"
+              },
+              "docsExamined": {
+                "$numberInt": "60"
+              },
+              "alreadyHasObj": {
+                "$numberInt": "0"
+              },
+              "inputStage": {
+                "stage": "IXSCAN",
+                "nReturned": {
+                  "$numberInt": "60"
+                },
+                "executionTimeMillisEstimate": {
+                  "$numberInt": "0"
+                },
+                "works": {
+                  "$numberInt": "61"
+                },
+                "advanced": {
+                  "$numberInt": "60"
+                },
+                "needTime": {
+                  "$numberInt": "0"
+                },
+                "needYield": {
+                  "$numberInt": "0"
+                },
+                "saveState": {
+                  "$numberInt": "3"
+                },
+                "restoreState": {
+                  "$numberInt": "3"
+                },
+                "isEOF": {
+                  "$numberInt": "1"
+                },
+                "keyPattern": {
+                  "categoryId": {
+                    "$numberInt": "1"
+                  }
+                },
+                "indexName": "categoryId_1",
+                "isMultiKey": false,
+                "multiKeyPaths": {
+                  "categoryId": []
+                },
+                "isUnique": false,
+                "isSparse": false,
+                "isPartial": false,
+                "indexVersion": {
+                  "$numberInt": "2"
+                },
+                "direction": "forward",
+                "indexBounds": {
+                  "categoryId": [
+                    "[4, 4]",
+                    "[5, 5]",
+                    "[6, 6]"
+                  ]
+                },
+                "keysExamined": {
+                  "$numberInt": "61"
+                },
+                "seeks": {
+                  "$numberInt": "1"
+                },
+                "dupsTested": {
+                  "$numberInt": "0"
+                },
+                "dupsDropped": {
+                  "$numberInt": "0"
+                }
+              }
+            }
+          }
+        }
+      },
+      "nReturned": {
+        "$numberLong": "60"
+      },
+      "executionTimeMillisEstimate": {
+        "$numberLong": "1"
+      }
+    },
+    {
+      "$graphLookup": {
+        "from": "categories",
+        "as": "path",
+        "connectToField": "_id",
+        "connectFromField": "parentId",
+        "startWith": "$categoryId",
+        "maxDepth": {
+          "$numberLong": "4"
+        }
+      },
+      "nReturned": {
+        "$numberLong": "60"
+      },
+      "executionTimeMillisEstimate": {
+        "$numberLong": "12"
+      }
+    },
+    {
+      "$lookup": {
+        "from": "reviews",
+        "as": "topReviews",
+        "let": {
+          "p": "$_id"
+        },
+        "pipeline": [
+          {
+            "$match": {
+              "$expr": {
+                "$eq": [
+                  "$productId",
+                  "$$p"
+                ]
+              }
+            }
+          },
+          {
+            "$lookup": {
+              "from": "customers",
+              "localField": "customerId",
+              "foreignField": "_id",
+              "as": "author"
+            }
+          },
+          {
+            "$sort": {
+              "rating": {
+                "$numberInt": "-1"
+              }
+            }
+          },
+          {
+            "$limit": {
+              "$numberInt": "3"
+            }
+          }
+        ]
+      },
+      "totalDocsExamined": {
+        "$numberLong": "360"
+      },
+      "totalKeysExamined": {
+        "$numberLong": "360"
+      },
+      "collectionScans": {
+        "$numberLong": "0"
+      },
+      "indexesUsed": [
+        "_id_",
+        "productId_1_rating_-1"
+      ],
+      "nReturned": {
+        "$numberLong": "60"
+      },
+      "executionTimeMillisEstimate": {
+        "$numberLong": "25"
+      }
+    },
+    {
+      "$project": {
+        "_id": true,
+        "name": true,
+        "topReviews": true,
+        "depth": {
+          "$size": [
+            "$path"
+          ]
+        }
+      },
+      "nReturned": {
+        "$numberLong": "60"
+      },
+      "executionTimeMillisEstimate": {
+        "$numberLong": "25"
+      }
+    },
+    {
+      "$sort": {
+        "sortKey": {
+          "depth": {
+            "$numberInt": "-1"
+          },
+          "name": {
+            "$numberInt": "1"
+          }
+        }
+      },
+      "totalDataSizeSortedBytesEstimate": {
+        "$numberLong": "139832"
+      },
+      "usedDisk": false,
+      "spills": {
+        "$numberLong": "0"
+      },
+      "spilledDataStorageSize": {
+        "$numberLong": "0"
+      },
+      "nReturned": {
+        "$numberLong": "60"
+      },
+      "executionTimeMillisEstimate": {
+        "$numberLong": "25"
+      }
+    }
+  ],
+  "queryShapeHash": "14487D2B13E0FBF184C8E6DFC8029EF9708ACD21931C66FC8F017180D5F1FA5A",
+  "serverInfo": {
+    "host": "fdbd5b54de48",
+    "port": {
+      "$numberInt": "27017"
+    },
+    "version": "8.0.17",
+    "gitVersion": "b20e43625b72f4bb43cc15107f80ac966ae13b6d"
+  },
+  "serverParameters": {
+    "internalQueryFacetBufferSizeBytes": {
+      "$numberInt": "104857600"
+    },
+    "internalQueryFacetMaxOutputDocSizeBytes": {
+      "$numberInt": "104857600"
+    },
+    "internalLookupStageIntermediateDocumentMaxSizeBytes": {
+      "$numberInt": "104857600"
+    },
+    "internalDocumentSourceGroupMaxMemoryBytes": {
+      "$numberInt": "104857600"
+    },
+    "internalQueryMaxBlockingSortMemoryUsageBytes": {
+      "$numberInt": "104857600"
+    },
+    "internalQueryProhibitBlockingMergeOnMongoS": {
+      "$numberInt": "0"
+    },
+    "internalQueryMaxAddToSetBytes": {
+      "$numberInt": "104857600"
+    },
+    "internalDocumentSourceSetWindowFieldsMaxMemoryBytes": {
+      "$numberInt": "104857600"
+    },
+    "internalQueryFrameworkControl": "trySbeRestricted",
+    "internalQueryPlannerIgnoreIndexWithCollationForRegex": {
+      "$numberInt": "1"
+    }
+  },
+  "command": {
+    "aggregate": "products",
+    "pipeline": [
+      {
+        "$match": {
+          "categoryId": {
+            "$in": [
+              {
+                "$numberInt": "4"
+              },
+              {
+                "$numberInt": "5"
+              },
+              {
+                "$numberInt": "6"
+              }
+            ]
+          }
+        }
+      },
+      {
+        "$graphLookup": {
+          "from": "categories",
+          "startWith": "$categoryId",
+          "connectFromField": "parentId",
+          "connectToField": "_id",
+          "as": "path",
+          "maxDepth": {
+            "$numberInt": "4"
+          }
+        }
+      },
+      {
+        "$lookup": {
+          "from": "reviews",
+          "let": {
+            "p": "$_id"
+          },
+          "pipeline": [
+            {
+              "$match": {
+                "$expr": {
+                  "$eq": [
+                    "$productId",
+                    "$$p"
+                  ]
+                }
+              }
+            },
+            {
+              "$lookup": {
+                "from": "customers",
+                "localField": "customerId",
+                "foreignField": "_id",
+                "as": "author"
+              }
+            },
+            {
+              "$sort": {
+                "rating": {
+                  "$numberInt": "-1"
+                }
+              }
+            },
+            {
+              "$limit": {
+                "$numberInt": "3"
+              }
+            }
+          ],
+          "as": "topReviews"
+        }
+      },
+      {
+        "$project": {
+          "name": {
+            "$numberInt": "1"
+          },
+          "depth": {
+            "$size": "$path"
+          },
+          "topReviews": {
+            "$numberInt": "1"
+          }
+        }
+      },
+      {
+        "$sort": {
+          "depth": {
+            "$numberInt": "-1"
+          },
+          "name": {
+            "$numberInt": "1"
+          }
+        }
+      }
+    ],
+    "cursor": {},
+    "$db": "explain_lab"
+  },
+  "ok": {
+    "$numberInt": "1"
+  }
+}

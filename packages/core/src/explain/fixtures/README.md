@@ -120,3 +120,12 @@ case explains as its plan), `TEXT_OR`, `EXPRESS_UPDATE`, `EXPRESS_DELETE` and `S
 `AND_SORTED` is not a winning stage in any capture. It appears only in the `rejectedPlans` of the
 `and-hash` case, on all three versions. `SHARDING_FILTER`, `SHARD_MERGE` and `SHARD_MERGE_SORT`
 are covered by the hand-written sharded files.
+
+## Lab cases
+
+`lab/` holds plans captured by `dev/explain-lab/capture.sh` from `mongo:8.0.17`, at
+`executionStats` only. The cases are the statements in `dev/explain-lab/queries.js`:
+`sort-merge-or`, `sort-merge-in`, `sort-merge-wide`, `orders-deep-lookup`, `facet-dashboard`,
+`union-ratings` and `category-graph`. They are large on purpose: `sort-merge-wide` has a
+`SORT_MERGE` with seven inputs, and `orders-deep-lookup` nests a `$lookup` inside the inner
+pipeline of another. The mock UI answers these statements with these files.

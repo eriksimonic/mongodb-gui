@@ -1,0 +1,650 @@
+{
+  "explainVersion": "1",
+  "stages": [
+    {
+      "$cursor": {
+        "queryPlanner": {
+          "namespace": "explain_lab.orders",
+          "parsedQuery": {
+            "$and": [
+              {
+                "status": {
+                  "$eq": "paid"
+                }
+              },
+              {
+                "createdAt": {
+                  "$lt": {
+                    "$date": {
+                      "$numberLong": "1751328000000"
+                    }
+                  }
+                }
+              },
+              {
+                "createdAt": {
+                  "$gte": {
+                    "$date": {
+                      "$numberLong": "1748736000000"
+                    }
+                  }
+                }
+              }
+            ]
+          },
+          "indexFilterSet": false,
+          "queryHash": "3A07BB92",
+          "planCacheShapeHash": "3A07BB92",
+          "planCacheKey": "067E923D",
+          "optimizationTimeMillis": {
+            "$numberInt": "0"
+          },
+          "maxIndexedOrSolutionsReached": false,
+          "maxIndexedAndSolutionsReached": false,
+          "maxScansToExplodeReached": false,
+          "prunedSimilarIndexes": false,
+          "winningPlan": {
+            "isCached": false,
+            "stage": "PROJECTION_SIMPLE",
+            "transformBy": {
+              "_id": {
+                "$numberInt": "1"
+              },
+              "customerId": {
+                "$numberInt": "1"
+              },
+              "items": {
+                "$numberInt": "1"
+              }
+            },
+            "inputStage": {
+              "stage": "FETCH",
+              "inputStage": {
+                "stage": "IXSCAN",
+                "keyPattern": {
+                  "status": {
+                    "$numberInt": "1"
+                  },
+                  "createdAt": {
+                    "$numberInt": "-1"
+                  }
+                },
+                "indexName": "status_1_createdAt_-1",
+                "isMultiKey": false,
+                "multiKeyPaths": {
+                  "status": [],
+                  "createdAt": []
+                },
+                "isUnique": false,
+                "isSparse": false,
+                "isPartial": false,
+                "indexVersion": {
+                  "$numberInt": "2"
+                },
+                "direction": "forward",
+                "indexBounds": {
+                  "status": [
+                    "[\"paid\", \"paid\"]"
+                  ],
+                  "createdAt": [
+                    "(new Date(1751328000000), new Date(1748736000000)]"
+                  ]
+                }
+              }
+            }
+          },
+          "rejectedPlans": []
+        },
+        "executionStats": {
+          "executionSuccess": true,
+          "nReturned": {
+            "$numberInt": "828"
+          },
+          "executionTimeMillis": {
+            "$numberInt": "733"
+          },
+          "totalKeysExamined": {
+            "$numberInt": "828"
+          },
+          "totalDocsExamined": {
+            "$numberInt": "828"
+          },
+          "executionStages": {
+            "isCached": false,
+            "stage": "PROJECTION_SIMPLE",
+            "nReturned": {
+              "$numberInt": "828"
+            },
+            "executionTimeMillisEstimate": {
+              "$numberInt": "1"
+            },
+            "works": {
+              "$numberInt": "829"
+            },
+            "advanced": {
+              "$numberInt": "828"
+            },
+            "needTime": {
+              "$numberInt": "0"
+            },
+            "needYield": {
+              "$numberInt": "0"
+            },
+            "saveState": {
+              "$numberInt": "9"
+            },
+            "restoreState": {
+              "$numberInt": "9"
+            },
+            "isEOF": {
+              "$numberInt": "1"
+            },
+            "transformBy": {
+              "_id": {
+                "$numberInt": "1"
+              },
+              "customerId": {
+                "$numberInt": "1"
+              },
+              "items": {
+                "$numberInt": "1"
+              }
+            },
+            "inputStage": {
+              "stage": "FETCH",
+              "nReturned": {
+                "$numberInt": "828"
+              },
+              "executionTimeMillisEstimate": {
+                "$numberInt": "1"
+              },
+              "works": {
+                "$numberInt": "829"
+              },
+              "advanced": {
+                "$numberInt": "828"
+              },
+              "needTime": {
+                "$numberInt": "0"
+              },
+              "needYield": {
+                "$numberInt": "0"
+              },
+              "saveState": {
+                "$numberInt": "9"
+              },
+              "restoreState": {
+                "$numberInt": "9"
+              },
+              "isEOF": {
+                "$numberInt": "1"
+              },
+              "docsExamined": {
+                "$numberInt": "828"
+              },
+              "alreadyHasObj": {
+                "$numberInt": "0"
+              },
+              "inputStage": {
+                "stage": "IXSCAN",
+                "nReturned": {
+                  "$numberInt": "828"
+                },
+                "executionTimeMillisEstimate": {
+                  "$numberInt": "0"
+                },
+                "works": {
+                  "$numberInt": "829"
+                },
+                "advanced": {
+                  "$numberInt": "828"
+                },
+                "needTime": {
+                  "$numberInt": "0"
+                },
+                "needYield": {
+                  "$numberInt": "0"
+                },
+                "saveState": {
+                  "$numberInt": "9"
+                },
+                "restoreState": {
+                  "$numberInt": "9"
+                },
+                "isEOF": {
+                  "$numberInt": "1"
+                },
+                "keyPattern": {
+                  "status": {
+                    "$numberInt": "1"
+                  },
+                  "createdAt": {
+                    "$numberInt": "-1"
+                  }
+                },
+                "indexName": "status_1_createdAt_-1",
+                "isMultiKey": false,
+                "multiKeyPaths": {
+                  "status": [],
+                  "createdAt": []
+                },
+                "isUnique": false,
+                "isSparse": false,
+                "isPartial": false,
+                "indexVersion": {
+                  "$numberInt": "2"
+                },
+                "direction": "forward",
+                "indexBounds": {
+                  "status": [
+                    "[\"paid\", \"paid\"]"
+                  ],
+                  "createdAt": [
+                    "(new Date(1751328000000), new Date(1748736000000)]"
+                  ]
+                },
+                "keysExamined": {
+                  "$numberInt": "828"
+                },
+                "seeks": {
+                  "$numberInt": "1"
+                },
+                "dupsTested": {
+                  "$numberInt": "0"
+                },
+                "dupsDropped": {
+                  "$numberInt": "0"
+                }
+              }
+            }
+          }
+        }
+      },
+      "nReturned": {
+        "$numberLong": "828"
+      },
+      "executionTimeMillisEstimate": {
+        "$numberLong": "2"
+      }
+    },
+    {
+      "$lookup": {
+        "from": "customers",
+        "as": "customer",
+        "localField": "customerId",
+        "foreignField": "_id",
+        "unwinding": {
+          "preserveNullAndEmptyArrays": false
+        }
+      },
+      "totalDocsExamined": {
+        "$numberLong": "829"
+      },
+      "totalKeysExamined": {
+        "$numberLong": "829"
+      },
+      "collectionScans": {
+        "$numberLong": "0"
+      },
+      "indexesUsed": [
+        "_id_"
+      ],
+      "nReturned": {
+        "$numberLong": "828"
+      },
+      "executionTimeMillisEstimate": {
+        "$numberLong": "43"
+      }
+    },
+    {
+      "$unwind": {
+        "path": "$items"
+      },
+      "nReturned": {
+        "$numberLong": "2094"
+      },
+      "executionTimeMillisEstimate": {
+        "$numberLong": "43"
+      }
+    },
+    {
+      "$lookup": {
+        "from": "products",
+        "as": "product",
+        "localField": "items.productId",
+        "foreignField": "_id",
+        "let": {},
+        "pipeline": [
+          {
+            "$lookup": {
+              "from": "categories",
+              "localField": "categoryId",
+              "foreignField": "_id",
+              "as": "category"
+            }
+          },
+          {
+            "$lookup": {
+              "from": "reviews",
+              "localField": "_id",
+              "foreignField": "productId",
+              "as": "reviews",
+              "pipeline": [
+                {
+                  "$group": {
+                    "_id": null,
+                    "avg": {
+                      "$avg": "$rating"
+                    },
+                    "n": {
+                      "$sum": {
+                        "$numberInt": "1"
+                      }
+                    }
+                  }
+                }
+              ]
+            }
+          }
+        ],
+        "unwinding": {
+          "preserveNullAndEmptyArrays": false
+        }
+      },
+      "totalDocsExamined": {
+        "$numberLong": "4190"
+      },
+      "totalKeysExamined": {
+        "$numberLong": "25155"
+      },
+      "collectionScans": {
+        "$numberLong": "0"
+      },
+      "indexesUsed": [
+        "_id_",
+        "productId_1_rating_-1"
+      ],
+      "nReturned": {
+        "$numberLong": "2094"
+      },
+      "executionTimeMillisEstimate": {
+        "$numberLong": "561"
+      }
+    },
+    {
+      "$lookup": {
+        "from": "shipments",
+        "as": "shipments",
+        "localField": "_id",
+        "foreignField": "orderId"
+      },
+      "totalDocsExamined": {
+        "$numberLong": "1402"
+      },
+      "totalKeysExamined": {
+        "$numberLong": "1402"
+      },
+      "collectionScans": {
+        "$numberLong": "0"
+      },
+      "indexesUsed": [
+        "orderId_1"
+      ],
+      "nReturned": {
+        "$numberLong": "2094"
+      },
+      "executionTimeMillisEstimate": {
+        "$numberLong": "733"
+      }
+    },
+    {
+      "$group": {
+        "_id": "$customer.country",
+        "revenue": {
+          "$sum": {
+            "$multiply": [
+              "$items.qty",
+              "$items.price"
+            ]
+          }
+        },
+        "orders": {
+          "$addToSet": "$_id"
+        },
+        "shipped": {
+          "$sum": {
+            "$size": [
+              "$shipments"
+            ]
+          }
+        }
+      },
+      "maxAccumulatorMemoryUsageBytes": {
+        "revenue": {
+          "$numberLong": "1024"
+        },
+        "orders": {
+          "$numberLong": "14016"
+        },
+        "shipped": {
+          "$numberLong": "1024"
+        }
+      },
+      "totalOutputDataSizeBytes": {
+        "$numberLong": "16040"
+      },
+      "usedDisk": false,
+      "spills": {
+        "$numberLong": "0"
+      },
+      "spilledDataStorageSize": {
+        "$numberLong": "0"
+      },
+      "numBytesSpilledEstimate": {
+        "$numberLong": "0"
+      },
+      "spilledRecords": {
+        "$numberLong": "0"
+      },
+      "nReturned": {
+        "$numberLong": "8"
+      },
+      "executionTimeMillisEstimate": {
+        "$numberLong": "733"
+      }
+    },
+    {
+      "$sort": {
+        "sortKey": {
+          "revenue": {
+            "$numberInt": "-1"
+          }
+        },
+        "limit": {
+          "$numberLong": "5"
+        }
+      },
+      "totalDataSizeSortedBytesEstimate": {
+        "$numberLong": "10537"
+      },
+      "usedDisk": false,
+      "spills": {
+        "$numberLong": "0"
+      },
+      "spilledDataStorageSize": {
+        "$numberLong": "0"
+      },
+      "nReturned": {
+        "$numberLong": "5"
+      },
+      "executionTimeMillisEstimate": {
+        "$numberLong": "733"
+      }
+    }
+  ],
+  "queryShapeHash": "FD04C26F8D0C27E52CF8675D9C2C354AD0EE0653DE08E6B4F205163A83C6792C",
+  "serverInfo": {
+    "host": "fdbd5b54de48",
+    "port": {
+      "$numberInt": "27017"
+    },
+    "version": "8.0.17",
+    "gitVersion": "b20e43625b72f4bb43cc15107f80ac966ae13b6d"
+  },
+  "serverParameters": {
+    "internalQueryFacetBufferSizeBytes": {
+      "$numberInt": "104857600"
+    },
+    "internalQueryFacetMaxOutputDocSizeBytes": {
+      "$numberInt": "104857600"
+    },
+    "internalLookupStageIntermediateDocumentMaxSizeBytes": {
+      "$numberInt": "104857600"
+    },
+    "internalDocumentSourceGroupMaxMemoryBytes": {
+      "$numberInt": "104857600"
+    },
+    "internalQueryMaxBlockingSortMemoryUsageBytes": {
+      "$numberInt": "104857600"
+    },
+    "internalQueryProhibitBlockingMergeOnMongoS": {
+      "$numberInt": "0"
+    },
+    "internalQueryMaxAddToSetBytes": {
+      "$numberInt": "104857600"
+    },
+    "internalDocumentSourceSetWindowFieldsMaxMemoryBytes": {
+      "$numberInt": "104857600"
+    },
+    "internalQueryFrameworkControl": "trySbeRestricted",
+    "internalQueryPlannerIgnoreIndexWithCollationForRegex": {
+      "$numberInt": "1"
+    }
+  },
+  "command": {
+    "aggregate": "orders",
+    "pipeline": [
+      {
+        "$match": {
+          "status": "paid",
+          "createdAt": {
+            "$gte": {
+              "$date": {
+                "$numberLong": "1748736000000"
+              }
+            },
+            "$lt": {
+              "$date": {
+                "$numberLong": "1751328000000"
+              }
+            }
+          }
+        }
+      },
+      {
+        "$lookup": {
+          "from": "customers",
+          "localField": "customerId",
+          "foreignField": "_id",
+          "as": "customer"
+        }
+      },
+      {
+        "$unwind": "$customer"
+      },
+      {
+        "$unwind": "$items"
+      },
+      {
+        "$lookup": {
+          "from": "products",
+          "localField": "items.productId",
+          "foreignField": "_id",
+          "as": "product",
+          "pipeline": [
+            {
+              "$lookup": {
+                "from": "categories",
+                "localField": "categoryId",
+                "foreignField": "_id",
+                "as": "category"
+              }
+            },
+            {
+              "$lookup": {
+                "from": "reviews",
+                "localField": "_id",
+                "foreignField": "productId",
+                "as": "reviews",
+                "pipeline": [
+                  {
+                    "$group": {
+                      "_id": null,
+                      "avg": {
+                        "$avg": "$rating"
+                      },
+                      "n": {
+                        "$sum": {
+                          "$numberInt": "1"
+                        }
+                      }
+                    }
+                  }
+                ]
+              }
+            }
+          ]
+        }
+      },
+      {
+        "$unwind": "$product"
+      },
+      {
+        "$lookup": {
+          "from": "shipments",
+          "localField": "_id",
+          "foreignField": "orderId",
+          "as": "shipments"
+        }
+      },
+      {
+        "$group": {
+          "_id": "$customer.country",
+          "revenue": {
+            "$sum": {
+              "$multiply": [
+                "$items.qty",
+                "$items.price"
+              ]
+            }
+          },
+          "orders": {
+            "$addToSet": "$_id"
+          },
+          "shipped": {
+            "$sum": {
+              "$size": "$shipments"
+            }
+          }
+        }
+      },
+      {
+        "$sort": {
+          "revenue": {
+            "$numberInt": "-1"
+          }
+        }
+      },
+      {
+        "$limit": {
+          "$numberInt": "5"
+        }
+      }
+    ],
+    "cursor": {},
+    "$db": "explain_lab"
+  },
+  "ok": {
+    "$numberInt": "1"
+  }
+}

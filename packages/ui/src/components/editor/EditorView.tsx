@@ -42,6 +42,7 @@ import { BATCH_SIZES, type BatchSize, type EditorTab } from '../../state/editors
 import { notifyError } from '../notify-error';
 import { SaveFavouriteDialog } from './SaveFavouriteDialog';
 import { SqlPreview } from './SqlPreview';
+import { LAB_DATABASE, LAB_QUERIES } from '../../api/explain-lab';
 
 const MIN_EDITOR_SHARE = 0.15;
 const MAX_EDITOR_SHARE = 0.8;
@@ -378,6 +379,24 @@ export function EditorView({ tabId }: EditorViewProps) {
         >
           Explain
         </Button>
+        {/* Temporary: loads a dev/explain-lab query to check the plan graph. Dev builds only. */}
+        {import.meta.env.DEV ? (
+          <Select
+            size="xs"
+            aria-label="Explain lab query"
+            placeholder="Lab query"
+            data={LAB_QUERIES.map((query) => ({ value: query.name, label: query.name }))}
+            value={null}
+            w={170}
+            onChange={(name) => {
+              const query = LAB_QUERIES.find((item) => item.name === name);
+              if (query !== undefined) {
+                api.setEditorDatabase(tabId, LAB_DATABASE);
+                api.setEditorText(tabId, query.statement);
+              }
+            }}
+          />
+        ) : null}
         <Select
           size="xs"
           aria-label="Batch size"

@@ -264,3 +264,217 @@ export function createIndexLine(collection: string, keys: readonly KeyEntry[]): 
     .join(', ');
   return `${target}.createIndex({ ${pattern} })`;
 }
+
+/** Size of one stage card in the plan graph, and the space between cards, in pixels. */
+export const GRAPH_NODE_WIDTH = 264;
+export const GRAPH_NODE_HEIGHT = 96;
+export const GRAPH_GAP_X = 24;
+// Tall enough for the label of a sub-tree, which sits above its first card.
+export const GRAPH_GAP_Y = 52;
+
+export interface GraphNode {
+  readonly id: string;
+  readonly stage: PlanStage;
+  /** Top left corner of the card. */
+  readonly x: number;
+  readonly y: number;
+  readonly hasChildren: boolean;
+  readonly expanded: boolean;
+  /** Number of stages a collapsed card hides. Zero when it is expanded. */
+  readonly hidden: number;
+}
+
+/** A line from a stage down to one of its inputs. */
+export interface GraphEdge {
+  readonly from: string;
+  readonly to: string;
+}
+
+export interface PlanLayout {
+  readonly nodes: readonly GraphNode[];
+  readonly edges: readonly GraphEdge[];
+  readonly width: number;
+  readonly height: number;
+}
+
+function stageCount(stage: PlanStage): number {
+  return stage.children.reduce((sum, child) => sum + stageCount(child), 1);
+}
+
+/**
+ * The plan as a tree of cards, root at the top and inputs below. Each sub-tree gets a column as
+ * wide as its leaves, and a parent sits centred over its first and last input. A collapsed stage
+ * hides its inputs and reports how many stages it hides.
+ */
+export function planLayout(
+  root: PlanStage,
+  collapsed: ReadonlySet<string>,
+  prefix: string = ROOT_STAGE_ID,
+): PlanLayout {
+  const edges: GraphEdge[] = [];
+  const widths = new Map<string, number>();
+  const isOpen = (stage: PlanStage, id: string) => stage.children.length > 0 && !collapsed.has(id);
+
+  const measure = (stage: PlanStage, id: string): number => {
+    let width = GRAPH_NODE_WIDTH;
+    if (isOpen(stage, id)) {
+      const inner = stage.children.reduce(
+        (sum, child, index) => sum + measure(child, `${id}.${index}`),
+        GRAPH_GAP_X * (stage.children.length - 1),
+      );
+      width = Math.max(width, inner);
+    }
+    widths.set(id, width);
+    return width;
+  };
+
+  let depthMax = 0;
+  // Returns the card of the stage first, then the cards of its inputs, in pre-order.
+  const place = (stage: PlanStage, id: string, left: number, depth: number): GraphNode[] => {
+    depthMax = Math.max(depthMax, depth);
+    const width = widths.get(id) ?? GRAPH_NODE_WIDTH;
+    const open = isOpen(stage, id);
+    const base = {
+      id,
+      stage,
+      y: depth * (GRAPH_NODE_HEIGHT + GRAPH_GAP_Y),
+      hasChildren: stage.children.length > 0,
+      expanded: open,
+    };
+    if (!open) {
+      const x = left + (width - GRAPH_NODE_WIDTH) / 2;
+      return [{ ...base, x, hidden: stageCount(stage) - 1 }];
+    }
+    const inner =
+      stage.children.reduce((sum, _, index) => sum + (widths.get(`${id}.${index}`) ?? 0), 0) +
+      GRAPH_GAP_X * (stage.children.length - 1);
+    let cursor = left + (width - inner) / 2;
+    const subtrees = stage.children.map((child, index) => {
+      const childId = `${id}.${index}`;
+      edges.push({ from: id, to: childId });
+      const placed = place(child, childId, cursor, depth + 1);
+      cursor += (widths.get(childId) ?? 0) + GRAPH_GAP_X;
+      return placed;
+    });
+    const first = subtrees[0]?.[0]?.x ?? left;
+    const last = subtrees.at(-1)?.[0]?.x ?? left;
+    return [{ ...base, x: (first + last) / 2, hidden: 0 }, ...subtrees.flat()];
+  };
+
+  const width = measure(root, prefix);
+  const nodes = place(root, prefix, 0, 0);
+  return {
+    nodes,
+    edges,
+    width,
+    height: (depthMax + 1) * GRAPH_NODE_HEIGHT + depthMax * GRAPH_GAP_Y,
+  };
+}
+
+/**
+ * The time a stage spent on its own. The server reports each stage's time with its inputs
+ * included, so the inputs' times are taken off. Never below zero, because estimates can overlap.
+ */
+export function selfTimeMs(stage: PlanStage): number | undefined {
+  if (stage.executionTimeMs === undefined) {
+    return undefined;
+  }
+  const inputs = stage.children.reduce((sum, child) => sum + (child.executionTimeMs ?? 0), 0);
+  return Math.max(0, stage.executionTimeMs - inputs);
+}
+
+export type StageTag = 'slowest' | 'largest' | 'most examined';
+
+/**
+ * The marks a stage card carries: the highest own time, the most documents returned and the most
+ * documents examined. On a tie the mark goes to the last stage in pre-order, the one nearest the
+ * data, since the stages above it only pass the documents on. No mark when the top value is 0.
+ */
+export function stageTags(entries: readonly StageEntry[]): ReadonlyMap<string, StageTag[]> {
+  const tags = new Map<string, StageTag[]>();
+  const mark = (tag: StageTag, value: (stage: PlanStage) => number | undefined): void => {
+    let top: string | undefined;
+    let topValue = 0;
+    for (const entry of entries) {
+      const current = value(entry.stage) ?? 0;
+      if (current > 0 && current >= topValue) {
+        top = entry.id;
+        topValue = current;
+      }
+    }
+    if (top !== undefined) {
+      tags.set(top, [...(tags.get(top) ?? []), tag]);
+    }
+  };
+  mark('slowest', selfTimeMs);
+  mark('largest', (stage) => stage.nReturned);
+  mark('most examined', (stage) => stage.docsExamined);
+  return tags;
+}
+
+const EJSON_NUMBER_KEYS = ['$numberInt', '$numberLong', '$numberDouble', '$numberDecimal'];
+
+// Canonical EJSON wraps every number, for example {"$numberInt": "3"}. The detail shows the number.
+function plainNumbers(_: string, value: unknown): unknown {
+  if (typeof value !== 'object' || value === null || Array.isArray(value)) {
+    return value;
+  }
+  const entries = Object.entries(value);
+  const [key, text] = entries[0] ?? [];
+  return entries.length === 1 && key !== undefined && EJSON_NUMBER_KEYS.includes(key)
+    ? Number(text)
+    : value;
+}
+
+function compactJson(value: unknown): string {
+  return (
+    JSON.stringify(value, plainNumbers)
+      ?.replace(/"([A-Za-z_$][\w$]*)":/g, '$1: ')
+      .replace(/,/g, ', ') ?? ''
+  );
+}
+
+/**
+ * One line that says what a stage works on: its index, the collection it joins, the key it groups
+ * or sorts by, or its filter. Undefined when the stage reports none of them.
+ */
+export function stageDetail(stage: PlanStage): string | undefined {
+  if (stage.index !== undefined) {
+    return stage.index;
+  }
+  const raw = typeof stage.raw === 'object' && stage.raw !== null ? stage.raw : {};
+  const spec = (raw as Record<string, unknown>)[stage.name];
+  const fields = typeof spec === 'object' && spec !== null ? (spec as Record<string, unknown>) : {};
+  const from = fields['from'] ?? fields['coll'];
+  if (typeof from === 'string') {
+    return `from ${from}`;
+  }
+  if (stage.name === '$group' && fields['_id'] !== undefined) {
+    return `by ${compactJson(fields['_id'])}`;
+  }
+  if (stage.sortPattern !== undefined) {
+    return `by ${compactJson(stage.sortPattern)}`;
+  }
+  if (stage.filter !== undefined) {
+    return compactJson(stage.filter);
+  }
+  // A pipeline stage without counters, such as one inside a $lookup pipeline, shows its spec.
+  return stage.shard ?? (spec === undefined ? undefined : compactJson(spec));
+}
+
+/** Why a stage shows no numbers. */
+export const UNMEASURED_TIP =
+  'The server reports no counters for the stages inside a $lookup pipeline. The stage comes from the pipeline spec.';
+
+/**
+ * Whether the server reported any counter for the stage. It reports none for the stages inside a
+ * $lookup pipeline, which the plan models from the pipeline spec.
+ */
+export function isMeasured(stage: PlanStage): boolean {
+  return (
+    stage.nReturned !== undefined ||
+    stage.docsExamined !== undefined ||
+    stage.keysExamined !== undefined ||
+    stage.executionTimeMs !== undefined
+  );
+}

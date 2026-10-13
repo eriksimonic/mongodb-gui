@@ -11,6 +11,11 @@ import {
   planRows,
   revealKeys,
   stageIdByName,
+  planLayout,
+  selfTimeMs,
+  stageEntries,
+  stageTags,
+  stageDetail,
 } from './explain-model';
 
 function stage(
@@ -142,5 +147,65 @@ describe('createIndexLine', () => {
     expect(createIndexLine('order-items', [['items.sku', 1]])).toBe(
       'db.getCollection("order-items").createIndex({ "items.sku": 1 })',
     );
+  });
+});
+
+describe('planLayout', () => {
+  it('puts the inputs one row down and centres a stage over its first and last input', () => {
+    const layout = planLayout(TREE, new Set());
+    const [root, scan, sort] = layout.nodes;
+    expect(layout.nodes.map((node) => node.id)).toEqual(['0', '0.0', '0.1']);
+    expect(scan?.y).toBe(sort?.y);
+    expect(scan?.y).toBeGreaterThan(root?.y ?? 0);
+    expect(root?.x).toBe(((scan?.x ?? 0) + (sort?.x ?? 0)) / 2);
+    expect(layout.edges).toEqual([
+      { from: '0', to: '0.0' },
+      { from: '0', to: '0.1' },
+    ]);
+  });
+
+  it('hides the inputs of a collapsed stage and counts them', () => {
+    const layout = planLayout(TREE, new Set(['0']));
+    expect(layout.nodes).toHaveLength(1);
+    expect(layout.nodes[0]?.hidden).toBe(2);
+    expect(layout.edges).toEqual([]);
+  });
+});
+
+describe('selfTimeMs, stageTags and stageDetail', () => {
+  const timed = stage('LIMIT', { executionTimeMs: 10, nReturned: 5 }, [
+    stage('FETCH', { executionTimeMs: 8, nReturned: 50, docsExamined: 50 }, [
+      stage('IXSCAN', { executionTimeMs: 1, nReturned: 50, index: 'status_1' }),
+    ]),
+  ]);
+
+  it('takes the inputs off a stage time and never goes below zero', () => {
+    expect(selfTimeMs(timed)).toBe(2);
+    expect(
+      selfTimeMs(stage('X', { executionTimeMs: 1 }, [stage('Y', { executionTimeMs: 3 })])),
+    ).toBe(0);
+    expect(selfTimeMs(stage('X'))).toBeUndefined();
+  });
+
+  it('marks the slowest, largest and most examined stage', () => {
+    const tags = stageTags(stageEntries(timed));
+    expect(tags.get('0.0')).toEqual(['slowest', 'most examined']);
+    // FETCH and IXSCAN both return 50. The scan is nearer the data, so it gets the mark.
+    expect(tags.get('0.0.0')).toEqual(['largest']);
+    expect(tags.get('0')).toBeUndefined();
+  });
+
+  it('describes a stage by index, joined collection, group key or sort', () => {
+    expect(stageDetail(stage('IXSCAN', { index: 'status_1' }))).toBe('status_1');
+    expect(stageDetail(stage('$lookup', { raw: { $lookup: { from: 'customers' } } }))).toBe(
+      'from customers',
+    );
+    expect(stageDetail(stage('$group', { raw: { $group: { _id: '$country' } } }))).toBe(
+      'by "$country"',
+    );
+    expect(stageDetail(stage('SORT', { sortPattern: { createdAt: -1 } }))).toBe(
+      'by {createdAt: -1}',
+    );
+    expect(stageDetail(stage('$limit', { raw: { $limit: { $numberInt: '3' } } }))).toBe('3');
   });
 });

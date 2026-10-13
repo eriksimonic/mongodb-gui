@@ -208,6 +208,29 @@ export function sortWarnings(warnings: readonly PlanWarning[]): PlanWarning[] {
     .map((entry) => entry.warning);
 }
 
+/** Warnings with the same code, as one row: the first of them and how many there are. */
+export interface WarningGroup {
+  readonly warning: PlanWarning;
+  readonly count: number;
+}
+
+/**
+ * One group per warning code, most severe first. The core warns once per stage, so a plan with
+ * four in-memory sorts would otherwise list the same warning four times.
+ */
+export function groupWarnings(warnings: readonly PlanWarning[]): WarningGroup[] {
+  const groups = new Map<string, { warning: PlanWarning; count: number }>();
+  for (const warning of sortWarnings(warnings)) {
+    const group = groups.get(warning.code);
+    if (group === undefined) {
+      groups.set(warning.code, { warning, count: 1 });
+    } else {
+      group.count += 1;
+    }
+  }
+  return [...groups.values()];
+}
+
 export interface TextSpan {
   /** 1-based line. */
   readonly line: number;

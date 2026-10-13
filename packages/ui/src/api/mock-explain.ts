@@ -9,6 +9,7 @@ import {
   type RpcClient,
 } from '@mongo-gui/core';
 import type { z } from 'zod';
+import { LAB_QUERIES } from './explain-lab';
 import { delay, fail } from './mock-support';
 
 type Rpc = RpcClient['explain'];
@@ -41,6 +42,17 @@ const FIXTURE_LOADERS: Readonly<Record<string, () => Promise<unknown>>> = Object
     const relative = path.slice(path.indexOf('/fixtures/') + '/fixtures/'.length);
     return [relative.replace(/\.json$/, ''), load];
   }),
+);
+
+/** Drops whitespace and a trailing semicolon, so a reformatted statement still matches. */
+function statementKey(code: string): string {
+  return code.replace(/\s+/g, '').replace(/;$/, '');
+}
+
+// The statements of dev/explain-lab/queries.js, each mapped to the fixture captured from it. A lab
+// statement explains as its real plan, not as the nearest generic shape.
+const LAB_CASES: ReadonlyMap<string, string> = new Map(
+  LAB_QUERIES.map((query) => [statementKey(query.statement), `lab/${query.name}`]),
 );
 
 /** The plan a statement or command gets in the mock. */
@@ -167,7 +179,8 @@ export function createMockExplain(deps: MockExplainDeps): Rpc {
       deps.requireConnected(input.connectionId);
       await delay(MOCK_EXPLAIN_DELAY_MS);
       return resultFor(
-        `${MOCK_FIXTURE_DIRECTORY}/${caseFor(shapeOfStatement(input.code))}`,
+        LAB_CASES.get(statementKey(input.code)) ??
+          `${MOCK_FIXTURE_DIRECTORY}/${caseFor(shapeOfStatement(input.code))}`,
         input.verbosity,
       );
     }),
