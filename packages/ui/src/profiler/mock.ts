@@ -9,7 +9,7 @@ import {
   type RpcEvent,
 } from '@mongo-gui/core';
 import type { z } from 'zod';
-import { bulkProfileEntries, fixtureProfileEntries, tailEntry } from './mock-profiler-fixtures';
+import { bulkProfileEntries, fixtureProfileEntries, tailEntry } from './mock-fixtures';
 
 type Rpc = RpcClient['profiler'];
 

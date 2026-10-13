@@ -14,7 +14,6 @@ import {
   type ConnectionsImportResult,
   DEFAULT_BATCH_SIZE,
   appError,
-  groupByShape,
   normaliseExplain,
   rewriteForExplain,
   redactUri,
@@ -48,16 +47,10 @@ import {
   type ExplainResult,
   type ExplainRunCommandInput,
   type ExplainRunInput,
-  type ProfileCollectionInfo,
-  type ProfileEntry,
-  type ProfileFilter,
-  type ProfilingLevel,
   type RpcCall,
   type RpcEvent,
   type RpcResult,
   type SchemaReport,
-  type SetProfilingLevelInput,
-  type TailProfileOptions,
   privilegeActionCatalog,
   type UpdateState,
   type UserInfo,
@@ -97,7 +90,6 @@ import {
   getFile,
   getValidation,
   insertDocument,
-  getProfilingLevel,
   listBuckets,
   listCollections,
   listDatabases,
@@ -110,8 +102,6 @@ import {
   applyReconfig,
   freeze,
   initiate,
-  listProfileEntries,
-  mapDriverError,
   previewImport,
   planReconfig,
   renameCollection,
@@ -123,11 +113,7 @@ import {
   setValidation,
   stepDown,
   updateDocumentFields,
-  profileCollectionInfo,
-  setProfilingLevel,
-  tailProfileEntries,
   toCanonicalEjson,
-  type ProfileTail,
   changePassword,
   connectionStatus,
   getBuildInfo,
@@ -212,6 +198,8 @@ import {
   defaultSamplerFactory,
   type SamplerFactory,
 } from './monitor-service';
+import { driverCall, entry, type Operation } from './operation';
+import { adapterProfilerPort, createProfilerService, type ProfilerPort } from './profiler';
 import { createTransferService, type TransferAdapter } from './transfer-service';
 import { createGenerateService } from './generate-service';
 import { createReplicationPlans } from './replication-plans';
@@ -352,33 +340,6 @@ export interface BackupTools {
 /** The driver client type, named without importing the driver into the main process. */
 export type DriverClient = ReturnType<ConnectionRegistry['getClient']>;
 
-/** The adapter's profiler functions, as the router calls them. */
-export interface ProfilerPort {
-  level(client: DriverClient, database: string): Promise<ProfilingLevel>;
-  setLevel(
-    client: DriverClient,
-    database: string,
-    input: SetProfilingLevelInput,
-  ): Promise<ProfilingLevel>;
-  list(client: DriverClient, database: string, filter: ProfileFilter): Promise<ProfileEntry[]>;
-  info(client: DriverClient, database: string): Promise<ProfileCollectionInfo>;
-  tail(client: DriverClient, database: string, options: TailProfileOptions): ProfileTail;
-}
-
-const adapterProfilerPort: ProfilerPort = {
-  level: getProfilingLevel,
-  setLevel: setProfilingLevel,
-  list: listProfileEntries,
-  info: profileCollectionInfo,
-  tail: tailProfileEntries,
-};
-
-interface ActiveTail {
-  readonly connectionId: string;
-  readonly database: string;
-  readonly tail: ProfileTail;
-}
-
 /** A change watch held by the router. `flush` sends the batch that is waiting to go out. */
 interface ActiveChangeWatch {
   readonly connectionId: string;
@@ -476,11 +437,6 @@ export type AppServices = Omit<RouterDeps, 'onEvent' | 'docker' | 'updates' | 's
   dispose(): Promise<void>;
 };
 
-interface Operation {
-  readonly call: RpcCall;
-  run(input: unknown): Promise<unknown>;
-}
-
 /** The client a connection holds. The router takes it from the registry for each call. */
 type ClientOf = ReturnType<ConnectionRegistry['getClient']>;
 
@@ -513,10 +469,12 @@ export function createRouter(deps: RouterDeps): Router {
     }
     return status;
   };
-  const profiler = deps.profiler ?? adapterProfilerPort;
+  const profiler = createProfilerService({
+    port: deps.profiler ?? adapterProfilerPort,
+    getClient: (connectionId) => deps.connections.getClient(connectionId),
+    emit: deps.onEvent,
+  });
   const replicationPlans = createReplicationPlans();
-  // At most one tail per connection and database, keyed by both.
-  const tails = new Map<string, ActiveTail>();
   // Per-renderer cleanups. Tails register first; other services join the same registry.
   const rendererResets = new Set<() => void>();
   // Change watches by connection, then by watch id. A watch ends with its connection or the page.
@@ -525,56 +483,12 @@ export function createRouter(deps: RouterDeps): Router {
   rendererResets.add(() => {
     replicationPlans.clear();
   });
-  const profilerClient = (connectionId: string): DriverClient =>
-    deps.connections.getClient(connectionId);
-
-  /** Stops and forgets every tail that matches. */
-  const stopTails = (matches: (active: ActiveTail) => boolean): void => {
-    for (const [key, candidate] of [...tails]) {
-      if (matches(candidate)) {
-        candidate.tail.stop();
-        tails.delete(key);
-      }
-    }
-  };
-
   rendererResets.add(() => {
-    stopTails(() => true);
+    profiler.stopAll();
   });
   rendererResets.add(() => {
     stopChangeWatches(() => true);
   });
-
-  const startTail = (
-    connectionId: string,
-    database: string,
-    pollMs: number,
-    filter: ProfileFilter | undefined,
-  ): void => {
-    const client = profilerClient(connectionId);
-    const options: TailProfileOptions = {
-      since: new Date().toISOString(),
-      pollMs,
-      ...(filter === undefined ? {} : { filter }),
-    };
-    const tail = profiler.tail(client, database, options);
-    tail.onEntries((entries) => {
-      deps.onEvent({
-        type: 'profiler:entries',
-        connectionId,
-        database,
-        entries: entries.map(canonicalEntry),
-      });
-    });
-    tail.onError((error) => {
-      deps.onEvent({ type: 'profiler:error', connectionId, database, error });
-    });
-    tails.set(tailKey(connectionId, database), { connectionId, database, tail });
-  };
-
-  const stopTail = (connectionId: string, database: string): void => {
-    stopTails((active) => active.connectionId === connectionId && active.database === database);
-  };
 
   /** Stops the watches that match, and forgets them. Each watch closes in the background. */
   const stopChangeWatches = (matches: (active: ActiveChangeWatch) => boolean): void => {
@@ -1510,44 +1424,7 @@ export function createRouter(deps: RouterDeps): Router {
       repos().savedRestores.remove(input.id);
     }),
 
-    entry('profiler.level', rpcContract.profiler.level, (input) =>
-      driverCall(() => profiler.level(profilerClient(input.connectionId), input.database)),
-    ),
-    entry('profiler.setLevel', rpcContract.profiler.setLevel, (input) =>
-      driverCall(() =>
-        profiler.setLevel(profilerClient(input.connectionId), input.database, {
-          level: input.level,
-          ...(input.slowMs === undefined ? {} : { slowMs: input.slowMs }),
-          ...(input.sampleRate === undefined ? {} : { sampleRate: input.sampleRate }),
-        }),
-      ),
-    ),
-    entry('profiler.list', rpcContract.profiler.list, (input) =>
-      driverCall(async () =>
-        (await profiler.list(profilerClient(input.connectionId), input.database, input.filter)).map(
-          canonicalEntry,
-        ),
-      ),
-    ),
-    entry('profiler.shapes', rpcContract.profiler.shapes, (input) =>
-      driverCall(async () => {
-        const entries = await profiler.list(
-          profilerClient(input.connectionId),
-          input.database,
-          input.filter,
-        );
-        return groupByShape(entries.map(canonicalEntry));
-      }),
-    ),
-    entry('profiler.info', rpcContract.profiler.info, (input) =>
-      driverCall(() => profiler.info(profilerClient(input.connectionId), input.database)),
-    ),
-    entry('profiler.tail', rpcContract.profiler.tail, (input) => {
-      stopTail(input.connectionId, input.database);
-      if (input.enabled) {
-        startTail(input.connectionId, input.database, input.pollMs, input.filter);
-      }
-    }),
+    ...profiler.operations(),
     entry('changes.start', rpcContract.changes.start, (input) =>
       driverCall(async () => ({
         watchId: startChangeWatch(input.connectionId, input.target, input.options),
@@ -1893,7 +1770,7 @@ export function createRouter(deps: RouterDeps): Router {
 
   deps.connections.onStatusChange((connectionId, status) => {
     if (status.state !== 'connected') {
-      stopTails((active) => active.connectionId === connectionId);
+      profiler.stopConnection(connectionId);
       stopChangeWatches((active) => active.connectionId === connectionId);
     }
     deps.onEvent({ type: 'connection:status', connectionId, status });
@@ -1919,7 +1796,7 @@ export function createRouter(deps: RouterDeps): Router {
     }
   });
   deps.lockEvents?.subscribe(() => {
-    stopTails(() => true);
+    profiler.stopAll();
     stopChangeWatches(() => true);
     monitor.stopAll();
     transfers.cancelAll();
@@ -2387,14 +2264,7 @@ export function createRepos(store: EncryptedStore): RouterRepos {
 const refuseFork: ForkFunction = () => {
   throw new Error('no shell runtime is configured');
 };
-function tailKey(connectionId: string, database: string): string {
-  return `${connectionId}\u0000${database}`;
-}
 
-/**
- * Profile entries carry BSON values in command, locks, storage and raw. They are sent in
- * canonical extended JSON, so the renderer gets plain data with $oid and $date markers.
- */
 /** The text the log viewer shows: secrets masked, URIs redacted, attributes in canonical EJSON. */
 function redactLog(log: ServerLog): ServerLog {
   return { ...log, lines: log.lines.map(redactLogLine) };
@@ -2453,16 +2323,6 @@ function redactParameter(parameter: ServerParameter): ServerParameter {
   return { name: parameter.name, value: redacted, valueEjson: text.text };
 }
 
-function canonicalEntry(entry: ProfileEntry): ProfileEntry {
-  return {
-    ...entry,
-    raw: toCanonicalEjson(entry.raw),
-    ...(entry.command === undefined ? {} : { command: toCanonicalEjson(entry.command) }),
-    ...(entry.locks === undefined ? {} : { locks: toCanonicalEjson(entry.locks) }),
-    ...(entry.storage === undefined ? {} : { storage: toCanonicalEjson(entry.storage) }),
-  };
-}
-
 /**
  * Builds the explain result from a server explain document. The text is canonical EJSON, which
  * the normaliser reads. The raw text is pretty printed for the raw tab.
@@ -2481,33 +2341,6 @@ function explainResult(requestId: string, printable: string, elapsedMs: number):
     // Whole milliseconds, so the header and the result do not show sub-millisecond noise.
     elapsedMs: Math.round(elapsedMs),
   };
-}
-
-function entry<C extends RpcCall>(
-  method: string,
-  call: C,
-  run: (input: CallInput<C>) => unknown,
-): [string, Operation] {
-  return [
-    method,
-    {
-      call,
-      // The router parses the input with this call's schema before it calls run.
-      run: async (input) => run(input as CallInput<C>),
-    },
-  ];
-}
-
-/** Runs a driver call. Driver failures become AppErrors. AppErrors pass through unchanged. */
-async function driverCall<T>(action: () => Promise<T>): Promise<T> {
-  try {
-    return await action();
-  } catch (error) {
-    if (error instanceof AppErrorException) {
-      throw error;
-    }
-    throw new AppErrorException(mapDriverError(error));
-  }
 }
 
 /**

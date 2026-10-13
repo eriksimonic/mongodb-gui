@@ -15,13 +15,13 @@ import {
   type TailProfileOptions,
 } from '@mongo-gui/core';
 import type { ProfileTail } from '@mongo-gui/mongo-adapter';
+import type { ProfilerPort } from './profiler';
 import {
   createAppServices,
   createRouter,
   type AppServices,
   type ConnectionRegistry,
   type DriverClient,
-  type ProfilerPort,
   type Router,
 } from './router';
 

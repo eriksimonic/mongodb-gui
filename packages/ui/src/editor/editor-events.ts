@@ -1,4 +1,4 @@
-import { createUiEventBus } from '../profiler/profiler-events';
+import { createUiEventBus } from '../kit/event-bus';
 
 /**
  * Requests to the open editor. The store asks a tab to take text at its cursor, and the editor

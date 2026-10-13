@@ -1,6 +1,5 @@
 import type { AppStore } from '../state/app-store';
-import { profilerUiEvents } from '../profiler/profiler-events';
-import { explainTarget } from '../profiler/profiler-model';
+import { explainTarget, profilerUiEvents } from '../profiler';
 
 /**
  * Sends the profiler's "Explain" requests to the app store. Returns the unsubscribe function.

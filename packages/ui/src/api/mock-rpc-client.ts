@@ -73,7 +73,7 @@ import {
   mockImportPreview,
   mockSavePath,
 } from './mock-transfer';
-import { createMockProfiler } from './mock-profiler';
+import { createMockProfiler } from '../profiler/mock';
 import { createMockGenerate } from './mock-generate';
 import { createMockChanges } from './mock-changes';
 import { createMockGridFs, MOCK_FOLDER_PATH } from './mock-gridfs';

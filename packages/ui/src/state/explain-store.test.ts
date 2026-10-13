@@ -4,8 +4,8 @@ import { localConnectionId } from '../api/mock-fixtures';
 import { createMockUiApi } from '../api/mock-rpc-client';
 import type { UiApi } from '../api/ui-api';
 import { bridgeProfilerExplain } from '../explain/profiler-explain-bridge';
-import { fixtureProfileEntries } from '../api/mock-profiler-fixtures';
-import { profilerUiEvents } from '../profiler/profiler-events';
+import { profilerUiEvents } from '../profiler';
+import { fixtureProfileEntries } from '../profiler/mock-fixtures';
 import { createAppStore, type AppStore } from './app-store';
 
 const FIND_CODE = `db.orders.find({ status: 'paid' }).sort({ createdAt: -1 })`;

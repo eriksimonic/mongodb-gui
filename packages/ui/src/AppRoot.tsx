@@ -6,7 +6,7 @@ import { applyFontScale } from './theme/font-scale';
 import type { AppData } from './state/app-store';
 import { AppStoreProvider } from './state/AppStoreProvider';
 import { useAppStore } from './state/app-store-context';
-import { ProfilerStoreProvider } from './profiler/ProfilerStoreProvider';
+import { ProfilerStoreProvider } from './profiler';
 import { ChangesStoreProvider } from './changes/ChangesStoreProvider';
 
 export interface AppRootProps {

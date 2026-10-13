@@ -3,7 +3,7 @@ import { fireEvent, screen, waitFor } from '@testing-library/react';
 import { describe, expect, it, vi } from 'vitest';
 import { localConnectionId } from '../../api/mock-fixtures';
 import { createMockUiApi } from '../../api/mock-rpc-client';
-import { ProfilerOpenerContext } from '../../profiler/profiler-opener';
+import { ProfilerOpenerContext } from '../../profiler';
 import { renderWithApp } from '../../test-support/render';
 import { ConnectionTree } from './ConnectionTree';
 import { openSubmenu } from '../../test-support/menu';

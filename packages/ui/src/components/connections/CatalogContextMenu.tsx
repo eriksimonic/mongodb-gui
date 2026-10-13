@@ -1,5 +1,5 @@
 import { useChangesOpener } from '../../changes/changes-opener';
-import { useProfilerOpener } from '../../profiler/profiler-opener';
+import { useProfilerOpener } from '../../profiler';
 import { useAppStore } from '../../state/app-store-context';
 import { shardingAvailability } from '../../sharding/sharding-availability';
 import { usePanelOpener } from '../../state/panel-opener';

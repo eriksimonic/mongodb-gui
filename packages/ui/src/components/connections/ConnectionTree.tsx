@@ -11,7 +11,7 @@ import {
   connectionNodeId,
   databaseNodeId,
 } from '../../state/node-ids';
-import { useProfilerOpener } from '../../profiler/profiler-opener';
+import { useProfilerOpener } from '../../profiler';
 import { useGridFsOpener } from '../gridfs/gridfs-opener';
 import { GridFsBucketContextMenu } from '../gridfs/GridFsBucketContextMenu';
 import { runReported } from '../notify-error';

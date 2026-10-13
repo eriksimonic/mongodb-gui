@@ -34,7 +34,7 @@ import { TransferModals } from '../components/transfers/TransferModals';
 import { BackupDialogs } from '../components/backup/BackupDialogs';
 import { useGenerateDialog } from '../components/generate/generate-store';
 import { UpdateBanner } from '../components/updates/UpdateBanner';
-import { ProfilerOpenerContext, type ProfilerOpener } from '../profiler/profiler-opener';
+import { ProfilerOpenerContext, type ProfilerOpener } from '../profiler';
 import type { AppData, PanelRequest } from '../state/app-store';
 import { useAppStore, useAppStoreApi } from '../state/app-store-context';
 import {

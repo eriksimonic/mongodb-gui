@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import { AppErrorException, groupByShape, type RpcEvent } from '@mongo-gui/core';
-import { localConnectionId } from './mock-fixtures';
-import { createMockUiApi } from './mock-rpc-client';
+import { localConnectionId } from '../api/mock-fixtures';
+import { createMockUiApi } from '../api/mock-rpc-client';
 
 const SHOP = { connectionId: localConnectionId, database: 'shop' };
 const ANALYTICS = { connectionId: localConnectionId, database: 'analytics' };
