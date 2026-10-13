@@ -56,6 +56,7 @@ import {
   profilerPanelId,
   usersPanelId,
 } from '../state/node-ids';
+import { explainRestoreOf, type ExplainPanelState } from '../explain/explain-model';
 import { GridFsBucketDialogs } from '../components/gridfs/GridFsBucketDialogs';
 import { GridFsOpenerContext, type GridFsOpener } from '../components/gridfs/gridfs-opener';
 import { ChangesOpenerContext, type ChangesOpener } from '../changes/changes-opener';
@@ -348,15 +349,15 @@ function openStatsPanel(
  * Adds the explain panel of the store to the centre group, or focuses it when it is open. The
  * panel reads its request and result from the store.
  */
-function openExplainPanel(api: DockviewApi, id: string, title: string): void {
-  if (api.getPanel(id) !== undefined) {
+function openExplainPanel(api: DockviewApi, panel: ExplainPanelState): void {
+  if (api.getPanel(panel.id) !== undefined) {
     return;
   }
   api.addPanel({
-    id,
+    id: panel.id,
     component: 'explain',
-    title,
-    params: { panelId: id },
+    title: panel.title,
+    params: { panelId: panel.id, restore: explainRestoreOf(panel) },
     position: { referencePanel: 'welcome', direction: 'within' },
   });
 }
@@ -624,7 +625,7 @@ export function ShellScreen() {
       return;
     }
     for (const panel of Object.values(explainPanels)) {
-      openExplainPanel(dock, panel.id, panel.title);
+      openExplainPanel(dock, panel);
     }
   }, [dock, explainPanels]);
 

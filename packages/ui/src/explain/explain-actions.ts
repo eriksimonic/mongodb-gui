@@ -1,6 +1,7 @@
 import {
   appError,
   AppErrorException,
+  newId,
   rewriteForExplain,
   toAppError,
   type PlanStage,
@@ -12,6 +13,7 @@ import {
   commandCollection,
   explainTitle,
   type ExplainPanelState,
+  type ExplainRestore,
   type ExplainRequest,
 } from './explain-model';
 import {
@@ -51,6 +53,11 @@ export interface ExplainActions {
   measureLookup(panelId: string, stage: PlanStage): Promise<string>;
   /** Runs the panel's request again. A verbosity replaces the last one and the rest stays. */
   rerunExplain(panelId: string, verbosity?: PlanVerbosity): Promise<void>;
+  /**
+   * Puts back a panel the saved layout restored, from its dock params. It does not run: the
+   * explain may execute the query, so it waits for Re-run.
+   */
+  restoreExplain(panelId: string, restore: ExplainRestore): void;
   /** Forgets a panel after its tab closes. */
   closeExplainPanel(panelId: string): void;
 }
@@ -64,7 +71,6 @@ export function createExplainActions(
   set: AppStore['setState'],
   get: AppStore['getState'],
 ): ExplainActions {
-  let serial = 0;
   // A run that finishes after a newer run of the same panel, or after the panel closed, is dropped.
   const generations = new Map<string, number>();
 
@@ -123,9 +129,9 @@ export function createExplainActions(
     }
   }
 
+  // Unique across sessions, so a new panel never takes the id of one the saved layout restored.
   function nextId(): string {
-    serial += 1;
-    return `explain:${serial}`;
+    return `explain:${newId()}`;
   }
 
   function findPanel(
@@ -262,6 +268,18 @@ export function createExplainActions(
         patchPanel(panelId, { request: { ...panel.request, verbosity } });
       }
       await run(panelId);
+    },
+
+    restoreExplain(panelId, restore) {
+      if (get().explainPanels[panelId] !== undefined) {
+        return;
+      }
+      set((state) => ({
+        explainPanels: {
+          ...state.explainPanels,
+          [panelId]: { id: panelId, ...restore, outcome: { state: 'idle' } },
+        },
+      }));
     },
 
     closeExplainPanel(panelId) {

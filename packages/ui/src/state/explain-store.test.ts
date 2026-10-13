@@ -208,3 +208,42 @@ describe('closeExplainPanel', () => {
     expect(store.getState().explainPanels).toEqual({});
   });
 });
+
+describe('restoreExplain', () => {
+  it('puts a restored panel back without running it, and runs it on Re-run', async () => {
+    const store = await connectedStore();
+    const id = await store.getState().openExplain({
+      connectionId: localConnectionId,
+      database: 'shop',
+      code: FIND_CODE,
+    });
+    const panel = store.getState().explainPanels[id];
+    if (panel === undefined) {
+      throw new Error('no panel');
+    }
+    // A restart empties the store. The dock params still hold the request.
+    const fresh = await connectedStore();
+    fresh.getState().restoreExplain(id, {
+      title: panel.title,
+      collection: panel.collection,
+      request: panel.request,
+    });
+    expect(fresh.getState().explainPanels[id]?.outcome.state).toBe('idle');
+    await fresh.getState().rerunExplain(id);
+    expect(fresh.getState().explainPanels[id]?.outcome.state).toBe('ready');
+  });
+
+  it('gives each new panel an id no earlier session used', async () => {
+    const first = await (await connectedStore()).getState().openExplain({
+      connectionId: localConnectionId,
+      database: 'shop',
+      code: FIND_CODE,
+    });
+    const second = await (await connectedStore()).getState().openExplain({
+      connectionId: localConnectionId,
+      database: 'shop',
+      code: FIND_CODE,
+    });
+    expect(first).not.toBe(second);
+  });
+});

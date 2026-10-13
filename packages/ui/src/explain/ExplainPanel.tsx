@@ -143,6 +143,11 @@ function ExplainPanelBody({ panel }: { readonly panel: ExplainPanelState }) {
         </Alert>
       ) : null}
       {outcome.state === 'refused' ? <NoPlan message={outcome.message} /> : null}
+      {outcome.state === 'idle' ? (
+        <Text size="sm" c="dimmed">
+          This explain is from the last session. Press Re-run to run it again.
+        </Text>
+      ) : null}
       {outcome.state === 'ready' ? (
         <Tabs
           value={tab}

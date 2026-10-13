@@ -22,7 +22,9 @@ export type ExplainOutcome =
   | { readonly state: 'ready'; readonly result: ExplainResult }
   | { readonly state: 'error'; readonly error: AppError }
   /** The statement is not one collection query, so nothing ran. */
-  | { readonly state: 'refused'; readonly message: string };
+  | { readonly state: 'refused'; readonly message: string }
+  /** Restored from the saved layout. Nothing ran yet in this session. */
+  | { readonly state: 'idle' };
 
 export interface ExplainPanelState {
   readonly id: string;
@@ -34,6 +36,19 @@ export interface ExplainPanelState {
   /** A line above the plan that says what was explained, for a measured $lookup pipeline. */
   readonly note?: string;
   readonly outcome: ExplainOutcome;
+}
+
+/** What a dock panel keeps in its params, so the saved layout can bring the panel back. */
+export type ExplainRestore = Pick<ExplainPanelState, 'title' | 'collection' | 'request' | 'note'>;
+
+/** The restore params of a panel. */
+export function explainRestoreOf(panel: ExplainPanelState): ExplainRestore {
+  return {
+    title: panel.title,
+    collection: panel.collection,
+    request: panel.request,
+    ...(panel.note === undefined ? {} : { note: panel.note }),
+  };
 }
 
 /** Names the panel tab. Without a collection the title is the plain word. */

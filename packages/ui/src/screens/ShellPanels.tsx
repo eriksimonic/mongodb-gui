@@ -68,6 +68,7 @@ import { SchemaPanel } from '../schema/SchemaPanel';
 import { OperationsPanel } from '../monitor/OperationsPanel';
 import { useAppStore, useAppStoreApi } from '../state/app-store-context';
 import type { EditorTab } from '../state/editors';
+import type { ExplainRestore } from '../explain/explain-model';
 import { runReported } from '../components/notify-error';
 import { idleLockHint, recentConnections } from './welcome-model';
 import { isFixedPanel, panelsToClose, type TabCloseMode } from './tab-close';
@@ -103,10 +104,31 @@ export interface ProfilerPanelParams {
 /** Params of an explain panel. The id names the panel in the app store. */
 export interface ExplainPanelParams {
   readonly panelId: string;
+  /** The request and title, so a panel the saved layout restores can be rebuilt. */
+  readonly restore?: ExplainRestore;
 }
 
-/** An explain panel in the centre group. Its request and result live in the app store. */
+/**
+ * An explain panel in the centre group. Its request and result live in the app store, which a
+ * restart empties, so a restored panel puts its request back from the params.
+ */
 export function ExplainDockPanel({ params }: IDockviewPanelProps<ExplainPanelParams>) {
+  const known = useAppStore((state) => state.explainPanels[params.panelId] !== undefined);
+  const restoreExplain = useAppStore((state) => state.restoreExplain);
+  const { panelId, restore } = params;
+  useEffect(() => {
+    if (!known && restore !== undefined) {
+      restoreExplain(panelId, restore);
+    }
+  }, [known, panelId, restore, restoreExplain]);
+  if (!known && restore === undefined) {
+    return (
+      <Text size="sm" c="dimmed" p="md">
+        This explain is from an earlier session and cannot be shown. Close the tab and run Explain
+        again.
+      </Text>
+    );
+  }
   return (
     <Box h="100%" style={{ overflow: 'auto' }}>
       <Suspense fallback={null}>
