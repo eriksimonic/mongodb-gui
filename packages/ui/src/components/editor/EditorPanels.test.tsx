@@ -13,7 +13,7 @@ import { HistoryPanel } from './HistoryPanel';
 import { OutputPanel } from './OutputPanel';
 
 vi.mock('../../editor/MongoshEditor', () => import('../../test-support/mongosh-editor-stub'));
-vi.mock('../../editor/ReadOnlyCode', () => import('../../test-support/read-only-code-stub'));
+vi.mock('../../kit/code/ReadOnlyCode', () => import('../../test-support/read-only-code-stub'));
 
 function editorOf(): HTMLTextAreaElement {
   return screen.getByRole('textbox', { name: /Query for/ }) as HTMLTextAreaElement;

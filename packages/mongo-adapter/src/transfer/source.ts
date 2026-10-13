@@ -1,7 +1,6 @@
 import { createReadStream, type ReadStream } from 'node:fs';
 import { open } from 'node:fs/promises';
-import { createCsvParser, type CsvOptions } from '@mongo-gui/core';
-import { validationError } from '../management/errors';
+import { createCsvParser, type CsvOptions, validationError } from '@mongo-gui/core';
 
 const BYTE_ORDER_MARK = '\uFEFF';
 const BYTE_ORDER_MARK_PATTERN = /^\uFEFF/;

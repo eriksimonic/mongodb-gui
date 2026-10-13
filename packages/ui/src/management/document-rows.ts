@@ -1,5 +1,5 @@
 import { editableValue } from '@mongo-gui/core';
-import { formatJson } from './input-rules';
+import { formatJson } from '../kit/input-rules';
 
 const CELL_LIMIT = 80;
 const ID_FIELD = '_id';

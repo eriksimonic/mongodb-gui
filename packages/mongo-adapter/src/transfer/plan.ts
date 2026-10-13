@@ -7,10 +7,11 @@ import {
   type FieldMapping,
   type FieldType,
   type ImportMode,
+  validationError,
 } from '@mongo-gui/core';
 import type { PlainObject } from '../documents';
-import { parseEjson } from '../management/ejson';
-import { validationError } from '../management/errors';
+import { parseEjson } from '../ejson';
+
 import { cellToBson, getPath, jsonValueToBson, setPath, splitPath } from './values';
 
 // One record from the source file. CSV records are already split into fields. JSON and NDJSON

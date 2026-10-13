@@ -22,9 +22,10 @@ import {
   type RoleInfo,
   type RoleRef,
   type UpdateRoleInput,
+  validationError,
 } from '@mongo-gui/core';
 import { definedEntry, readArray, readString } from '../documents';
-import { parseInput, validationError } from '../management/errors';
+import { parseInput } from '../management/errors';
 import { parseServerRecord, runSecurityCommand } from './errors';
 import {
   builtinFlag,

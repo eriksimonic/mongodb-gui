@@ -1,8 +1,8 @@
 import { Alert, Button, Checkbox, Group, Modal, Stack, Text, TextInput } from '@mantine/core';
-import { errorText } from '../notify-error';
+import { errorText } from '../../kit/notify-error';
 import { useState } from 'react';
 import { useUiApi } from '../../api/ui-api';
-import { collectionNameError } from '../../management/input-rules';
+import { collectionNameError } from '../../kit/input-rules';
 
 export interface RenameCollectionDialogProps {
   readonly connectionId: string;

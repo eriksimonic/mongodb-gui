@@ -11,7 +11,7 @@ import {
 import { IconPlus, IconTrash } from '@tabler/icons-react';
 import type { PrivilegeActionCatalog } from '@mongo-gui/core';
 import { useMemo } from 'react';
-import { databaseNameError } from '../../management/input-rules';
+import { databaseNameError } from '../../kit/input-rules';
 import {
   actionGroups,
   collectionError,

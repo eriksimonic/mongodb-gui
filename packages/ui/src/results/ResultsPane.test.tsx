@@ -8,8 +8,8 @@ import { OPEN_MAX_CHARS } from './full-documents';
 import type { JsonObject } from './result-model';
 import { ResultsPane, type ResultsPaneProps } from './ResultsPane';
 
-vi.mock('../editor/JsonEditor', () => import('../test-support/json-editor-stub'));
-vi.mock('../editor/ReadOnlyCode', () => import('../test-support/read-only-code-stub'));
+vi.mock('../kit/code/JsonEditor', () => import('../test-support/json-editor-stub'));
+vi.mock('../kit/code/ReadOnlyCode', () => import('../test-support/read-only-code-stub'));
 
 const REF = '11111111-1111-4111-8111-111111111111/22222222-2222-4222-8222-222222222222';
 const TARGET = { connectionId: 'c', database: 'shop', collection: 'orders' };

@@ -13,17 +13,17 @@ import {
   TextInput,
 } from '@mantine/core';
 import { type ValidationAction, type ValidationLevel } from '@mongo-gui/core';
-import { errorText } from '../notify-error';
+import { errorText } from '../../kit/notify-error';
 import { useState } from 'react';
 import { useUiApi } from '../../api/ui-api';
-import { JsonEditor } from '../../editor/JsonEditor';
+import { JsonEditor } from '../../kit/code/JsonEditor';
 import {
   buildCollectionRequest,
   EMPTY_COLLECTION_DRAFT,
   type CollectionDraft,
   type Granularity,
 } from '../../management/collection-draft';
-import { collectionNameError } from '../../management/input-rules';
+import { collectionNameError } from '../../kit/input-rules';
 
 export interface CreateCollectionDialogProps {
   readonly connectionId: string;

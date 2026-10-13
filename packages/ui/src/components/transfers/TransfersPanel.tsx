@@ -3,7 +3,7 @@ import type { TransferProgress } from '@mongo-gui/core';
 import { useEffect } from 'react';
 import { useAppStore } from '../../state/app-store-context';
 import { listTransfers, transferFraction, type TransferView } from '../../state/transfer-state';
-import { runReported } from '../notify-error';
+import { runReported } from '../../kit/notify-error';
 import { progressLine, statusLine } from './transfer-model';
 
 /**

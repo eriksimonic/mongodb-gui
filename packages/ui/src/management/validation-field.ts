@@ -1,4 +1,4 @@
-import { formatJson, parseJsonObject } from './input-rules';
+import { formatJson, parseJsonObject } from '../kit/input-rules';
 
 /** $jsonSchema bsonType names for the BSON types the schema report names. */
 const JSON_SCHEMA_TYPES: Readonly<Record<string, string>> = {

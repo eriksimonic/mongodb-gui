@@ -9,7 +9,7 @@ import { indexScenarios } from '../../api/mock-index-scenarios';
 import { renderWithApp } from '../../test-support/render';
 import { IndexesPanel } from './IndexesPanel';
 
-vi.mock('../../editor/JsonEditor', () => import('../../test-support/json-editor-stub'));
+vi.mock('../../kit/code/JsonEditor', () => import('../../test-support/json-editor-stub'));
 
 const panel = { connectionId: localConnectionId, database: 'shop', collection: 'orders' };
 const NAME_COLUMN = 0;

@@ -33,10 +33,11 @@ import {
   type ImportRequest,
   type TransferProgress,
   type FieldType,
+  validationError,
 } from '@mongo-gui/core';
 import { isPlainObject, type PlainObject } from '../documents';
-import { EJSON, parseEjson, stringifyEjson } from '../management/ejson';
-import { parseInput, refuseReservedDatabase, validationError } from '../management/errors';
+import { EJSON, parseEjson, stringifyEjson } from '../ejson';
+import { parseInput, refuseReservedDatabase } from '../management/errors';
 import {
   cellText,
   convertRecord,

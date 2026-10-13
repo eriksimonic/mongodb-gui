@@ -14,7 +14,7 @@ import { IconBookmarkPlus, IconPlayerPlay } from '@tabler/icons-react';
 import type { HistoryEntry } from '@mongo-gui/core';
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { useUiApi } from '../../api/ui-api';
-import { errorText, notifyError } from '../notify-error';
+import { errorText, notifyError } from '../../kit/notify-error';
 import { useAppStore, useAppStoreApi } from '../../state/app-store-context';
 import { SaveFavouriteDialog } from './SaveFavouriteDialog';
 import { countOf, firstLine, formatRunTime } from './labels';

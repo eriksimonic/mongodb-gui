@@ -1,4 +1,4 @@
-import type { ReadOnlyCodeProps } from '../editor/ReadOnlyCode';
+import type { ReadOnlyCodeProps } from '../kit/code/ReadOnlyCode';
 
 /** Stands in for the read-only Monaco view in component tests. The text is the only thing it shows. */
 export function ReadOnlyCode({ label, value }: ReadOnlyCodeProps) {

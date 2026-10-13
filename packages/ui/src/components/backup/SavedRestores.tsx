@@ -3,7 +3,7 @@ import { IconCheck, IconPencil, IconTrash } from '@tabler/icons-react';
 import type { SavedRestore, SavedRestoreInput } from '@mongo-gui/core';
 import { useEffect, useState } from 'react';
 import { useUiApi } from '../../api/ui-api';
-import { runReported } from '../notify-error';
+import { runReported } from '../../kit/notify-error';
 
 export interface SavedRestoresProps {
   readonly connectionId: string;

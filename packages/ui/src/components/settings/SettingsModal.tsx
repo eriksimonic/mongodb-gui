@@ -28,7 +28,7 @@ import { useEffect, useId, useState, type ReactNode } from 'react';
 import { useUiApi } from '../../api/ui-api';
 import { LICENCE_URL, PROJECT_URL } from './links';
 import { useAppStore } from '../../state/app-store-context';
-import { runReported } from '../notify-error';
+import { runReported } from '../../kit/notify-error';
 import { ChangePasswordModal } from './ChangePasswordModal';
 import { ConnectionsExportModal } from './ConnectionsExportModal';
 import { ToolsLicenceModal } from '../tools/ToolsLicenceModal';

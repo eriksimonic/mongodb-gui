@@ -23,6 +23,7 @@ import {
   type ShardDistribution,
   summarizeShardCollection,
   type UpdateZoneKeyRangeInput,
+  validationError,
 } from '@mongo-gui/core';
 import {
   definedEntry,
@@ -33,13 +34,8 @@ import {
   readStringArray,
   type PlainObject,
 } from '../documents';
-import { parseEjsonDocument } from '../management/ejson';
-import {
-  parseInput,
-  refuseReservedDatabase,
-  toAppException,
-  validationError,
-} from '../management/errors';
+import { parseEjsonDocument } from '../ejson';
+import { parseInput, refuseReservedDatabase, toAppException } from '../management/errors';
 import {
   configCollection,
   listShardRows,

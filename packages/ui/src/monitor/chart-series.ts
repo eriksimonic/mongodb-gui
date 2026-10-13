@@ -1,5 +1,5 @@
 import type { PanelSpec } from '@mongo-gui/core';
-import { seriesColor, type ChartScheme } from './palette';
+import { seriesColor, type ChartScheme } from '../theme/palette';
 import { MEMBER_KEY_SEPARATOR, type SeriesLine } from './series';
 import type { ChartSeries } from './chart-types';
 

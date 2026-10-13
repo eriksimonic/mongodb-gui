@@ -4,7 +4,7 @@ import { useState } from 'react';
 import { useUiApi } from '../../api/ui-api';
 import { useAppStore } from '../../state/app-store-context';
 import { DestructiveDialog } from '../management/DestructiveDialog';
-import { errorText } from '../notify-error';
+import { errorText } from '../../kit/notify-error';
 import { filenameProblem, formatMetadata, parseMetadataDraft } from './gridfs-model';
 
 /** The bucket a file dialog acts on. */

@@ -1,8 +1,8 @@
 import { Alert, Badge, Button, Code, Collapse, Group, Stack, Text } from '@mantine/core';
 import type { BackupInspection } from '@mongo-gui/core';
 import { useState } from 'react';
-import { formatBytes } from '../../management/input-rules';
-import { runReported } from '../notify-error';
+import { formatBytes } from '../../kit/input-rules';
+import { runReported } from '../../kit/notify-error';
 
 const SHORT_HASH_LENGTH = 12;
 

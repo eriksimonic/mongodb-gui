@@ -26,7 +26,7 @@ import {
   type TransferProgress,
 } from '@mongo-gui/core';
 import { isPlainObject, type PlainObject } from '../documents';
-import { EJSON, parseEjsonDocument, stringifyEjson } from '../management/ejson';
+import { EJSON, parseEjsonDocument, stringifyEjson } from '../ejson';
 import { parseInput } from '../management/errors';
 import { getPath } from './values';
 import { ProgressTracker, throwIfCancelled, toFailure, type TransferHooks } from './progress';

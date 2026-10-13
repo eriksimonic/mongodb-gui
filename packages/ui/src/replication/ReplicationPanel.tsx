@@ -16,7 +16,7 @@ import { useEffect, useState } from 'react';
 import { useStore } from 'zustand';
 import type { ReplicaSetMember } from '@mongo-gui/core';
 import { useUiApi } from '../api/ui-api';
-import { errorText } from '../components/notify-error';
+import { errorText } from '../kit/notify-error';
 import { FreezeDialog, InitiateDialog, StepDownDialog } from './ReplicationDialogs';
 import { MemberDialog, type MemberDialogMode } from './MemberDialogs';
 import {

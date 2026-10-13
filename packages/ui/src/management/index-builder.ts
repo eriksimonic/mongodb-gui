@@ -1,5 +1,5 @@
 import type { CreateIndexInput, IndexInfo, IndexKeyValue } from '@mongo-gui/core';
-import { parseJsonObject } from './input-rules';
+import { parseJsonObject } from '../kit/input-rules';
 
 export const INDEX_ORDERS = ['1', '-1', 'text', '2dsphere', 'hashed', '2d'] as const;
 export type IndexOrder = (typeof INDEX_ORDERS)[number];

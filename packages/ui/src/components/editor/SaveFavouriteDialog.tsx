@@ -1,7 +1,7 @@
 import { Alert, Button, Group, Modal, Stack, Text, TextInput } from '@mantine/core';
 import type { EditorLanguage } from '@mongo-gui/core';
 import { useState } from 'react';
-import { errorText } from '../notify-error';
+import { errorText } from '../../kit/notify-error';
 import { useAppStoreApi } from '../../state/app-store-context';
 
 export interface SaveFavouriteDialogProps {

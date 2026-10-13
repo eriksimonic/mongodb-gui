@@ -72,7 +72,7 @@ describe('explainTarget', () => {
       explainTarget(entryOf({ op: 'insert' }), { insert: 'orders', documents: [] }),
     ).toBeUndefined();
     expect(
-      explainTarget(entryOf({ op: 'killcursors' }), { killCursors: 'orders', cursors: [1] }),
+      explainTarget(entryOf({ op: 'other' }), { killCursors: 'orders', cursors: [1] }),
     ).toBeUndefined();
   });
 

@@ -7,7 +7,7 @@ import { useAppStore } from '../../state/app-store-context';
 import { usePanelOpener } from '../../state/panel-opener';
 import { shardingAvailability } from '../../sharding/sharding-availability';
 import { BackupMenuItems } from '../backup/BackupMenuItems';
-import { runReported } from '../notify-error';
+import { runReported } from '../../kit/notify-error';
 
 /** The database that holds the server's users and roles. */
 const ADMIN_DATABASE = 'admin';

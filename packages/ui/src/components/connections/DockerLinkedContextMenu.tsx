@@ -6,7 +6,7 @@ import type {
   ConnectionStatus,
   DockerMongoContainerSummary,
 } from '@mongo-gui/core';
-import { runReported } from '../notify-error';
+import { runReported } from '../../kit/notify-error';
 import { ConnectionContextMenu } from './ConnectionContextMenu';
 import { DockerContainerDetails } from './DockerContainerDetails';
 

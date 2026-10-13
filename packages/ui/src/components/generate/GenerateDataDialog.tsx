@@ -26,7 +26,7 @@ import {
 } from '@mongo-gui/core';
 import { useEffect, useRef, useState } from 'react';
 import { useUiApi } from '../../api/ui-api';
-import { errorText } from '../notify-error';
+import { errorText } from '../../kit/notify-error';
 import {
   defaultGenerator,
   GENERATOR_LABELS,

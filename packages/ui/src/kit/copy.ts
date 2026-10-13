@@ -1,5 +1,5 @@
 import { notifications } from '@mantine/notifications';
-import { notifyError } from '../components/notify-error';
+import { notifyError } from './notify-error';
 
 /** Copies text to the clipboard. A refused copy shows the browser's reason. */
 export async function copyText(text: string, label = 'Copied'): Promise<void> {

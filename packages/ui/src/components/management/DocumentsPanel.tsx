@@ -10,7 +10,7 @@ import {
   TextInput,
 } from '@mantine/core';
 import { IconCopy, IconPencil, IconPlus, IconTrash } from '@tabler/icons-react';
-import { errorText } from '../notify-error';
+import { errorText } from '../../kit/notify-error';
 import { useEffect, useState } from 'react';
 import { useUiApi } from '../../api/ui-api';
 import { useAppStore } from '../../state/app-store-context';
@@ -20,8 +20,8 @@ import {
   toDocumentRow,
   type DocumentRow,
 } from '../../management/document-rows';
-import { parseJsonObject } from '../../management/input-rules';
-import { isInsideControl } from '../is-inside-control';
+import { parseJsonObject } from '../../kit/input-rules';
+import { isInsideControl } from '../../kit/is-inside-control';
 import { DestructiveDialog } from './DestructiveDialog';
 import { DocumentEditorDialog } from './DocumentEditorDialog';
 import type { CollectionPanelProps } from './IndexesPanel';

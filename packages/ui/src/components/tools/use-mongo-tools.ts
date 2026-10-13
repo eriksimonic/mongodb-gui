@@ -1,7 +1,7 @@
 import type { ToolsDownloadProgress, ToolsListOutput, ToolsVersion } from '@mongo-gui/core';
 import { useCallback, useEffect, useState } from 'react';
 import { useUiApi } from '../../api/ui-api';
-import { runReported } from '../notify-error';
+import { runReported } from '../../kit/notify-error';
 
 export interface ToolsDownloadState {
   readonly version: ToolsVersion;

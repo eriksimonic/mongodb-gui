@@ -18,6 +18,10 @@ export function appError(code: AppErrorCode, message: string, detail?: string): 
   return detail === undefined ? { code, message } : { code, message, detail };
 }
 
+export function validationError(message: string, detail?: string): AppErrorException {
+  return new AppErrorException(appError('VALIDATION', message, detail));
+}
+
 export function toAppError(value: unknown): AppError {
   try {
     return convert(value);

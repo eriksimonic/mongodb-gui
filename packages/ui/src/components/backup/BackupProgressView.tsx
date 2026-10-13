@@ -14,8 +14,8 @@ import {
 import type { BackupProgress, BackupResult } from '@mongo-gui/core';
 import { useState } from 'react';
 import { useUiApi } from '../../api/ui-api';
-import { formatBytes } from '../../management/input-rules';
-import { errorText, runReported } from '../notify-error';
+import { formatBytes } from '../../kit/input-rules';
+import { errorText, runReported } from '../../kit/notify-error';
 import type { BackupJobView } from './use-backup-job';
 
 const PHASE_LABELS: Record<BackupProgress['phase'], string> = {

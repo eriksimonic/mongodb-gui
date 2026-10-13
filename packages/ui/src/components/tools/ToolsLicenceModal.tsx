@@ -2,7 +2,7 @@ import { Modal, ScrollArea, Stack, Text, Title } from '@mantine/core';
 import type { ToolsInstallId, ToolsLicenceOutput } from '@mongo-gui/core';
 import { useEffect, useState } from 'react';
 import { useUiApi } from '../../api/ui-api';
-import { runReported } from '../notify-error';
+import { runReported } from '../../kit/notify-error';
 
 interface ToolsLicenceModalProps {
   /** The install whose licence is shown. The modal is closed while this is undefined. */

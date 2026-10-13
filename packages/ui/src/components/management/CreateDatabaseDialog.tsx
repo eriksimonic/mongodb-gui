@@ -1,8 +1,8 @@
 import { Alert, Button, Group, Modal, Stack, Text, TextInput } from '@mantine/core';
-import { errorText } from '../notify-error';
+import { errorText } from '../../kit/notify-error';
 import { useState } from 'react';
 import { useUiApi } from '../../api/ui-api';
-import { collectionNameError, databaseNameError } from '../../management/input-rules';
+import { collectionNameError, databaseNameError } from '../../kit/input-rules';
 
 export interface CreateDatabaseDialogProps {
   readonly connectionId: string;

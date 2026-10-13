@@ -22,7 +22,7 @@ import { renderWithApp } from '../test-support/render';
 import { ExplainPanel } from './ExplainPanel';
 
 // The JSON editor needs a layout engine, so tests use the text area stub.
-vi.mock('../editor/JsonEditor', () => import('../test-support/json-editor-stub'));
+vi.mock('../kit/code/JsonEditor', () => import('../test-support/json-editor-stub'));
 
 const PANEL_ID = 'explain:test';
 const FIND_CODE = `db.orders.find({ status: 'paid' }).sort({ createdAt: -1 })`;

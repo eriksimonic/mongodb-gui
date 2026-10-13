@@ -20,7 +20,7 @@ import {
 import { useVirtualizer } from '@tanstack/react-virtual';
 import { useRef, type CSSProperties } from 'react';
 import type { SchemaField } from '@mongo-gui/core';
-import { runReported } from '../components/notify-error';
+import { runReported } from '../kit/notify-error';
 import { useAppStore } from '../state/app-store-context';
 import {
   examplesText,

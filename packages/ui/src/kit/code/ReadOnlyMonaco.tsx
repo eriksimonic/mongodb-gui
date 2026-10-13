@@ -3,11 +3,11 @@ import Editor from '@monaco-editor/react';
 import { useEffect, useRef } from 'react';
 import './monaco-setup';
 import { defineEditorThemes, themeFor } from './editor-theme';
-import { registerMongoshLanguage } from './mongosh-language';
+import { registerMongoshTokens } from './mongosh-tokens';
 import { useEditorFontSize } from './use-editor-font-size';
 import type { ReadOnlyCodeProps } from './ReadOnlyCode';
 import { readOnlyLanguage } from './read-only-language';
-import { APP_FONT } from '../theme/theme';
+import { APP_FONT } from '../../theme/theme';
 
 /** Scrolling within this many pixels of the end asks for more. */
 const NEAR_END_PX = 200;
@@ -27,7 +27,7 @@ export function ReadOnlyMonaco({ label, value, language, wrap, onNearEnd }: Read
       theme={themeFor(scheme)}
       beforeMount={(monaco) => {
         defineEditorThemes(monaco);
-        registerMongoshLanguage(monaco);
+        registerMongoshTokens(monaco);
       }}
       value={value}
       onMount={(editor) => {

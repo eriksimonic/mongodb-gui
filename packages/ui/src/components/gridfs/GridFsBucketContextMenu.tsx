@@ -1,5 +1,5 @@
 import { TreeMenu, type TreeMenuEntry } from '../connections/TreeMenu';
-import { runReported } from '../notify-error';
+import { runReported } from '../../kit/notify-error';
 import { useAppStore } from '../../state/app-store-context';
 import { useGridFsOpener } from './gridfs-opener';
 

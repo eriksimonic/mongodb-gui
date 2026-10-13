@@ -2,7 +2,7 @@ import { Alert, Button, Checkbox, Group, Modal, MultiSelect, Stack, Text } from 
 import type { UserInfo } from '@mongo-gui/core';
 import { useState } from 'react';
 import { useStore } from 'zustand';
-import { errorText } from '../notify-error';
+import { errorText } from '../../kit/notify-error';
 import { roleGroups, roleRefFromValue, roleValue } from '../../security/privilege-model';
 import { isSelfRevokeOfUserAdmin } from '../../security/self-revoke';
 import type { SecurityStore } from '../../security/security-store';

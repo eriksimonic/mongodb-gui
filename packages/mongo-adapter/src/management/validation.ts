@@ -6,6 +6,7 @@ import {
   type SetValidationInput,
   type ValidationCheckResult,
   type ValidationRules,
+  validationError,
 } from '@mongo-gui/core';
 import {
   isPlainObject,
@@ -15,8 +16,8 @@ import {
   readRecord,
   readString,
 } from '../documents';
-import { stringifyEjson, parseEjson, parseEjsonDocument } from './ejson';
-import { parseInput, toAppException, validationError } from './errors';
+import { stringifyEjson, parseEjson, parseEjsonDocument } from '../ejson';
+import { parseInput, toAppException } from './errors';
 
 const DEFAULT_LEVEL: ValidationRules['validationLevel'] = 'strict';
 const DEFAULT_ACTION: ValidationRules['validationAction'] = 'error';

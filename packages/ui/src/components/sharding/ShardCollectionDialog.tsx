@@ -14,7 +14,7 @@ import type { ShardCollectionSummary } from '@mongo-gui/core';
 import { useState } from 'react';
 import { useUiApi } from '../../api/ui-api';
 import { createShardingStore, type ShardCollectionTarget } from '../../sharding/sharding-store';
-import { errorText } from '../notify-error';
+import { errorText } from '../../kit/notify-error';
 
 export interface ShardCollectionDialogProps {
   readonly connectionId: string;

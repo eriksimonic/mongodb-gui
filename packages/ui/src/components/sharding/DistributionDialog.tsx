@@ -3,7 +3,7 @@ import type { ShardDistribution } from '@mongo-gui/core';
 import { useEffect, useState } from 'react';
 import { formatBytes } from '../../sharding/format-bytes';
 import type { ShardingStore } from '../../sharding/sharding-store';
-import { errorText } from '../notify-error';
+import { errorText } from '../../kit/notify-error';
 
 export interface DistributionDialogProps {
   readonly store: ShardingStore;

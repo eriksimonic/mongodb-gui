@@ -13,7 +13,7 @@ import {
 import { EXTERNAL_DATABASE, type ScramMechanism } from '@mongo-gui/core';
 import { useState } from 'react';
 import { useStore } from 'zustand';
-import { errorText } from '../notify-error';
+import { errorText } from '../../kit/notify-error';
 import { passwordError } from '../../security/password-rules';
 import { roleGroups, roleRefFromValue } from '../../security/privilege-model';
 import type { SecurityStore } from '../../security/security-store';

@@ -12,7 +12,7 @@ import {
 } from '@mantine/core';
 import { IconCheck, IconCopy, IconRefresh } from '@tabler/icons-react';
 import { useState, type ReactNode } from 'react';
-import { copyText } from './copy';
+import { copyText } from '../kit/copy';
 import type { Loadable } from './diagnostics-store';
 
 export interface CopyIconProps {

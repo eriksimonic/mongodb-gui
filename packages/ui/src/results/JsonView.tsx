@@ -1,6 +1,6 @@
 import { SegmentedControl, Stack } from '@mantine/core';
 import { useMemo, useState } from 'react';
-import { ReadOnlyCode } from '../editor/ReadOnlyCode';
+import { ReadOnlyCode } from '../kit/code/ReadOnlyCode';
 import type { JsonObject } from './result-model';
 import { MODE_LABELS, jsonTextFor, type JsonMode } from './json-text';
 

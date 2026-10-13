@@ -1,6 +1,6 @@
 import type { SchemaAnalyseInput, SchemaReport, SchemaSampleStrategy } from '@mongo-gui/core';
 import { createStore, type StoreApi } from 'zustand/vanilla';
-import { errorText } from '../components/notify-error';
+import { errorText } from '../kit/notify-error';
 import {
   DEFAULT_FILTERS,
   DEFAULT_SORT,

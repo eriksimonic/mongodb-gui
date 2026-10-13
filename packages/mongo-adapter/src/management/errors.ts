@@ -1,12 +1,8 @@
-import { AppErrorException, appError } from '@mongo-gui/core';
+import { AppErrorException, validationError } from '@mongo-gui/core';
 import { mapDriverError } from '../errors';
 
 export const RESERVED_DATABASES: ReadonlySet<string> = new Set(['admin', 'local', 'config']);
 const SYSTEM_PREFIX = 'system.';
-
-export function validationError(message: string): AppErrorException {
-  return new AppErrorException(appError('VALIDATION', message));
-}
 
 // Structural type for a core zod schema. The adapter does not depend on zod directly.
 export interface SafeParser<T> {

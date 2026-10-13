@@ -22,7 +22,7 @@ import {
   readStringArray,
   type PlainObject,
 } from '../documents';
-import { EJSON, stringifyEjson } from '../management/ejson';
+import { EJSON, stringifyEjson } from '../ejson';
 
 import { runAdminCommand } from './command';
 

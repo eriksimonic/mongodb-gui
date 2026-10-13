@@ -21,8 +21,8 @@ import {
 import { previewInfo } from '@mongo-gui/core';
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { DestructiveDialog } from '../components/management/DestructiveDialog';
-import { isInsideControl } from '../components/is-inside-control';
-import { errorText } from '../components/notify-error';
+import { isInsideControl } from '../kit/is-inside-control';
+import { errorText } from '../kit/notify-error';
 import { useFontScale } from '../theme/font-scale';
 import { COPY_MAX_CHARS, fullDocuments } from './full-documents';
 import {

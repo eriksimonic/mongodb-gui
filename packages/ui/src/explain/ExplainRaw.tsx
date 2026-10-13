@@ -2,8 +2,8 @@ import { ActionIcon, Box, Button, Group, Stack, Text, TextInput, Tooltip } from 
 import { notifications } from '@mantine/notifications';
 import { IconChevronDown, IconChevronUp, IconCopy } from '@tabler/icons-react';
 import { useEffect, useMemo, useRef, useState, type KeyboardEvent } from 'react';
-import { notifyError } from '../components/notify-error';
-import { JsonEditor, type JsonEditorHandle } from '../editor/JsonEditor';
+import { notifyError } from '../kit/notify-error';
+import { JsonEditor, type JsonEditorHandle } from '../kit/code/JsonEditor';
 import { findTextMatches, nextMatchIndex, previousMatchIndex, type TextSpan } from './stage-view';
 
 /** The editor never gets shorter than this, so a short panel scrolls instead of squashing it. */

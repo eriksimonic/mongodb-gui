@@ -6,7 +6,7 @@ import type {
   UserRoleRef,
 } from '@mongo-gui/core';
 import { ExistingCollectionNameSchema } from '@mongo-gui/core';
-import { databaseNameError } from '../management/input-rules';
+import { databaseNameError } from '../kit/input-rules';
 
 /** The resource a privilege row names. `systemBuckets` is kept for rows the editor cannot build. */
 export type ResourceKind =

@@ -1,6 +1,6 @@
 import { Alert, Button, Group, Progress, SimpleGrid, Stack, Table, Text } from '@mantine/core';
 import type { TransferKind, TransferProgress } from '@mongo-gui/core';
-import { errorText } from '../notify-error';
+import { errorText } from '../../kit/notify-error';
 import { transferFraction } from '../../state/transfer-state';
 import { bytesLine, elapsedLine, errorsAsText } from './transfer-model';
 

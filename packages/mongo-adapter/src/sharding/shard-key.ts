@@ -1,6 +1,6 @@
 import { BSON } from 'mongodb';
-import { parseEjsonDocument } from '../management/ejson';
-import { validationError } from '../management/errors';
+import { parseEjsonDocument } from '../ejson';
+import { validationError } from '@mongo-gui/core';
 
 export type ShardKeyValue = 1 | -1 | 'hashed';
 export type ShardKey = Record<string, ShardKeyValue>;

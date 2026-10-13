@@ -5,7 +5,7 @@ import { useUiApi } from '../../api/ui-api';
 import { useAppStore } from '../../state/app-store-context';
 import type { GridFsDialogState } from '../../state/app-store';
 import { DestructiveDialog } from '../management/DestructiveDialog';
-import { runReported } from '../notify-error';
+import { runReported } from '../../kit/notify-error';
 import { useGridFsOpener } from './gridfs-opener';
 
 /** Shows the bucket dialog the store names, if one is open. The tree opens them. */

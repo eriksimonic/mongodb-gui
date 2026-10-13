@@ -29,10 +29,10 @@ import {
   type WireCompressor,
 } from '@mongo-gui/core';
 import { useEffect, useMemo, useRef, useState } from 'react';
-import { TipLabel } from '../InfoTip';
+import { TipLabel } from '../../kit/InfoTip';
 import { useUiApi } from '../../api/ui-api';
 import { useAppStore } from '../../state/app-store-context';
-import { errorText, runReported } from '../notify-error';
+import { errorText, runReported } from '../../kit/notify-error';
 import { ToolsVersionSelect } from '../tools/ToolsVersionSelect';
 import { BackupProgressView } from './BackupProgressView';
 import { CompatibilityFindings } from './CompatibilityFindings';

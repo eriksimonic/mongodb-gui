@@ -20,7 +20,7 @@ import {
 import type { ProfilerSeed } from './profiler-store';
 import { profilerScenarios } from './mock-scenarios';
 
-vi.mock('../editor/JsonEditor', () => import('../test-support/json-editor-stub'));
+vi.mock('../kit/code/JsonEditor', () => import('../test-support/json-editor-stub'));
 
 const SHOP = { connectionId: localConnectionId, database: 'shop' };
 const LIMIT = { limit: 200 };

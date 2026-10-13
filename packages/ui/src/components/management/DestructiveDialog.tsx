@@ -1,5 +1,5 @@
 import { Alert, Button, Group, Modal, Stack, Text, TextInput } from '@mantine/core';
-import { errorText } from '../notify-error';
+import { errorText } from '../../kit/notify-error';
 import { useState, type ReactNode } from 'react';
 
 export interface DestructiveDialogProps {

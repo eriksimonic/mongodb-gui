@@ -3,7 +3,7 @@ import { useState, type FormEvent } from 'react';
 import { useUiApi } from '../../api/ui-api';
 import { invalidInputStyles } from '../../screens/field-state';
 import { PasswordStrengthMeter } from '../../screens/PasswordStrengthMeter';
-import { errorText } from '../notify-error';
+import { errorText } from '../../kit/notify-error';
 import { isChangePasswordValid, validateChangePassword } from './change-password';
 
 export interface ChangePasswordModalProps {

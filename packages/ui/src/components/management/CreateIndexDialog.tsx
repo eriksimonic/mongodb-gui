@@ -16,11 +16,11 @@ import {
 } from '@mantine/core';
 import { IconPlus, IconTrash } from '@tabler/icons-react';
 import type { IndexInfo } from '@mongo-gui/core';
-import { errorText } from '../notify-error';
+import { errorText } from '../../kit/notify-error';
 import { useEffect, useState } from 'react';
 import { useUiApi } from '../../api/ui-api';
-import { JsonEditor } from '../../editor/JsonEditor';
-import { formatJson } from '../../management/input-rules';
+import { JsonEditor } from '../../kit/code/JsonEditor';
+import { formatJson } from '../../kit/input-rules';
 import { topLevelKeys } from '../../management/document-rows';
 import {
   buildIndexRequest,

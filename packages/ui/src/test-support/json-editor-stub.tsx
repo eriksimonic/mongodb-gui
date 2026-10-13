@@ -1,4 +1,4 @@
-import type { JsonEditorProps } from '../editor/JsonEditor';
+import type { JsonEditorProps } from '../kit/code/JsonEditor';
 
 /**
  * Stands in for the Monaco JSON editor in component tests, because Monaco needs a real layout

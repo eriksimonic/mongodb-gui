@@ -1,7 +1,7 @@
-import { copyText } from '../../diagnostics/copy';
+import { copyText } from '../../kit/copy';
 import { useAppStore } from '../../state/app-store-context';
 import { usePanelOpener } from '../../state/panel-opener';
-import { runReported } from '../notify-error';
+import { runReported } from '../../kit/notify-error';
 import { TreeMenu, type TreeMenuEntry } from './TreeMenu';
 
 export interface MemberContextMenuProps {

@@ -39,7 +39,7 @@ import type { TreeEdit } from '../../results/TreeView';
 import { useAppStore, useAppStoreApi } from '../../state/app-store-context';
 import { editorUiEvents } from '../../editor/editor-events';
 import { BATCH_SIZES, type BatchSize, type EditorTab } from '../../state/editors';
-import { notifyError } from '../notify-error';
+import { notifyError } from '../../kit/notify-error';
 import { SaveFavouriteDialog } from './SaveFavouriteDialog';
 import { SqlPreview } from './SqlPreview';
 import { LAB_DATABASE, LAB_QUERIES } from '../../api/explain-lab';

@@ -1,5 +1,5 @@
 import { Text } from '@mantine/core';
-import { errorText } from '../notify-error';
+import { errorText } from '../../kit/notify-error';
 import { useEffect, useState } from 'react';
 import { useUiApi } from '../../api/ui-api';
 import { DestructiveDialog } from './DestructiveDialog';

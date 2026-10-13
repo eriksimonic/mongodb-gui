@@ -18,7 +18,7 @@ import {
   type PlanVerbosity,
 } from '@mongo-gui/core';
 import { useState } from 'react';
-import { errorText, notifyError } from '../components/notify-error';
+import { errorText, notifyError } from '../kit/notify-error';
 import { useAppStore } from '../state/app-store-context';
 import { stageIdByName, type ExplainPanelState } from './explain-model';
 import { ExplainIndexSuggestion, ExplainSummaryBar, ExplainWarnings } from './ExplainParts';

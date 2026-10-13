@@ -1,7 +1,7 @@
 import { Alert, Button, Group, Modal, PasswordInput, Stack, Text, TextInput } from '@mantine/core';
 import { useState } from 'react';
 import { useAppStore } from '../../state/app-store-context';
-import { errorText } from '../notify-error';
+import { errorText } from '../../kit/notify-error';
 import {
   useDockerCredentialsStore,
   type DockerCredentialsRequest,

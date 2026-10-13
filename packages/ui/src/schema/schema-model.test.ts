@@ -1,6 +1,6 @@
 import type { SchemaField } from '@mongo-gui/core';
 import { describe, expect, it } from 'vitest';
-import { chartPalette } from '../monitor/palette';
+import { chartPalette } from '../theme/palette';
 import {
   buildRows,
   collectionExpression,

@@ -1,7 +1,7 @@
 import { Button, Group, Text } from '@mantine/core';
 import { IconArrowUpRight } from '@tabler/icons-react';
 import { useEffect, useState } from 'react';
-import { ReadOnlyCode } from '../../editor/ReadOnlyCode';
+import { ReadOnlyCode } from '../../kit/code/ReadOnlyCode';
 import { prepareSqlRun, type SqlSampler } from '../../editor/sql-run';
 
 /** How long the SQL must stay unchanged before the preview translates it again. */

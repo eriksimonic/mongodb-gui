@@ -30,7 +30,7 @@ import {
 } from '@tabler/icons-react';
 import { describeStage, type PlanStage, type StageCategory, type StageInfo } from '@mongo-gui/core';
 import { useEffect, useMemo, useRef, useState, type KeyboardEvent } from 'react';
-import { seriesColor } from '../monitor/palette';
+import { seriesColor } from '../theme/palette';
 import {
   ancestorIds,
   barMetricFor,

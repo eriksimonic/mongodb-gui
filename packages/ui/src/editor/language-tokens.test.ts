@@ -5,7 +5,7 @@ import { beforeAll, describe, expect, it, vi } from 'vitest';
 
 // Monaco's own tokenizer runs here, over the real Monarch definitions. Only the worker setup is
 // replaced, because jsdom has no workers.
-vi.mock('./monaco-setup', () => ({}));
+vi.mock('../kit/code/monaco-setup', () => ({}));
 
 let monaco: typeof Monaco;
 
@@ -450,7 +450,7 @@ describe('editor themes on Monaco', () => {
   }
 
   it('paints names in the dark theme', async () => {
-    const { defineEditorThemes } = await import('./editor-theme');
+    const { defineEditorThemes } = await import('../kit/code/editor-theme');
     defineEditorThemes(monaco);
     monaco.editor.setTheme('mongo-gui-dark');
     const text = 'db.orders.find({ status: 1 })';
@@ -462,7 +462,7 @@ describe('editor themes on Monaco', () => {
   });
 
   it('paints names in the light theme', async () => {
-    const { defineEditorThemes } = await import('./editor-theme');
+    const { defineEditorThemes } = await import('../kit/code/editor-theme');
     defineEditorThemes(monaco);
     monaco.editor.setTheme('mongo-gui-light');
     const text = 'SELECT status FROM orders';

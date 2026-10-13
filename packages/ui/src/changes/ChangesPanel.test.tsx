@@ -7,7 +7,7 @@ import type { UiApi } from '../api/ui-api';
 import { renderWithApp } from '../test-support/render';
 import { ChangesPanel } from './ChangesPanel';
 
-vi.mock('../editor/JsonEditor', () => import('../test-support/json-editor-stub'));
+vi.mock('../kit/code/JsonEditor', () => import('../test-support/json-editor-stub'));
 
 const PANEL = 'changes:test';
 const ORDERS = { kind: 'collection', database: 'shop', collection: 'orders' } as const;

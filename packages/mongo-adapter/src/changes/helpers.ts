@@ -15,8 +15,8 @@ import {
   readString,
   type PlainObject,
 } from '../documents';
+import { stringifyEjson } from '../ejson';
 
-const EJSON_OPTIONS = { relaxed: false } as const;
 const UNKNOWN_OPERATION = 'unknown';
 const TRUNCATED_FIELDS = ['_id', 'operationType', 'ns', 'documentKey'] as const;
 const REFUSED_STAGES: readonly string[] = ['$out', '$merge'];
@@ -53,7 +53,7 @@ export function toEjson(value: unknown): string | undefined {
   if (value === undefined) {
     return undefined;
   }
-  return BSON.EJSON.stringify(value, EJSON_OPTIONS);
+  return stringifyEjson(value);
 }
 
 // Maps one raw change document from the driver to the typed event. Pure: the same input always

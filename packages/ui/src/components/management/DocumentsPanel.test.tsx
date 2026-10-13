@@ -6,7 +6,7 @@ import { renderWithApp } from '../../test-support/render';
 import { connectedMockApi } from '../../api/connected-mock';
 import { DocumentsPanel } from './DocumentsPanel';
 
-vi.mock('../../editor/JsonEditor', () => import('../../test-support/json-editor-stub'));
+vi.mock('../../kit/code/JsonEditor', () => import('../../test-support/json-editor-stub'));
 
 const panel = { connectionId: localConnectionId, database: 'shop', collection: 'orders' };
 const FIRST_ID = '{"$oid":"000000000000000000000001"}';

@@ -2,7 +2,7 @@ import { Alert, Group, Stack, Table, Text } from '@mantine/core';
 import type { CollectionStats } from '@mongo-gui/core';
 import { useCallback, useEffect, useState } from 'react';
 import { useUiApi } from '../api/ui-api';
-import { errorText } from '../components/notify-error';
+import { errorText } from '../kit/notify-error';
 import { KeyValueTable, RefreshButton, Section } from './common';
 import { formatBytes, formatCount } from './format';
 

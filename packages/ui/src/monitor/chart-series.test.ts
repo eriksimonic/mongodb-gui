@@ -2,7 +2,7 @@ import { findPanel } from '@mongo-gui/core';
 import { describe, expect, it } from 'vitest';
 import { chartSeries, stackedValues } from './chart-series';
 import type { ChartSeries } from './chart-types';
-import { seriesColor } from './palette';
+import { seriesColor } from '../theme/palette';
 
 function line(key: string, values: (number | null)[]): ChartSeries {
   return { key, label: key, color: '#000000', unit: 'per-second', values };

@@ -7,7 +7,7 @@ import type {
   ShardingOverview,
 } from '@mongo-gui/core';
 import { createStore, type StoreApi } from 'zustand/vanilla';
-import { errorText } from '../components/notify-error';
+import { errorText } from '../kit/notify-error';
 
 /** The sharding part of the RPC client. */
 export type ShardingClient = RpcClient['sharding'];

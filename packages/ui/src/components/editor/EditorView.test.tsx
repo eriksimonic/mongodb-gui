@@ -11,7 +11,7 @@ import { EditorView } from './EditorView';
 import { OutputPanel } from './OutputPanel';
 
 vi.mock('../../editor/MongoshEditor', () => import('../../test-support/mongosh-editor-stub'));
-vi.mock('../../editor/ReadOnlyCode', () => import('../../test-support/read-only-code-stub'));
+vi.mock('../../kit/code/ReadOnlyCode', () => import('../../test-support/read-only-code-stub'));
 
 const ANALYTICS = 'analytics';
 

@@ -1,9 +1,9 @@
 import { Alert, Button, Group, Modal, Stack, Text } from '@mantine/core';
-import { errorText } from '../notify-error';
+import { errorText } from '../../kit/notify-error';
 import { useState } from 'react';
 import { useUiApi } from '../../api/ui-api';
-import { JsonEditor } from '../../editor/JsonEditor';
-import { parseJsonObject } from '../../management/input-rules';
+import { JsonEditor } from '../../kit/code/JsonEditor';
+import { parseJsonObject } from '../../kit/input-rules';
 
 export type DocumentEditorMode = 'edit' | 'duplicate' | 'insert';
 

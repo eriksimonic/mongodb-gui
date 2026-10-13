@@ -6,7 +6,7 @@ import { renderWithApp } from '../../test-support/render';
 import { connectedMockApi } from '../../api/connected-mock';
 import { CreateIndexDialog } from './CreateIndexDialog';
 
-vi.mock('../../editor/JsonEditor', () => import('../../test-support/json-editor-stub'));
+vi.mock('../../kit/code/JsonEditor', () => import('../../test-support/json-editor-stub'));
 
 const target = {
   connectionId: localConnectionId,

@@ -1,5 +1,5 @@
 import { collectionAccess, formatMongoshSyntax, type SchemaField } from '@mongo-gui/core';
-import { chartPalette, seriesColor, type ChartScheme } from '../monitor/palette';
+import { chartPalette, seriesColor, type ChartScheme } from '../theme/palette';
 
 /** Sample sizes the panel offers. */
 export const SAMPLE_SIZES = [100, 500, 1000, 5000] as const;

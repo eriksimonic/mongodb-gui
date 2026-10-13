@@ -29,7 +29,7 @@ import {
 import { useMemo, useState, type ReactNode } from 'react';
 import { useUiApi } from '../../api/ui-api';
 import { useAppStore } from '../../state/app-store-context';
-import { runReported } from '../notify-error';
+import { runReported } from '../../kit/notify-error';
 import { ConnectionsExportModal } from '../settings/ConnectionsExportModal';
 import { ConnectionsImportModal } from '../settings/ConnectionsImportModal';
 import { CONNECTIONS_FILE_FILTER } from '../settings/connections-file-model';

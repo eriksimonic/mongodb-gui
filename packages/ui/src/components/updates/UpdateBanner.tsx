@@ -3,7 +3,7 @@ import { useMediaQuery } from '@mantine/hooks';
 import type { UpdateState } from '@mongo-gui/core';
 import { useState } from 'react';
 import { useUiApi } from '../../api/ui-api';
-import { runReported } from '../notify-error';
+import { runReported } from '../../kit/notify-error';
 import { useAppStore } from '../../state/app-store-context';
 
 /** Below this window width the release notes button is hidden to keep the toolbar on one line. */

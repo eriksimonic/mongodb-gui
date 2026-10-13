@@ -18,15 +18,15 @@ import {
   type ReplaceDocumentInput,
   type SampleDocumentsInput,
   type UpdateDocumentFieldsInput,
+  validationError,
 } from '@mongo-gui/core';
 import type { PlainObject } from '../documents';
-import { parseEjson, parseEjsonDocument, stringifyEjson } from './ejson';
+import { parseEjson, parseEjsonDocument, stringifyEjson } from '../ejson';
 import {
   parseInput,
   refuseReservedDatabase,
   refuseSystemCollection,
   toAppException,
-  validationError,
 } from './errors';
 
 const ID_LABEL = 'The _id';

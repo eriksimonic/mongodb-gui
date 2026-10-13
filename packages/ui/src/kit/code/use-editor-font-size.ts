@@ -1,4 +1,4 @@
-import { useAppStore } from '../state/app-store-context';
+import { useAppStore } from '../../state/app-store-context';
 
 /** Used before the saved settings load, and while the vault is locked. */
 const DEFAULT_EDITOR_FONT_SIZE = 13;

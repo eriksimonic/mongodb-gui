@@ -2,8 +2,8 @@ import { Accordion, Badge, Box, Button, Code, Group, SimpleGrid, Stack, Text } f
 import { notifications } from '@mantine/notifications';
 import type { ProfileEntry } from '@mongo-gui/core';
 import { useRef, useState, type KeyboardEvent, type PointerEvent } from 'react';
-import { notifyError } from '../components/notify-error';
-import { JsonEditor } from '../editor/JsonEditor';
+import { notifyError } from '../kit/notify-error';
+import { JsonEditor } from '../kit/code/JsonEditor';
 import { profilerUiEvents } from './profiler-events';
 import {
   formatCommand,

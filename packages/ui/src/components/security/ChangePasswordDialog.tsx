@@ -1,7 +1,7 @@
 import { Alert, Button, Group, Modal, PasswordInput, Stack } from '@mantine/core';
 import type { UserInfo } from '@mongo-gui/core';
 import { useState } from 'react';
-import { errorText } from '../notify-error';
+import { errorText } from '../../kit/notify-error';
 import { passwordError } from '../../security/password-rules';
 import type { SecurityStore } from '../../security/security-store';
 

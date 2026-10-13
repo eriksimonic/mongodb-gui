@@ -1,5 +1,5 @@
 // Loads the editor core before anything else registers with it. See monaco-setup for the ordering.
-import './monaco-setup';
+import '../kit/code/monaco-setup';
 import type * as Monaco from 'monaco-editor/editor/editor.api';
 import type { SchemaField } from '@mongo-gui/core';
 import {

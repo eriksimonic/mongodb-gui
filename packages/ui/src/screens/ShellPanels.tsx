@@ -69,7 +69,7 @@ import { OperationsPanel } from '../monitor/OperationsPanel';
 import { useAppStore, useAppStoreApi } from '../state/app-store-context';
 import type { EditorTab } from '../state/editors';
 import type { ExplainRestore } from '../explain/explain-model';
-import { runReported } from '../components/notify-error';
+import { runReported } from '../kit/notify-error';
 import { idleLockHint, recentConnections } from './welcome-model';
 import { isFixedPanel, panelsToClose, type TabCloseMode } from './tab-close';
 import { convertEntries } from './tab-convert';

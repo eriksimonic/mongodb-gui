@@ -18,7 +18,7 @@ import {
   readArray,
   type PlainObject,
 } from './documents';
-import { stringifyEjson } from './management/ejson';
+import { stringifyEjson } from './ejson';
 
 export interface ListCollectionsOptions {
   readonly includeSystem?: boolean;

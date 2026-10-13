@@ -1,7 +1,7 @@
 // @vitest-environment jsdom
 import { defaultSettings } from '@mongo-gui/core';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
-import { renderWithApp } from '../test-support/render';
+import { renderWithApp } from '../../test-support/render';
 import { MonacoJsonEditor } from './MonacoJsonEditor';
 
 // The options the editor received on its last render. Monaco itself needs a real layout engine.

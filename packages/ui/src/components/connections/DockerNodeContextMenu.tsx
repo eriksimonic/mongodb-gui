@@ -1,7 +1,7 @@
 import { Menu } from '@mantine/core';
 import { IconCheck } from '@tabler/icons-react';
 import { useAppStore } from '../../state/app-store-context';
-import { runReported } from '../notify-error';
+import { runReported } from '../../kit/notify-error';
 
 export interface DockerNodeContextMenuProps {
   readonly autoConnect: boolean;

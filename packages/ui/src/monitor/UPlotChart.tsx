@@ -6,7 +6,7 @@ import { useEffect, useMemo, useRef, useState, type RefObject } from 'react';
 import { CHART_HEIGHT_PX, type ChartMode, type ChartSeries, type ChartWindow } from './chart-types';
 import { stackedValues } from './chart-series';
 import { formatAxisValue, formatClock, formatValue } from './format';
-import { chartPalette, type ChartPalette } from './palette';
+import { chartPalette, type ChartPalette } from '../theme/palette';
 import './monitor.css';
 import { APP_FONT } from '../theme/theme';
 

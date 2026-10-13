@@ -5,7 +5,7 @@ import type { Favourite } from '@mongo-gui/core';
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { useUiApi } from '../../api/ui-api';
 import { useAppStore, useAppStoreApi } from '../../state/app-store-context';
-import { errorText, notifyError } from '../notify-error';
+import { errorText, notifyError } from '../../kit/notify-error';
 import { firstLine } from './labels';
 
 const ROW_HEIGHT_PX = 44;

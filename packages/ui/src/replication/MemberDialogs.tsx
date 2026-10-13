@@ -12,7 +12,7 @@ import {
 import { useEffect, useState } from 'react';
 import { useStore } from 'zustand';
 import type { ReconfigChange, ReplicaSetMember } from '@mongo-gui/core';
-import { errorText } from '../components/notify-error';
+import { errorText } from '../kit/notify-error';
 import type { ReplicationStore } from './replication-store';
 import { ActionModal } from './ReplicationDialogs';
 import { TagsEditor } from './TagsEditor';

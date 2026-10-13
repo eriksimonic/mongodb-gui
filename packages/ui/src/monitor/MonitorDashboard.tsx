@@ -21,7 +21,7 @@ import {
   type ServerCapabilities,
 } from '@mongo-gui/core';
 import { useEffect, useMemo, useState } from 'react';
-import { runReported } from '../components/notify-error';
+import { runReported } from '../kit/notify-error';
 import { useAppStore } from '../state/app-store-context';
 import { EMPTY_MONITOR_VIEW } from '../state/monitor-state';
 import { EMPTY_DASHBOARD_VIEW, visiblePanels } from '../state/dashboard-state';

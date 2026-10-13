@@ -26,7 +26,7 @@ import { ConnectionManager } from '../components/connections/ConnectionManager';
 import { DockerCredentialsDialog } from '../components/connections/DockerCredentialsDialog';
 import { useUiApi } from '../api/ui-api';
 import { ManagementDialogs } from '../components/management/ManagementDialogs';
-import { runReported } from '../components/notify-error';
+import { runReported } from '../kit/notify-error';
 import { SettingsModal } from '../components/settings/SettingsModal';
 import { ShortcutsModal } from '../shortcuts/ShortcutsModal';
 import { shellHotkeys } from '../shortcuts/shortcuts';

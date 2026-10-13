@@ -9,7 +9,7 @@ import { renderWithApp } from '../test-support/render';
 import { SchemaPanel } from './SchemaPanel';
 import { MESSY_COLLECTION, MESSY_DATABASE, seedMessyCollection } from './schema-fixtures';
 
-vi.mock('../editor/JsonEditor', () => import('../test-support/json-editor-stub'));
+vi.mock('../kit/code/JsonEditor', () => import('../test-support/json-editor-stub'));
 
 const orders = { connectionId: localConnectionId, database: 'shop', collection: 'orders' };
 const messy = {

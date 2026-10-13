@@ -1,12 +1,12 @@
 import { Badge, Button, Group, Loader, Progress, Stack, Table, Text, Alert } from '@mantine/core';
 import { IconArrowDown, IconArrowUp, IconPlus } from '@tabler/icons-react';
 import { type IndexBuildProgress, type IndexInfo } from '@mongo-gui/core';
-import { errorText } from '../notify-error';
+import { errorText } from '../../kit/notify-error';
 import { useEffect, useState } from 'react';
 import { useUiApi } from '../../api/ui-api';
 import { useAppStore } from '../../state/app-store-context';
-import { formatBytes } from '../../management/input-rules';
-import { runReported } from '../notify-error';
+import { formatBytes } from '../../kit/input-rules';
+import { runReported } from '../../kit/notify-error';
 import { canEditIndex } from '../../management/index-builder';
 import { CreateIndexDialog } from './CreateIndexDialog';
 import { DestructiveDialog } from './DestructiveDialog';

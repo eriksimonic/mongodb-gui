@@ -26,8 +26,8 @@ import {
 import { useState } from 'react';
 import { useUiApi } from '../../api/ui-api';
 import { useAppStore } from '../../state/app-store-context';
-import { TipLabel } from '../InfoTip';
-import { errorText } from '../notify-error';
+import { TipLabel } from '../../kit/InfoTip';
+import { errorText } from '../../kit/notify-error';
 import { TransferProgressView } from './TransferProgressView';
 import { cellText, DELIMITER_LABELS, DELIMITERS, FORMAT_LABELS } from './transfer-model';
 import {

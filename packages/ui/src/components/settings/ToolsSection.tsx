@@ -6,7 +6,7 @@ import { formatBytes } from '../../diagnostics/format';
 import { DownloadToolsModal } from '../tools/DownloadToolsModal';
 import { ToolsLicenceModal } from '../tools/ToolsLicenceModal';
 import { useMongoTools } from '../tools/use-mongo-tools';
-import { errorText, runReported } from '../notify-error';
+import { errorText, runReported } from '../../kit/notify-error';
 
 interface ToolsSectionProps {
   readonly settings: Settings;

@@ -14,7 +14,7 @@ import {
 import { useVirtualizer } from '@tanstack/react-virtual';
 import type { ChangeTarget, ChangeWatchPushPhase } from '@mongo-gui/core';
 import { useEffect, useMemo, useRef, type KeyboardEvent } from 'react';
-import { JsonEditor } from '../editor/JsonEditor';
+import { JsonEditor } from '../kit/code/JsonEditor';
 import { ChangeDetail } from './ChangeDetail';
 import { useChangesStore } from './changes-store-context';
 import type { ChangesPanelState, ChangesSeed } from './changes-store';

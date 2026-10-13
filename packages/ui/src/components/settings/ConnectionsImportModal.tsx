@@ -19,7 +19,7 @@ import { useState, type FormEvent } from 'react';
 import { useUiApi } from '../../api/ui-api';
 import { invalidInputStyles } from '../../screens/field-state';
 import { useAppStore } from '../../state/app-store-context';
-import { errorText } from '../notify-error';
+import { errorText } from '../../kit/notify-error';
 import {
   IMPORT_MODE_OPTIONS,
   PASSPHRASE_HINT,

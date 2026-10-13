@@ -26,9 +26,10 @@ import {
   type GridFsFile,
   type GridFsListFilter,
   type GridFsUploadInput,
+  validationError,
 } from '@mongo-gui/core';
 import { readField, readNumber } from '../documents';
-import { parseEjsonDocument, stringifyEjson } from '../management/ejson';
+import { parseEjsonDocument, stringifyEjson } from '../ejson';
 import { parseInput, refuseReservedDatabase } from '../management/errors';
 import {
   ProgressTracker,
@@ -48,7 +49,6 @@ import {
   requireFile,
   toGridFsFailure,
   toGridFsFile,
-  validationError,
 } from './shared';
 
 // Progress is reported each time this many bytes have moved.

@@ -6,7 +6,7 @@ import type {
 } from '@mongo-gui/core';
 import { useEffect, useRef, useState } from 'react';
 import { useUiApi } from '../../api/ui-api';
-import { errorText } from '../notify-error';
+import { errorText } from '../../kit/notify-error';
 
 /** Log lines kept for display. Older lines are dropped. */
 export const MAX_LOG_LINES = 500;

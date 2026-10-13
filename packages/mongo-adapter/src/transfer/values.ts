@@ -7,7 +7,7 @@ import {
   type TypedValue,
 } from '@mongo-gui/core';
 import { isPlainObject, type PlainObject } from '../documents';
-import { parseEjson } from '../management/ejson';
+import { parseEjson } from '../ejson';
 
 // Turns a coerced value into the BSON class the driver stores. JSON cells go through the
 // canonical EJSON parser, so $oid, $date and $numberLong inside a cell keep their types.

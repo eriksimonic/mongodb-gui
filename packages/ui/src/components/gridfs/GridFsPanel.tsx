@@ -15,7 +15,7 @@ import { useAppStore } from '../../state/app-store-context';
 import type { Loadable } from '../../state/app-store';
 import { isRunning, listTransfers } from '../../state/transfer-state';
 import { TransferLine, TransferSummaryLine } from '../transfers/TransfersPanel';
-import { errorText, runReported } from '../notify-error';
+import { errorText, runReported } from '../../kit/notify-error';
 import {
   DeleteFilesDialog,
   MetadataDialog,

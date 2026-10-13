@@ -11,7 +11,7 @@ import {
 } from 'mongodb';
 import { appError, AppErrorException, type AppError, type GridFsFile } from '@mongo-gui/core';
 import { definedEntry, readDate, readField, readNumber, readString } from '../documents';
-import { parseEjson, stringifyEjson } from '../management/ejson';
+import { parseEjson, stringifyEjson } from '../ejson';
 import { toFailure } from '../transfer/progress';
 
 export const NAMESPACE_MISSING_CODE = 26;
@@ -21,14 +21,6 @@ const CHUNKS_DAMAGED_MESSAGE = "The file's chunks are missing or damaged";
 // "File with id ... not found". The driver reports this with the code ENOENT, so it is matched
 // before any errno mapping.
 const DRIVER_NOT_FOUND = /file ?not ?found|file .*not found/i;
-
-export function validationError(message: string, detail?: string): AppErrorException {
-  return new AppErrorException(
-    detail === undefined
-      ? appError('VALIDATION', message)
-      : appError('VALIDATION', message, detail),
-  );
-}
 
 export function notFoundError(): AppErrorException {
   return new AppErrorException(appError('NOT_FOUND', NOT_FOUND_MESSAGE));

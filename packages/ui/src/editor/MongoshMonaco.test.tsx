@@ -19,7 +19,7 @@ const captured = vi.hoisted(() => ({
   modelChanged: undefined as (() => void) | undefined,
 }));
 
-vi.mock('./monaco-setup', () => ({}));
+vi.mock('../kit/code/monaco-setup', () => ({}));
 vi.mock('@monaco-editor/react', () => {
   function FakeEditor(props: {
     readonly beforeMount?: (monaco: typeof Monaco) => void;

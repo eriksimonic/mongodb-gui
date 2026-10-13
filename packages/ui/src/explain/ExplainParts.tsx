@@ -8,7 +8,7 @@ import {
   type PlanWarning,
   type PlanWarningSeverity,
 } from '@mongo-gui/core';
-import { notifyError } from '../components/notify-error';
+import { notifyError } from '../kit/notify-error';
 import { createIndexLine } from './explain-model';
 import { groupWarnings } from './stage-view';
 

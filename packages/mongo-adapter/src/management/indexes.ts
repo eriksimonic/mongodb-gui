@@ -12,6 +12,7 @@ import {
   type IndexBuildProgress,
   type IndexInfo,
   type SetIndexHiddenInput,
+  validationError,
 } from '@mongo-gui/core';
 import { HELD_INDEX_OPTIONS, listIndexes } from '../catalog';
 import {
@@ -22,8 +23,8 @@ import {
   readRecord,
   readString,
 } from '../documents';
-import { parseEjsonDocument } from './ejson';
-import { parseInput, toAppException, validationError } from './errors';
+import { parseEjsonDocument } from '../ejson';
+import { parseInput, toAppException } from './errors';
 
 const INDEX_BUILD_MESSAGE_PREFIX = 'Index Build';
 const INDEX_BUILD_MESSAGE_PATTERN = /^Index Build:?\s*/;

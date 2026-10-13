@@ -3,15 +3,15 @@ import Editor, { type BeforeMount, type OnMount } from '@monaco-editor/react';
 import { useEffect, useLayoutEffect, useRef } from 'react';
 import type * as Monaco from 'monaco-editor/editor/editor.api';
 import { editorUiEvents, insertionText, markerRanges } from './editor-events';
-import { defineEditorThemes, themeFor } from './editor-theme';
+import { defineEditorThemes, themeFor } from '../kit/code/editor-theme';
 import {
   clearCompletionSource,
-  MONGOSH_LANGUAGE,
   registerMongoshLanguage,
   setCompletionSource,
 } from './mongosh-language';
+import { MONGOSH_LANGUAGE } from '../kit/code/mongosh-tokens';
 import { registerSqlLanguage, SQL_LANGUAGE } from './sql-language';
-import { useEditorFontSize } from './use-editor-font-size';
+import { useEditorFontSize } from '../kit/code/use-editor-font-size';
 import type { CompletionSource } from './completion-source';
 import type { MongoshEditorProps, RunRequest } from './MongoshEditor';
 import { APP_FONT } from '../theme/theme';

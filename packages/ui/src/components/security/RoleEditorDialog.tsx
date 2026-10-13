@@ -2,8 +2,8 @@ import { Alert, Button, Group, Modal, MultiSelect, Stack, Text, TextInput } from
 import { isBuiltinRole, type RoleInfo } from '@mongo-gui/core';
 import { useRef, useState } from 'react';
 import { useStore } from 'zustand';
-import { errorText } from '../notify-error';
-import { databaseNameError } from '../../management/input-rules';
+import { errorText } from '../../kit/notify-error';
+import { databaseNameError } from '../../kit/input-rules';
 import {
   draftFromPrivilege,
   privilegesFromDrafts,

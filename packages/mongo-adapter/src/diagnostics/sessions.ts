@@ -8,8 +8,9 @@ import {
   readRecord,
   readString,
 } from '../documents';
-import { toAppException, validationError } from '../management/errors';
+import { toAppException } from '../management/errors';
 import { runAdminCommand } from './command';
+import { validationError } from '@mongo-gui/core';
 
 export interface SessionUser {
   readonly user: string;

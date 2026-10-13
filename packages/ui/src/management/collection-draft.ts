@@ -1,5 +1,5 @@
 import type { CreateCollectionInput, ValidationLevel, ValidationAction } from '@mongo-gui/core';
-import { collectionNameError, parseJsonObject } from './input-rules';
+import { collectionNameError, parseJsonObject } from '../kit/input-rules';
 
 export type Granularity = 'seconds' | 'minutes' | 'hours';
 

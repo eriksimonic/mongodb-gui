@@ -4,7 +4,7 @@ import { EXTERNAL_DATABASE, type UserInfo } from '@mongo-gui/core';
 import { useState } from 'react';
 import { useStore } from 'zustand';
 import type { SecurityStore } from '../../security/security-store';
-import { copyText } from '../../diagnostics/copy';
+import { copyText } from '../../kit/copy';
 import { useAppStore } from '../../state/app-store-context';
 import { TreeMenu, type TreeMenuEntry } from '../connections/TreeMenu';
 import { userConnectionString } from './connection-string';

@@ -1,4 +1,4 @@
-import { errorText } from '../notify-error';
+import { errorText } from '../../kit/notify-error';
 import {
   Alert,
   Button,
@@ -19,11 +19,11 @@ import {
 } from '@mongo-gui/core';
 import { useEffect, useState } from 'react';
 import { useUiApi } from '../../api/ui-api';
-import { JsonEditor } from '../../editor/JsonEditor';
-import { formatJson, parseJsonObject } from '../../management/input-rules';
+import { JsonEditor } from '../../kit/code/JsonEditor';
+import { formatJson, parseJsonObject } from '../../kit/input-rules';
 import { addFieldToValidator } from '../../management/validation-field';
 import { useAppStore } from '../../state/app-store-context';
-import { runReported } from '../notify-error';
+import { runReported } from '../../kit/notify-error';
 import type { CollectionPanelProps } from './IndexesPanel';
 
 const DEFAULT_SAMPLE_SIZE = 1000;

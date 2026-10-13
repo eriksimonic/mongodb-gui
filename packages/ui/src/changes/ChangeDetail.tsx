@@ -1,6 +1,6 @@
 import { Badge, Box, Button, Code, Group, Stack, Table, Text } from '@mantine/core';
 import { useMemo, useState } from 'react';
-import { notifyError } from '../components/notify-error';
+import { notifyError } from '../kit/notify-error';
 import { isPlainObject, parseEjson, type JsonObject } from '../results/result-model';
 import { TreeView } from '../results/TreeView';
 import {

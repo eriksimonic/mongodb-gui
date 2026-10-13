@@ -17,7 +17,7 @@ import {
   type RenameCollectionInput,
 } from '@mongo-gui/core';
 import { listCollections } from '../catalog';
-import { parseEjsonDocument } from './ejson';
+import { parseEjsonDocument } from '../ejson';
 import {
   parseInput,
   refuseReservedDatabase,

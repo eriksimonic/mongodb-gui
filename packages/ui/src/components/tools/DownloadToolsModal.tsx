@@ -3,7 +3,7 @@ import type { ToolsAvailableOutput, ToolsVersion } from '@mongo-gui/core';
 import { useEffect, useRef, useState } from 'react';
 import { useUiApi } from '../../api/ui-api';
 import { formatBytes } from '../../diagnostics/format';
-import { errorText, runReported } from '../notify-error';
+import { errorText, runReported } from '../../kit/notify-error';
 import { useMongoTools } from './use-mongo-tools';
 
 interface DownloadToolsModalProps {

@@ -3,7 +3,7 @@ import type { ConnectionProfileSummary } from '@mongo-gui/core';
 import { useEffect, useState, type FormEvent } from 'react';
 import { useUiApi } from '../../api/ui-api';
 import { invalidInputStyles } from '../../screens/field-state';
-import { errorText } from '../notify-error';
+import { errorText } from '../../kit/notify-error';
 import {
   CONNECTIONS_FILE_FILTER,
   CONNECTIONS_FILE_NAME,
