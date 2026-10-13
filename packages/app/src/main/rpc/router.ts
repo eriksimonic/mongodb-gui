@@ -1,11 +1,10 @@
-import { existsSync, mkdirSync, readFileSync, realpathSync, statSync } from 'node:fs';
+import { mkdirSync, readFileSync, statSync } from 'node:fs';
 import { ExportWriter, exportTargetProblem, replaceFile } from './export-file';
-import { basename, dirname, join, resolve } from 'node:path';
+import { dirname, join, resolve } from 'node:path';
 import { randomUUID } from 'node:crypto';
 import { spawn as nodeSpawn } from 'node:child_process';
 import {
   AppErrorException,
-  CHANGE_EVENT_BATCH_LIMIT,
   CONNECTIONS_FILE_MAX_BYTES,
   ConnectionProfileSummarySchema,
   describeConnectionUri,
@@ -20,14 +19,8 @@ import {
   rpcContract,
   toAppError,
   type AppError,
-  type CallInput,
   type AppVersions,
   type StartupSettings,
-  type ChangeEvent,
-  type ChangeTarget,
-  type ChangeWatchOptions,
-  type ChangeWatchPushState,
-  type ChangeWatchState,
   type ConnectionProfile,
   type ConnectionProfileInput,
   type ConnectionStatus,
@@ -37,101 +30,23 @@ import {
   type ExplainResult,
   type ExplainRunCommandInput,
   type ExplainRunInput,
-  type RpcCall,
   type RpcEvent,
   type RpcResult,
-  type SchemaReport,
-  privilegeActionCatalog,
   type UpdateState,
-  type UserInfo,
   directConnectionName,
   directUriFor,
   type BackupInspection,
   type BackupScope,
   type BackupServerInfo,
   type ToolsPlatform,
-  type ToolsPreference,
 } from '@mongo-gui/core';
 import {
   ConnectionManager,
-  openChangeWatch,
-  type ChangeWatch,
   explainableCommand,
   parseCommandEjson,
   runExplainCommand,
   wrapWriteCommand,
-  checkDocumentsAgainstValidator,
-  clearCollection,
-  collectionStats,
-  countDocuments,
-  createCollection,
-  createDatabase,
-  createIndex,
-  databaseStats,
-  deleteByFilter,
-  deleteDocuments,
-  deleteFiles,
-  dropBucket,
-  dropCollection,
-  estimatedDocumentCount,
-  dropDatabase,
-  dropIndex,
-  findDocumentById,
-  getFile,
-  getValidation,
-  insertDocument,
-  listBuckets,
-  listCollections,
-  listDatabases,
-  listFiles,
-  listIndexBuilds,
-  listIndexes,
-  getReplicaSetConfig,
-  getReplicaSetStatus,
-  getSelfHost,
-  applyReconfig,
-  freeze,
-  initiate,
-  previewImport,
-  planReconfig,
-  renameCollection,
-  renameFile,
-  replaceDocument,
-  sampleDocuments,
-  setFileMetadata,
-  setIndexHidden,
-  setValidation,
-  stepDown,
-  updateDocumentFields,
-  toCanonicalEjson,
-  changePassword,
-  connectionStatus,
-  createRole,
-  createUser,
-  dropRole,
-  dropUser,
-  grantRoles,
-  listRoles,
-  listUsers,
-  redactPassword,
-  revokeRoles,
-  updateRole,
-  userManagementCapabilities,
-  addShardToZone,
-  clearBalancerWindow,
-  describeShardCollection,
-  enableSharding,
-  getShardDistribution,
-  getShardingOverview,
-  moveChunk,
   objectIdFromHex,
-  removeShardFromZone,
-  removeShardStatus,
-  setBalancerWindow,
-  shardCollection,
-  startBalancer,
-  stopBalancer,
-  updateZoneKeyRange,
   readArchivePrelude,
   readBackupServerInfo,
 } from '@mongo-gui/mongo-adapter';
@@ -171,11 +86,20 @@ import {
 } from '../updates/updater';
 import { createMonitorService, defaultSamplerFactory, type SamplerFactory } from './monitor';
 import { diagnosticsOperations } from './diagnostics';
-import { connectionCalls, driverCall, entry, type Operation } from './operation';
+import { driverCall, entry, type Operation } from './operation';
+import { managementOperations } from './management';
+import { schemaOperations } from './schema';
+import { createChangesService, type OpenChangeWatch } from './changes';
+import { createBackupRpcService } from './backup';
+import { toolsOperations } from './tools';
+import { gridfsOperations } from './gridfs';
+import { pickedFile, realFolder, resolveRequestPath } from './picked-paths';
 import { adapterProfilerPort, createProfilerService, type ProfilerPort } from './profiler';
-import { createTransferService, type TransferAdapter } from './transfer-service';
-import { createGenerateService } from './generate-service';
-import { createReplicationPlans } from './replication-plans';
+import { createTransferService, type TransferAdapter } from './transfer';
+import { createGenerateService } from './generate';
+import { createReplicationService } from './replication';
+import { securityOperations } from './security';
+import { shardingOperations } from './sharding';
 import { createBackupService, type BackupService } from '../backup/backup-service';
 import { resolveToolsEndpoint, type ToolsEndpointDocker } from '../backup/endpoint';
 import { inspectBackup } from '../backup/inspect';
@@ -283,7 +207,7 @@ export interface RouterDeps {
   /** The transfer functions. Tests inject a fake. Defaults to the adapter. */
   readonly transferAdapter?: TransferAdapter;
   /** Opens a change watch. Tests inject a fake watch. Defaults to the adapter. */
-  readonly openWatch?: typeof openChangeWatch;
+  readonly openWatch?: OpenChangeWatch;
   /**
    * Builds the backup and tools services for this router. Without it the backup and tools calls
    * fail with INTERNAL. Tests pass fakes.
@@ -312,32 +236,6 @@ export interface BackupTools {
 
 /** The driver client type, named without importing the driver into the main process. */
 export type DriverClient = ReturnType<ConnectionRegistry['getClient']>;
-
-/** A change watch held by the router. `flush` sends the batch that is waiting to go out. */
-interface ActiveChangeWatch {
-  readonly connectionId: string;
-  readonly watchId: string;
-  readonly watch: ChangeWatch;
-  readonly flush: () => void;
-  /** Sends a 'resuming' phase before the watch resumes and reports 'live' itself. */
-  resuming(): void;
-}
-
-/** A watch state with its error redacted, so no URI reaches the page. */
-function sanitizedWatchState(state: ChangeWatchState): ChangeWatchState {
-  const { error, ...rest } = state;
-  return error === undefined ? rest : { ...rest, error: sanitize(error) };
-}
-
-/** The state the renderer sees. Errors are redacted, so no URI reaches the page. */
-function pushStateOf(state: ChangeWatchState): ChangeWatchPushState {
-  return {
-    phase: state.phase,
-    eventsSeen: state.eventsSeen,
-    eventsDropped: state.eventsDropped,
-    ...(state.error === undefined ? {} : { error: sanitize(state.error) }),
-  };
-}
 
 export interface Router {
   handle(method: string, input: unknown): Promise<RpcResult>;
@@ -410,24 +308,11 @@ export type AppServices = Omit<RouterDeps, 'onEvent' | 'docker' | 'updates' | 's
   dispose(): Promise<void>;
 };
 
-/** The client a connection holds. The router takes it from the registry for each call. */
-type ClientOf = ReturnType<ConnectionRegistry['getClient']>;
-
-/** Every management input names the connection it runs against. */
-interface ConnectionScoped {
-  readonly connectionId: string;
-}
-
 const KEYRING_DIR_MODE = 0o700;
 const MS_PER_MINUTE = 60_000;
 /** The most text one part of a streamed export may carry. */
 const EXPORT_PART_MAX_CHARS = 2 * 1024 * 1024;
 const STORE_FILE_NAME = 'store.sqlite';
-// The sidecar inside a dump folder. A picked one stands for its folder.
-const DIRECTORY_SIDECAR_NAME = 'mongo-gui-backup.json';
-// The server's default secondary catch-up period, in seconds.
-const DEFAULT_CATCH_UP_SECONDS = 10;
-
 export function createRouter(deps: RouterDeps): Router {
   let active: StoreHandles = { store: deps.store, repos: deps.repos };
   const repos = (): RouterRepos => active.repos;
@@ -449,101 +334,21 @@ export function createRouter(deps: RouterDeps): Router {
     createSampler: deps.createSampler ?? defaultSamplerFactory,
     emit: deps.onEvent,
   });
-  const replicationPlans = createReplicationPlans();
+  const replication = createReplicationService({
+    getClient: (connectionId) => deps.connections.getClient(connectionId),
+  });
   // Per-renderer cleanups. Tails register first; other services join the same registry.
   const rendererResets = new Set<() => void>();
-  // Change watches by connection, then by watch id. A watch ends with its connection or the page.
-  const changeWatches = new Map<string, Map<string, ActiveChangeWatch>>();
   // Plans belong to the page that made them. A reset drops them, so a reloaded page cannot apply one.
   rendererResets.add(() => {
-    replicationPlans.clear();
+    replication.clear();
   });
   rendererResets.add(() => {
     profiler.stopAll();
   });
   rendererResets.add(() => {
-    stopChangeWatches(() => true);
+    changes.stopAll();
   });
-
-  /** Stops the watches that match, and forgets them. Each watch closes in the background. */
-  const stopChangeWatches = (matches: (active: ActiveChangeWatch) => boolean): void => {
-    for (const [connectionId, watches] of [...changeWatches]) {
-      for (const [watchId, active] of [...watches]) {
-        if (matches(active)) {
-          watches.delete(watchId);
-          active.flush();
-          void active.watch.close().catch(() => undefined);
-        }
-      }
-      if (watches.size === 0) {
-        changeWatches.delete(connectionId);
-      }
-    }
-  };
-
-  /** Opens a watch on the connection and returns its id. Events are batched into changes:event. */
-  const startChangeWatch = (
-    connectionId: string,
-    target: ChangeTarget,
-    options: ChangeWatchOptions,
-  ): string => {
-    const client = deps.connections.getClient(connectionId);
-    const watchId = randomUUID();
-    const pending: ChangeEvent[] = [];
-    let flushTimer: ReturnType<typeof setImmediate> | undefined;
-    const flush = (): void => {
-      if (flushTimer !== undefined) {
-        clearImmediate(flushTimer);
-        flushTimer = undefined;
-      }
-      if (pending.length > 0) {
-        const events = pending.splice(0, pending.length);
-        deps.onEvent({ type: 'changes:event', watchId, events });
-      }
-    };
-    const open = deps.openWatch ?? openChangeWatch;
-    const watch = open(client, target, options, {
-      onEvent(event) {
-        pending.push(event);
-        if (pending.length >= CHANGE_EVENT_BATCH_LIMIT) {
-          flush();
-        } else if (flushTimer === undefined) {
-          flushTimer = setImmediate(flush);
-        }
-      },
-      onState(state) {
-        flush();
-        deps.onEvent({ type: 'changes:state', watchId, state: pushStateOf(state) });
-      },
-    });
-    const active: ActiveChangeWatch = {
-      connectionId,
-      watchId,
-      watch,
-      flush,
-      resuming() {
-        deps.onEvent({
-          type: 'changes:state',
-          watchId,
-          state: { ...pushStateOf(watch.state()), phase: 'resuming' },
-        });
-      },
-    };
-    const watches = changeWatches.get(connectionId) ?? new Map<string, ActiveChangeWatch>();
-    watches.set(watchId, active);
-    changeWatches.set(connectionId, watches);
-    return watchId;
-  };
-
-  const changeWatchOf = (watchId: string): ActiveChangeWatch => {
-    for (const watches of changeWatches.values()) {
-      const active = watches.get(watchId);
-      if (active !== undefined) {
-        return active;
-      }
-    }
-    throw new AppErrorException(appError('NOT_FOUND', 'The change watch is not open.'));
-  };
 
   const updatesService = (): UpdatesService => {
     if (deps.updates === undefined) {
@@ -581,260 +386,6 @@ export function createRouter(deps: RouterDeps): Router {
     active.store.deleteFile();
     active = deps.reopenStore();
   };
-
-  const { managed, readOnly } = connectionCalls(
-    (connectionId) => deps.connections.getClient(connectionId),
-    deps.onEvent,
-  );
-
-  function managementOperations(): [string, Operation][] {
-    const m = rpcContract.management;
-    return [
-      managed(
-        'management.createCollection',
-        m.createCollection,
-        (client, input) => createCollection(client, input),
-        (input) => ({ database: input.database, collection: input.name }),
-      ),
-      managed(
-        'management.renameCollection',
-        m.renameCollection,
-        (client, input) => renameCollection(client, input),
-        (input) => ({ database: input.database, collection: input.name }),
-      ),
-      managed(
-        'management.dropCollection',
-        m.dropCollection,
-        (client, input) => dropCollection(client, input),
-        (input) => ({ database: input.database, collection: input.name }),
-      ),
-      managed(
-        'management.clearCollection',
-        m.clearCollection,
-        (client, input) => clearCollection(client, input),
-        (input) => ({ database: input.database, collection: input.name }),
-      ),
-      managed(
-        'management.createDatabase',
-        m.createDatabase,
-        (client, input) => createDatabase(client, input),
-        (input) => ({ database: input.database }),
-      ),
-      managed(
-        'management.dropDatabase',
-        m.dropDatabase,
-        (client, input) => dropDatabase(client, input),
-        (input) => ({ database: input.database }),
-      ),
-      managed(
-        'management.createIndex',
-        m.createIndex,
-        (client, input) => createIndex(client, input),
-        (input) => ({ database: input.database, collection: input.collection }),
-      ),
-      managed(
-        'management.dropIndex',
-        m.dropIndex,
-        (client, input) => dropIndex(client, input),
-        (input) => ({ database: input.database, collection: input.collection }),
-      ),
-      managed(
-        'management.setIndexHidden',
-        m.setIndexHidden,
-        (client, input) => setIndexHidden(client, input),
-        (input) => ({ database: input.database, collection: input.collection }),
-      ),
-      readOnly('management.listIndexBuilds', m.listIndexBuilds, (client, input) =>
-        listIndexBuilds(client, input.database),
-      ),
-      readOnly('management.getValidation', m.getValidation, (client, input) =>
-        getValidation(client, input.database, input.collection),
-      ),
-      managed(
-        'management.setValidation',
-        m.setValidation,
-        (client, input) => setValidation(client, input),
-        (input) => ({ database: input.database, collection: input.collection }),
-      ),
-      readOnly('management.checkValidation', m.checkValidation, (client, input) =>
-        checkDocumentsAgainstValidator(
-          client,
-          input.database,
-          input.collection,
-          input.sampleSize,
-          input.validatorEjson,
-        ),
-      ),
-      managed(
-        'management.insertDocument',
-        m.insertDocument,
-        (client, input) => insertDocument(client, input),
-        (input) => ({ database: input.database, collection: input.collection }),
-      ),
-      managed(
-        'management.replaceDocument',
-        m.replaceDocument,
-        (client, input) => replaceDocument(client, input),
-        (input) => ({ database: input.database, collection: input.collection }),
-      ),
-      managed(
-        'management.updateDocumentFields',
-        m.updateDocumentFields,
-        (client, input) => updateDocumentFields(client, input),
-        (input) => ({ database: input.database, collection: input.collection }),
-      ),
-      managed(
-        'management.deleteDocuments',
-        m.deleteDocuments,
-        (client, input) => deleteDocuments(client, input),
-        (input) => ({ database: input.database, collection: input.collection }),
-      ),
-      managed(
-        'management.deleteByFilter',
-        m.deleteByFilter,
-        (client, input) => deleteByFilter(client, input),
-        (input) => ({ database: input.database, collection: input.collection }),
-      ),
-      readOnly('management.countDocuments', m.countDocuments, (client, input) =>
-        countDocuments(client, input),
-      ),
-      readOnly('management.findDocumentById', m.findDocumentById, (client, input) =>
-        findDocumentById(client, input),
-      ),
-      readOnly('management.sampleDocuments', m.sampleDocuments, (client, input) =>
-        sampleDocuments(client, input),
-      ),
-    ];
-  }
-
-  /**
-   * A users and roles call. Passwords come in through the input and are masked in any error text
-   * before the response leaves. Nothing else from the input reaches the response or the log.
-   */
-  function secured<C extends RpcCall>(
-    method: string,
-    call: C,
-    run: (client: ClientOf, input: CallInput<C>) => Promise<unknown>,
-    secretsOf: (input: CallInput<C>) => readonly string[] = () => [],
-  ): [string, Operation] {
-    return entry(method, call, (input) => {
-      const { connectionId } = input as ConnectionScoped;
-      return maskedCall(secretsOf(input), () =>
-        driverCall(() => run(deps.connections.getClient(connectionId), input)),
-      );
-    });
-  }
-
-  /**
-   * A sharding call that changes server settings but not the database or collection tree. It
-   * reports no catalog change.
-   */
-  function serverOp<C extends RpcCall>(
-    method: string,
-    call: C,
-    run: (client: ClientOf, input: CallInput<C>) => Promise<unknown>,
-  ): [string, Operation] {
-    return entry(method, call, (input) =>
-      driverCall(() =>
-        run(deps.connections.getClient((input as ConnectionScoped).connectionId), input),
-      ),
-    );
-  }
-
-  /**
-   * Sharding calls. Each one runs against the connection's mongos. The adapter validates the
-   * input and the server refuses what it must. Enabling sharding and sharding a collection
-   * report a catalog change, so the tree refreshes.
-   */
-  function shardingOperations(): [string, Operation][] {
-    const s = rpcContract.sharding;
-    return [
-      readOnly('sharding.overview', s.overview, (client) => getShardingOverview(client)),
-      readOnly('sharding.collectionDistribution', s.collectionDistribution, (client, input) =>
-        getShardDistribution(client, input.namespace),
-      ),
-      serverOp('sharding.setBalancer', s.setBalancer, (client, input) =>
-        input.enabled ? startBalancer(client) : stopBalancer(client),
-      ),
-      serverOp('sharding.setBalancerWindow', s.setBalancerWindow, (client, input) =>
-        setBalancerWindow(client, input),
-      ),
-      serverOp('sharding.clearBalancerWindow', s.clearBalancerWindow, (client) =>
-        clearBalancerWindow(client),
-      ),
-      managed(
-        'sharding.enableSharding',
-        s.enableSharding,
-        (client, input) => enableSharding(client, input),
-        (input) => ({ database: input.database }),
-      ),
-      entry('sharding.shardCollection', s.shardCollection, (input) =>
-        driverCall(async () => {
-          const client = deps.connections.getClient(input.connectionId);
-          const summary = await describeShardCollection(client, input);
-          if (!input.confirmed) {
-            return { applied: false, summary };
-          }
-          await shardCollection(client, input);
-          deps.onEvent({
-            type: 'catalog:changed',
-            connectionId: input.connectionId,
-            database: input.database,
-            collection: input.collection,
-          });
-          return { applied: true, summary };
-        }),
-      ),
-      serverOp('sharding.moveChunk', s.moveChunk, (client, input) => moveChunk(client, input)),
-      serverOp('sharding.addShardToZone', s.addShardToZone, (client, input) =>
-        addShardToZone(client, input),
-      ),
-      serverOp('sharding.removeShardFromZone', s.removeShardFromZone, (client, input) =>
-        removeShardFromZone(client, input),
-      ),
-      serverOp('sharding.updateZoneKeyRange', s.updateZoneKeyRange, (client, input) =>
-        updateZoneKeyRange(client, input),
-      ),
-      serverOp('sharding.removeShard', s.removeShard, (client, input) =>
-        removeShardStatus(client, input),
-      ),
-    ];
-  }
-
-  function securityOperations(): [string, Operation][] {
-    const s = rpcContract.security;
-    return [
-      secured('security.listUsers', s.listUsers, async (client, input) =>
-        (await listUsers(client, input.database)).map(withEjsonCustomData),
-      ),
-      secured(
-        'security.createUser',
-        s.createUser,
-        async (client, input) => withEjsonCustomData(await createUser(client, input)),
-        (input) => (input.password === undefined ? [] : [input.password]),
-      ),
-      secured(
-        'security.changePassword',
-        s.changePassword,
-        (client, input) => changePassword(client, input),
-        (input) => [input.password],
-      ),
-      secured('security.grantRoles', s.grantRoles, (client, input) => grantRoles(client, input)),
-      secured('security.revokeRoles', s.revokeRoles, (client, input) => revokeRoles(client, input)),
-      secured('security.dropUser', s.dropUser, (client, input) => dropUser(client, input)),
-      secured('security.listRoles', s.listRoles, (client, input) =>
-        listRoles(client, input.database),
-      ),
-      secured('security.createRole', s.createRole, (client, input) => createRole(client, input)),
-      secured('security.updateRole', s.updateRole, (client, input) => updateRole(client, input)),
-      secured('security.dropRole', s.dropRole, (client, input) => dropRole(client, input)),
-      secured('security.session', s.session, (client) => connectionStatus(client)),
-      secured('security.capabilities', s.capabilities, (client, input) =>
-        userManagementCapabilities(client, input.database),
-      ),
-      entry('security.privilegeActions', s.privilegeActions, () => privilegeActionCatalog()),
-    ];
-  }
 
   const docker = (): DockerRuntime => {
     if (deps.docker === undefined) {
@@ -893,8 +444,6 @@ export function createRouter(deps: RouterDeps): Router {
   const folderPicks = new Set<string>();
   // Files picked in an open dialog: an upload or an import reads only these, one use each.
   const openedFiles = new Set<string>();
-  // Backup sources inspected this session: a restore reads only these.
-  const inspectedSources = new Set<string>();
 
   /** The real location of a folder picked this session, or undefined when it was not picked. */
   const pickedFolder = (folder: string): string | undefined => {
@@ -913,34 +462,6 @@ export function createRouter(deps: RouterDeps): Router {
     return backupTools;
   };
 
-  /**
-   * The source a backup.inspect call may read: an archive picked in an open dialog (a picked
-   * sidecar stands for its archive or dump folder), or a folder picked in a folder dialog.
-   */
-  const inspectableSource = (path: string): string => {
-    const file = resolveRequestPath(path);
-    if (openedFiles.has(file)) {
-      if (basename(file) === DIRECTORY_SIDECAR_NAME) {
-        return dirname(file);
-      }
-      return file.endsWith('.json') ? file.slice(0, -'.json'.length) : file;
-    }
-    const folder = pickedFolder(file);
-    if (folder !== undefined && isDirectory(folder)) {
-      return folder;
-    }
-    throw new AppErrorException(appError('VALIDATION', 'Choose the backup in a dialog first.'));
-  };
-
-  /** The saved tools version, or 'auto' while the vault is locked. */
-  const toolsPreference = (): ToolsPreference => {
-    try {
-      return repos().settings.get().mongoToolsVersion;
-    } catch {
-      return 'auto';
-    }
-  };
-
   const dialogs = (): NativeDialogs => {
     if (deps.dialogs === undefined) {
       throw new AppErrorException(appError('INTERNAL', 'File dialogs are not available.'));
@@ -952,6 +473,35 @@ export function createRouter(deps: RouterDeps): Router {
   const requireConnectionProfile = (connectionId: string): void => {
     repos().connections.get(connectionId);
   };
+
+  const transfers = createTransferService({
+    ...(deps.transferAdapter === undefined ? {} : { adapter: deps.transferAdapter }),
+    getClient: (connectionId) => deps.connections.getClient(connectionId),
+    emit: deps.onEvent,
+  });
+
+  const generate = createGenerateService({
+    getClient: (connectionId) => deps.connections.getClient(connectionId),
+    emit: deps.onEvent,
+    toObjectId: objectIdFromHex,
+  });
+
+  const changes = createChangesService({
+    getClient: (connectionId) => deps.connections.getClient(connectionId),
+    emit: deps.onEvent,
+    ...(deps.openWatch === undefined ? {} : { openWatch: deps.openWatch }),
+    sanitize,
+  });
+  const backup = createBackupRpcService({
+    tools,
+    getClient: (connectionId) => deps.connections.getClient(connectionId),
+    repos,
+    requireConnectionProfile,
+    pickedFolder,
+    isOpenedFile: (file) => openedFiles.has(file),
+    resolveRequestPath,
+    isDirectory,
+  });
 
   const operations = new Map<string, Operation>([
     entry('vault.status', rpcContract.vault.status, () => deps.vault.status()),
@@ -1087,39 +637,6 @@ export function createRouter(deps: RouterDeps): Router {
       return summariseImportPlan(plan);
     }),
 
-    entry('databases.list', rpcContract.databases.list, (input) =>
-      driverCall(() => listDatabases(deps.connections.getClient(input.connectionId))),
-    ),
-    entry('databases.stats', rpcContract.databases.stats, (input) =>
-      driverCall(() =>
-        databaseStats(deps.connections.getClient(input.connectionId), input.database),
-      ),
-    ),
-
-    entry('collections.list', rpcContract.collections.list, (input) =>
-      driverCall(() =>
-        listCollections(deps.connections.getClient(input.connectionId), input.database),
-      ),
-    ),
-    entry('collections.stats', rpcContract.collections.stats, (input) =>
-      driverCall(() =>
-        collectionStats(
-          deps.connections.getClient(input.connectionId),
-          input.database,
-          input.collection,
-        ),
-      ),
-    ),
-    entry('collections.indexes', rpcContract.collections.indexes, (input) =>
-      driverCall(() =>
-        listIndexes(
-          deps.connections.getClient(input.connectionId),
-          input.database,
-          input.collection,
-        ),
-      ),
-    ),
-
     entry('shell.evaluate', rpcContract.shell.evaluate, (input) =>
       shellCall(input.connectionId, (shell) => shell.evaluate(input)),
     ),
@@ -1153,33 +670,6 @@ export function createRouter(deps: RouterDeps): Router {
     entry('shell.sampleSchema', rpcContract.shell.sampleSchema, (input) =>
       shellCall(input.connectionId, (shell) => shell.sampleSchema(input)),
     ),
-    // The sample comes from the shell runtime. The total comes from the server's metadata.
-    entry('schema.analyse', rpcContract.schema.analyse, async (input): Promise<SchemaReport> => {
-      const sample = await shellCall(input.connectionId, (shell) =>
-        shell.sampleSchema({
-          connectionId: input.connectionId,
-          database: input.database,
-          collection: input.collection,
-          size: input.size,
-          strategy: input.strategy,
-        }),
-      );
-      const total = await driverCall(() =>
-        estimatedDocumentCount(
-          deps.connections.getClient(input.connectionId),
-          input.database,
-          input.collection,
-        ),
-      );
-      return {
-        database: input.database,
-        collection: input.collection,
-        sampled: sample.sampled,
-        total,
-        fields: sample.fields,
-        at: new Date().toISOString(),
-      };
-    }),
     entry('shell.restart', rpcContract.shell.restart, (input) =>
       shellCall(input.connectionId, (shell) => shell.restart(input.connectionId)),
     ),
@@ -1188,9 +678,17 @@ export function createRouter(deps: RouterDeps): Router {
     })),
     entry('explain.run', rpcContract.explain.run, (input) => explainStatement(input)),
     entry('explain.runCommand', rpcContract.explain.runCommand, (input) => explainCommand(input)),
-    ...managementOperations(),
-    ...securityOperations(),
-    ...shardingOperations(),
+    ...managementOperations({
+      getClient: (connectionId) => deps.connections.getClient(connectionId),
+      emit: deps.onEvent,
+    }),
+    ...securityOperations({
+      getClient: (connectionId) => deps.connections.getClient(connectionId),
+    }),
+    ...shardingOperations({
+      getClient: (connectionId) => deps.connections.getClient(connectionId),
+      emit: deps.onEvent,
+    }),
     ...diagnosticsOperations({
       getClient: (connectionId) => deps.connections.getClient(connectionId),
       emit: deps.onEvent,
@@ -1198,53 +696,7 @@ export function createRouter(deps: RouterDeps): Router {
 
     ...monitor.rpcOperations(),
 
-    entry('replication.getStatus', rpcContract.replication.getStatus, (input) =>
-      driverCall(() => getReplicaSetStatus(deps.connections.getClient(input.connectionId))),
-    ),
-    entry('replication.getConfig', rpcContract.replication.getConfig, (input) =>
-      driverCall(() => getReplicaSetConfig(deps.connections.getClient(input.connectionId))),
-    ),
-    entry('replication.selfHost', rpcContract.replication.selfHost, (input) =>
-      driverCall(async () => ({
-        host: (await getSelfHost(deps.connections.getClient(input.connectionId))) ?? null,
-      })),
-    ),
-    entry('replication.planReconfig', rpcContract.replication.planReconfig, (input) =>
-      driverCall(async () => {
-        const client = deps.connections.getClient(input.connectionId);
-        const status = await getReplicaSetStatus(client);
-        const config = await getReplicaSetConfig(client);
-        const plan = planReconfig(config, input.change, status);
-        return { planId: replicationPlans.store(input.connectionId, plan), plan };
-      }),
-    ),
-    entry('replication.applyReconfig', rpcContract.replication.applyReconfig, (input) =>
-      driverCall(async () => {
-        const plan = replicationPlans.take(input.connectionId, input.planId, input.expectedVersion);
-        await applyReconfig(deps.connections.getClient(input.connectionId), plan);
-      }),
-    ),
-    entry('replication.stepDown', rpcContract.replication.stepDown, (input) =>
-      driverCall(async () => ({
-        // The server needs the step-down longer than the catch-up period. The UI's minimum leaves
-        // room for the default 10 seconds of catch-up.
-        primary: await stepDown(deps.connections.getClient(input.connectionId), {
-          stepDownSeconds: input.stepDownSeconds,
-          secondaryCatchUpSeconds: Math.min(DEFAULT_CATCH_UP_SECONDS, input.stepDownSeconds - 1),
-        }),
-      })),
-    ),
-    entry('replication.freeze', rpcContract.replication.freeze, (input) =>
-      driverCall(() => freeze(deps.connections.getClient(input.connectionId), input.seconds)),
-    ),
-    entry('replication.initiate', rpcContract.replication.initiate, (input) =>
-      driverCall(() =>
-        initiate(deps.connections.getClient(input.connectionId), {
-          setName: input.setName,
-          members: input.members,
-        }),
-      ),
-    ),
+    ...replication.operations(),
     entry('layout.get', rpcContract.layout.get, (input) => ({
       value: repos().layout.get(input.key) ?? null,
     })),
@@ -1279,61 +731,8 @@ export function createRouter(deps: RouterDeps): Router {
       repos().favourites.remove(input.id);
     }),
 
-    entry('savedRestores.list', rpcContract.savedRestores.list, () => repos().savedRestores.list()),
-    entry('savedRestores.save', rpcContract.savedRestores.save, (input) => {
-      // Only a source inspected this session, so a saved path was always picked in a dialog.
-      if (!inspectedSources.has(resolveRequestPath(input.source))) {
-        throw new AppErrorException(appError('VALIDATION', 'Open the backup in a dialog first.'));
-      }
-      return repos().savedRestores.save({ ...input, source: resolveRequestPath(input.source) });
-    }),
-    entry('savedRestores.open', rpcContract.savedRestores.open, async (input) => {
-      const saved = repos()
-        .savedRestores.list()
-        .find((item) => item.id === input.id);
-      if (saved === undefined) {
-        throw new AppErrorException(appError('NOT_FOUND', 'The saved restore was not found.'));
-      }
-      const inspection = await tools().inspect(saved.source);
-      inspectedSources.add(saved.source);
-      inspectedSources.add(inspection.path);
-      return inspection;
-    }),
-    entry('savedRestores.rename', rpcContract.savedRestores.rename, (input) =>
-      repos().savedRestores.rename(input.id, input.name),
-    ),
-    entry('savedRestores.remove', rpcContract.savedRestores.remove, (input) => {
-      repos().savedRestores.remove(input.id);
-    }),
-
     ...profiler.operations(),
-    entry('changes.start', rpcContract.changes.start, (input) =>
-      driverCall(async () => ({
-        watchId: startChangeWatch(input.connectionId, input.target, input.options),
-      })),
-    ),
-    entry('changes.pause', rpcContract.changes.pause, (input) => {
-      changeWatchOf(input.watchId).watch.pause();
-    }),
-    entry('changes.resume', rpcContract.changes.resume, (input) => {
-      const active = changeWatchOf(input.watchId);
-      // The watch reports 'live' from inside resume, once its buffered events are delivered.
-      active.resuming();
-      active.watch.resume();
-    }),
-    entry('changes.stop', rpcContract.changes.stop, async (input) => {
-      const active = changeWatchOf(input.watchId);
-      const watches = changeWatches.get(active.connectionId);
-      watches?.delete(input.watchId);
-      if (watches?.size === 0) {
-        changeWatches.delete(active.connectionId);
-      }
-      active.flush();
-      await active.watch.close();
-    }),
-    entry('changes.state', rpcContract.changes.state, (input) =>
-      sanitizedWatchState(changeWatchOf(input.watchId).watch.state()),
-    ),
+    ...changes.operations(),
     entry('docker.status', rpcContract.docker.status, () => docker().status()),
     entry('docker.list', rpcContract.docker.list, () => docker().list()),
     entry('docker.connect', rpcContract.docker.connect, (input) =>
@@ -1351,152 +750,32 @@ export function createRouter(deps: RouterDeps): Router {
     entry('docker.watch', rpcContract.docker.watch, (input) => {
       docker().watch(input.enabled, deps.onEvent);
     }),
-    entry('transfer.previewImport', rpcContract.transfer.previewImport, async (input) => {
-      const { connectionId, ...request } = input;
-      requireConnectionProfile(connectionId);
-      // A preview reads sample rows, so it reads only a picked file. It does not use up the pick.
-      return previewImport({ ...request, path: pickedFile(request.path, openedFiles) });
+    ...transfers.operations({
+      requireConnectionProfile,
+      pickedFile: (path) => pickedFile(path, openedFiles),
+      releasePick: (path) => {
+        openedFiles.delete(path);
+      },
+      resolveRequestPath,
+      refuseMissingFolder,
+      savePaths,
     }),
-    entry('transfer.startImport', rpcContract.transfer.startImport, (input) => {
-      const { connectionId, ...request } = input;
-      requireConnectionProfile(connectionId);
-      const path = pickedFile(request.path, openedFiles);
-      const transferId = transfers.startImport(connectionId, { ...request, path });
-      // Used up only once the transfer has started, so a failed start leaves the pick usable.
-      openedFiles.delete(path);
-      return { transferId };
-    }),
-    entry('transfer.startExport', rpcContract.transfer.startExport, (input) => {
-      const { connectionId, ...request } = input;
-      requireConnectionProfile(connectionId);
-      const path = resolveRequestPath(request.path);
-      refuseMissingFolder(path);
-      refuseUnpickedFile(path, savePaths);
-      return { transferId: transfers.startExport(connectionId, { ...request, path }) };
-    }),
-    entry('transfer.cancel', rpcContract.transfer.cancel, (input) => {
-      transfers.cancel(input.transferId);
-    }),
-    entry('transfer.status', rpcContract.transfer.status, (input) =>
-      transfers.status(input.transferId),
-    ),
-    entry('transfer.list', rpcContract.transfer.list, () => transfers.list()),
-    entry('generate.start', rpcContract.generate.start, (input) => ({
-      jobId: generate.start(input),
-    })),
-    entry('generate.cancel', rpcContract.generate.cancel, (input) => {
-      generate.cancel(input.jobId);
-    }),
+    ...generate.operations(),
 
-    entry('backup.describeServer', rpcContract.backup.describeServer, (input) => {
-      requireConnectionProfile(input.connectionId);
-      const { describeServer } = tools();
-      return driverCall(() =>
-        describeServer(deps.connections.getClient(input.connectionId), input.scope),
-      );
+    ...backup.operations(),
+    ...toolsOperations({ tools, repos }),
+    ...gridfsOperations({
+      getClient: (connectionId) => deps.connections.getClient(connectionId),
+      transfers,
+      requireConnectionProfile,
+      openedFiles,
+      savePaths,
+      folderPicks,
     }),
-    entry('backup.start', rpcContract.backup.start, async (input) => {
-      requireConnectionProfile(input.connectionId);
-      const folder = pickedFolder(input.folder);
-      if (folder === undefined) {
-        throw new AppErrorException(
-          appError('VALIDATION', 'Choose the backup folder in a dialog first.'),
-        );
-      }
-      // The service writes into the real folder, so the kernel writes where the check looked.
-      return { jobId: await tools().backups.startDump({ ...input, folder }) };
+    ...schemaOperations({
+      getClient: (connectionId) => deps.connections.getClient(connectionId),
+      shellCall,
     }),
-    entry('backup.inspect', rpcContract.backup.inspect, async (input) => {
-      const source = inspectableSource(input.path);
-      const inspection = await tools().inspect(source);
-      inspectedSources.add(source);
-      inspectedSources.add(inspection.path);
-      return inspection;
-    }),
-    entry('backup.startRestore', rpcContract.backup.startRestore, async (input) => {
-      requireConnectionProfile(input.connectionId);
-      const source = resolveRequestPath(input.source);
-      if (!inspectedSources.has(source)) {
-        throw new AppErrorException(appError('VALIDATION', 'Open the backup in a dialog first.'));
-      }
-      return { jobId: await tools().backups.startRestore({ ...input, source }) };
-    }),
-    entry('savedBackups.list', rpcContract.savedBackups.list, () => repos().savedBackups.list()),
-    entry('savedBackups.save', rpcContract.savedBackups.save, (input) =>
-      repos().savedBackups.save(input),
-    ),
-    entry('savedBackups.rename', rpcContract.savedBackups.rename, (input) =>
-      repos().savedBackups.rename(input.id, input.label),
-    ),
-    entry('savedBackups.remove', rpcContract.savedBackups.remove, (input) => {
-      repos().savedBackups.remove(input.id);
-    }),
-    entry('backup.cancel', rpcContract.backup.cancel, (input) => {
-      tools().backups.cancel(input.jobId);
-    }),
-    entry('tools.list', rpcContract.tools.list, () => tools().registry.list(toolsPreference())),
-    entry('tools.available', rpcContract.tools.available, async (input) => {
-      const { registry, feed } = tools();
-      const listed = await registry.list('auto');
-      const installed = listed.installs
-        .filter((install) => install.health.state === 'ok')
-        .map((install) => install.version);
-      return feed.available(installed, input.refresh);
-    }),
-    entry('tools.download', rpcContract.tools.download, (input) =>
-      tools().downloads.start(input.version),
-    ),
-    entry('tools.cancelDownload', rpcContract.tools.cancelDownload, (input) => {
-      tools().downloads.cancel(input.downloadId);
-    }),
-    entry('tools.remove', rpcContract.tools.remove, (input) => tools().registry.remove(input.id)),
-    entry('tools.licence', rpcContract.tools.licence, (input) =>
-      tools().registry.licence(input.id),
-    ),
-
-    entry('gridfs.listBuckets', rpcContract.gridfs.listBuckets, (input) =>
-      driverCall(() => listBuckets(deps.connections.getClient(input.connectionId), input)),
-    ),
-    entry('gridfs.listFiles', rpcContract.gridfs.listFiles, (input) =>
-      driverCall(() => listFiles(deps.connections.getClient(input.connectionId), input)),
-    ),
-    entry('gridfs.getFile', rpcContract.gridfs.getFile, (input) =>
-      driverCall(() => getFile(deps.connections.getClient(input.connectionId), input)),
-    ),
-    entry('gridfs.startUpload', rpcContract.gridfs.startUpload, (input) => {
-      const { connectionId, ...request } = input;
-      requireConnectionProfile(connectionId);
-      const path = pickedFile(request.path, openedFiles);
-      const transferId = transfers.startGridFsUpload(connectionId, { ...request, path });
-      // Used up only once the transfer has started, so a failed start leaves the pick usable.
-      openedFiles.delete(path);
-      return { transferId };
-    }),
-    entry('gridfs.startDownload', rpcContract.gridfs.startDownload, (input) => {
-      const { connectionId, ...request } = input;
-      requireConnectionProfile(connectionId);
-      const path = resolveRequestPath(request.path);
-      refuseUnpickedDownload(path, savePaths, folderPicks);
-      if (request.overwrite !== true) {
-        // Checked before the transfer starts, so the caller gets the refusal as the call's error.
-        refuseExistingFile(path);
-      }
-      return { transferId: transfers.startGridFsDownload(connectionId, { ...request, path }) };
-    }),
-    entry('gridfs.deleteFiles', rpcContract.gridfs.deleteFiles, (input) =>
-      driverCall(() => deleteFiles(deps.connections.getClient(input.connectionId), input)),
-    ),
-    entry('gridfs.renameFile', rpcContract.gridfs.renameFile, (input) =>
-      driverCall(() => renameFile(deps.connections.getClient(input.connectionId), input)),
-    ),
-    entry('gridfs.setMetadata', rpcContract.gridfs.setMetadata, (input) =>
-      driverCall(() => setFileMetadata(deps.connections.getClient(input.connectionId), input)),
-    ),
-    entry('gridfs.dropBucket', rpcContract.gridfs.dropBucket, (input) =>
-      driverCall(() =>
-        dropBucket(deps.connections.getClient(input.connectionId), input.database, input.bucket),
-      ),
-    ),
     entry('updates.state', rpcContract.updates.state, () => updatesService().state()),
     entry('updates.check', rpcContract.updates.check, () => updatesService().check()),
     entry('updates.download', rpcContract.updates.download, () => updatesService().download()),
@@ -1608,24 +887,13 @@ export function createRouter(deps: RouterDeps): Router {
     }),
   ]);
 
-  const transfers = createTransferService({
-    ...(deps.transferAdapter === undefined ? {} : { adapter: deps.transferAdapter }),
-    getClient: (connectionId) => deps.connections.getClient(connectionId),
-    emit: deps.onEvent,
-  });
-
-  const generate = createGenerateService({
-    getClient: (connectionId) => deps.connections.getClient(connectionId),
-    emit: deps.onEvent,
-    toObjectId: objectIdFromHex,
-  });
   // Generate jobs end with the page that started them, as transfers do.
   rendererResets.add(() => {
     generate.cancelAll();
   });
   // Backups, restores and tools downloads end with the page too, and a new page inspects again.
   rendererResets.add(() => {
-    inspectedSources.clear();
+    backup.clearInspected();
     backupTools?.backups.cancelAll();
     backupTools?.downloads.cancelAll();
   });
@@ -1647,7 +915,7 @@ export function createRouter(deps: RouterDeps): Router {
   deps.connections.onStatusChange((connectionId, status) => {
     if (status.state !== 'connected') {
       profiler.stopConnection(connectionId);
-      stopChangeWatches((active) => active.connectionId === connectionId);
+      changes.stopConnection(connectionId);
     }
     deps.onEvent({ type: 'connection:status', connectionId, status });
     // A transfer reads or writes through the client of its connection, so it ends with the connection.
@@ -1673,7 +941,7 @@ export function createRouter(deps: RouterDeps): Router {
   });
   deps.lockEvents?.subscribe(() => {
     profiler.stopAll();
-    stopChangeWatches(() => true);
+    changes.stopAll();
     monitor.stopAll();
     transfers.cancelAll();
     // A job reads its connection profile from the store, so a lock ends it. Downloads go on.
@@ -2249,120 +1517,12 @@ function replacementPatch(input: ConnectionProfileInput): Partial<ConnectionProf
   } as Partial<ConnectionProfileInput>;
 }
 
-/**
- * An export never replaces a file the user did not pick in a save dialog this session. A file the
- * user did pick is replaced only when the export succeeds.
- */
-function refuseUnpickedFile(path: string, picked: ReadonlySet<string>): void {
-  if (existsSync(path) && !picked.has(path)) {
-    throw new AppErrorException(
-      appError('VALIDATION', 'The file exists. Choose it with Save as to replace it.'),
-    );
-  }
-}
-
-/**
- * Refuses a `..` segment and returns the absolute path. The transfer receives this resolved path,
- * never the request's text, so the kernel writes where the check looked.
- */
-function resolveRequestPath(path: string): string {
-  if (path.split(/[\\/]/).includes('..')) {
-    throw new AppErrorException(appError('VALIDATION', 'A path may not contain ".." segments.'));
-  }
-  return resolve(path);
-}
-
-/**
- * The real location of a folder, or undefined when it cannot be read. A folder that is a symlink
- * is compared by where it points, so a link inside a picked folder cannot lead out of it.
- */
-function realFolder(path: string): string | undefined {
-  try {
-    return realpathSync(path);
-  } catch {
-    return undefined;
-  }
-}
-
-/**
- * A download writes only to a save path picked this session, or directly inside a folder picked
- * this session. The folder is compared by its real location, so a symlink inside it is refused.
- */
-function refuseUnpickedDownload(
-  target: string,
-  savedFiles: ReadonlySet<string>,
-  pickedFolders: ReadonlySet<string>,
-): void {
-  const folder = realFolder(dirname(target));
-  if (savedFiles.has(target) || (folder !== undefined && pickedFolders.has(folder))) {
-    return;
-  }
-  throw new AppErrorException(
-    appError('VALIDATION', 'Choose the folder or the save location in a dialog first.'),
-  );
-}
-
-/**
- * The resolved path of a file the open dialog returned this session. Checking does not use the pick
- * up, so the caller uses it only when the transfer starts.
- */
-function pickedFile(path: string, openedFiles: ReadonlySet<string>): string {
-  const file = resolveRequestPath(path);
-  if (!openedFiles.has(file)) {
-    throw new AppErrorException(appError('VALIDATION', 'Choose the file in a dialog first.'));
-  }
-  return file;
-}
-
-/** A download without overwrite refuses an existing file, so the renderer can offer a replace. */
-function refuseExistingFile(path: string): void {
-  if (existsSync(path)) {
-    throw new AppErrorException(
-      appError('ALREADY_EXISTS', 'The file exists. Replace it to overwrite.'),
-    );
-  }
-}
-
 function isDirectory(path: string): boolean {
   try {
     return statSync(path).isDirectory();
   } catch {
     return false;
   }
-}
-
-/** Runs a call whose error text may carry secrets. AppErrors are masked, others pass through. */
-async function maskedCall<T>(secrets: readonly string[], action: () => Promise<T>): Promise<T> {
-  try {
-    return await action();
-  } catch (error) {
-    if (error instanceof AppErrorException) {
-      throw new AppErrorException(maskError(error.error, secrets));
-    }
-    throw error;
-  }
-}
-
-function maskError(error: AppError, secrets: readonly string[]): AppError {
-  const mask = (text: string): string =>
-    secrets.reduce((value, secret) => redactPassword(value, secret), redactPassword(text));
-  const { detail, cause, ...rest } = error;
-  return {
-    ...rest,
-    message: mask(rest.message),
-    ...(detail === undefined ? {} : { detail: mask(detail) }),
-    ...(cause === undefined ? {} : { cause: mask(cause) }),
-  };
-}
-
-/** Custom data leaves the main process as canonical EJSON, so BSON types survive the IPC hop. */
-function withEjsonCustomData(user: UserInfo): UserInfo {
-  if (user.customData === undefined) {
-    return user;
-  }
-  const { customData, ...rest } = user;
-  const canonical = toCanonicalEjson(customData);
-  return canonical === undefined ? rest : { ...rest, customData: canonical };
 }
 
 function failure(error: AppError): RpcResult {

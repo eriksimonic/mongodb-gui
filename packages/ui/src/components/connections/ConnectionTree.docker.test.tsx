@@ -3,7 +3,7 @@ import { fireEvent, screen, waitFor, within } from '@testing-library/react';
 import { describe, expect, it, vi } from 'vitest';
 import { createMockUiApi } from '../../api/mock-rpc-client';
 import { renderWithApp } from '../../test-support/render';
-import { useBackupDialogs } from '../backup/backup-dialog-store';
+import { useBackupDialogs } from '../../backup';
 import { ConnectionTree } from './ConnectionTree';
 import { openSubmenu } from '../../test-support/menu';
 

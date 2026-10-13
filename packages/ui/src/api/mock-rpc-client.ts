@@ -37,7 +37,6 @@ import {
   directUriFor,
   type StartupSettings,
 } from '@mongo-gui/core';
-import type { MockReplicaSetInfo } from './mock-replication';
 import {
   fixtureBuilds,
   fixtureCatalog,
@@ -47,8 +46,8 @@ import {
   type MockCollection,
   type MockDatabase,
 } from './mock-catalog';
-import { createManagementCalls } from './mock-management';
-import { createSecurityCalls, fixtureSecurity, type MockSecurity } from './mock-security';
+import { createManagementCalls } from '../management/mock';
+import { createSecurityCalls, fixtureSecurity, type MockSecurity } from '../security/mock';
 import { createDiagnosticsCalls } from '../diagnostics/mock';
 import {
   fixtureConnections,
@@ -72,16 +71,16 @@ import {
   MOCK_DIALOG_PATH,
   mockImportPreview,
   mockSavePath,
-} from './mock-transfer';
+} from '../transfers/mock';
 import { createMockProfiler } from '../profiler/mock';
-import { createMockGenerate } from './mock-generate';
-import { createMockChanges } from './mock-changes';
-import { createMockGridFs, MOCK_FOLDER_PATH } from './mock-gridfs';
-import { createShardingCalls, fixtureCluster, type MockCluster } from './mock-sharding';
-import { createMockReplication } from './mock-replication';
+import { createMockGenerate } from '../generate/mock';
+import { createMockChanges } from '../changes/mock';
+import { createMockGridFs, MOCK_FOLDER_PATH } from '../gridfs/mock';
+import { createShardingCalls, fixtureCluster, type MockCluster } from '../sharding/mock';
+import { createMockReplication, type MockReplicaSetInfo } from '../replication/mock';
 import { createMockExplain } from './mock-explain';
-import { createMockBackup } from './mock-backup';
-import { createMockTools, type MockToolsMode } from './mock-tools';
+import { createMockBackup } from '../backup/mock';
+import { createMockTools, type MockToolsMode } from '../tools/mock';
 import type { UiApi } from './ui-api';
 
 export type MockPreset = 'fresh' | 'unlocked';

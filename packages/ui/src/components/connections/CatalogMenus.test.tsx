@@ -2,9 +2,9 @@
 import { fireEvent, screen, waitFor, within } from '@testing-library/react';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { localConnectionId } from '../../api/mock-fixtures';
-import { ManagementDialogs } from '../management/ManagementDialogs';
-import { useBackupDialogs } from '../backup/backup-dialog-store';
-import { TransferModals } from '../transfers/TransferModals';
+import { ManagementDialogs } from '../../management';
+import { useBackupDialogs } from '../../backup';
+import { TransferModals } from '../../transfers';
 import { renderWithApp } from '../../test-support/render';
 import { connectedMockApi } from '../../api/connected-mock';
 import { ConnectionTree } from './ConnectionTree';

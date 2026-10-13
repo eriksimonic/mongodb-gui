@@ -24,7 +24,7 @@ import {
   operationsNodeId,
   profilerNodeId,
 } from '../../state/node-ids';
-import { bucketLabel } from '../gridfs/gridfs-model';
+import { bucketLabel } from '../../gridfs';
 
 export type TreeRowKind =
   | 'connection'

@@ -3,9 +3,7 @@ import type { Settings, SettingsPatch, ToolsInstall } from '@mongo-gui/core';
 import { useState } from 'react';
 import { useUiApi } from '../../api/ui-api';
 import { formatBytes } from '../../diagnostics';
-import { DownloadToolsModal } from '../tools/DownloadToolsModal';
-import { ToolsLicenceModal } from '../tools/ToolsLicenceModal';
-import { useMongoTools } from '../tools/use-mongo-tools';
+import { DownloadToolsModal, ToolsLicenceModal, useMongoTools } from '../../tools';
 import { errorText, runReported } from '../../kit/notify-error';
 
 interface ToolsSectionProps {

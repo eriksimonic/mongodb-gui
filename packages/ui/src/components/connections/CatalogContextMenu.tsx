@@ -1,10 +1,10 @@
-import { useChangesOpener } from '../../changes/changes-opener';
+import { useChangesOpener } from '../../changes';
 import { useProfilerOpener } from '../../profiler';
 import { useAppStore } from '../../state/app-store-context';
-import { shardingAvailability } from '../../sharding/sharding-availability';
+import { shardingAvailability } from '../../sharding';
 import { usePanelOpener } from '../../state/panel-opener';
-import { useBackupDialogs } from '../backup/backup-dialog-store';
-import { useGenerateDialog } from '../generate/generate-store';
+import { useBackupDialogs } from '../../backup';
+import { useGenerateDialog } from '../../generate';
 import { collectionCountStatement, collectionSelectStatement } from '../../state/collection-query';
 import { TreeMenu, type TreeMenuEntry } from './TreeMenu';
 

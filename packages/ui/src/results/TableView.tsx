@@ -39,7 +39,7 @@ import {
   type ColumnDef,
   type JsonObject,
 } from './result-model';
-import { typeBucket, typeColor } from '../schema/schema-model';
+import { typeBucket, typeColor } from '../schema';
 import { exactCopyTextOf } from './tree-rows';
 import { APP_FONT } from '../theme/theme';
 

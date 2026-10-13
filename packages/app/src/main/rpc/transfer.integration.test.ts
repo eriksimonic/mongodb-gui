@@ -8,7 +8,7 @@ import {
   DEFAULT_IMPORT_DRAFT,
   importOptionsFor,
   mappingRowsFrom,
-} from '../../../../ui/src/components/transfers/import-model';
+} from '../../../../ui/src/transfers/import-model';
 import { createAppServices, createRouter, type AppServices, type Router } from './router';
 // The Testcontainers harness lives with the adapter tests. It is not exported from the
 // adapter package, so this test reads it from the workspace source.

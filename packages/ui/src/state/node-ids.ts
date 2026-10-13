@@ -1,5 +1,5 @@
 import type { ChangeTarget } from '@mongo-gui/core';
-import { targetKeyOf } from '../changes/changes-model';
+import { targetKeyOf } from '../changes';
 
 /** Node id of a connection in the tree and in `AppData.expanded`. */
 export function connectionNodeId(connectionId: string): string {

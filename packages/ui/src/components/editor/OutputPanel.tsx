@@ -7,7 +7,7 @@ import type { PrintLine } from '../../state/editors';
 import { clockTime, countOf } from './labels';
 import { FavouritesPanel } from './FavouritesPanel';
 import { HistoryPanel } from './HistoryPanel';
-import { TransfersPanel } from '../transfers/TransfersPanel';
+import { TransfersPanel } from '../../transfers';
 
 const LINE_HEIGHT_PX = 20;
 

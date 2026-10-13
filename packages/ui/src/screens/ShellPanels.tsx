@@ -49,21 +49,19 @@ import {
 import { ConnectionTree } from '../components/connections/ConnectionTree';
 import { TreeMenu, type TreeMenuEntry } from '../components/connections/TreeMenu';
 import { isOutputCollapsed, toggleOutputPanel } from './output-collapse';
-import { DocumentsPanel } from '../components/management/DocumentsPanel';
-import { IndexesPanel } from '../components/management/IndexesPanel';
-import { UsersRolesPanel } from '../components/security/UsersRolesPanel';
-import { ShardingPanel } from '../components/sharding/ShardingPanel';
-import { ValidationPanel } from '../components/management/ValidationPanel';
-import { ChangesPanel } from '../changes/ChangesPanel';
+import { DocumentsPanel, IndexesPanel, ValidationPanel } from '../management';
+import { UsersRolesPanel } from '../security';
+import { ShardingPanel } from '../sharding';
+import { ChangesPanel } from '../changes';
 import type { ChangeTarget } from '@mongo-gui/core';
 import { useUiApi } from '../api/ui-api';
 import { createCompletionSource } from '../editor/completion-source';
-import { ReplicationPanel } from '../replication/ReplicationPanel';
+import { ReplicationPanel } from '../replication';
 import { EditorView } from '../components/editor/EditorView';
 import { CollectionStatsPanel, DatabaseStatsPanel, DiagnosticsPanel } from '../diagnostics';
 
 export { OutputPanel } from '../components/editor/OutputPanel';
-import { SchemaPanel } from '../schema/SchemaPanel';
+import { SchemaPanel } from '../schema';
 import { OperationsPanel } from '../monitor';
 import { useAppStore, useAppStoreApi } from '../state/app-store-context';
 import type { EditorTab } from '../state/editors';
@@ -92,7 +90,7 @@ const MonitorDashboard = lazy(() =>
   import('../monitor/MonitorDashboard').then((module) => ({ default: module.MonitorDashboard })),
 );
 const GridFsPanel = lazy(() =>
-  import('../components/gridfs/GridFsPanel').then((module) => ({ default: module.GridFsPanel })),
+  import('../gridfs/GridFsPanel').then((module) => ({ default: module.GridFsPanel })),
 );
 
 export interface ProfilerPanelParams {

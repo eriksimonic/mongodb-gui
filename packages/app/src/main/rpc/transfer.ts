@@ -1,0 +1,403 @@
+import { existsSync } from 'node:fs';
+import {
+  AppErrorException,
+  appError,
+  newId,
+  rpcContract,
+  type ExportRequest,
+  type GridFsDownloadInput,
+  type GridFsUploadInput,
+  type ImportRequest,
+  type RpcEvent,
+  type TransferKind,
+  type TransferProgress,
+  type TransferSummary,
+} from '@mongo-gui/core';
+import {
+  downloadFile,
+  exportCollection,
+  importFile,
+  previewImport,
+  uploadFile,
+} from '@mongo-gui/mongo-adapter';
+import { entry, type Operation } from './operation';
+
+/** The adapter transfers, typed from the adapter so the service cannot drift from them. */
+export type ImportFn = typeof importFile;
+export type ExportFn = typeof exportCollection;
+export type UploadFn = typeof uploadFile;
+export type DownloadFn = typeof downloadFile;
+export type TransferClient = Parameters<ImportFn>[0];
+export type TransferHooks = NonNullable<Parameters<ImportFn>[2]>;
+
+export interface TransferAdapter {
+  readonly importFile: ImportFn;
+  readonly exportCollection: ExportFn;
+  /** GridFS upload and download. Omitted fakes fall back to the adapter functions. */
+  readonly uploadFile?: UploadFn;
+  readonly downloadFile?: DownloadFn;
+}
+
+export const defaultTransferAdapter: TransferAdapter = {
+  importFile,
+  exportCollection,
+  uploadFile,
+  downloadFile,
+};
+
+/** At most this many progress events per transfer each second. The final event is never throttled. */
+export const PROGRESS_EVENTS_PER_SECOND = 4;
+const PROGRESS_INTERVAL_MS = 1000 / PROGRESS_EVENTS_PER_SECOND;
+/** A finished transfer stays readable for this long, then it is forgotten. */
+export const FINISHED_RETENTION_MS = 10 * 60_000;
+
+export interface TransferServiceOptions {
+  readonly adapter?: TransferAdapter;
+  /** Returns the live client, or throws NOT_CONNECTED when the connection has none. */
+  readonly getClient: (connectionId: string) => TransferClient;
+  readonly emit: (event: RpcEvent) => void;
+  readonly progressIntervalMs?: number;
+  readonly retentionMs?: number;
+}
+
+export interface TransferService {
+  startImport(connectionId: string, request: ImportRequest): string;
+  startExport(connectionId: string, request: ExportRequest): string;
+  /** A GridFS upload. The bucket is the transfer's collection in the summary. */
+  startGridFsUpload(connectionId: string, request: GridFsUploadInput): string;
+  /** A GridFS download. The bucket is the transfer's collection in the summary. */
+  startGridFsDownload(connectionId: string, request: GridFsDownloadInput): string;
+  cancel(transferId: string): void;
+  status(transferId: string): TransferProgress;
+  list(): TransferSummary[];
+  /** Cancels the running transfers of one connection. */
+  cancelConnection(connectionId: string): void;
+  /** Cancels every running transfer. Used on lock, on renderer reset and on quit. */
+  cancelAll(): void;
+  /** True when this session exported a file to the path and the export finished without error. */
+  wroteFile(path: string): boolean;
+  /** The transfer.* calls. The router passes the checks it owns through `guards`. */
+  operations(guards: TransferGuards): [string, Operation][];
+}
+
+/** What the transfer.* calls need from the router: its connection check, its file picks and its path checks. */
+export interface TransferGuards {
+  readonly requireConnectionProfile: (connectionId: string) => void;
+  /** The resolved path of a file the open dialog returned this session. Does not use the pick up. */
+  readonly pickedFile: (path: string) => string;
+  /** Uses up an open-dialog pick. Called once its transfer has started. */
+  readonly releasePick: (path: string) => void;
+  readonly resolveRequestPath: (path: string) => string;
+  readonly refuseMissingFolder: (path: string) => void;
+  /** The save paths picked in a save dialog this session. */
+  readonly savePaths: ReadonlySet<string>;
+}
+
+interface Entry {
+  readonly transferId: string;
+  readonly kind: TransferKind;
+  readonly connectionId: string;
+  readonly database: string;
+  readonly collection: string;
+  readonly path: string;
+  readonly controller: AbortController;
+  /** The newest snapshot, whether or not it has been sent. */
+  latest: TransferProgress;
+  finished: boolean;
+  lastSentAt: number | undefined;
+  pending: TransferProgress | undefined;
+  throttleTimer: ReturnType<typeof setTimeout> | undefined;
+  retentionTimer: ReturnType<typeof setTimeout> | undefined;
+}
+
+const EMPTY_PROGRESS: TransferProgress = {
+  processed: 0,
+  inserted: 0,
+  updated: 0,
+  matched: 0,
+  failed: 0,
+  elapsedMs: 0,
+  done: false,
+  errors: [],
+  warnings: [],
+};
+
+/**
+ * Runs imports and exports in the main process and forwards their progress to the window.
+ * Each transfer has its own AbortController. Finished transfers stay for ten minutes so the
+ * window can read their final progress, then they are removed.
+ */
+/**
+ * An export never replaces a file the user did not pick in a save dialog this session. A file the
+ * user did pick is replaced only when the export succeeds.
+ */
+function refuseUnpickedFile(path: string, picked: ReadonlySet<string>): void {
+  if (existsSync(path) && !picked.has(path)) {
+    throw new AppErrorException(
+      appError('VALIDATION', 'The file exists. Choose it with Save as to replace it.'),
+    );
+  }
+}
+
+export function createTransferService(options: TransferServiceOptions): TransferService {
+  const adapter = options.adapter ?? defaultTransferAdapter;
+  const intervalMs = options.progressIntervalMs ?? PROGRESS_INTERVAL_MS;
+  const retentionMs = options.retentionMs ?? FINISHED_RETENTION_MS;
+  const entries = new Map<string, Entry>();
+  const written = new Set<string>();
+
+  function send(entry: Entry, progress: TransferProgress): void {
+    entry.lastSentAt = Date.now();
+    options.emit({
+      type: 'transfer:progress',
+      transferId: entry.transferId,
+      kind: entry.kind,
+      progress,
+    });
+  }
+
+  function onProgress(entry: Entry, progress: TransferProgress): void {
+    if (entry.finished) {
+      return;
+    }
+    entry.latest = progress;
+    if (progress.done) {
+      finish(entry, progress);
+      return;
+    }
+    const sentAt = entry.lastSentAt;
+    const wait = sentAt === undefined ? 0 : sentAt + intervalMs - Date.now();
+    if (wait <= 0) {
+      entry.pending = undefined;
+      send(entry, progress);
+      return;
+    }
+    // Only the newest snapshot waits. Older ones are replaced, so the window never falls behind.
+    entry.pending = progress;
+    if (entry.throttleTimer === undefined) {
+      entry.throttleTimer = setTimeout(() => {
+        entry.throttleTimer = undefined;
+        const pending = entry.pending;
+        entry.pending = undefined;
+        if (pending !== undefined && !entry.finished) {
+          send(entry, pending);
+        }
+      }, wait);
+    }
+  }
+
+  function clearThrottle(entry: Entry): void {
+    if (entry.throttleTimer !== undefined) {
+      clearTimeout(entry.throttleTimer);
+      entry.throttleTimer = undefined;
+    }
+    entry.pending = undefined;
+  }
+
+  function finish(entry: Entry, progress: TransferProgress): void {
+    clearThrottle(entry);
+    entry.finished = true;
+    entry.latest = progress;
+    send(entry, progress);
+    if (entry.kind === 'export') {
+      if (progress.error === undefined) {
+        written.add(entry.path);
+      } else {
+        // A failed export leaves no file, so the path can no longer be shown.
+        written.delete(entry.path);
+      }
+    }
+    entry.retentionTimer = setTimeout(() => {
+      entries.delete(entry.transferId);
+    }, retentionMs);
+    entry.retentionTimer.unref();
+  }
+
+  function start(
+    kind: TransferKind,
+    connectionId: string,
+    target: { database: string; collection: string; path: string },
+    run: (client: TransferClient, hooks: TransferHooks) => Promise<TransferProgress>,
+  ): string {
+    // Throws NOT_CONNECTED before anything is registered, so a failed start leaves no entry.
+    const client = options.getClient(connectionId);
+    const transferId = newId();
+    const controller = new AbortController();
+    const entry: Entry = {
+      transferId,
+      kind,
+      connectionId,
+      ...target,
+      controller,
+      latest: EMPTY_PROGRESS,
+      finished: false,
+      lastSentAt: undefined,
+      pending: undefined,
+      throttleTimer: undefined,
+      retentionTimer: undefined,
+    };
+    entries.set(transferId, entry);
+    const hooks: TransferHooks = {
+      signal: controller.signal,
+      onProgress: (progress) => {
+        onProgress(entry, progress);
+      },
+    };
+    // The promise constructor turns a synchronous throw from the adapter into a rejection.
+    new Promise<TransferProgress>((resolve) => {
+      resolve(run(client, hooks));
+    }).then(
+      (progress) => {
+        finish(entry, progress);
+      },
+      (error: unknown) => {
+        // An AppError from the adapter is curated for the window. Anything else may carry document
+        // values or driver text, so it is replaced by a fixed message.
+        finish(entry, {
+          ...EMPTY_PROGRESS,
+          done: true,
+          error:
+            error instanceof AppErrorException
+              ? error.error
+              : appError('INTERNAL', 'The transfer failed'),
+        });
+      },
+    );
+    return transferId;
+  }
+
+  /**
+   * Runs a GridFS transfer. The adapter reports progress through the hooks and resolves with the
+   * file, so the last progress it reported is the result of the transfer.
+   */
+  function startGridFs(
+    kind: TransferKind,
+    connectionId: string,
+    target: { database: string; collection: string; path: string },
+    run: (client: TransferClient, hooks: TransferHooks) => Promise<unknown>,
+  ): string {
+    return start(kind, connectionId, target, async (client, hooks) => {
+      let last: TransferProgress | undefined;
+      await run(client, {
+        ...(hooks.signal === undefined ? {} : { signal: hooks.signal }),
+        onProgress: (progress) => {
+          last = progress;
+          hooks.onProgress?.(progress);
+        },
+      });
+      return { ...(last ?? EMPTY_PROGRESS), done: true };
+    });
+  }
+
+  function find(transferId: string): Entry {
+    const entry = entries.get(transferId);
+    if (entry === undefined) {
+      throw new AppErrorException(appError('VALIDATION', 'The transfer was not found.'));
+    }
+    return entry;
+  }
+
+  function cancelEntry(entry: Entry): void {
+    if (!entry.finished && !entry.controller.signal.aborted) {
+      entry.controller.abort();
+    }
+  }
+
+  const service: TransferService = {
+    startImport(connectionId, request) {
+      return start('import', connectionId, request, (client, hooks) =>
+        adapter.importFile(client, request, hooks),
+      );
+    },
+    startExport(connectionId, request) {
+      return start('export', connectionId, request, (client, hooks) =>
+        adapter.exportCollection(client, request, hooks),
+      );
+    },
+    startGridFsUpload(connectionId, request) {
+      const upload = adapter.uploadFile ?? uploadFile;
+      return startGridFs(
+        'gridfs-upload',
+        connectionId,
+        { database: request.database, collection: request.bucket, path: request.path },
+        (client, hooks) => upload(client, request, hooks),
+      );
+    },
+    startGridFsDownload(connectionId, request) {
+      const download = adapter.downloadFile ?? downloadFile;
+      return startGridFs(
+        'gridfs-download',
+        connectionId,
+        { database: request.database, collection: request.bucket, path: request.path },
+        (client, hooks) => download(client, request, hooks),
+      );
+    },
+    cancel(transferId) {
+      const entry = find(transferId);
+      cancelEntry(entry);
+    },
+    status(transferId) {
+      return find(transferId).latest;
+    },
+    list() {
+      return [...entries.values()].map((entry) => ({
+        transferId: entry.transferId,
+        kind: entry.kind,
+        database: entry.database,
+        collection: entry.collection,
+        path: entry.path,
+        progress: entry.latest,
+      }));
+    },
+    cancelConnection(connectionId) {
+      for (const entry of entries.values()) {
+        if (entry.connectionId === connectionId) {
+          cancelEntry(entry);
+        }
+      }
+    },
+    cancelAll() {
+      for (const entry of entries.values()) {
+        cancelEntry(entry);
+      }
+    },
+    wroteFile(path) {
+      return written.has(path);
+    },
+    operations(guards) {
+      return [
+        entry('transfer.previewImport', rpcContract.transfer.previewImport, async (input) => {
+          const { connectionId, ...request } = input;
+          guards.requireConnectionProfile(connectionId);
+          // A preview reads sample rows, so it reads only a picked file. It does not use up the pick.
+          return previewImport({ ...request, path: guards.pickedFile(request.path) });
+        }),
+        entry('transfer.startImport', rpcContract.transfer.startImport, (input) => {
+          const { connectionId, ...request } = input;
+          guards.requireConnectionProfile(connectionId);
+          const path = guards.pickedFile(request.path);
+          const transferId = service.startImport(connectionId, { ...request, path });
+          // Used up only once the transfer has started, so a failed start leaves the pick usable.
+          guards.releasePick(path);
+          return { transferId };
+        }),
+        entry('transfer.startExport', rpcContract.transfer.startExport, (input) => {
+          const { connectionId, ...request } = input;
+          guards.requireConnectionProfile(connectionId);
+          const path = guards.resolveRequestPath(request.path);
+          guards.refuseMissingFolder(path);
+          refuseUnpickedFile(path, guards.savePaths);
+          return { transferId: service.startExport(connectionId, { ...request, path }) };
+        }),
+        entry('transfer.cancel', rpcContract.transfer.cancel, (input) => {
+          service.cancel(input.transferId);
+        }),
+        entry('transfer.status', rpcContract.transfer.status, (input) =>
+          service.status(input.transferId),
+        ),
+        entry('transfer.list', rpcContract.transfer.list, () => service.list()),
+      ];
+    },
+  };
+  return service;
+}

@@ -7,7 +7,7 @@ import type { AppData } from './state/app-store';
 import { AppStoreProvider } from './state/AppStoreProvider';
 import { useAppStore } from './state/app-store-context';
 import { ProfilerStoreProvider } from './profiler';
-import { ChangesStoreProvider } from './changes/ChangesStoreProvider';
+import { ChangesStoreProvider } from './changes';
 
 export interface AppRootProps {
   readonly api: UiApi;

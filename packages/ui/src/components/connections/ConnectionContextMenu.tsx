@@ -2,11 +2,11 @@ import { Box, Menu, Text } from '@mantine/core';
 import { modals } from '@mantine/modals';
 import type { ReactNode } from 'react';
 import type { ConnectionProfileSummary, ConnectionStatus } from '@mongo-gui/core';
-import { useChangesOpener } from '../../changes/changes-opener';
+import { useChangesOpener } from '../../changes';
 import { useAppStore } from '../../state/app-store-context';
 import { usePanelOpener } from '../../state/panel-opener';
-import { shardingAvailability } from '../../sharding/sharding-availability';
-import { BackupMenuItems } from '../backup/BackupMenuItems';
+import { shardingAvailability } from '../../sharding';
+import { BackupMenuItems } from '../../backup';
 import { runReported } from '../../kit/notify-error';
 
 /** The database that holds the server's users and roles. */

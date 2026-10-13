@@ -6,7 +6,7 @@ import {
   formatJson,
   parseJsonObject,
 } from './input-rules';
-import { cellText, columnsOf, duplicateText, toDocumentRow, topLevelKeys } from '../management/document-rows';
+import { cellText, columnsOf, duplicateText, toDocumentRow, topLevelKeys } from '../management';
 
 describe('name rules', () => {
   it('asks for a name when the field is empty', () => {

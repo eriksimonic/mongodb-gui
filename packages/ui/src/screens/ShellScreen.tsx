@@ -12,7 +12,6 @@ import {
   IconSettings,
 } from '@tabler/icons-react';
 import type { ChangeTarget, RpcClient } from '@mongo-gui/core';
-import { targetLabelOf } from '../changes/changes-model';
 import { lazy, Suspense, useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import {
   DockviewReact,
@@ -25,14 +24,14 @@ import { ConnectionDialog } from '../components/connections/ConnectionDialog';
 import { ConnectionManager } from '../components/connections/ConnectionManager';
 import { DockerCredentialsDialog } from '../components/connections/DockerCredentialsDialog';
 import { useUiApi } from '../api/ui-api';
-import { ManagementDialogs } from '../components/management/ManagementDialogs';
+import { ManagementDialogs } from '../management';
 import { runReported } from '../kit/notify-error';
 import { SettingsModal } from '../components/settings/SettingsModal';
 import { ShortcutsModal } from '../shortcuts/ShortcutsModal';
 import { shellHotkeys } from '../shortcuts/shortcuts';
-import { TransferModals } from '../components/transfers/TransferModals';
-import { BackupDialogs } from '../components/backup/BackupDialogs';
-import { useGenerateDialog } from '../components/generate/generate-store';
+import { TransferModals } from '../transfers';
+import { BackupDialogs } from '../backup';
+import { useGenerateDialog } from '../generate';
 import { UpdateBanner } from '../components/updates/UpdateBanner';
 import { ProfilerOpenerContext, type ProfilerOpener } from '../profiler';
 import type { AppData, PanelRequest } from '../state/app-store';
@@ -57,9 +56,9 @@ import {
   usersPanelId,
 } from '../state/node-ids';
 import { explainRestoreOf, type ExplainPanelState } from '../explain/explain-model';
-import { GridFsBucketDialogs } from '../components/gridfs/GridFsBucketDialogs';
-import { GridFsOpenerContext, type GridFsOpener } from '../components/gridfs/gridfs-opener';
-import { ChangesOpenerContext, type ChangesOpener } from '../changes/changes-opener';
+import { GridFsBucketDialogs } from '../gridfs';
+import { GridFsOpenerContext, type GridFsOpener } from '../gridfs';
+import { ChangesOpenerContext, targetLabelOf, type ChangesOpener } from '../changes';
 import { databasePanelIds, restoredCollectionRequest, stalePanelIds } from './collection-panels';
 import { createLayoutSaver, loadDockLayout, restoreDockLayout } from './dock-layout';
 import { OUTPUT_SHARE, toggleOutputPanel } from './output-collapse';
@@ -489,7 +488,7 @@ function stopSamplerWhenUnused(
 
 // The dialog is large and rarely open, so it loads the first time a target is set.
 const GenerateDataDialog = lazy(() =>
-  import('../components/generate/GenerateDataDialog').then((module) => ({
+  import('../generate/GenerateDataDialog').then((module) => ({
     default: module.GenerateDataDialog,
   })),
 );

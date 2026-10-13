@@ -5,7 +5,7 @@ import { useEffect, useMemo, useState } from 'react';
 import { editableValue, isUnkeptPreview, previewInfo, type AppError } from '@mongo-gui/core';
 import { errorText, notifyError } from '../kit/notify-error';
 import { LOAD_ALL_LIMIT, type ResultSet, type ResultView, type RunState } from '../state/editors';
-import { DocumentEditorDialog } from '../components/management/DocumentEditorDialog';
+import { DocumentEditorDialog } from '../management';
 import { formatJson } from '../kit/input-rules';
 import { COPY_MAX_CHARS, OPEN_MAX_CHARS, fullDocumentText, fullDocuments } from './full-documents';
 import { discoverColumns, formatCount, type JsonObject } from './result-model';

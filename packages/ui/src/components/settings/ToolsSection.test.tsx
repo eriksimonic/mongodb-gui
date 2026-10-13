@@ -2,7 +2,7 @@
 import { fireEvent, screen, waitFor, within } from '@testing-library/react';
 import { describe, expect, it } from 'vitest';
 import { renderWithApp } from '../../test-support/render';
-import type { MockToolsMode } from '../../api/mock-tools';
+import type { MockToolsMode } from '../../tools/mock';
 import { SettingsModal } from './SettingsModal';
 
 /** Opens the settings on a tab. */

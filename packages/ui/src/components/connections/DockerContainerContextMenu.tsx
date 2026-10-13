@@ -7,7 +7,7 @@ import type {
   DockerMongoContainerSummary,
 } from '@mongo-gui/core';
 import { useAppStore } from '../../state/app-store-context';
-import { BackupMenuItems } from '../backup/BackupMenuItems';
+import { BackupMenuItems } from '../../backup';
 import { runReported } from '../../kit/notify-error';
 import { DockerContainerDetails } from './DockerContainerDetails';
 

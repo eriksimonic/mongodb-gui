@@ -12,8 +12,8 @@ import {
   databaseNodeId,
 } from '../../state/node-ids';
 import { useProfilerOpener } from '../../profiler';
-import { useGridFsOpener } from '../gridfs/gridfs-opener';
-import { GridFsBucketContextMenu } from '../gridfs/GridFsBucketContextMenu';
+import { useGridFsOpener } from '../../gridfs';
+import { GridFsBucketContextMenu } from '../../gridfs';
 import { runReported } from '../../kit/notify-error';
 import { ConnectionContextMenu } from './ConnectionContextMenu';
 import { DockerContainerContextMenu } from './DockerContainerContextMenu';
