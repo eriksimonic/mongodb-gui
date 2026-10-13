@@ -6,6 +6,7 @@ import { createMockUiApi } from '../../api/mock-rpc-client';
 import { ProfilerOpenerContext } from '../../profiler/profiler-opener';
 import { renderWithApp } from '../../test-support/render';
 import { ConnectionTree } from './ConnectionTree';
+import { openSubmenu } from '../../test-support/menu';
 
 describe('ConnectionTree', () => {
   it('loads databases when a connection is opened with the keyboard', async () => {
@@ -125,6 +126,7 @@ describe('ConnectionTree', () => {
     fireEvent.keyDown(local, { key: 'ArrowRight' });
 
     fireEvent.contextMenu(await screen.findByRole('treeitem', { name: 'analytics' }));
+    await openSubmenu('Monitoring');
     fireEvent.click(await screen.findByRole('menuitem', { name: 'Open profiler' }));
 
     expect(open).toHaveBeenCalledWith(localConnectionId, 'analytics');

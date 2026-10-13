@@ -7,6 +7,7 @@ import { renderWithApp } from '../../test-support/render';
 import { PanelOpenerContext, type OpenPanel } from '../../state/panel-opener';
 import { connectionNodeId } from '../../state/node-ids';
 import { ConnectionTree } from './ConnectionTree';
+import { openSubmenu } from '../../test-support/menu';
 
 const CONNECTED: ConnectionStatus = {
   state: 'connected',
@@ -49,6 +50,7 @@ describe('ConnectionTree monitor children', () => {
     renderOpenConnected(openPanel);
 
     fireEvent.contextMenu(await screen.findByRole('treeitem', { name: 'Local dev' }));
+    await openSubmenu('Monitoring');
     fireEvent.click(await screen.findByRole('menuitem', { name: 'Monitor' }));
 
     expect(openPanel).toHaveBeenCalledWith({

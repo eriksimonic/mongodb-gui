@@ -194,16 +194,19 @@ Keyboard use in the tree:
 4. Press Enter to connect or open the selected row.
 5. Press Shift+F10, or the context menu key, to open the menu for the row.
 
-Right-click a database or collection to see its menu. The collection menu offers these items:
+Right-click a database or collection to see its menu. Related items sit in submenus, which open
+when the pointer is over them or with Right. The collection menu offers these items:
 
 - "Open documents" opens an editor tab with `db.<collection>.find({})` and runs it.
+- "Query" runs a SQL statement in a SQL tab, whatever the default editor language:
+  "Select top 1000 rows" (`SELECT TOP 1000 * FROM <collection>;`), "Select first row"
+  (`SELECT TOP 1 * …`) and "Count rows" (`SELECT COUNT(*) …`).
 - "Manage documents" lists the documents in the Documents panel.
-- "Indexes" and "Validation" open the matching panels.
-- "Analyse schema" opens the schema panel.
-- "Import data" and "Export data" open the transfer dialogs.
-- "Watch changes" opens a change stream.
-- "Collection stats" opens the stats panel.
-- "Shard collection" opens the shard dialog, on a sharded cluster.
+- "Structure" holds "Indexes", "Validation", "Analyse schema" and "Shard collection". The last one
+  works on a sharded cluster only.
+- "Monitoring" holds "Collection stats" and "Watch changes".
+- "Import and export" holds "Import data", "Export data", "Generate data" and "Back up
+  collection…".
 - "Rename", "Clear" and "Drop" change the collection. Each one asks for confirmation.
 - "Refresh" reloads the node.
 
@@ -213,13 +216,19 @@ So does a name that starts with `_`, contains `$` or matches a `db` method, such
 If the active tab on the same connection is empty, the query replaces its text. Otherwise the query
 opens a new tab.
 
-The database menu offers "Open editor", "New collection", "Import data into new collection",
-"Open profiler", "Watch changes", "Users and roles", "New GridFS bucket", "Database stats",
-"Drop database" and "Refresh".
+The database menu offers "Open editor", "New collection", "New GridFS bucket", "Users and roles",
+"Refresh" and "Drop database", and these submenus:
 
-The connection menu offers "Connect", "Disconnect", "Monitor", "Watch changes", "Sharding",
-"Replica set", "Diagnostics", "Users and roles", "Open editor", "New database", "Edit", "Refresh"
-and "Remove".
+- "Monitoring": "Database stats", "Open profiler" and "Watch changes".
+- "Import and backup": "Import data into new collection", "Back up database…" and "Restore into
+  database…".
+
+The connection menu offers "Connect", "Disconnect", "Open editor", "New database", "Edit",
+"Refresh" and "Remove", and these submenus:
+
+- "Monitoring": "Monitor", "Diagnostics" and "Watch changes".
+- "Administration": "Users and roles", "Replica set" and "Sharding".
+- "Backup": "Back up…" and "Restore…".
 
 ## Tabs
 
@@ -442,7 +451,7 @@ refused constructs and the differences from SQL Server are listed in [docs/sql.m
 
 ### Indexes
 
-Open the "Indexes" panel from the collection menu.
+Open the "Indexes" panel from "Structure" in the collection menu.
 
 1. Read the list. Each index shows its keys, with an arrow for ascending or descending order,
    and its usage counts from `$indexStats`.
@@ -467,7 +476,7 @@ does an index whose keys the builder cannot show, such as a geoHaystack key.
 
 ### Validation
 
-Open the "Validation" panel from the collection menu. It shows the JSON schema validator of
+Open the "Validation" panel from "Structure" in the collection menu. It shows the JSON schema validator of
 the collection in an editor.
 
 1. Edit the validator.
@@ -498,7 +507,7 @@ Choose "Open documents" from the collection menu to run `find({})` in an editor 
 
 ## Monitoring
 
-Open the "Monitor" panel from the connection menu, or from the Monitoring node in the tree.
+Open the "Monitor" panel from "Monitoring" in the connection menu, or from the Monitoring node in the tree.
 The dashboard charts server metrics in panels. Each panel shows one group of metrics, such as
 operations per second, connections, memory, the WiredTiger cache or replication lag.
 
@@ -532,7 +541,7 @@ node in the tree.
 
 ## Profiler
 
-Open the profiler from the database menu with "Open profiler". The profiler has two tabs:
+Open the profiler from the database menu with "Monitoring" > "Open profiler". The profiler has two tabs:
 "Slow queries" and "Top shapes".
 
 ![Profiler panel with slow queries and the detail pane](screenshots/profiler.png)
@@ -561,8 +570,8 @@ Open the profiler from the database menu with "Open profiler". The profiler has 
 
 ### Import
 
-Open the import wizard from a collection with "Import data". To import into a collection that
-does not exist, choose "Import data into new collection" from the database menu. The wizard
+Open the import wizard from a collection with "Import and export" > "Import data". To import into a collection that
+does not exist, choose "Import and backup" > "Import data into new collection" from the database menu. The wizard
 has three steps: "Choose file", "Preview and mapping" and "Options and run".
 
 1. Click "Browse" and pick a file. Choose the "Format": "Detect from the file", "JSON array",
@@ -581,7 +590,7 @@ has three steps: "Choose file", "Preview and mapping" and "Options and run".
 
 ### Export
 
-Choose "Export data" on a collection.
+Choose "Import and export" > "Export data" on a collection.
 
 1. Choose the "Format": "JSON array", "NDJSON (one document per line)" or "CSV".
 2. Set the query: "Filter", "Projection", "Sort" and "Limit".
@@ -603,7 +612,7 @@ The file rules are these:
 
 ### Generate data
 
-Choose "Generate data" on a collection to fill it with made-up documents, for tests and for
+Choose "Import and export" > "Generate data" on a collection to fill it with made-up documents, for tests and for
 load checks. The app generates the documents in the main process and inserts them in batches of
 10,000. The app does not keep the whole set in memory.
 
@@ -641,7 +650,7 @@ Nested objects and arrays are not generated.
 
 ## Schema analysis
 
-Open "Analyse schema" from the collection menu.
+Open "Analyse schema" from "Structure" in the collection menu.
 
 1. Set "Sample size" in documents.
 2. Choose the sampling strategy: "Random", "First by _id" or "Last by _id".
@@ -665,7 +674,7 @@ Click "Export report" to copy the report.
 
 ## Users and roles
 
-Open "Users and roles" from the database or connection menu. The panel has two tabs.
+Open "Users and roles" from the database menu, or from "Administration" in the connection menu. The panel has two tabs.
 
 ![Users and roles panel with the users of a database and their roles](screenshots/users.png)
 
@@ -691,7 +700,7 @@ understand that I may lose the right to manage users" before it saves that chang
 
 ## Replica set
 
-Open "Replica set" from the connection menu. The panel shows the members of the set.
+Open "Replica set" from "Administration" in the connection menu. The panel shows the members of the set.
 
 ![Replica set panel with the members table, state badges, lag and the election list](screenshots/replica-set.png)
 
@@ -719,7 +728,7 @@ set.
 
 ## Sharding
 
-Open "Sharding" from the connection menu. The panel has four tabs: "Shards", "Databases",
+Open "Sharding" from "Administration" in the connection menu. The panel has four tabs: "Shards", "Databases",
 "Collections" and "Zones".
 
 ![Sharding panel with the balancer state, a collections table with chunk bars per shard and the Distribution action](screenshots/sharding.png)
@@ -730,7 +739,7 @@ Open "Sharding" from the connection menu. The panel has four tabs: "Shards", "Da
   sharding for a database.
 - The "Collections" tab lists the sharded collections, with the shard key and the chunk count per
   shard. "Distribution" shows the chunk layout of a collection.
-- To shard a collection, choose "Shard collection" from the collection menu. Choose the shard key
+- To shard a collection, choose "Structure" > "Shard collection" from the collection menu. Choose the shard key
   and the options "Unique" and "Presplit hashed zones". Click "Apply" after the summary shows
   the change. The dialog asks you to type the namespace before "Apply" becomes available.
 
@@ -738,7 +747,7 @@ On a server that is not a sharded cluster, the panel shows "Not a sharded cluste
 
 ## Diagnostics
 
-Open "Diagnostics" from the connection menu. The panel has these tabs: "Logs", "Startup
+Open "Diagnostics" from "Monitoring" in the connection menu. The panel has these tabs: "Logs", "Startup
 warnings", "Parameters", "Server status", "Host and build", "Top", "Connection pools" and
 "Sessions".
 
@@ -754,7 +763,7 @@ warnings", "Parameters", "Server status", "Host and build", "Top", "Connection p
 - "Sessions" lists the sessions. Choose "Kill" on a session to end it. "Kill all sessions of"
   a user asks you to type the user name first.
 
-To read the statistics of one collection, choose "Collection stats" from the collection menu.
+To read the statistics of one collection, choose "Monitoring" > "Collection stats" from the collection menu.
 The panel lists the document count, data size, average document size, storage size, index count
 and index size.
 
@@ -779,8 +788,8 @@ the bucket name.
 
 ## Change streams
 
-Open a change stream with "Watch changes". Choose it from a collection, a database or the
-connection menu. The menu on a connection watches the whole deployment.
+Open a change stream with "Watch changes", in the "Monitoring" submenu of a collection, a
+database or a connection. The menu on a connection watches the whole deployment.
 
 ![Change stream panel with the live event list, the state strip and the detail pane](screenshots/change-streams.png)
 
@@ -809,8 +818,9 @@ while the connection is connected.
 
 ### Make a backup
 
-Open the backup dialog from the connection menu with "Back up…", from the database menu with
-"Back up database…", or from the collection menu with "Back up collection…". The dialog title
+Open the backup dialog from the connection menu with "Backup" > "Back up…", from the database
+menu with "Import and backup" > "Back up database…", or from the collection menu with "Import and
+export" > "Back up collection…". The dialog title
 names the target.
 
 1. Choose "What": "Whole server", "Database" or "Collection". The menu you used sets the default.
@@ -862,7 +872,8 @@ check the server version, topology or options, and it shows a warning.
 
 ### Restore a backup
 
-Open the restore dialog from the connection menu with "Restore…", or from the database menu with
+Open the restore dialog from the connection menu with "Backup" > "Restore…", or from the
+"Import and backup" submenu of the database menu with
 "Restore into database…". The dialog title names the connection.
 
 1. Click "Choose archive…" for an archive file, or "Choose folder…" for a folder. The app reads the

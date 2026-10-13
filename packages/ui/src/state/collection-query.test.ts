@@ -1,5 +1,10 @@
+import { translateSqlStatement } from '@mongo-gui/core';
 import { describe, expect, it } from 'vitest';
-import { collectionQueryStatement, collectionSelectStatement } from './collection-query';
+import {
+  collectionCountStatement,
+  collectionQueryStatement,
+  collectionSelectStatement,
+} from './collection-query';
 
 describe('collectionQueryStatement', () => {
   it('uses the property form for a plain name', () => {
@@ -108,5 +113,26 @@ describe('collectionSelectStatement', () => {
 
   it('brackets an empty name', () => {
     expect(collectionSelectStatement('')).toBe('SELECT * FROM [];');
+  });
+
+  it('adds TOP when a row limit is given', () => {
+    expect(collectionSelectStatement('orders', 1000)).toBe('SELECT TOP 1000 * FROM orders;');
+    expect(collectionSelectStatement('order', 1)).toBe('SELECT TOP 1 * FROM [order];');
+  });
+
+  it('translates TOP to a limit', () => {
+    const result = translateSqlStatement(collectionSelectStatement('orders', 1000));
+    expect(result.ok && result.translation.mongosh).toBe('db.orders.find({}).limit(1000)');
+  });
+});
+
+describe('collectionCountStatement', () => {
+  it('counts the rows of the collection', () => {
+    expect(collectionCountStatement('orders')).toBe('SELECT COUNT(*) FROM orders;');
+    expect(collectionCountStatement('my orders')).toBe('SELECT COUNT(*) FROM [my orders];');
+  });
+
+  it('translates', () => {
+    expect(translateSqlStatement(collectionCountStatement('orders')).ok).toBe(true);
   });
 });

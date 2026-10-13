@@ -37,11 +37,21 @@ const SQL_KEYWORDS = new Set([
 const PLAIN_SQL_NAME = /^[A-Za-z_][A-Za-z0-9_]*$/;
 
 /**
- * The SQL statement that lists the documents of a collection. A name that is not a plain
- * identifier, or that is a SQL keyword, goes in brackets with `]` doubled.
+ * A collection name as SQL. A name that is not a plain identifier, or that is a SQL keyword, goes
+ * in brackets with `]` doubled.
  */
-export function collectionSelectStatement(collection: string): string {
+function sqlCollectionName(collection: string): string {
   const plain = PLAIN_SQL_NAME.test(collection) && !SQL_KEYWORDS.has(collection.toUpperCase());
-  const name = plain ? collection : `[${collection.replaceAll(']', ']]')}]`;
-  return `SELECT * FROM ${name};`;
+  return plain ? collection : `[${collection.replaceAll(']', ']]')}]`;
+}
+
+/** The SQL statement that lists the documents of a collection, or only the first `top` of them. */
+export function collectionSelectStatement(collection: string, top?: number): string {
+  const limit = top === undefined ? '' : `TOP ${top} `;
+  return `SELECT ${limit}* FROM ${sqlCollectionName(collection)};`;
+}
+
+/** The SQL statement that counts the documents of a collection. */
+export function collectionCountStatement(collection: string): string {
+  return `SELECT COUNT(*) FROM ${sqlCollectionName(collection)};`;
 }

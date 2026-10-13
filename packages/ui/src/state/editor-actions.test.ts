@@ -863,6 +863,24 @@ describe('editor actions: SQL tabs', () => {
     expect(evaluate.mock.calls[0]?.[0]).toMatchObject({ code: 'db.user.find({})' });
   });
 
+  it('runs a given SQL statement in a SQL tab when the default language is mongosh', async () => {
+    const api = await connectedMockApi();
+    const evaluate = vi.spyOn(api.rpc.shell, 'evaluate');
+    const store = await storeOn(api);
+
+    await store
+      .getState()
+      .openCollectionQuery(
+        { connectionId: localConnectionId, database: 'shop', collection: 'orders' },
+        'SELECT TOP 1000 * FROM orders;',
+      );
+
+    const { tabs, activeId } = store.getState().editors;
+    const tab = activeId === undefined ? undefined : tabs[activeId];
+    expect(tab).toMatchObject({ text: 'SELECT TOP 1000 * FROM orders;', language: 'sql' });
+    expect(evaluate.mock.calls[0]?.[0]).toMatchObject({ code: 'db.orders.find({}).limit(1000)' });
+  });
+
   it('brings the SQL tab that already shows the collection to the front', async () => {
     const api = await connectedMockApi();
     const store = await storeOn(api);

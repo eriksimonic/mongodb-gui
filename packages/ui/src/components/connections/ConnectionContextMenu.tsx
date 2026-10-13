@@ -96,72 +96,14 @@ export function ConnectionContextMenu({
           Disconnect
         </Menu.Item>
         <Menu.Item
-          disabled={status.state !== 'connected'}
           onClick={() => {
             onClose();
-            openPanel({
-              kind: 'monitor',
-              connectionId: connection.id,
-              connectionName: connection.name,
-            });
+            const first =
+              loadedDatabases?.state === 'ready' ? loadedDatabases.data[0]?.name : undefined;
+            openEditor({ connectionId: connection.id, database: first ?? 'admin', newTab: true });
           }}
         >
-          Monitor
-        </Menu.Item>
-        <Menu.Item
-          disabled={status.state !== 'connected'}
-          onClick={() => {
-            onClose();
-            changesOpener?.open(connection.id, { kind: 'deployment' });
-          }}
-        >
-          Watch changes
-        </Menu.Item>
-        <Menu.Item
-          disabled={!sharding.available}
-          rightSection={
-            sharding.available ? undefined : (
-              <Text size="xs" c="dimmed">
-                {sharding.reason}
-              </Text>
-            )
-          }
-          onClick={() => {
-            onClose();
-            openPanel({
-              kind: 'sharding',
-              connectionId: connection.id,
-              connectionName: connection.name,
-            });
-          }}
-        >
-          Sharding
-        </Menu.Item>
-        <Menu.Item
-          disabled={!canOpenReplicaSet}
-          onClick={() => {
-            onClose();
-            openPanel({
-              kind: 'replication',
-              connectionId: connection.id,
-              connectionName: connection.name,
-            });
-          }}
-        >
-          Replica set
-        </Menu.Item>
-        <Menu.Item
-          disabled={status.state !== 'connected'}
-          onClick={() => {
-            onClose();
-            openPanel({
-              kind: 'diagnostics',
-              connectionId: connection.id,
-              connectionName: connection.name,
-            });
-          }}
-        >
-          Diagnostics
+          Open editor
         </Menu.Item>
         <Menu.Item
           disabled={status.state !== 'connected'}
@@ -172,30 +114,111 @@ export function ConnectionContextMenu({
         >
           New database
         </Menu.Item>
-        <Menu.Item
-          disabled={status.state !== 'connected'}
-          onClick={() => {
-            onClose();
-            openPanel({ kind: 'users', connectionId: connection.id, database: ADMIN_DATABASE });
-          }}
-        >
-          Users and roles
-        </Menu.Item>
-        <BackupMenuItems
-          connectionId={connection.id}
-          connected={status.state === 'connected'}
-          onClose={onClose}
-        />
-        <Menu.Item
-          onClick={() => {
-            onClose();
-            const first =
-              loadedDatabases?.state === 'ready' ? loadedDatabases.data[0]?.name : undefined;
-            openEditor({ connectionId: connection.id, database: first ?? 'admin', newTab: true });
-          }}
-        >
-          Open editor
-        </Menu.Item>
+        <Menu.Divider />
+        <Menu.Sub>
+          <Menu.Sub.Target>
+            <Menu.Sub.Item>Monitoring</Menu.Sub.Item>
+          </Menu.Sub.Target>
+          <Menu.Sub.Dropdown miw={200}>
+            <Menu.Item
+              disabled={status.state !== 'connected'}
+              onClick={() => {
+                onClose();
+                openPanel({
+                  kind: 'monitor',
+                  connectionId: connection.id,
+                  connectionName: connection.name,
+                });
+              }}
+            >
+              Monitor
+            </Menu.Item>
+            <Menu.Item
+              disabled={status.state !== 'connected'}
+              onClick={() => {
+                onClose();
+                openPanel({
+                  kind: 'diagnostics',
+                  connectionId: connection.id,
+                  connectionName: connection.name,
+                });
+              }}
+            >
+              Diagnostics
+            </Menu.Item>
+            <Menu.Item
+              disabled={status.state !== 'connected'}
+              onClick={() => {
+                onClose();
+                changesOpener?.open(connection.id, { kind: 'deployment' });
+              }}
+            >
+              Watch changes
+            </Menu.Item>
+          </Menu.Sub.Dropdown>
+        </Menu.Sub>
+        <Menu.Sub>
+          <Menu.Sub.Target>
+            <Menu.Sub.Item>Administration</Menu.Sub.Item>
+          </Menu.Sub.Target>
+          <Menu.Sub.Dropdown miw={200}>
+            <Menu.Item
+              disabled={status.state !== 'connected'}
+              onClick={() => {
+                onClose();
+                openPanel({ kind: 'users', connectionId: connection.id, database: ADMIN_DATABASE });
+              }}
+            >
+              Users and roles
+            </Menu.Item>
+            <Menu.Item
+              disabled={!canOpenReplicaSet}
+              onClick={() => {
+                onClose();
+                openPanel({
+                  kind: 'replication',
+                  connectionId: connection.id,
+                  connectionName: connection.name,
+                });
+              }}
+            >
+              Replica set
+            </Menu.Item>
+            <Menu.Item
+              disabled={!sharding.available}
+              rightSection={
+                sharding.available ? undefined : (
+                  <Text size="xs" c="dimmed">
+                    {sharding.reason}
+                  </Text>
+                )
+              }
+              onClick={() => {
+                onClose();
+                openPanel({
+                  kind: 'sharding',
+                  connectionId: connection.id,
+                  connectionName: connection.name,
+                });
+              }}
+            >
+              Sharding
+            </Menu.Item>
+          </Menu.Sub.Dropdown>
+        </Menu.Sub>
+        <Menu.Sub>
+          <Menu.Sub.Target>
+            <Menu.Sub.Item>Backup</Menu.Sub.Item>
+          </Menu.Sub.Target>
+          <Menu.Sub.Dropdown miw={200}>
+            <BackupMenuItems
+              connectionId={connection.id}
+              connected={status.state === 'connected'}
+              onClose={onClose}
+            />
+          </Menu.Sub.Dropdown>
+        </Menu.Sub>
+        <Menu.Divider />
         <Menu.Item
           onClick={() => {
             onClose();
@@ -212,7 +235,6 @@ export function ConnectionContextMenu({
         >
           Refresh
         </Menu.Item>
-        <Menu.Divider />
         <Menu.Item color="red" onClick={confirmRemove}>
           Remove
         </Menu.Item>

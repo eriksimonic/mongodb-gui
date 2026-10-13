@@ -5,6 +5,7 @@ import { createMockUiApi } from '../../api/mock-rpc-client';
 import { renderWithApp } from '../../test-support/render';
 import { useBackupDialogs } from '../backup/backup-dialog-store';
 import { ConnectionTree } from './ConnectionTree';
+import { openSubmenu } from '../../test-support/menu';
 
 describe('ConnectionTree Docker node', () => {
   it('lists the discovered containers under the Docker node', async () => {
@@ -119,10 +120,12 @@ describe('ConnectionTree Docker node', () => {
   it('opens backup and restore from a connected container', async () => {
     renderWithApp(<ConnectionTree />, { mock: { preset: 'unlocked' } });
     fireEvent.contextMenu(await screen.findByRole('treeitem', { name: 'shop-mongo' }));
+    await openSubmenu('Backup');
     fireEvent.click(await screen.findByRole('menuitem', { name: 'Back up…', hidden: true }));
     expect(useBackupDialogs.getState().request).toMatchObject({ kind: 'backup' });
 
     fireEvent.contextMenu(await screen.findByRole('treeitem', { name: 'shop-mongo' }));
+    await openSubmenu('Backup');
     fireEvent.click(await screen.findByRole('menuitem', { name: 'Restore…', hidden: true }));
     expect(useBackupDialogs.getState().request).toMatchObject({ kind: 'restore' });
   });

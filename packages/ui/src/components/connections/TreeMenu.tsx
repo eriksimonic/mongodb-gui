@@ -10,6 +10,7 @@ export type TreeMenuEntry =
       readonly color?: string;
       readonly onSelect: () => void;
     }
+  | { readonly kind: 'submenu'; readonly label: string; readonly entries: readonly TreeMenuEntry[] }
   | { readonly kind: 'divider' };
 
 export interface TreeMenuProps {
@@ -31,31 +32,54 @@ export function TreeMenu({ entries, position, onClose }: TreeMenuProps) {
         />
       </Menu.Target>
       <Menu.Dropdown>
-        {entries.map((entry, index) =>
-          entry.kind === 'divider' ? (
-            <Menu.Divider key={`divider-${index}`} />
-          ) : (
-            <Menu.Item
-              key={entry.label}
-              disabled={entry.disabled ?? false}
-              rightSection={
-                entry.reason === undefined ? undefined : (
-                  <Text size="xs" c="dimmed">
-                    {entry.reason}
-                  </Text>
-                )
-              }
-              {...(entry.color === undefined ? {} : { color: entry.color })}
-              onClick={() => {
-                onClose();
-                entry.onSelect();
-              }}
-            >
-              {entry.label}
-            </Menu.Item>
-          ),
-        )}
+        <TreeMenuEntries entries={entries} onClose={onClose} />
       </Menu.Dropdown>
     </Menu>
   );
+}
+
+function TreeMenuEntries({
+  entries,
+  onClose,
+}: {
+  readonly entries: readonly TreeMenuEntry[];
+  readonly onClose: () => void;
+}) {
+  return entries.map((entry, index) => {
+    if (entry.kind === 'divider') {
+      return <Menu.Divider key={`divider-${index}`} />;
+    }
+    if (entry.kind === 'submenu') {
+      return (
+        <Menu.Sub key={entry.label}>
+          <Menu.Sub.Target>
+            <Menu.Sub.Item>{entry.label}</Menu.Sub.Item>
+          </Menu.Sub.Target>
+          <Menu.Sub.Dropdown miw={200}>
+            <TreeMenuEntries entries={entry.entries} onClose={onClose} />
+          </Menu.Sub.Dropdown>
+        </Menu.Sub>
+      );
+    }
+    return (
+      <Menu.Item
+        key={entry.label}
+        disabled={entry.disabled ?? false}
+        rightSection={
+          entry.reason === undefined ? undefined : (
+            <Text size="xs" c="dimmed">
+              {entry.reason}
+            </Text>
+          )
+        }
+        {...(entry.color === undefined ? {} : { color: entry.color })}
+        onClick={() => {
+          onClose();
+          entry.onSelect();
+        }}
+      >
+        {entry.label}
+      </Menu.Item>
+    );
+  });
 }

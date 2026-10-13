@@ -691,14 +691,16 @@ export function createEditorActions(access: EditorStoreAccess) {
      * Opens the documents of a collection and runs the query. The query is `find({})` in a mongosh
      * tab, or `SELECT * FROM name;` in a SQL tab when the saved default language is SQL. The tab
      * rules are those of `rerunStatement`. A tab that already holds this exact query on the same
-     * connection and database comes to the front instead of a second one opening.
+     * connection and database comes to the front instead of a second one opening. A given `sql`
+     * runs in a SQL tab whatever the default language.
      */
-    async openCollectionQuery(target: CollectionTarget): Promise<void> {
-      const language = defaultLanguage();
+    async openCollectionQuery(target: CollectionTarget, sql?: string): Promise<void> {
+      const language = sql === undefined ? defaultLanguage() : 'sql';
       const code =
-        language === 'sql'
+        sql ??
+        (language === 'sql'
           ? collectionSelectStatement(target.collection)
-          : collectionQueryStatement(target.collection);
+          : collectionQueryStatement(target.collection));
       const state = access.get().editors;
       const existing = state.order.find((id) => {
         const tab = state.tabs[id];
@@ -719,7 +721,7 @@ export function createEditorActions(access: EditorStoreAccess) {
         await rerunStatement(codeTarget);
         return;
       }
-      // A select of a whole collection needs no field types, so it runs without a sample.
+      // A select or count of a whole collection needs no field types, so it runs without a sample.
       const id = placeCode(codeTarget, 'sql');
       const result = translateSqlStatement(code);
       if (!result.ok) {

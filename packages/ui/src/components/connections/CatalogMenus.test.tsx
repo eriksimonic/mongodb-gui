@@ -1,6 +1,6 @@
 // @vitest-environment jsdom
 import { fireEvent, screen, waitFor, within } from '@testing-library/react';
-import { afterEach, describe, expect, it } from 'vitest';
+import { afterEach, describe, expect, it, vi } from 'vitest';
 import { localConnectionId } from '../../api/mock-fixtures';
 import { ManagementDialogs } from '../management/ManagementDialogs';
 import { useBackupDialogs } from '../backup/backup-dialog-store';
@@ -8,6 +8,7 @@ import { TransferModals } from '../transfers/TransferModals';
 import { renderWithApp } from '../../test-support/render';
 import { connectedMockApi } from '../../api/connected-mock';
 import { ConnectionTree } from './ConnectionTree';
+import { openSubmenu } from '../../test-support/menu';
 
 /** Renders the tree with the management dialog host and opens shop, so its collections show. */
 async function renderTreeWithShopOpen() {
@@ -51,20 +52,29 @@ describe('tree context menus for databases and collections', () => {
     await renderTreeWithShopOpen();
     fireEvent.contextMenu(screen.getByRole('treeitem', { name: 'customers' }));
 
-    for (const label of [
-      'Open documents',
-      'Indexes',
-      'Validation',
-      'Rename',
-      'Clear',
-      'Drop',
-      'Refresh',
-    ]) {
+    for (const label of ['Open documents', 'Rename', 'Clear', 'Drop', 'Refresh']) {
       expect(await screen.findByText(label)).toBeInTheDocument();
     }
+    await openSubmenu('Structure');
+    expect(await screen.findByText('Indexes')).toBeInTheDocument();
+    expect(screen.getByText('Validation')).toBeInTheDocument();
     fireEvent.click(screen.getByText('Drop'));
 
     expect(await screen.findByLabelText('Type customers to confirm')).toBeInTheDocument();
+  });
+
+  it('runs a SQL select of the top rows from the Query submenu', async () => {
+    const { api } = await renderTreeWithShopOpen();
+    const evaluate = vi.spyOn(api.rpc.shell, 'evaluate');
+    fireEvent.contextMenu(screen.getByRole('treeitem', { name: 'customers' }));
+    await openSubmenu('Query');
+    fireEvent.click(await screen.findByText('Select top 1000 rows'));
+
+    await waitFor(() =>
+      expect(evaluate.mock.calls[0]?.[0]).toMatchObject({
+        code: 'db.customers.find({}).limit(1000)',
+      }),
+    );
   });
 
   it('offers new database on a connected connection', async () => {
@@ -130,6 +140,7 @@ describe('tree context menus for transfers', () => {
   it('offers import and export on a collection and opens the export dialog', async () => {
     const { orders } = await renderWithTransfers();
     fireEvent.contextMenu(orders);
+    await openSubmenu('Import and export');
 
     expect(await screen.findByText('Import data')).toBeInTheDocument();
     fireEvent.click(await screen.findByText('Export data'));
@@ -141,6 +152,7 @@ describe('tree context menus for transfers', () => {
   it('opens the import wizard on a collection', async () => {
     const { orders } = await renderWithTransfers();
     fireEvent.contextMenu(orders);
+    await openSubmenu('Import and export');
     fireEvent.click(await screen.findByText('Import data'));
 
     const dialog = await screen.findByRole('dialog', { name: 'Import data' });
@@ -150,6 +162,7 @@ describe('tree context menus for transfers', () => {
   it('offers only a new collection import on a database', async () => {
     const { shop } = await renderWithTransfers();
     fireEvent.contextMenu(shop);
+    await openSubmenu('Import and backup');
 
     expect(await screen.findByText('Import data into new collection')).toBeInTheDocument();
     expect(screen.queryByText('Export data')).not.toBeInTheDocument();
@@ -167,6 +180,7 @@ describe('tree context menus for backup and restore', () => {
   it('opens a backup request for the database that was clicked', async () => {
     const { shop } = await renderTreeWithShopOpen();
     fireEvent.contextMenu(shop);
+    await openSubmenu('Import and backup');
     fireEvent.click(await screen.findByText('Back up database…'));
 
     expect(useBackupDialogs.getState().request).toEqual({
@@ -179,6 +193,7 @@ describe('tree context menus for backup and restore', () => {
   it('opens a restore request for a database', async () => {
     const { shop } = await renderTreeWithShopOpen();
     fireEvent.contextMenu(shop);
+    await openSubmenu('Import and backup');
     fireEvent.click(await screen.findByText('Restore into database…'));
 
     expect(useBackupDialogs.getState().request).toEqual({
@@ -191,6 +206,7 @@ describe('tree context menus for backup and restore', () => {
   it('opens a backup request for a collection', async () => {
     await renderTreeWithShopOpen();
     fireEvent.contextMenu(screen.getByRole('treeitem', { name: 'customers' }));
+    await openSubmenu('Import and export');
     fireEvent.click(await screen.findByText('Back up collection…'));
 
     expect(useBackupDialogs.getState().request).toEqual({
@@ -204,6 +220,7 @@ describe('tree context menus for backup and restore', () => {
   it('opens a server backup and a restore from the connection menu', async () => {
     const { local } = await renderTreeWithShopOpen();
     fireEvent.contextMenu(local);
+    await openSubmenu('Backup');
     fireEvent.click(await screen.findByText('Back up…'));
     expect(useBackupDialogs.getState().request).toEqual({
       kind: 'backup',
@@ -211,6 +228,7 @@ describe('tree context menus for backup and restore', () => {
     });
 
     fireEvent.contextMenu(local);
+    await openSubmenu('Backup');
     fireEvent.click(await screen.findByText('Restore…'));
     expect(useBackupDialogs.getState().request).toEqual({
       kind: 'restore',
