@@ -478,3 +478,35 @@ export function isMeasured(stage: PlanStage): boolean {
     stage.executionTimeMs !== undefined
   );
 }
+
+export interface LookupIndexUse {
+  /** The indexes the inner pipeline or the join used, as the server lists them. */
+  readonly indexes: readonly string[];
+  /** How many times the join read the foreign collection without an index. */
+  readonly collectionScans: number | undefined;
+}
+
+function rawNumber(value: unknown): number | undefined {
+  const plain = plainNumbers('', value);
+  return typeof plain === 'number' && Number.isFinite(plain) ? plain : undefined;
+}
+
+/**
+ * The index use a $lookup or $graphLookup reports for the collection it joins: `indexesUsed` and
+ * `collectionScans`. The server reports no plan for the inner pipeline, so this is the only
+ * evidence of how it read the joined collection. Undefined for other stages.
+ */
+export function lookupIndexUse(stage: PlanStage): LookupIndexUse | undefined {
+  const raw =
+    typeof stage.raw === 'object' && stage.raw !== null
+      ? (stage.raw as Record<string, unknown>)
+      : {};
+  const indexes = Array.isArray(raw['indexesUsed'])
+    ? raw['indexesUsed'].filter((name): name is string => typeof name === 'string')
+    : undefined;
+  const collectionScans = rawNumber(raw['collectionScans']);
+  if (indexes === undefined && collectionScans === undefined) {
+    return undefined;
+  }
+  return { indexes: indexes ?? [], collectionScans };
+}

@@ -8,6 +8,7 @@ import {
   GRAPH_NODE_HEIGHT,
   GRAPH_NODE_WIDTH,
   isMeasured,
+  lookupIndexUse,
   UNMEASURED_TIP,
   planLayout,
   revealKeys,
@@ -378,7 +379,14 @@ function StageCard({
   const { stage } = node;
   const info = describeStage(stage.name);
   const failed = stage.name === SHARD_ERROR;
-  const detail = failed ? shardErrorMessage(stage.raw) : stageDetail(stage);
+  const lookup = lookupIndexUse(stage);
+  const scans = lookup?.collectionScans ?? 0;
+  const base = failed ? shardErrorMessage(stage.raw) : stageDetail(stage);
+  // A join shows the indexes it read the joined collection with, the only evidence of its plan.
+  const detail =
+    lookup === undefined || lookup.indexes.length === 0
+      ? base
+      : [base, `via ${lookup.indexes.join(', ')}`].filter(Boolean).join(' ');
   const own = selfTimeMs(stage);
   const share =
     own === undefined || totalMs === undefined || totalMs <= 0
@@ -432,6 +440,11 @@ function StageCard({
             {tag}
           </Badge>
         ))}
+        {scans > 0 ? (
+          <Badge tt="none" variant="filled" color="orange" size="xs">
+            {formatCount(scans)} collection {scans === 1 ? 'scan' : 'scans'}
+          </Badge>
+        ) : null}
       </div>
       {node.hasChildren ? (
         <button
@@ -480,6 +493,7 @@ function StageDetails({ stage, onClose }: StageDetailsProps) {
   const info = describeStage(stage.name);
   const items = stageMetricItems(stage, info);
   const ratio = examinedRatio(stage, info);
+  const lookup = lookupIndexUse(stage);
   const bounds = stage.indexBounds === undefined ? [] : Object.entries(stage.indexBounds);
   return (
     <aside className="mg-explain-details" aria-label="Stage details">
@@ -501,7 +515,7 @@ function StageDetails({ stage, onClose }: StageDetailsProps) {
           {info.advice}
         </Text>
       )}
-      {items.length === 0 && ratio === undefined ? null : (
+      {items.length === 0 && ratio === undefined && lookup === undefined ? null : (
         <dl className="mg-explain-details-list">
           {items.map((item) => (
             <div key={item.key}>
@@ -515,6 +529,20 @@ function StageDetails({ stage, onClose }: StageDetailsProps) {
             <div>
               <dt>Examined per returned</dt>
               <dd className={ratio.high ? 'mg-explain-details-high' : undefined}>{ratio.text}</dd>
+            </div>
+          )}
+          {lookup?.collectionScans === undefined ? null : (
+            <div>
+              <dt>Collection scans</dt>
+              <dd className={lookup.collectionScans > 0 ? 'mg-explain-details-high' : undefined}>
+                {formatCount(lookup.collectionScans)}
+              </dd>
+            </div>
+          )}
+          {lookup === undefined ? null : (
+            <div>
+              <dt>Indexes used</dt>
+              <dd>{lookup.indexes.length === 0 ? 'none' : lookup.indexes.join(', ')}</dd>
             </div>
           )}
         </dl>

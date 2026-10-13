@@ -352,7 +352,9 @@ hide or show its inputs. Use the zoom buttons, or "Fit" to fit the width. When t
 rejected plans, the "Plan" list switches between them.
 
 The server reports no counters for the stages inside a `$lookup` pipeline. Those cards show the
-stage spec and "not measured".
+stage spec and "not measured". The `$lookup` card above them sums their work, and lists the
+indexes the join used after "via". An orange mark counts its collection scans. Its details show
+"Indexes used" and "Collection scans".
 
 "List" shows one row for each stage, with a bar for documents or time. Each stage has an icon
 and a category. The categories are scan, fetch, filter, sort, projection, limit, lookup, group,

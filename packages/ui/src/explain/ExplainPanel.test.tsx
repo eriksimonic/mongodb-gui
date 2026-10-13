@@ -560,3 +560,18 @@ describe('ExplainPanel plan graph', () => {
     );
   });
 });
+
+describe('ExplainPanel $lookup index use', () => {
+  it('shows the indexes a $lookup used on its card and in its details', async () => {
+    const api = await connectedApi();
+    renderPanel(api, panelFor('lab/category-graph'));
+    const lookup = [...document.querySelectorAll<HTMLElement>('.mg-explain-node')].find((element) =>
+      element.textContent?.includes('from reviews'),
+    );
+    expect(lookup?.textContent).toContain('via _id_, productId_1_rating_-1');
+    fireEvent.click(lookup as HTMLElement);
+    const details = screen.getByRole('complementary', { name: 'Stage details' });
+    expect(within(details).getByText('Indexes used')).toBeInTheDocument();
+    expect(within(details).getByText('Collection scans')).toBeInTheDocument();
+  });
+});

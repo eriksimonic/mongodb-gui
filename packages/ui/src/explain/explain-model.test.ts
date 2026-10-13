@@ -11,6 +11,7 @@ import {
   planRows,
   revealKeys,
   stageIdByName,
+  lookupIndexUse,
   planLayout,
   selfTimeMs,
   stageEntries,
@@ -207,5 +208,22 @@ describe('selfTimeMs, stageTags and stageDetail', () => {
       'by {createdAt: -1}',
     );
     expect(stageDetail(stage('$limit', { raw: { $limit: { $numberInt: '3' } } }))).toBe('3');
+  });
+});
+
+describe('lookupIndexUse', () => {
+  it('reads the indexes and collection scans a $lookup reports', () => {
+    const lookup = stage('$lookup', {
+      raw: {
+        $lookup: { from: 'reviews' },
+        indexesUsed: ['_id_', 'productId_1_rating_-1'],
+        collectionScans: { $numberLong: '0' },
+      },
+    });
+    expect(lookupIndexUse(lookup)).toEqual({
+      indexes: ['_id_', 'productId_1_rating_-1'],
+      collectionScans: 0,
+    });
+    expect(lookupIndexUse(stage('FETCH', { raw: {} }))).toBeUndefined();
   });
 });
