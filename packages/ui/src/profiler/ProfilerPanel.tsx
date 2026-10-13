@@ -35,6 +35,19 @@ export function ProfilerPanel({ connectionId, database, seed }: ProfilerPanelPro
   const loadCollections = useAppStore((state) => state.loadCollections);
   const collections = useAppStore((state) => state.collections[catalogKey(connectionId, database)]);
   const seedRef = useRef(seed);
+  const reload = useProfilerStore((state) => state.reload);
+  const status = useAppStore((state) => state.statuses[connectionId]?.state);
+  const connected = status === 'connected';
+  const wasConnected = useRef(connected);
+
+  // A panel the saved layout restores mounts before its connection is back, so its first load
+  // fails. It loads again when the connection comes up.
+  useEffect(() => {
+    if (connected && !wasConnected.current) {
+      void reload(panelId);
+    }
+    wasConnected.current = connected;
+  }, [connected, panelId, reload]);
 
   useEffect(() => {
     void open(panelId, connectionId, database, seedRef.current);
@@ -51,6 +64,15 @@ export function ProfilerPanel({ connectionId, database, seed }: ProfilerPanelPro
         : [],
     [collections, database],
   );
+
+  // The status is unknown until the connection reports one, so a failed load also counts.
+  if ((status !== undefined && !connected) || panel?.error?.code === 'NOT_CONNECTED') {
+    return (
+      <Text size="sm" c="dimmed" p={8}>
+        Connect to load the profiler of {database}.
+      </Text>
+    );
+  }
 
   if (panel === undefined) {
     return (

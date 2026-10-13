@@ -83,6 +83,8 @@ export interface ProfilerState {
 export interface ProfilerActions {
   open(panelId: string, connectionId: string, database: string, seed?: ProfilerSeed): Promise<void>;
   close(panelId: string): Promise<void>;
+  /** Reads the level, the collection info and the entries again, for example after a reconnect. */
+  reload(panelId: string): Promise<void>;
   refresh(panelId: string): Promise<void>;
   setLevelDraft(panelId: string, patch: Partial<LevelDraft>): void;
   applyLevel(panelId: string): Promise<void>;
@@ -240,10 +242,19 @@ export function createProfilerStore(api: UiApi): ProfilerStore {
           // The tail starts with the panel, so its filter is the filter the panel was opened with.
           await startTail(panelId);
         }
+        await get().reload(panelId);
+      },
+
+      async reload(panelId) {
+        const panel = panelOf(panelId);
+        if (panel === undefined) {
+          return;
+        }
+        const target = { connectionId: panel.connectionId, database: panel.database };
         try {
           const [level, info] = await Promise.all([
-            rpc.profiler.level({ connectionId, database }),
-            rpc.profiler.info({ connectionId, database }),
+            rpc.profiler.level(target),
+            rpc.profiler.info(target),
           ]);
           patch(panelId, { level, levelDraft: draftFromLevel(level), info });
         } catch (error) {

@@ -1,5 +1,5 @@
 // @vitest-environment jsdom
-import { fireEvent, screen, waitFor, within } from '@testing-library/react';
+import { act, fireEvent, screen, waitFor, within } from '@testing-library/react';
 import { describe, expect, it, vi } from 'vitest';
 import { AppErrorException, appError } from '@mongo-gui/core';
 import { localConnectionId } from '../api/mock-fixtures';
@@ -272,5 +272,20 @@ describe('ProfilerPanel', () => {
     renderPanel(failing);
     expect(await screen.findByText('The profiler could not load')).toBeInTheDocument();
     expect(screen.getByText('The server refused the profiler command')).toBeInTheDocument();
+  });
+});
+
+describe('ProfilerPanel restored before its connection', () => {
+  it('asks to connect, then loads once the connection is up', async () => {
+    const api = createMockUiApi({ preset: 'unlocked' });
+    renderPanel(api);
+    expect(await screen.findByText('Connect to load the profiler of shop.')).toBeInTheDocument();
+    await act(async () => {
+      await api.rpc.connections.connect({ id: localConnectionId });
+    });
+    await waitFor(() =>
+      expect(screen.queryByText('Connect to load the profiler of shop.')).toBeNull(),
+    );
+    expect(await screen.findByText(/Slow queries/)).toBeInTheDocument();
   });
 });
