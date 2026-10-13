@@ -109,6 +109,9 @@ export const appTheme = createTheme({
   primaryColor: 'brand',
   primaryShade: 6,
   autoContrast: true,
+  // Mantine's default of 0.3 puts white text on the pink, orange and blue solids, where dark text
+  // reads better. At 0.2 only violet keeps white text.
+  luminanceThreshold: 0.2,
   black: '#0f0f11',
   defaultRadius: 'sm',
   radius: { sm: '4px', md: '6px' },
