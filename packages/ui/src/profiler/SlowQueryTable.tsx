@@ -5,7 +5,7 @@ import { memo, useEffect, useMemo, useRef, type KeyboardEvent } from 'react';
 import type { ProfileEntry, ProfilingLevel } from '@mongo-gui/core';
 import {
   clientLabel,
-  durationPercent,
+  durationTone,
   examinedRatio,
   formatDuration,
   formatLocalTime,
@@ -31,7 +31,7 @@ function scaled(pixels: number): string {
 const TIME_PX = 160;
 const NAMESPACE_PX = 230;
 const OP_PX = 76;
-const DURATION_PX = 118;
+const DURATION_PX = 84;
 const EXAMINED_PX = 78;
 const RETURNED_PX = 72;
 const RATIO_PX = 66;
@@ -123,10 +123,6 @@ export function SlowQueryTable({
   const scrollRef = useRef<HTMLDivElement>(null);
   const template = useMemo(() => gridTemplate(columns), [columns]);
   const width = minWidth(columns);
-  const maxMillis = useMemo(
-    () => entries.reduce((max, entry) => Math.max(max, entry.millis), 0),
-    [entries],
-  );
   const selectedIndex = useMemo(
     () => entries.findIndex((entry) => entry.id === selectedId),
     [entries, selectedId],
@@ -243,7 +239,6 @@ export function SlowQueryTable({
                 template={template}
                 selected={entry.id === selectedId}
                 highlighted={highlighted.has(entry.id)}
-                maxMillis={maxMillis}
                 columns={columns}
                 onSelect={onSelect}
               />
@@ -262,7 +257,6 @@ interface SlowQueryRowProps {
   readonly template: string;
   readonly selected: boolean;
   readonly highlighted: boolean;
-  readonly maxMillis: number;
   readonly columns: ProfilerColumns;
   readonly onSelect: (id: string) => void;
 }
@@ -278,7 +272,6 @@ const SlowQueryRow = memo(function SlowQueryRow({
   template,
   selected,
   highlighted,
-  maxMillis,
   columns,
   onSelect,
 }: SlowQueryRowProps) {
@@ -312,15 +305,12 @@ const SlowQueryRow = memo(function SlowQueryRow({
         </Badge>
       </div>
       <div role="gridcell" className="mg-profiler-cell">
-        <span className="mg-profiler-duration">
-          <span className="mg-profiler-duration-label">{formatDuration(entry.millis)}</span>
-          <span className="mg-profiler-bar-track">
-            <span
-              className="mg-profiler-bar"
-              data-testid="duration-bar"
-              style={{ width: `${durationPercent(entry.millis, maxMillis)}%` }}
-            />
-          </span>
+        <span
+          className="mg-profiler-duration"
+          data-testid="duration"
+          data-tone={durationTone(entry.millis)}
+        >
+          {formatDuration(entry.millis)}
         </span>
       </div>
       <div role="gridcell" className="mg-profiler-cell">
@@ -355,7 +345,10 @@ const SlowQueryRow = memo(function SlowQueryRow({
             SORT
           </Badge>
         ) : null}
-        <span className="mg-profiler-cell">{entry.planSummary ?? '-'}</span>
+        {/* A plan of only COLLSCAN is already said by the badge. */}
+        {entry.planSummary?.trim() === 'COLLSCAN' ? null : (
+          <span className="mg-profiler-cell">{entry.planSummary ?? '-'}</span>
+        )}
       </div>
       {columns.client ? (
         <div role="gridcell" className="mg-profiler-cell" title={clientLabel(entry)}>

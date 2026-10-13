@@ -1,6 +1,6 @@
 // @vitest-environment jsdom
 import { fireEvent, screen, waitFor, within } from '@testing-library/react';
-import { describe, expect, it } from 'vitest';
+import { describe, expect, it, vi } from 'vitest';
 import { AppErrorException, appError } from '@mongo-gui/core';
 import { localConnectionId } from '../api/mock-fixtures';
 import { createMockUiApi } from '../api/mock-rpc-client';
@@ -8,8 +8,10 @@ import type { UiApi } from '../api/ui-api';
 import { renderWithApp } from '../test-support/render';
 import { ProfilerPanel } from './ProfilerPanel';
 import { profilerUiEvents, type ProfilerUiEvent } from './profiler-events';
-import { formatCommand, isProblematic } from './profiler-model';
+import { formatCommandJson, isProblematic, userCommand } from './profiler-model';
 import type { ProfilerSeed } from './profiler-store';
+
+vi.mock('../editor/JsonEditor', () => import('../test-support/json-editor-stub'));
 
 const SHOP = { connectionId: localConnectionId, database: 'shop' };
 const LIMIT = { limit: 200 };
@@ -213,7 +215,7 @@ describe('ProfilerPanel', () => {
     await waitForRows(shapes[0]?.count ?? -1);
   });
 
-  it('shows the command of the selected operation and fires the detail buttons', async () => {
+  it('explains the edited command of the selected operation, and Reset brings back the profiled one', async () => {
     const api = await connectedApi();
     renderPanel(api);
     const list = await api.rpc.profiler.list({ ...SHOP, filter: LIMIT });
@@ -223,18 +225,29 @@ describe('ProfilerPanel', () => {
 
     fireEvent.click(bodyRows()[0] as HTMLElement);
     const pane = document.querySelector('.mg-profiler-detail') as HTMLElement;
-    await waitFor(() =>
-      expect(pane.querySelector('pre')?.textContent).toBe(formatCommand(target?.command)),
-    );
+    const original = formatCommandJson(userCommand(target?.command));
+    const editor = await within(pane).findByLabelText<HTMLTextAreaElement>('Command');
+    expect(editor.value).toBe(original);
+    const reset = screen.getByRole('button', { name: 'Reset' });
+    expect(reset).toBeDisabled();
 
     const events: ProfilerUiEvent[] = [];
     const unsubscribe = profilerUiEvents.subscribe((event) => events.push(event));
     try {
+      const edited = { find: 'orders', filter: { status: 'shipped' } };
+      fireEvent.change(editor, { target: { value: JSON.stringify(edited) } });
       fireEvent.click(screen.getByRole('button', { name: 'Explain' }));
-      fireEvent.click(screen.getByRole('button', { name: 'Open in editor' }));
-      expect(await screen.findByRole('button', { name: 'Open in editor' })).toBeInTheDocument();
-      expect(events.map((event) => event.type)).toEqual(['profiler:explain', 'profiler:open']);
+      expect(events.map((event) => event.type)).toEqual(['profiler:explain']);
       expect(events[0]?.ref.entry.id).toBe(target?.id);
+      expect(events[0]?.ref.command).toEqual(edited);
+
+      fireEvent.change(editor, { target: { value: '{ not json' } });
+      expect(screen.getByRole('alert')).toHaveTextContent('The command is not valid JSON.');
+      expect(screen.getByRole('button', { name: 'Explain' })).toBeDisabled();
+
+      fireEvent.click(reset);
+      expect(editor.value).toBe(original);
+      expect(screen.getByRole('button', { name: 'Reset' })).toBeDisabled();
     } finally {
       unsubscribe();
     }

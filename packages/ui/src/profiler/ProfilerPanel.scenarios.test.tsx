@@ -1,7 +1,7 @@
 // @vitest-environment jsdom
 import '../test-support/browser-shims';
 import { fireEvent, screen, waitFor, within } from '@testing-library/react';
-import { describe, expect, it } from 'vitest';
+import { describe, expect, it, vi } from 'vitest';
 import { groupByShape, type ProfileEntry } from '@mongo-gui/core';
 import { profilerScenarios } from '../api/mock-profiler-scenarios';
 import { localConnectionId } from '../api/mock-fixtures';
@@ -9,7 +9,16 @@ import { createMockUiApi } from '../api/mock-rpc-client';
 import type { UiApi } from '../api/ui-api';
 import { renderWithApp } from '../test-support/render';
 import { ProfilerPanel } from './ProfilerPanel';
-import { formatCommand, formatDuration, formatLocalTime, isProblematic } from './profiler-model';
+import {
+  explainTarget,
+  formatCommandJson,
+  formatDuration,
+  formatLocalTime,
+  isProblematic,
+  userCommand,
+} from './profiler-model';
+
+vi.mock('../editor/JsonEditor', () => import('../test-support/json-editor-stub'));
 
 const TOTAL = profilerScenarios.length;
 const BAD_TOKENS = ['NaN', 'Infinity', 'undefined', '[object Object]'] as const;
@@ -21,6 +30,11 @@ async function renderScenarios(): Promise<UiApi> {
   renderWithApp(<ProfilerPanel connectionId={localConnectionId} database="shop" />, { api });
   await waitForRows(TOTAL);
   return api;
+}
+
+// The editable command in the detail pane, or undefined when the entry has none.
+function commandText(): string | undefined {
+  return detailPane().querySelector<HTMLTextAreaElement>('textarea[aria-label="Command"]')?.value;
 }
 
 function slowGrid(): HTMLElement {
@@ -108,7 +122,7 @@ describe('ProfilerPanel scenarios: one row per entry', () => {
       const cells = cellsOf(rowFor(entry));
       expect(cells[CELL.ns]?.textContent).toBe(entry.ns);
       expect(cells[CELL.op]?.textContent).toBe(entry.op);
-      expect(cells[CELL.duration]?.querySelector('.mg-profiler-duration-label')?.textContent).toBe(
+      expect(cells[CELL.duration]?.querySelector('.mg-profiler-duration')?.textContent).toBe(
         formatDuration(entry.millis),
       );
       expect(cells[CELL.examined]?.textContent).toBe(
@@ -132,8 +146,9 @@ describe('ProfilerPanel scenarios: one row per entry', () => {
       }
       const isScan = entry.planSummary?.includes('COLLSCAN') === true;
       expect(badgeTexts(plan).includes('COLLSCAN')).toBe(isScan);
+      // A plan of only COLLSCAN shows the badge without repeating the text.
       expect(plan.querySelector('span.mg-profiler-cell')?.textContent).toBe(
-        entry.planSummary ?? '-',
+        entry.planSummary?.trim() === 'COLLSCAN' ? undefined : (entry.planSummary ?? '-'),
       );
     },
   );
@@ -143,21 +158,20 @@ describe('ProfilerPanel scenarios: one row per entry', () => {
     async (_id, entry) => {
       await renderScenarios();
       clickRow(entry);
-      await waitFor(() =>
-        expect(detailPane().querySelector('pre')?.textContent).toBe(formatCommand(entry.command)),
-      );
+      const expected = formatCommandJson(userCommand(entry.command));
+      await waitFor(() => expect(commandText()).toBe(expected === '' ? undefined : expected));
       const sortStage = entry.hasSortStage === undefined ? '-' : entry.hasSortStage ? 'Yes' : 'No';
       expect(metricOf('Sort stage')).toBe(sortStage);
       if (entry.errMsg !== undefined) {
         expect(within(detailPane()).getByText(entry.errMsg)).toBeInTheDocument();
       }
-      const orphanGetMore =
-        entry.op === 'getmore' &&
-        (typeof entry.command !== 'object' ||
-          entry.command === null ||
-          !('originatingCommand' in entry.command));
+      // An orphan getMore, an insert and other commands the server does not explain are disabled.
+      const unexplainable = explainTarget(entry, userCommand(entry.command)) === undefined;
+      expect(['sc-08-insert', 'sc-10-getmore-orphan'].every((id) => id !== entry.id)).toBe(
+        !unexplainable,
+      );
       const explain = screen.getByRole('button', { name: 'Explain' });
-      if (orphanGetMore) {
+      if (unexplainable) {
         expect(explain).toBeDisabled();
       } else {
         expect(explain).toBeEnabled();
@@ -208,15 +222,14 @@ describe('ProfilerPanel scenarios: durations, order and far past times', () => {
     }
   });
 
-  it('scales the duration bar to the slowest row in view, and leaves a zero duration empty', async () => {
+  it('colours a long duration red and leaves a zero duration plain', async () => {
     await renderScenarios();
-    const bar = (id: string) =>
+    const tone = (id: string) =>
       rowFor(
         profilerScenarios.find((entry) => entry.id === id) as ProfileEntry,
-      ).querySelector<HTMLElement>('[data-testid="duration-bar"]')?.style.width;
-    expect(bar('sc-18-long')).toBe('100%');
-    expect(bar('sc-19-zero')).toBe('0%');
-    expect(bar('sc-02-ixscan')).toBe('0%');
+      ).querySelector<HTMLElement>('[data-testid="duration"]')?.dataset.tone;
+    expect(tone('sc-18-long')).toBe('verySlow');
+    expect(tone('sc-19-zero')).toBe('normal');
   });
 
   it('sorts the rows by time, newest first, with the far past entry last', async () => {
@@ -300,7 +313,7 @@ describe('ProfilerPanel scenarios: filters and tabs', () => {
     await renderScenarios();
     for (const entry of profilerScenarios) {
       clickRow(entry);
-      await waitFor(() => expect(detailPane().querySelector('pre')).not.toBeNull());
+      await waitFor(() => expect(within(detailPane()).getByText('Metrics')).toBeInTheDocument());
       expectNoBadTokens();
     }
   });

@@ -1,19 +1,9 @@
-import {
-  Accordion,
-  Badge,
-  Box,
-  Button,
-  Code,
-  Group,
-  SegmentedControl,
-  SimpleGrid,
-  Stack,
-  Text,
-} from '@mantine/core';
+import { Accordion, Badge, Box, Button, Code, Group, SimpleGrid, Stack, Text } from '@mantine/core';
 import { notifications } from '@mantine/notifications';
 import type { ProfileEntry } from '@mongo-gui/core';
 import { useRef, useState, type KeyboardEvent, type PointerEvent } from 'react';
 import { notifyError } from '../components/notify-error';
+import { JsonEditor } from '../editor/JsonEditor';
 import { profilerUiEvents } from './profiler-events';
 import {
   formatCommand,
@@ -24,7 +14,8 @@ import {
   userCommand,
 } from './profiler-model';
 
-type CommandView = 'mongosh' | 'json';
+/** Height of the editable command. */
+const COMMAND_HEIGHT_PX = 220;
 
 const RESIZE_STEP_PX = 24;
 
@@ -99,7 +90,13 @@ export function ProfilerDetail({
             Select an operation to see its command.
           </Text>
         ) : (
-          <EntryDetail connectionId={connectionId} database={database} entry={entry} />
+          // Keyed by entry, so a newly selected operation starts from its own command text.
+          <EntryDetail
+            key={entry.id}
+            connectionId={connectionId}
+            database={database}
+            entry={entry}
+          />
         )}
       </Box>
     </>
@@ -113,34 +110,32 @@ interface EntryDetailProps {
 }
 
 function EntryDetail({ connectionId, database, entry }: EntryDetailProps) {
-  // Copy always gives mongosh source. The view toggle only changes what is on screen.
-  const [view, setView] = useState<CommandView>('mongosh');
-  const command = formatCommand(entry.command);
-  const shownCommand = view === 'mongosh' ? command : formatCommandJson(entry.command);
-
-  // Copy and the editor get the command without the driver's session fields.
+  // The command without the driver's session fields, as JSON the user can edit before an explain.
   const runnable = userCommand(entry.command);
-  const runnableText = formatCommand(runnable);
+  const original = formatCommandJson(runnable);
+  const [text, setText] = useState(original);
+  const edited = text !== original;
+  const parsed = parseCommand(text);
+  // The JSON view drops number types, such as a 64-bit cursor id, so an unedited command goes out
+  // in its captured form.
+  const command = edited ? parsed.command : runnable;
   // A getMore without its originating command, and anything else the explain cannot run, is disabled.
-  const explainUnavailable = explainTarget(entry, runnable) === undefined;
+  const explainUnavailable = command === undefined || explainTarget(entry, command) === undefined;
 
   function explain() {
+    if (command === undefined) {
+      return;
+    }
     profilerUiEvents.emit({
       type: 'profiler:explain',
-      ref: { connectionId, database, entry, command: runnable },
-    });
-  }
-
-  function openInEditor() {
-    profilerUiEvents.emit({
-      type: 'profiler:open',
-      ref: { connectionId, database, entry, command: runnable },
+      ref: { connectionId, database, entry, command },
     });
   }
 
   async function copyCommand() {
     try {
-      await navigator.clipboard.writeText(runnableText);
+      // Copy gives mongosh source, so a pasted command keeps the server's types.
+      await navigator.clipboard.writeText(command === undefined ? text : formatCommand(command));
       notifications.show({ title: 'Command copied', message: entry.ns, color: 'blue' });
     } catch (error) {
       notifyError(error, 'The command could not be copied');
@@ -176,30 +171,39 @@ function EntryDetail({ connectionId, database, entry }: EntryDetailProps) {
         <Button size="xs" onClick={explain} disabled={explainUnavailable}>
           Explain
         </Button>
-        <Button size="xs" variant="default" onClick={openInEditor}>
-          Open in editor
-        </Button>
         <Button size="xs" variant="default" onClick={() => void copyCommand()}>
           Copy
+        </Button>
+        <Button size="xs" variant="subtle" disabled={!edited} onClick={() => setText(original)}>
+          Reset
         </Button>
       </Group>
       <Stack gap={4}>
         <Text size="xs" fw={600}>
           Command
         </Text>
-        <SegmentedControl
-          size="xs"
-          aria-label="Command view"
-          value={view}
-          onChange={(value) => setView(value === 'json' ? 'json' : 'mongosh')}
-          data={[
-            { label: 'Mongosh', value: 'mongosh' },
-            { label: 'JSON', value: 'json' },
-          ]}
-        />
-        <Code block fz="xs" style={{ maxHeight: 240, overflow: 'auto' }}>
-          {shownCommand === '' ? 'No command recorded' : shownCommand}
-        </Code>
+        {original === '' ? (
+          <Text size="xs" c="dimmed">
+            No command recorded
+          </Text>
+        ) : (
+          <>
+            <Text size="xs" c="dimmed">
+              Edit the command, then press Explain to run the explain on your version.
+            </Text>
+            {parsed.error === undefined ? null : (
+              <Text size="xs" c="red" role="alert">
+                {parsed.error}
+              </Text>
+            )}
+            <JsonEditor
+              label="Command"
+              value={text}
+              onChange={setText}
+              height={COMMAND_HEIGHT_PX}
+            />
+          </>
+        )}
       </Stack>
       <Stack gap={4}>
         <Text size="xs" fw={600}>
@@ -264,4 +268,22 @@ function Metric({ label, value }: MetricProps) {
       </Text>
     </Box>
   );
+}
+
+interface ParsedCommand {
+  readonly command?: Record<string, unknown>;
+  readonly error?: string;
+}
+
+/** The edited command text as an object, or why it cannot be explained. */
+function parseCommand(text: string): ParsedCommand {
+  let value: unknown;
+  try {
+    value = JSON.parse(text);
+  } catch {
+    return { error: 'The command is not valid JSON.' };
+  }
+  return typeof value === 'object' && value !== null && !Array.isArray(value)
+    ? { command: value as Record<string, unknown> }
+    : { error: 'The command must be a JSON object.' };
 }

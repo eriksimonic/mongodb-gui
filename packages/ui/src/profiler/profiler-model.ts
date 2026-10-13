@@ -242,12 +242,20 @@ export function namespaceOptions(
   return [...all].sort(compareText);
 }
 
-/** Width of a duration bar as a whole percentage of the slowest row in view. */
-export function durationPercent(millis: number, maxMillis: number): number {
-  if (maxMillis <= 0) {
-    return 0;
+/** How slow a duration reads in the table. */
+export type DurationTone = 'normal' | 'slow' | 'verySlow';
+
+/** MongoDB's default slowms. From here a duration shows in orange. */
+const SLOW_MILLIS = 100;
+/** From here a duration shows in red. */
+const VERY_SLOW_MILLIS = 1000;
+
+/** The colour step of a duration: plain under 100 ms, orange up to 1 s, red from 1 s. */
+export function durationTone(millis: number): DurationTone {
+  if (millis >= VERY_SLOW_MILLIS) {
+    return 'verySlow';
   }
-  return Math.min(100, Math.round((millis / maxMillis) * 100));
+  return millis >= SLOW_MILLIS ? 'slow' : 'normal';
 }
 
 export function clientLabel(entry: ProfileEntry): string {
@@ -287,16 +295,37 @@ export function explainTarget(entry: ProfileEntry, command: unknown): ExplainTar
     const collection = collectionOfNamespace(entry.ns);
     return collection === undefined ? undefined : { command, profileOp: entry.op, collection };
   }
-  if (typeof command === 'object' && command !== null && !Array.isArray(command)) {
-    const record = command as Record<string, unknown>;
-    if ('getMore' in record) {
-      const original = record['originatingCommand'];
-      return typeof original === 'object' && original !== null && !Array.isArray(original)
-        ? { command: original }
-        : undefined;
-    }
+  if (typeof command !== 'object' || command === null || Array.isArray(command)) {
+    return undefined;
   }
-  return { command };
+  const record = command as Record<string, unknown>;
+  if ('getMore' in record) {
+    const original = record['originatingCommand'];
+    return typeof original === 'object' &&
+      original !== null &&
+      !Array.isArray(original) &&
+      isExplainable(original)
+      ? { command: original }
+      : undefined;
+  }
+  return isExplainable(record) ? { command } : undefined;
+}
+
+/** The commands the server's explain accepts. Others, such as insert or killCursors, it rejects. */
+const EXPLAINABLE_COMMANDS: ReadonlySet<string> = new Set([
+  'find',
+  'aggregate',
+  'count',
+  'distinct',
+  'update',
+  'delete',
+  'findandmodify',
+  'mapreduce',
+]);
+
+function isExplainable(command: object): boolean {
+  const name = Object.keys(command)[0];
+  return name !== undefined && EXPLAINABLE_COMMANDS.has(name.toLowerCase());
 }
 
 // The collection of a namespace such as shop.orders. The database name has no dot, so the split

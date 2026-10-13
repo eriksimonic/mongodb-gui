@@ -78,33 +78,13 @@
   flex: 1 1 auto;
 }
 
-.mg-profiler-duration {
-  display: flex;
-  align-items: center;
-  gap: 6px;
-  min-width: 0;
+.mg-profiler-duration[data-tone='slow'] {
+  color: var(--mantine-color-orange-text);
 }
 
-.mg-profiler-duration-label {
-  flex: 0 0 auto;
-  width: 56px;
-  text-align: right;
-}
-
-.mg-profiler-bar-track {
-  flex: 1 1 auto;
-  min-width: 24px;
-  height: 6px;
-  border-radius: 3px;
-  background: var(--mg-surface-2);
-  overflow: hidden;
-}
-
-.mg-profiler-bar {
-  display: block;
-  height: 100%;
-  border-radius: 3px;
-  background: var(--mantine-color-blue-5);
+.mg-profiler-duration[data-tone='verySlow'] {
+  color: var(--mantine-color-red-text);
+  font-weight: 600;
 }
 
 .mg-profiler-splitter {

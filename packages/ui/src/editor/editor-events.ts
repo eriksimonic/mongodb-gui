@@ -40,7 +40,7 @@ export interface MarkerRange {
   readonly message: string;
 }
 
-export const editorUiEvents = createUiEventBus<EditorUiEvent>();
+export const editorUiEvents = createUiEventBus<EditorUiEvent>('editor');
 
 /**
  * The text an insert adds in place of the selection. `before` and `after` are the text on either

@@ -66,4 +66,18 @@ describe('explainTarget', () => {
       explainTarget(entryOf({ op: 'getmore' }), { getMore: 1, collection: 'orders' }),
     ).toBeUndefined();
   });
+
+  it('cannot explain a command the server does not explain, such as insert or killCursors', () => {
+    expect(
+      explainTarget(entryOf({ op: 'insert' }), { insert: 'orders', documents: [] }),
+    ).toBeUndefined();
+    expect(
+      explainTarget(entryOf({ op: 'killcursors' }), { killCursors: 'orders', cursors: [1] }),
+    ).toBeUndefined();
+  });
+
+  it('explains a findAndModify whatever the case of its name', () => {
+    const command = { findandmodify: 'orders', query: {}, remove: true };
+    expect(explainTarget(entryOf({ op: 'command' }), command)).toEqual({ command });
+  });
 });

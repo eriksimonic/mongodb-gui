@@ -1,21 +1,13 @@
 import type { AppStore } from '../state/app-store';
 import { profilerUiEvents } from '../profiler/profiler-events';
-import { explainTarget, formatCommand } from '../profiler/profiler-model';
+import { explainTarget } from '../profiler/profiler-model';
 
 /**
- * Sends the profiler's "Explain" and "Open in editor" requests to the app store. Returns the unsubscribe function.
+ * Sends the profiler's "Explain" requests to the app store. Returns the unsubscribe function.
  * The store provider calls it once per store. An entry that cannot be explained sends nothing.
  */
 export function bridgeProfilerExplain(store: AppStore): () => void {
   return profilerUiEvents.subscribe((event) => {
-    if (event.type === 'profiler:open') {
-      store.getState().insertCode({
-        connectionId: event.ref.connectionId,
-        database: event.ref.database,
-        code: `db.runCommand(${formatCommand(event.ref.command)})`,
-      });
-      return;
-    }
     if (event.type !== 'profiler:explain') {
       return;
     }

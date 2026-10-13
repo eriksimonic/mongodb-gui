@@ -4,7 +4,7 @@ import {
   DEFAULT_FILTERS,
   DEFAULT_LEVEL_DRAFT,
   draftFromLevel,
-  durationPercent,
+  durationTone,
   entriesOfShape,
   examinedRatio,
   filtersToQuery,
@@ -261,10 +261,12 @@ describe('isProblematic', () => {
     );
   });
 
-  it('sizes a duration bar against the slowest row in view', () => {
-    expect(durationPercent(50, 200)).toBe(25);
-    expect(durationPercent(300, 200)).toBe(100);
-    expect(durationPercent(10, 0)).toBe(0);
+  it('colours a duration plain under 100 ms, orange up to 1 s and red from 1 s', () => {
+    expect(durationTone(0)).toBe('normal');
+    expect(durationTone(99)).toBe('normal');
+    expect(durationTone(100)).toBe('slow');
+    expect(durationTone(999)).toBe('slow');
+    expect(durationTone(1000)).toBe('verySlow');
   });
 
   it('formats a command as indented mongosh source and an absent command as empty text', () => {
