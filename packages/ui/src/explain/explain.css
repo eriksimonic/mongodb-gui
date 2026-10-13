@@ -427,16 +427,6 @@
   min-height: 16px;
 }
 
-.mg-explain-node-tag {
-  padding: 0 5px;
-  border-radius: var(--mantine-radius-xs);
-  background: var(--mantine-color-red-7);
-  color: #fff;
-  font-size: calc(var(--mg-font-scale, 1) * 10px);
-  font-weight: 600;
-  line-height: 16px;
-}
-
 .mg-explain-node-label {
   position: absolute;
   bottom: calc(100% + 4px);

@@ -1,4 +1,4 @@
-import { ActionIcon, CloseButton, Group, Select, Text, Tooltip } from '@mantine/core';
+import { ActionIcon, Badge, CloseButton, Group, Select, Text, Tooltip } from '@mantine/core';
 import { IconMinus, IconPlus, IconZoomReset } from '@tabler/icons-react';
 import { describeStage, type PlanStage } from '@mongo-gui/core';
 import { useEffect, useMemo, useRef, useState, type KeyboardEvent } from 'react';
@@ -428,9 +428,9 @@ function StageCard({
       )}
       <div className="mg-explain-node-tags">
         {tags.map((tag) => (
-          <span key={tag} className="mg-explain-node-tag">
+          <Badge key={tag} tt="none" variant="filled" color="red" size="xs">
             {tag}
-          </span>
+          </Badge>
         ))}
       </div>
       {node.hasChildren ? (
