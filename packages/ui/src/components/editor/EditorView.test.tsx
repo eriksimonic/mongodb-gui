@@ -96,11 +96,14 @@ describe('EditorView run', () => {
     await openEditor('sleep(5000)');
     pressRun();
 
+    // The Run button turns into Cancel while the statement runs, and back after.
     const cancel = await screen.findByRole('button', { name: 'Cancel' });
+    expect(screen.queryByRole('button', { name: 'Run' })).not.toBeInTheDocument();
     fireEvent.click(cancel);
 
     expect(await screen.findByRole('alert')).toHaveTextContent('The operation was cancelled');
     expect(screen.queryByRole('button', { name: 'Cancel' })).not.toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Run' })).toBeInTheDocument();
   });
 
   it('shows a non-cursor value as JSON with its summary', async () => {

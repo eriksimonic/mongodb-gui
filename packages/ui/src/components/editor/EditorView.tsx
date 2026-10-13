@@ -336,15 +336,31 @@ export function EditorView({ tabId }: EditorViewProps) {
             }
           }}
         />
-        <Button
-          size="xs"
-          leftSection={<IconPlayerPlay size={13} />}
-          disabled={busy}
-          onClick={() => editorUiEvents.emit({ type: 'editor:command', tabId, command: 'run' })}
-          title="Run the selection or the statement under the cursor (F5 or Ctrl+Enter)"
-        >
-          Run
-        </Button>
+        {/* One button: Run while idle, Cancel while a run is going, so the toolbar keeps its layout. */}
+        {busy ? (
+          <Button
+            size="xs"
+            color="red"
+            leftSection={<IconPlayerStop size={13} />}
+            onClick={() =>
+              void api.cancelEditor(tabId).catch((failure: unknown) => notifyError(failure))
+            }
+            title="Cancel the running statement"
+            miw="calc(76px * var(--mg-font-scale, 1))"
+          >
+            Cancel
+          </Button>
+        ) : (
+          <Button
+            size="xs"
+            leftSection={<IconPlayerPlay size={13} />}
+            onClick={() => editorUiEvents.emit({ type: 'editor:command', tabId, command: 'run' })}
+            title="Run the selection or the statement under the cursor (F5 or Ctrl+Enter)"
+            miw="calc(76px * var(--mg-font-scale, 1))"
+          >
+            Run
+          </Button>
+        )}
         <Button
           size="xs"
           variant="default"
@@ -354,19 +370,6 @@ export function EditorView({ tabId }: EditorViewProps) {
         >
           Run all
         </Button>
-        {busy ? (
-          <Button
-            size="xs"
-            color="red"
-            variant="light"
-            leftSection={<IconPlayerStop size={13} />}
-            onClick={() =>
-              void api.cancelEditor(tabId).catch((failure: unknown) => notifyError(failure))
-            }
-          >
-            Cancel
-          </Button>
-        ) : null}
         <Button
           size="xs"
           variant="default"
