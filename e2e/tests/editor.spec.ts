@@ -25,7 +25,8 @@ const MASTER_PASSWORD = 'correct horse battery staple';
 const CONNECTION_NAME = 'E2E Mongo';
 const DEVTOOLS_PORT = 9235;
 const DOCUMENT_COUNT = 300;
-const DOCS_DIR = `${process.cwd()}/docs/screenshots`;
+// Step images for a person to look at. The docs screenshots are a fixed set, see CLAUDE.md.
+const OUTPUT_DIR = `${process.cwd()}/e2e/output/editor`;
 
 test('editor, results, paging, tree edit, print, history and favourites, end to end', async () => {
   const uri = mongoUriFromEnv();
@@ -93,17 +94,17 @@ test('editor, results, paging, tree edit, print, history and favourites, end to 
       await expect(window.getByRole('tree', { name: 'Document tree' })).toBeVisible();
       await window.getByRole('button', { name: 'Collapse all' }).click();
       await window.getByRole('button', { name: 'Expand #1', exact: true }).click();
-      await window.screenshot({ path: `${DOCS_DIR}/editor-tree.png`, animations: 'disabled' });
+      await window.screenshot({ path: `${OUTPUT_DIR}/editor-tree.png`, animations: 'disabled' });
 
       await viewSwitch(window, 'json').click();
       await expect(window.locator('.monaco-editor').nth(1).locator('.view-lines')).toContainText(
         'ORD-',
       );
-      await window.screenshot({ path: `${DOCS_DIR}/editor-json.png`, animations: 'disabled' });
+      await window.screenshot({ path: `${OUTPUT_DIR}/editor-json.png`, animations: 'disabled' });
 
       await viewSwitch(window, 'table').click();
       await expect(window.getByRole('button', { name: /^Columns / })).toBeVisible();
-      await window.screenshot({ path: `${DOCS_DIR}/editor-table.png`, animations: 'disabled' });
+      await window.screenshot({ path: `${OUTPUT_DIR}/editor-table.png`, animations: 'disabled' });
     });
 
     await test.step('edit the first document status in the tree and check the server', async () => {
@@ -136,7 +137,7 @@ test('editor, results, paging, tree edit, print, history and favourites, end to 
           .getByText(/db\.orders\.find/)
           .first(),
       ).toBeVisible();
-      await window.screenshot({ path: `${DOCS_DIR}/history.png`, animations: 'disabled' });
+      await window.screenshot({ path: `${OUTPUT_DIR}/history.png`, animations: 'disabled' });
     });
 
     await test.step('save the query as a favourite', async () => {

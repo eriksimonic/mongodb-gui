@@ -75,14 +75,14 @@ test('master password, connection tree and lock, end to end', async () => {
       await expect(treeItem(window, 'shop')).toHaveAttribute('aria-expanded', 'true');
       await expect(treeItem(window, 'orders')).toBeVisible();
       await waitForToastToClear(window);
-      await captureStep(window, SPEC, '06-tree-expanded', 'connection-tree.png');
+      await captureStep(window, SPEC, '06-tree-expanded');
     });
 
     await test.step('lock returns to the unlock screen', async () => {
       await window.getByRole('button', { name: 'Lock', exact: true }).click();
       await expect(window.getByRole('heading', { name: 'Unlock Mongo GUI' })).toBeVisible();
       await waitForToastToClear(window);
-      await captureStep(window, SPEC, '07-locked', 'unlock.png');
+      await captureStep(window, SPEC, '07-locked');
     });
 
     await test.step('a wrong password shows the error', async () => {

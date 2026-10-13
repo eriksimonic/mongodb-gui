@@ -7,8 +7,6 @@ You run mongosh statements in an editor and read the results as a grid, a tree o
 window shows indexes, explain plans, the profiler, live server metrics and backups. The app is free
 to use, modify and share. You may not sell it. The license is Apache 2.0 with the Commons Clause.
 
-![Shell with connections, welcome and output panels](docs/screenshots/shell.png)
-
 ## Why Mongo GUI
 
 | Tool            | Licence                        | Price                                                                                                           |
@@ -41,8 +39,6 @@ encrypted store. A master password you type at launch unlocks it.
 The lock does not stop code that runs as your user while the app is unlocked. Lock the app when you
 step away from the machine. See [docs/security.md](docs/security.md) for the threat model and the key
 hierarchy.
-
-![Unlock screen with the master password field](docs/screenshots/unlock.png)
 
 ## Features
 
@@ -82,19 +78,13 @@ hierarchy.
 
 The screenshots show version 0.1.0, except the SQL mode and backup screenshots, which show the next release.
 
-![Query editor with the documents of a find shown as a grid](docs/screenshots/editor-table.png)
+![Query editor with the documents of a find shown as a grid](docs/screenshots/query.png)
 
 Results of a find open as a grid. The tree and JSON views show the same result.
 
-![SQL tab with the read-only Mongo query beside the editor and the result below](docs/screenshots/sql-mode.png)
-
 A SQL tab shows the mongosh it runs, beside the editor.
 
-![Explain panel with the summary, the plan tree and the $lookup sub-tree open](docs/screenshots/explain.png)
-
-![Live monitoring dashboard with stat tiles and charts](docs/screenshots/monitor.png)
-
-![Backup dialog for the shop database with the folder, name and format fields](docs/screenshots/backup.png)
+![Explain panel with the summary, a collection scan warning and the plan stages](docs/screenshots/explain.png)
 
 ## Development
 

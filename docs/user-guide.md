@@ -152,8 +152,6 @@ tests the credentials first. If the test fails, the dialog shows the error and s
 success, the app saves the credentials in the encrypted vault on the container's connection, so
 the next connect does not ask again.
 
-![Credentials dialog for a password-protected container](screenshots/docker-credentials.png)
-
 The right-click menu on a container offers "Open container details" and "Copy URI (redacted)".
 The details panel lists the container id, image, networks and environment variable names. It
 does not show their values.
@@ -177,8 +175,6 @@ The left panel shows the connections. Each connected server has these nodes:
   state, PRIMARY, SECONDARY or ARBITER, and marks the member this connection talks to. Right-click
   a member for "Connect directly", which saves a connection to that one host with the same
   credentials and opens it, or "Copy host". Double-click a member to connect directly too.
-
-![Replica set node with the members, their states and the member menu](screenshots/replica-tree.png)
 
 - Databases. Expand a database to see its collections, views and time series collections.
 - Profiler. Opens the profiler.
@@ -238,8 +234,6 @@ the other tabs in the same group. "Close tabs to the left" and "Close tabs to th
 tabs on that side in the group, and their items are off when no tab lies on that side. "Close all
 tabs" closes every tab. The connections, welcome and output panels never close from this menu.
 
-![Tab menu of an editor tab with the close actions](screenshots/tab-menu.png)
-
 ## The editor
 
 Open an editor from a database. Choose "Open editor" from the database menu, or press Ctrl+N
@@ -292,7 +286,7 @@ To export the result of the last run, use the results pane. See [Results](#resul
 The results pane shows the documents of the last run. Switch between three views with the
 "Result view" control: "Table", "Tree" and "JSON".
 
-![Editor with a find result in table view](screenshots/editor-table.png)
+![Editor with a find result in table view](screenshots/query.png)
 
 - Table view shows one column for each field. The "Columns" menu chooses which columns show.
   Nested fields appear as dotted paths. Double-click a row to open its whole document. The
@@ -301,15 +295,11 @@ The results pane shows the documents of the last run. Switch between three views
   "Copy document". The value copies in mongosh form, the key is the dotted field path, and the
   document copies as canonical JSON.
 
-![Cell menu of the table view with the copy actions](screenshots/cell-menu.png)
-
 - Tree view shows each document as an expandable tree. Each value has a type badge. "Collapse
   all" folds the tree. Each row has "Copy path" and "Copy value" buttons. Double-click the
   top-level row of a document, the one marked with its position such as "#1", to open the whole
   document. Double-click a field name, or use its pencil button, to edit the value in place.
 - JSON view shows the result as read-only mongosh-style text.
-
-![Tree view of a document with type badges](screenshots/editor-tree.png)
 
 Paging:
 
@@ -337,7 +327,7 @@ Open an explain from the editor with "Explain", or from a profiler entry with "E
 The panel has two tabs. "Plan" shows the plan as a tree. "Raw" shows the document that the
 server returned.
 
-![Explain panel with a $lookup sub-tree open](screenshots/explain.png)
+![Explain panel with the summary, a collection scan warning and the plan stages](screenshots/explain.png)
 
 Use the "Verbosity" control to choose how much the server reports:
 
@@ -383,8 +373,6 @@ text. This replaces the mongosh the tab held. The SQL stays in the tab, so choos
 language control brings it back. Right-click the tab and choose "Open in Mongo" to do the same from
 the tab menu. Both are disabled when the text has no statement or a statement does not
 translate. The tab menu item shows the message as its tooltip.
-
-![SQL tab with the read-only Mongo query beside the editor and the result below](screenshots/sql-mode.png)
 
 To run SQL:
 
@@ -472,8 +460,6 @@ creates the new definition. If the create fails after the drop, the collection h
 that name until you save a definition that works. The "Edit" action is disabled on the "_id_" index. Neither
 does an index whose keys the builder cannot show, such as a geoHaystack key.
 
-![Indexes panel with the edit index dialog open and the drop warning](screenshots/indexes.png)
-
 ### Validation
 
 Open the "Validation" panel from "Structure" in the collection menu. It shows the JSON schema validator of
@@ -486,8 +472,6 @@ the collection in an editor.
 4. Set "Sample size" and click "Check against sample" to test the validator on sample
    documents.
 5. Click "Save".
-
-![Validation panel with a JSON schema validator](screenshots/validation.png)
 
 ### Documents
 
@@ -503,15 +487,11 @@ Choose "Open documents" from the collection menu to run `find({})` in an editor 
   matching" once you have counted the matches. "Delete all shown" deletes only the rows on the
   screen. Both ask for confirmation.
 
-![Documents panel with the first documents of a collection](screenshots/documents.png)
-
 ## Monitoring
 
 Open the "Monitor" panel from "Monitoring" in the connection menu, or from the Monitoring node in the tree.
 The dashboard charts server metrics in panels. Each panel shows one group of metrics, such as
 operations per second, connections, memory, the WiredTiger cache or replication lag.
-
-![Monitor dashboard with stat tiles and charts](screenshots/monitor.png)
 
 Panel controls:
 
@@ -522,8 +502,6 @@ Panel controls:
    explains the metric. "Close panel" removes the panel.
 3. Drag a panel by its handle to move it. The handle has the tooltip "Drag to move this panel".
 4. Click "Reset to default" to restore the default panels.
-
-![Add panel picker, grouped by category](screenshots/monitor-picker.png)
 
 The sampling interval is in the dashboard header. The choices are 1 s, 2 s, 5 s and 10 s. The
 layout is saved for each connection. If the app cannot save the layout, it shows "The
@@ -537,14 +515,12 @@ node in the tree.
 2. Click the "Kill operation" button on a row to stop an operation. The app asks for
    confirmation first.
 
-![Running operations with a long-running command](screenshots/operations.png)
-
 ## Profiler
 
 Open the profiler from the database menu with "Monitoring" > "Open profiler". The profiler has two tabs:
 "Slow queries" and "Top shapes".
 
-![Profiler panel with slow queries and the detail pane](screenshots/profiler.png)
+![Profiler panel with the slow queries of the shop database](screenshots/profiler.png)
 
 1. Choose a "Profiling level" for the database: "Off", "Slow only" or "All".
 2. Set "Slow threshold (ms)" and click "Apply". The server records operations slower than this
@@ -563,8 +539,6 @@ Open the profiler from the database menu with "Monitoring" > "Open profiler". Th
    editor. "Copy" copies it.
 6. Open "Top shapes" to see the query shapes that take the most time. Click a shape to filter the
    slow queries to that shape.
-
-![Profiler top query shapes view](screenshots/profiler-shapes.png)
 
 ## Import and export
 
@@ -586,8 +560,6 @@ has three steps: "Choose file", "Preview and mapping" and "Options and run".
    counts. Click "Cancel" to stop the import.
 5. Click "Open collection" to see the result, or "Import another" to start over.
 
-![Import wizard at the preview and mapping step](screenshots/import.png)
-
 ### Export
 
 Choose "Import and export" > "Export data" on a collection.
@@ -599,8 +571,6 @@ Choose "Import and export" > "Export data" on a collection.
 4. Click "Save as" and pick the file. The app writes only to the file you pick.
 5. Click "Start export". The progress view shows the count. Click "Show in folder" when it
    finishes.
-
-![Export dialog with a filter and the NDJSON format](screenshots/export.png)
 
 The file rules are these:
 
@@ -646,8 +616,6 @@ The generators are:
 
 Nested objects and arrays are not generated.
 
-![Generate data dialog with fields, generators and the unique flag](screenshots/generate-data.png)
-
 ## Schema analysis
 
 Open "Analyse schema" from "Structure" in the collection menu.
@@ -670,13 +638,9 @@ Each field has an "Actions for" menu with three items:
 
 Click "Export report" to copy the report.
 
-![Schema panel with a summary, type bars and a field table](screenshots/schema.png)
-
 ## Users and roles
 
 Open "Users and roles" from the database menu, or from "Administration" in the connection menu. The panel has two tabs.
-
-![Users and roles panel with the users of a database and their roles](screenshots/users.png)
 
 The "Users" tab lists the users of the database. Create a user with "Create user". The dialog asks
 for a user name, a password and its confirmation, the authentication mechanisms ("SCRAM-SHA-256"
@@ -701,8 +665,6 @@ understand that I may lose the right to manage users" before it saves that chang
 ## Replica set
 
 Open "Replica set" from "Administration" in the connection menu. The panel shows the members of the set.
-
-![Replica set panel with the members table, state badges, lag and the election list](screenshots/replica-set.png)
 
 The members table shows each member's host, state, health, lag, priority, votes, hidden flag,
 delay, tags and arbiter flag. The panel also shows the oplog window and the list of elections.
@@ -730,8 +692,6 @@ set.
 
 Open "Sharding" from "Administration" in the connection menu. The panel has four tabs: "Shards", "Databases",
 "Collections" and "Zones".
-
-![Sharding panel with the balancer state, a collections table with chunk bars per shard and the Distribution action](screenshots/sharding.png)
 
 - The header shows the balancer state, "Balancer on" or "Balancer off". "Start balancer" and
   "Stop balancer" change it.
@@ -771,8 +731,6 @@ and index size.
 
 Each database has a GridFS node in the tree. Open a bucket from that node.
 
-![GridFS panel with the files of a bucket, the metadata badges and an upload in progress](screenshots/gridfs.png)
-
 1. Click "New GridFS bucket" in the database menu, type a "Bucket name", and confirm.
 2. Click "Upload file" and pick a file. When a file with the same name exists, the app asks
    "Replace existing file?". Choose "Skip", "Replace" or "Replace all", or click "Stop".
@@ -790,8 +748,6 @@ the bucket name.
 
 Open a change stream with "Watch changes", in the "Monitoring" submenu of a collection, a
 database or a connection. The menu on a connection watches the whole deployment.
-
-![Change stream panel with the live event list, the state strip and the detail pane](screenshots/change-streams.png)
 
 1. Read the "Target" field. It shows the collection, database or deployment.
 2. Set "Full document" for updates. Set "Full document before change" to include the document
