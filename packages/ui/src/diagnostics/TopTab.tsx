@@ -151,7 +151,7 @@ export function TopTab({ store }: TopTabProps) {
             <Table.Tbody>
               {rows.map((entry) => (
                 <Table.Tr key={entry.ns}>
-                  <Table.Td style={{ fontFamily: 'monospace' }}>
+                  <Table.Td style={{ fontFamily: 'var(--mantine-font-family-monospace)' }}>
                     <Namespace ns={entry.ns} />
                   </Table.Td>
                   <Table.Td ta="right" style={shareStyle(entry.total.timeMs, totals.total)}>

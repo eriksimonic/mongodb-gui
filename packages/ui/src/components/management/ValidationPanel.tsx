@@ -270,13 +270,13 @@ export function ValidationPanel({ connectionId, database, collection }: Collecti
       </Group>
 
       {message === undefined ? null : (
-        <Text size="sm" c={isSuccessMessage(message) ? 'green' : 'red'}>
+        <Text size="sm" c={isSuccessMessage(message) ? 'blue' : 'red'}>
           {message}
         </Text>
       )}
 
       {check === undefined ? null : check.ok ? (
-        <Alert color="green" variant="light">
+        <Alert color="blue" variant="light">
           The sample passes the validator.
         </Alert>
       ) : (

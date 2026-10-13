@@ -50,10 +50,10 @@ const PHASE_LABELS: Readonly<Record<ChangeWatchPushPhase | 'idle', string>> = {
 
 const PHASE_COLORS: Readonly<Record<ChangeWatchPushPhase | 'idle', string>> = {
   idle: 'gray',
-  opening: 'blue',
-  live: 'teal',
-  paused: 'yellow',
-  resuming: 'blue',
+  opening: 'yellow',
+  live: 'blue',
+  paused: 'violet',
+  resuming: 'yellow',
   error: 'red',
   closed: 'gray',
 };

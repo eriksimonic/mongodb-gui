@@ -454,11 +454,11 @@ describe('editor themes on Monaco', () => {
     defineEditorThemes(monaco);
     monaco.editor.setTheme('mongo-gui-dark');
     const text = 'db.orders.find({ status: 1 })';
-    expect(await colorOf('mongosh', text, 'status')).toBe('#9cdcfe');
-    expect(await colorOf('mongosh', text, 'orders')).toBe('#4ec9b0');
-    expect(await colorOf('mongosh', text, 'find')).toBe('#dcdcaa');
+    expect(await colorOf('mongosh', text, 'status')).toBe('#d0d0cd');
+    expect(await colorOf('mongosh', text, 'orders')).toBe('#ab79ed');
+    expect(await colorOf('mongosh', text, 'find')).toBe('#a9c7fb');
     // A plain identifier is not painted with the property color.
-    expect(await colorOf('mongosh', 'g(plain)', 'plain')).not.toBe('#9cdcfe');
+    expect(await colorOf('mongosh', 'g(plain)', 'plain')).not.toBe('#d0d0cd');
   });
 
   it('paints names in the light theme', async () => {

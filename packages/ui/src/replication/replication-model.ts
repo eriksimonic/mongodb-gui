@@ -7,9 +7,9 @@ const NO_REPLICATION_CODE_NAME = 'NoReplicationEnabled';
 export type MemberMeaning = 'primary' | 'secondary' | 'arbiter' | 'recovering' | 'down';
 
 export const MEMBER_MEANING_COLOUR: Readonly<Record<MemberMeaning, string>> = {
-  primary: 'green',
-  secondary: 'blue',
-  arbiter: 'violet',
+  primary: 'blue',
+  secondary: 'violet',
+  arbiter: 'gray',
   recovering: 'yellow',
   down: 'red',
 };

@@ -57,12 +57,20 @@ export function ParametersTab({ store }: ParametersTabProps) {
             <Table.Tbody>
               {shown.map((parameter) => (
                 <Table.Tr key={parameter.name}>
-                  <Table.Td style={{ fontFamily: 'monospace', wordBreak: 'break-all' }}>
+                  <Table.Td
+                    style={{
+                      fontFamily: 'var(--mantine-font-family-monospace)',
+                      wordBreak: 'break-all',
+                    }}
+                  >
                     {parameter.name}
                   </Table.Td>
                   <Table.Td
                     {...colorProps(valueText(parameter))}
-                    style={{ fontFamily: 'monospace', wordBreak: 'break-all' }}
+                    style={{
+                      fontFamily: 'var(--mantine-font-family-monospace)',
+                      wordBreak: 'break-all',
+                    }}
                   >
                     {valueText(parameter)}
                   </Table.Td>

@@ -1,7 +1,7 @@
 import { Progress, Stack, Text } from '@mantine/core';
 import { passwordStrength } from './password-rules';
 
-const STRENGTH_COLORS = ['red', 'red', 'orange', 'yellow', 'green'] as const;
+const STRENGTH_COLORS = ['red', 'red', 'orange', 'yellow', 'blue'] as const;
 
 export interface PasswordStrengthMeterProps {
   readonly password: string;

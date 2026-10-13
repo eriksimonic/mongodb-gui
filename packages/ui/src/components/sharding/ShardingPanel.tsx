@@ -88,7 +88,7 @@ export function ShardingPanel({ connectionId }: ShardingPanelProps) {
           <Group justify="space-between" wrap="wrap">
             <Stack gap={2}>
               <Group gap="xs">
-                <Badge color={balancerOn ? 'teal' : 'gray'} variant="light">
+                <Badge color={balancerOn ? 'blue' : 'gray'} variant="light">
                   {balancerOn ? 'Balancer on' : 'Balancer off'}
                 </Badge>
                 <Text size="sm" c="dimmed">

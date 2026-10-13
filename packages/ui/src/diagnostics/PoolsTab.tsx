@@ -45,7 +45,9 @@ export function PoolsTab({ store }: PoolsTabProps) {
                 <Table.Tbody>
                   {Object.entries(pools.hosts).map(([host, stats]) => (
                     <Table.Tr key={host}>
-                      <Table.Td style={{ fontFamily: 'monospace' }}>{host}</Table.Td>
+                      <Table.Td style={{ fontFamily: 'var(--mantine-font-family-monospace)' }}>
+                        {host}
+                      </Table.Td>
                       <Table.Td ta="right">{formatCount(stats.inUse)}</Table.Td>
                       <Table.Td ta="right">{formatCount(stats.available)}</Table.Td>
                       <Table.Td ta="right">{formatCount(stats.created)}</Table.Td>

@@ -114,7 +114,11 @@ export function BackupProgressView({ view, kind, onCancel }: BackupProgressViewP
           </Anchor>
           <Collapse in={logOpen}>
             <ScrollArea h={160} type="auto">
-              <Code block data-testid="backup-log" style={{ fontFamily: 'monospace' }}>
+              <Code
+                block
+                data-testid="backup-log"
+                style={{ fontFamily: 'var(--mantine-font-family-monospace)' }}
+              >
                 {view.lines.join('\n')}
               </Code>
             </ScrollArea>
@@ -152,7 +156,7 @@ function Counters({
 }
 
 /** Green when it worked, yellow when cancelled or some documents failed, red otherwise. */
-function resultColor(progress: BackupProgress): 'green' | 'yellow' | 'red' {
+function resultColor(progress: BackupProgress): 'blue' | 'yellow' | 'red' {
   if (progress.error !== undefined) {
     return progress.error.code === 'CANCELLED' ? 'yellow' : 'red';
   }
@@ -162,7 +166,7 @@ function resultColor(progress: BackupProgress): 'green' | 'yellow' | 'red' {
   if (progress.result?.kind === 'restore' && progress.result.failed > 0) {
     return 'yellow';
   }
-  return 'green';
+  return 'blue';
 }
 
 function JobResult({

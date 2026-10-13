@@ -56,9 +56,9 @@ describe('defineEditorThemes', () => {
     const { monaco, defineTheme } = fakeMonaco();
     defineEditorThemes(monaco);
     const dark = defineTheme.mock.calls[0]?.[1] as ThemeData;
-    expect(foreground(dark, 'property')).toBe('9CDCFE');
-    expect(foreground(dark, 'type')).toBe('4EC9B0');
-    expect(foreground(dark, 'function')).toBe('DCDCAA');
+    expect(foreground(dark, 'property')).toBe('D0D0CD');
+    expect(foreground(dark, 'type')).toBe('AB79ED');
+    expect(foreground(dark, 'function')).toBe('A9C7FB');
     expect(foreground(dark, 'predefined')).toBeDefined();
   });
 

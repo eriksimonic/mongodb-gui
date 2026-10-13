@@ -753,7 +753,7 @@ export function ImportSummary({
   return (
     <Stack gap="sm" data-testid="import-summary">
       <Alert
-        color={failed ? 'red' : cancelled || progress.failed > 0 ? 'yellow' : 'green'}
+        color={failed ? 'red' : cancelled || progress.failed > 0 ? 'yellow' : 'blue'}
         title={failed ? 'The import stopped' : cancelled ? 'Cancelled' : 'Import finished'}
       >
         {message}

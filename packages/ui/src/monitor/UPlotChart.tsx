@@ -8,6 +8,7 @@ import { stackedValues } from './chart-series';
 import { formatAxisValue, formatClock, formatValue } from './format';
 import { chartPalette, type ChartPalette } from './palette';
 import './monitor.css';
+import { APP_FONT } from '../theme/theme';
 
 export interface UPlotChartProps {
   readonly label: string;
@@ -24,7 +25,7 @@ export interface UPlotChartProps {
   readonly height?: number;
 }
 
-const AXIS_FONT = '12px system-ui, -apple-system, "Segoe UI", sans-serif';
+const AXIS_FONT = `11px ${APP_FONT}`;
 const X_AXIS_HEIGHT_PX = 26;
 const Y_AXIS_WIDTH_PX = 56;
 const X_TICK_SPACE_PX = 84;
@@ -32,7 +33,7 @@ const Y_TICK_SPACE_PX = 40;
 const TOOLTIP_OFFSET_PX = 12;
 const HEADROOM = 1.1;
 // Area fills take the series colour at this alpha. Two hex digits, appended to a #rrggbb colour.
-const AREA_FILL_ALPHA = '33';
+const AREA_FILL_ALPHA = '26';
 
 const KIBI = 1024;
 /** Byte axis steps: 1, 2, 4 ... 512 times each power of 1024, so every step is a whole number of bytes. */

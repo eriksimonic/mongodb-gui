@@ -40,7 +40,7 @@ export function ExplainRaw({ text }: ExplainRawProps) {
   async function copy(): Promise<void> {
     try {
       await navigator.clipboard.writeText(text);
-      notifications.show({ title: 'Raw output copied', message: 'EJSON', color: 'teal' });
+      notifications.show({ title: 'Raw output copied', message: 'EJSON', color: 'blue' });
     } catch (error) {
       notifyError(error, 'The raw output could not be copied');
     }

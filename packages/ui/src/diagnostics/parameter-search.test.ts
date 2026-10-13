@@ -42,9 +42,9 @@ describe('filterParameters', () => {
 
 describe('valueColor', () => {
   it('colours booleans and numbers', () => {
-    expect(valueColor('true')).toBe('green');
+    expect(valueColor('true')).toBe('blue');
     expect(valueColor('false')).toBe('dimmed');
-    expect(valueColor('7776000')).toBe('blue');
+    expect(valueColor('7776000')).toBe('orange');
     expect(valueColor('automatic')).toBeUndefined();
     expect(valueColor('')).toBeUndefined();
   });

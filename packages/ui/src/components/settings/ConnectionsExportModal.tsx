@@ -102,7 +102,7 @@ function ExportForm({ onClose }: { readonly onClose: () => void }) {
   if (savedPath !== undefined) {
     return (
       <Stack gap="md">
-        <Alert color="green" title="Connections exported" role="status">
+        <Alert color="blue" title="Connections exported" role="status">
           {`Saved ${savedCount} ${savedCount === 1 ? 'connection' : 'connections'} to ${savedPath}. The file needs its passphrase to open.`}
         </Alert>
         <Group justify="flex-end">

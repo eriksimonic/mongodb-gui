@@ -164,7 +164,7 @@ export function ConnectionManager() {
           ? {
               id,
               loading: false,
-              color: 'green',
+              color: 'blue',
               title: 'Connection works',
               message: `${profile.name} answered. MongoDB ${result.serverVersion}.`,
               autoClose: 5000,
@@ -354,7 +354,7 @@ export function ConnectionManager() {
                       <Table.Td fw={600} style={{ color: connection.color }}>
                         {connection.name}
                       </Table.Td>
-                      <Table.Td style={{ fontFamily: 'monospace' }}>
+                      <Table.Td style={{ fontFamily: 'var(--mantine-font-family-monospace)' }}>
                         {serverText(connection)}
                       </Table.Td>
                       <Table.Td>{securityText(connection)}</Table.Td>

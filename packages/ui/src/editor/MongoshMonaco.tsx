@@ -14,6 +14,7 @@ import { registerSqlLanguage, SQL_LANGUAGE } from './sql-language';
 import { useEditorFontSize } from './use-editor-font-size';
 import type { CompletionSource } from './completion-source';
 import type { MongoshEditorProps, RunRequest } from './MongoshEditor';
+import { APP_FONT } from '../theme/theme';
 
 /** The owner of the error markers the run flow sets, so clearing them leaves other owners alone. */
 const MARKER_OWNER = 'sql';
@@ -228,6 +229,7 @@ export function MongoshMonaco({
         minimap: { enabled: false },
         scrollBeyondLastLine: false,
         fontSize,
+        fontFamily: APP_FONT,
         tabSize: 2,
         wordWrap: 'on',
         automaticLayout: true,

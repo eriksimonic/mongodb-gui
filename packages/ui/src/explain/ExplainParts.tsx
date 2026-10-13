@@ -71,7 +71,7 @@ export function ExplainSummaryBar({ tree }: { readonly tree: PlanTree }) {
           </Badge>
         ) : null}
         {summary.covered === true ? (
-          <Badge tt="none" color="teal" variant="light">
+          <Badge tt="none" color="blue" variant="light">
             Covered
           </Badge>
         ) : null}
@@ -166,7 +166,7 @@ export function ExplainPlainLanguage({ tree, collection }: ExplainPlainLanguageP
     }
     try {
       await navigator.clipboard.writeText(line);
-      notifications.show({ title: 'Index command copied', message: line, color: 'teal' });
+      notifications.show({ title: 'Index command copied', message: line, color: 'blue' });
     } catch (error) {
       notifyError(error, 'The command could not be copied');
     }

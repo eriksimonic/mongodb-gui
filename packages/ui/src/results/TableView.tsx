@@ -41,11 +41,24 @@ import {
 } from './result-model';
 import { typeBucket, typeColor } from '../schema/schema-model';
 import { exactCopyTextOf } from './tree-rows';
+import { APP_FONT } from '../theme/theme';
 
 ModuleRegistry.registerModules([AllCommunityModule]);
 
-const DARK_THEME = themeQuartz.withPart(colorSchemeDark);
-const LIGHT_THEME = themeQuartz.withPart(colorSchemeLight);
+// The dark grid takes its colours from docs/color-palette.md.
+const DARK_THEME = themeQuartz.withPart(colorSchemeDark).withParams({
+  fontFamily: APP_FONT,
+  backgroundColor: '#0a0a0c',
+  foregroundColor: '#f5f3ee',
+  headerBackgroundColor: '#222226',
+  headerTextColor: '#d0d0cd',
+  borderColor: '#34343a',
+  rowHoverColor: '#222226',
+  selectedRowBackgroundColor: '#3d3317',
+  accentColor: '#ffd60a',
+  chromeBackgroundColor: '#222226',
+});
+const LIGHT_THEME = themeQuartz.withPart(colorSchemeLight).withParams({ fontFamily: APP_FONT });
 const ROW_HEIGHT_PX = 28;
 
 interface Row {

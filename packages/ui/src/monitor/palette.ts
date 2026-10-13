@@ -1,5 +1,5 @@
-// Categorical colours by scheme, from the dataviz reference palette. Each scheme's slots pass the
-// validator on that scheme's chart surface. The light slots sit below 3:1 on the light surface, so
+// Categorical colours by scheme. The dark slots come from docs/color-palette.md, the light slots
+// from the dataviz reference palette. The light slots sit below 3:1 on the light surface, so
 // charts ship their readouts and table view, which carry the identity too.
 // Series take slots in order and never cycle past the eighth.
 export type ChartScheme = 'light' | 'dark';
@@ -18,15 +18,17 @@ export interface ChartPalette {
 }
 
 const DARK: ChartPalette = {
-  colors: ['#3987e5', '#d95926', '#199e70', '#c98500', '#d55181', '#008300', '#9085e9', '#e66767'],
-  // Mantine dark-7. Cards and the dockview group share this surface.
-  surface: '#242424',
+  // The status colours of docs/color-palette.md, then three light shades. Violet uses its light
+  // shade, because the grid prints type colours as text and solid violet is too dark for that.
+  colors: ['#3a86ff', '#ffbe0b', '#ff006e', '#ab79ed', '#fb5607', '#7bacf9', '#fcd15a', '#fc559b'],
+  // The page colour. Cards and the dockview group share this surface.
+  surface: '#0f0f11',
   ink: {
-    primary: '#ffffff',
-    secondary: '#c3c2b7',
-    muted: '#898781',
-    gridline: '#2c2c2a',
-    baseline: '#383835',
+    primary: '#f5f3ee',
+    secondary: '#d0d0cd',
+    muted: '#9fa1a2',
+    gridline: '#222226',
+    baseline: '#34343a',
   },
 };
 

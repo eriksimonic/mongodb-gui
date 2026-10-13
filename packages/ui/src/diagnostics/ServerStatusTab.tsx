@@ -83,7 +83,7 @@ export function ServerStatusTab({ store }: ServerStatusTabProps) {
               <SummaryCards document={relaxed} />
               <div
                 style={{
-                  fontFamily: 'monospace',
+                  fontFamily: 'var(--mantine-font-family-monospace)',
                   fontSize: 'calc(var(--mg-font-scale, 1) * 12px)',
                 }}
               >

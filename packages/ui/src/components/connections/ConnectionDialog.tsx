@@ -28,7 +28,7 @@ import {
   type DraftMode,
 } from './connection-draft';
 
-const SWATCHES = ['#3b82f6', '#10b981', '#f59e0b', '#ef4444', '#8b5cf6', '#14b8a6'];
+const SWATCHES = ['#3a86ff', '#ffbe0b', '#fb5607', '#ff006e', '#8338ec', '#9fa1a2'];
 
 export interface ConnectionDialogProps {
   /** Undefined creates a new connection. A value loads that connection for editing. */
@@ -37,9 +37,9 @@ export interface ConnectionDialogProps {
   readonly onClose: () => void;
 }
 
-/** One line under the buttons. Tone is green for success and red for a problem. */
+/** One line under the buttons. Tone is blue for success and red for a problem. */
 interface StatusLine {
-  readonly tone: 'green' | 'red';
+  readonly tone: 'blue' | 'red';
   readonly text: string;
 }
 
@@ -106,7 +106,7 @@ export function ConnectionDialog({
   function describeTest(result: ConnectionTestResult): StatusLine {
     if (result.ok) {
       return {
-        tone: 'green',
+        tone: 'blue',
         text: `Connected. Server ${result.serverVersion}, ${result.topology}.`,
       };
     }
@@ -146,7 +146,7 @@ export function ConnectionDialog({
       } else {
         await updateConnection(connectionId, input);
       }
-      notifications.show({ color: 'green', message: 'Connection saved' });
+      notifications.show({ color: 'blue', message: 'Connection saved' });
       onClose();
     } catch (error) {
       setStatus({ tone: 'red', text: toAppError(error).message });

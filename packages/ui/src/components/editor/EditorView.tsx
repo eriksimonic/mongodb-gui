@@ -57,8 +57,8 @@ const LANGUAGE_OPTIONS: readonly { readonly value: EditorLanguage; readonly labe
 
 const RUNTIME_COLORS: Readonly<Record<ShellRuntimeState, string>> = {
   stopped: 'gray',
-  starting: 'blue',
-  ready: 'teal',
+  starting: 'yellow',
+  ready: 'blue',
   busy: 'yellow',
   crashed: 'red',
 };
@@ -380,7 +380,7 @@ export function EditorView({ tabId }: EditorViewProps) {
           data={BATCH_SIZES.map((size) => ({ value: String(size), label: `${size} per batch` }))}
           value={String(current.batchSize)}
           allowDeselect={false}
-          w={120}
+          w="calc(150px * var(--mg-font-scale, 1))"
           onChange={(value) => {
             const size = BATCH_SIZES.find((item) => String(item) === value);
             if (size !== undefined) {

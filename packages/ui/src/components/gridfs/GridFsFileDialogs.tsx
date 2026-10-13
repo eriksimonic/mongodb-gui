@@ -120,7 +120,7 @@ export function MetadataDialog({
           onChange={(event) => setText(event.currentTarget.value)}
           minRows={8}
           autosize
-          styles={{ input: { fontFamily: 'monospace' } }}
+          styles={{ input: { fontFamily: 'var(--mantine-font-family-monospace)' } }}
           error={failure ?? (draft.ok ? undefined : draft.message)}
           spellCheck={false}
           data-autofocus

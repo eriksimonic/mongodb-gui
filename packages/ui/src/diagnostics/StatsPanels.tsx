@@ -112,7 +112,9 @@ function CollectionDetail({ stats }: { readonly stats: CollectionStats }) {
             <Table.Tbody>
               {indexes.map(([name, size]) => (
                 <Table.Tr key={name}>
-                  <Table.Td style={{ fontFamily: 'monospace' }}>{name}</Table.Td>
+                  <Table.Td style={{ fontFamily: 'var(--mantine-font-family-monospace)' }}>
+                    {name}
+                  </Table.Td>
                   <Table.Td ta="right">{formatBytes(size)}</Table.Td>
                 </Table.Tr>
               ))}

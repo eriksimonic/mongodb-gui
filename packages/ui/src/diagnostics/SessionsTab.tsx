@@ -118,7 +118,7 @@ export function SessionsTab({ store }: SessionsTabProps) {
                   key={id}
                   style={{
                     display: 'block',
-                    fontFamily: 'monospace',
+                    fontFamily: 'var(--mantine-font-family-monospace)',
                     fontSize: 'calc(var(--mg-font-scale, 1) * 12px)',
                   }}
                 >
@@ -187,7 +187,9 @@ function SessionRow({ session, showDatabase, checked, onToggle, onKillUser }: Se
         </Group>
       </Table.Td>
       {showDatabase ? <Table.Td>{db ?? ''}</Table.Td> : null}
-      <Table.Td style={{ fontFamily: 'monospace' }}>{session.id}</Table.Td>
+      <Table.Td style={{ fontFamily: 'var(--mantine-font-family-monospace)' }}>
+        {session.id}
+      </Table.Td>
       <Table.Td>
         <Tooltip label={formatTimestamp(session.lastUse)} withArrow>
           <Text size="xs" span>

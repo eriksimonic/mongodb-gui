@@ -141,7 +141,7 @@ function EntryDetail({ connectionId, database, entry }: EntryDetailProps) {
   async function copyCommand() {
     try {
       await navigator.clipboard.writeText(runnableText);
-      notifications.show({ title: 'Command copied', message: entry.ns, color: 'teal' });
+      notifications.show({ title: 'Command copied', message: entry.ns, color: 'blue' });
     } catch (error) {
       notifyError(error, 'The command could not be copied');
     }

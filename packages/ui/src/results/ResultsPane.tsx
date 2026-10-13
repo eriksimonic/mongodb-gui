@@ -220,7 +220,7 @@ export function ResultsPane({
             </Text>
           ) : null}
           {result?.summary === undefined ? null : (
-            <Badge tt="none" size="sm" variant="light" color="teal" data-testid="result-summary">
+            <Badge tt="none" size="sm" variant="light" color="blue" data-testid="result-summary">
               {result.summary}
             </Badge>
           )}

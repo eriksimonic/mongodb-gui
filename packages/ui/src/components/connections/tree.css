@@ -23,16 +23,16 @@
 }
 
 .mg-tree-item:hover {
-  background: var(--mg-surface-1);
+  background: var(--mg-hover);
 }
 
 .mg-tree-item[aria-selected='true'] {
-  background: var(--mg-border);
+  background: var(--mg-selected);
   color: var(--mg-selected-text);
 }
 
 .mg-tree-item:focus-visible {
-  outline: 1px solid var(--mantine-color-blue-6);
+  outline: 1px solid var(--mg-accent);
   outline-offset: -1px;
 }
 
@@ -88,24 +88,24 @@
 }
 
 .mg-tree-state[data-state='running'] {
-  background: var(--mantine-color-green-5);
+  background: var(--mantine-color-blue-6);
 }
 
 .mg-tree-state[data-state='paused'],
 .mg-tree-state[data-state='restarting'] {
-  background: var(--mantine-color-yellow-5);
+  background: var(--mantine-color-yellow-6);
 }
 
 .mg-tree-state[data-state='exited'] {
-  background: var(--mantine-color-red-5);
+  background: var(--mantine-color-red-6);
 }
 
 .mg-tree-state[data-member-state='primary'] {
-  background: var(--mantine-color-green-5);
+  background: var(--mantine-color-blue-6);
 }
 
 .mg-tree-state[data-member-state='secondary'] {
-  background: var(--mantine-color-blue-5);
+  background: var(--mantine-color-violet-6);
 }
 
 .mg-tree-state[data-member-state='arbiter'] {
@@ -113,7 +113,7 @@
 }
 
 .mg-tree-state[data-member-state='down'] {
-  background: var(--mantine-color-red-5);
+  background: var(--mantine-color-red-6);
 }
 
 .mg-tree-route {

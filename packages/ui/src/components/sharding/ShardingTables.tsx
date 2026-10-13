@@ -11,7 +11,7 @@ import {
 const RESERVED_DATABASES: readonly string[] = ['admin', 'config', 'local'];
 
 /** One colour per shard, in the order the overview lists the shards. */
-const SHARD_COLOURS = ['blue', 'teal', 'grape', 'orange', 'cyan', 'pink'] as const;
+const SHARD_COLOURS = ['blue', 'yellow', 'red', 'violet', 'orange', 'gray'] as const;
 
 function colourOf(shards: readonly ShardInfo[], shard: string): string {
   const index = shards.findIndex((item) => item.id === shard);

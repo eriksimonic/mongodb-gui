@@ -19,7 +19,7 @@ export function fixtureConnections(): ConnectionProfile[] {
     {
       id: localConnectionId,
       name: 'Local dev',
-      color: '#3b82f6',
+      color: '#3a86ff',
       uri: 'mongodb://app:secret@localhost:27017/?authSource=admin',
       readPreference: 'primary',
       connectTimeoutMs: 5000,
@@ -29,7 +29,7 @@ export function fixtureConnections(): ConnectionProfile[] {
     {
       id: stagingConnectionId,
       name: 'Staging',
-      color: '#f59e0b',
+      color: '#ffbe0b',
       uri: 'mongodb+srv://ops:hunter2@cluster0.example.net/?retryWrites=true',
       tls: { enabled: true },
       createdAt: UPDATED_AT,

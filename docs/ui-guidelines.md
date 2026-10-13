@@ -22,8 +22,9 @@ Decisions from the diagnostics, connections and profiler work. Follow them for n
 
 ## Showing data
 
+- Colours come from `docs/color-palette.md`. Mantine's `red` is the palette's pink, and the app uses no `green` or `teal`: OK is `blue`.
 - Severity colours: fatal and error red, warning orange, info blue, debug grey. Tint the whole row for warning and above, so problems stand out while scrolling.
-- Colour values by type: true green, false grey, numbers blue.
+- Colour values by type: true blue, false grey, numbers orange.
 - Show a share as a bar behind the cell (Top time columns). Dim the database part of a namespace so the collection stands out.
 - Show a long identifier cut to its start, with the full value on hover and a copy button.
 - Show time as relative ("12 s ago", "6 days ago") with the exact time on hover. Never shows as "Never".

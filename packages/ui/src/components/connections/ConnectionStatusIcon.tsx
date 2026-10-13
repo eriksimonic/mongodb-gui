@@ -16,7 +16,7 @@ export function ConnectionStatusIcon({ status }: ConnectionStatusIconProps) {
     case 'connected':
       return (
         <Tooltip label={`Connected · ${connectionTopologyLabel(status)}`}>
-          <Box component="span" c="green.5" display="inline-flex">
+          <Box component="span" c="blue.6" display="inline-flex">
             <IconPlugConnected size={14} aria-label="Connected" />
           </Box>
         </Tooltip>

@@ -5,7 +5,7 @@ import { notifyError } from '../components/notify-error';
 export async function copyText(text: string, label = 'Copied'): Promise<void> {
   try {
     await navigator.clipboard.writeText(text);
-    notifications.show({ color: 'teal', title: label, message: '', autoClose: 1500 });
+    notifications.show({ color: 'blue', title: label, message: '', autoClose: 1500 });
   } catch (failure) {
     notifyError(failure, 'Copy failed');
   }

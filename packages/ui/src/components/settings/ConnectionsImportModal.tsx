@@ -99,7 +99,7 @@ function ImportForm({ path, onClose }: { readonly path: string; readonly onClose
   if (result !== undefined) {
     return (
       <Stack gap="md">
-        <Alert color="green" title="Connections imported" role="status">
+        <Alert color="blue" title="Connections imported" role="status">
           {`Imported ${result.imported}, renamed ${result.renamed}, replaced ${result.replaced}, skipped ${result.skipped}.`}
         </Alert>
         <Group justify="flex-end">

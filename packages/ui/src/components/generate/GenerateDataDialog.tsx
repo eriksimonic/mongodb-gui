@@ -420,7 +420,7 @@ function JobSummary({ progress }: { readonly progress: GenerateProgress }) {
     );
   }
   return (
-    <Alert color="green">
+    <Alert color="blue">
       Inserted {String(progress.inserted)} documents in {seconds} s{refused}.
     </Alert>
   );

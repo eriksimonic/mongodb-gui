@@ -96,9 +96,9 @@ describe('input checks', () => {
 
 describe('display helpers', () => {
   it('colours each operation and leaves unknown ones grey', () => {
-    expect(operationColor('insert')).toBe('green');
-    expect(operationColor('update')).toBe('blue');
-    expect(operationColor('replace')).toBe('violet');
+    expect(operationColor('insert')).toBe('blue');
+    expect(operationColor('update')).toBe('violet');
+    expect(operationColor('replace')).toBe('yellow');
     expect(operationColor('delete')).toBe('red');
     expect(operationColor('invalidate')).toBe('gray');
   });

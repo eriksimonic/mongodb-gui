@@ -356,7 +356,7 @@ export function ExportSummary({
   return (
     <Stack gap="sm" data-testid="export-summary">
       <Alert
-        color={written ? 'green' : cancelled ? 'yellow' : 'red'}
+        color={written ? 'blue' : cancelled ? 'yellow' : 'red'}
         title={written ? 'Export finished' : cancelled ? 'Cancelled' : 'The export failed'}
       >
         {written

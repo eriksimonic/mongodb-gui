@@ -134,11 +134,11 @@ export function resumeTokenProblem(text: string): string | undefined {
 export function operationColor(operationType: string): string {
   switch (operationType) {
     case 'insert':
-      return 'green';
-    case 'update':
       return 'blue';
-    case 'replace':
+    case 'update':
       return 'violet';
+    case 'replace':
+      return 'yellow';
     case 'delete':
     case 'dropDatabase':
       return 'red';
