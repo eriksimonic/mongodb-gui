@@ -759,8 +759,10 @@ describe('createDockerRuntime forwarder certificates', () => {
     const { caFile, certFile } = tls ?? {};
     expect(readFileSync(caFile ?? '', 'utf8')).toBe('CA-PEM');
     expect(readFileSync(certFile ?? '', 'utf8')).toBe('CLIENT-PEM');
-    expect(statSync(certFile ?? '').mode & 0o077).toBe(0);
-    expect(statSync(dirname(certFile ?? '')).mode & 0o077).toBe(0);
+    if (process.platform !== 'win32') {
+      expect(statSync(certFile ?? '').mode & 0o077).toBe(0);
+      expect(statSync(dirname(certFile ?? '')).mode & 0o077).toBe(0);
+    }
 
     await harness.runtime.disconnect(PLAIN_ID);
 
