@@ -19,7 +19,6 @@ import { EncryptedStore, Vault } from '@mongo-gui/storage';
 import type { BackupService } from '../backup/backup-service';
 import type { ToolsDownloads } from '../tools/download-service';
 import {
-  createRepos,
   createRouter,
   type BackupTools,
   type BackupToolsWiring,
@@ -28,6 +27,7 @@ import {
   type Router,
   type StoreHandles,
 } from './router';
+import { createRepos } from './app-services';
 
 const FAST_KDF = { N: 2 ** 10, r: 8, p: 1 };
 const PASSWORD = 'correct horse battery';

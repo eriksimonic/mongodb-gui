@@ -10,7 +10,7 @@ import {
   Stack,
   Text,
 } from '@mantine/core';
-import { connectionTopologyLabel } from '../components/connections/connection-status-label';
+import { connectionTopologyLabel } from '../connections';
 import {
   DEFAULT_MONITOR_INTERVAL_MS,
   findPanel,

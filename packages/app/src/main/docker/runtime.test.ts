@@ -16,7 +16,7 @@ import {
   type ForwarderManager,
 } from '@mongo-gui/docker';
 import { EncryptedStore, Vault } from '@mongo-gui/storage';
-import { createRepos } from '../rpc/router';
+import { createRepos } from '../rpc/app-services';
 import type { Logger } from '../log';
 import {
   buildUri,

@@ -21,13 +21,8 @@ import {
   parseWindowBounds,
   type WindowBounds,
 } from '@mongo-gui/core';
-import {
-  createAppServices,
-  createRouter,
-  type AppServices,
-  type NativeDialogs,
-  type Router,
-} from './rpc/router';
+import { createRouter, type NativeDialogs, type Router } from './rpc/router';
+import { createAppServices, type AppServices } from './rpc/app-services';
 import { registerIpc, sendEvent } from './rpc/ipc';
 import { utilityFork } from './shell/utility-fork';
 import { readStartupSettings, writeStartupSettings } from './startup-settings';

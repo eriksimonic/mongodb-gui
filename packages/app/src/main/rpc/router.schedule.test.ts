@@ -3,7 +3,8 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { afterEach, beforeEach, describe, expect, it, vi, type Mock } from 'vitest';
 import { FIRST_CHECK_DELAY_MS, type UpdaterBackend } from '../updates/updater';
-import { createAppServices, createRouter, type AppServices } from './router';
+import { createRouter } from './router';
+import { createAppServices, type AppServices } from './app-services';
 
 const FAST_KDF = { N: 2 ** 10, r: 8, p: 1 };
 const PASSWORD = 'correct horse battery';

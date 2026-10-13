@@ -11,13 +11,8 @@ import {
   type ConnectionStatus,
   type RpcResult,
 } from '@mongo-gui/core';
-import {
-  createAppServices,
-  createRouter,
-  type AppServices,
-  type ConnectionRegistry,
-  type Router,
-} from './router';
+import { createRouter, type ConnectionRegistry, type Router } from './router';
+import { createAppServices, type AppServices } from './app-services';
 
 // The adapter's security functions are replaced, so the router is tested without a driver.
 vi.mock('@mongo-gui/mongo-adapter', async (importOriginal) => {

@@ -3,7 +3,7 @@ import { localConnectionId, mockMasterPassword, stagingConnectionId } from '../a
 import { createMockUiApi } from '../api/mock-rpc-client';
 
 const SECURE_CONTAINER_ID = 'e7b2c9a4d1f3065b8c2e7d9a4f1b3c6e0d8a2f5b7c9e1d3a6f8b0c2e4d6a8f1c';
-import { useDockerCredentialsStore } from '../components/connections/docker-credentials-store';
+import { useDockerCredentialsStore } from '../connections';
 import { createAppStore, type AppStore } from './app-store';
 
 async function unlockedStore(): Promise<AppStore> {

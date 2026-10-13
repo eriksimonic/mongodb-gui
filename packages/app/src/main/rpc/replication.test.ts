@@ -14,13 +14,8 @@ import {
   type ReplicaSetStatus,
   type RpcResult,
 } from '@mongo-gui/core';
-import {
-  createAppServices,
-  createRouter,
-  type AppServices,
-  type ConnectionRegistry,
-  type Router,
-} from './router';
+import { createRouter, type ConnectionRegistry, type Router } from './router';
+import { createAppServices, type AppServices } from './app-services';
 import { createReplicationPlans } from './replication';
 
 // Only the replication functions are replaced. The rest of the adapter keeps its behaviour.

@@ -3,7 +3,7 @@ import { AppErrorException, appError } from '@mongo-gui/core';
 import { localConnectionId } from '../api/mock-fixtures';
 import { createMockUiApi } from '../api/mock-rpc-client';
 import type { UiApi } from '../api/ui-api';
-import { bridgeProfilerExplain } from '../explain/profiler-explain-bridge';
+import { bridgeProfilerExplain } from '../explain';
 import { profilerUiEvents } from '../profiler';
 import { fixtureProfileEntries } from '../profiler/mock-fixtures';
 import { createAppStore, type AppStore } from './app-store';

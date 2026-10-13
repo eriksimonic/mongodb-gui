@@ -1,6 +1,6 @@
 import { useEffect, useState, type ReactNode } from 'react';
 import { useUiApi } from '../api/ui-api';
-import { bridgeProfilerExplain } from '../explain/profiler-explain-bridge';
+import { bridgeProfilerExplain } from '../explain';
 import { createAppStore, type AppData } from './app-store';
 import { AppStoreContext } from './app-store-context';
 

@@ -46,8 +46,8 @@ import {
   type IDockviewPanelHeaderProps,
   type IDockviewPanelProps,
 } from 'dockview-react';
-import { ConnectionTree } from '../components/connections/ConnectionTree';
-import { TreeMenu, type TreeMenuEntry } from '../components/connections/TreeMenu';
+import { ConnectionTree } from '../connections';
+import { TreeMenu, type TreeMenuEntry } from '../kit/TreeMenu';
 import { isOutputCollapsed, toggleOutputPanel } from './output-collapse';
 import { DocumentsPanel, IndexesPanel, ValidationPanel } from '../management';
 import { UsersRolesPanel } from '../security';
@@ -55,17 +55,16 @@ import { ShardingPanel } from '../sharding';
 import { ChangesPanel } from '../changes';
 import type { ChangeTarget } from '@mongo-gui/core';
 import { useUiApi } from '../api/ui-api';
-import { createCompletionSource } from '../editor/completion-source';
 import { ReplicationPanel } from '../replication';
-import { EditorView } from '../components/editor/EditorView';
+import { createCompletionSource, EditorView } from '../editor';
 import { CollectionStatsPanel, DatabaseStatsPanel, DiagnosticsPanel } from '../diagnostics';
 
-export { OutputPanel } from '../components/editor/OutputPanel';
+export { OutputPanel } from '../editor';
 import { SchemaPanel } from '../schema';
 import { OperationsPanel } from '../monitor';
 import { useAppStore, useAppStoreApi } from '../state/app-store-context';
 import type { EditorTab } from '../state/editors';
-import type { ExplainRestore } from '../explain/explain-model';
+import type { ExplainRestore } from '../explain';
 import { runReported } from '../kit/notify-error';
 import { idleLockHint, recentConnections } from './welcome-model';
 import { isFixedPanel, panelsToClose, type TabCloseMode } from './tab-close';

@@ -1,4 +1,4 @@
-import { TreeMenu, type TreeMenuEntry } from '../components/connections/TreeMenu';
+import { TreeMenu, type TreeMenuEntry } from '../kit/TreeMenu';
 import { runReported } from '../kit/notify-error';
 import { useAppStore } from '../state/app-store-context';
 import { useGridFsOpener } from './gridfs-opener';

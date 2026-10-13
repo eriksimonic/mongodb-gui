@@ -2,7 +2,7 @@ import type { Meta, StoryObj } from '@storybook/react-vite';
 import { AppRoot } from '../AppRoot';
 import { createMockUiApi } from '../api/mock-rpc-client';
 import type { MockToolsMode } from './mock';
-import { SettingsModal } from '../components/settings/SettingsModal';
+import { SettingsModal } from '../settings';
 import { DownloadToolsModal } from './DownloadToolsModal';
 
 function settingsDecorator(tools: MockToolsMode) {

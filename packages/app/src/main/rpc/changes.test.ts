@@ -10,14 +10,8 @@ import {
   type RpcResult,
 } from '@mongo-gui/core';
 import type { ChangeWatch } from '@mongo-gui/mongo-adapter';
-import {
-  createAppServices,
-  createRouter,
-  type AppServices,
-  type ConnectionRegistry,
-  type DriverClient,
-  type Router,
-} from './router';
+import { createRouter, type ConnectionRegistry, type DriverClient, type Router } from './router';
+import { createAppServices, type AppServices } from './app-services';
 
 const FAST_KDF = { N: 2 ** 10, r: 8, p: 1 };
 const CONNECTION_ID = '3f2b8c1e-5d4a-4b7e-9c1f-2a6d8e0b7f10';

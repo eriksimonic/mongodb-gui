@@ -3,7 +3,7 @@
  * panels, as the close helpers do, so the component file exports only components.
  */
 import { translateSql } from '@mongo-gui/core';
-import type { TreeMenuEntry } from '../components/connections/TreeMenu';
+import type { TreeMenuEntry } from '../kit/TreeMenu';
 import type { EditorTab } from '../state/editors';
 
 /**

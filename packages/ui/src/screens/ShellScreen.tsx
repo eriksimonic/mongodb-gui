@@ -20,19 +20,17 @@ import {
   type DockviewReadyEvent,
   type DockviewTheme,
 } from 'dockview-react';
-import { ConnectionDialog } from '../components/connections/ConnectionDialog';
-import { ConnectionManager } from '../components/connections/ConnectionManager';
-import { DockerCredentialsDialog } from '../components/connections/DockerCredentialsDialog';
+import { ConnectionDialog, ConnectionManager, DockerCredentialsDialog } from '../connections';
 import { useUiApi } from '../api/ui-api';
 import { ManagementDialogs } from '../management';
 import { runReported } from '../kit/notify-error';
-import { SettingsModal } from '../components/settings/SettingsModal';
+import { SettingsModal } from '../settings';
 import { ShortcutsModal } from '../shortcuts/ShortcutsModal';
 import { shellHotkeys } from '../shortcuts/shortcuts';
 import { TransferModals } from '../transfers';
 import { BackupDialogs } from '../backup';
 import { useGenerateDialog } from '../generate';
-import { UpdateBanner } from '../components/updates/UpdateBanner';
+import { UpdateBanner } from '../updates';
 import { ProfilerOpenerContext, type ProfilerOpener } from '../profiler';
 import type { AppData, PanelRequest } from '../state/app-store';
 import { useAppStore, useAppStoreApi } from '../state/app-store-context';
@@ -55,7 +53,7 @@ import {
   profilerPanelId,
   usersPanelId,
 } from '../state/node-ids';
-import { explainRestoreOf, type ExplainPanelState } from '../explain/explain-model';
+import { explainRestoreOf, type ExplainPanelState } from '../explain';
 import { GridFsBucketDialogs } from '../gridfs';
 import { GridFsOpenerContext, type GridFsOpener } from '../gridfs';
 import { ChangesOpenerContext, targetLabelOf, type ChangesOpener } from '../changes';

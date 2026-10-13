@@ -6,10 +6,10 @@ import {
   type ExplainResult,
   type PlanVerbosity,
 } from '@mongo-gui/core';
-import type { ExplainPanelState } from '../explain/explain-model';
+import type { ExplainPanelState } from '../explain';
 
 // Story and test helpers. They read every fixture eagerly, so this module must stay out of the
-// production renderer. The mock api loads fixtures lazily from mock-explain.ts instead.
+// production renderer. The mock api loads fixtures lazily from explain/mock.ts instead.
 const RAW_FIXTURES: Readonly<Record<string, unknown>> = Object.fromEntries(
   Object.entries(
     import.meta.glob<unknown>('../../../core/src/explain/fixtures/**/*.json', {

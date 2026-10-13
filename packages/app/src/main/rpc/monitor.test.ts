@@ -14,7 +14,8 @@ import {
   type RpcEvent,
   type RpcResult,
 } from '@mongo-gui/core';
-import { createAppServices, createRouter, type ConnectionRegistry, type Router } from './router';
+import { createRouter, type ConnectionRegistry, type Router } from './router';
+import { createAppServices } from './app-services';
 import type { MonitorClient, MonitorSampler, SamplerFactory } from './monitor';
 
 const FAST_KDF = { N: 2 ** 10, r: 8, p: 1 };

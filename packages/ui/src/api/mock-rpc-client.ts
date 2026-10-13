@@ -61,9 +61,9 @@ import {
   localConnectionId,
   mockMasterPassword,
 } from './mock-fixtures';
-import { createMockShell } from './mock-shell';
+import { createMockShell } from '../editor/mock';
 import { createMockPicks } from './mock-picks';
-import { CONNECTIONS_EXTENSION, createMockConnectionFiles } from './mock-connection-files';
+import { CONNECTIONS_EXTENSION, createMockConnectionFiles } from '../settings/mock';
 import { delay, fail, method } from './mock-support';
 import { createMockMonitor } from '../monitor/mock';
 import {
@@ -78,7 +78,7 @@ import { createMockChanges } from '../changes/mock';
 import { createMockGridFs, MOCK_FOLDER_PATH } from '../gridfs/mock';
 import { createShardingCalls, fixtureCluster, type MockCluster } from '../sharding/mock';
 import { createMockReplication, type MockReplicaSetInfo } from '../replication/mock';
-import { createMockExplain } from './mock-explain';
+import { createMockExplain } from '../explain/mock';
 import { createMockBackup } from '../backup/mock';
 import { createMockTools, type MockToolsMode } from '../tools/mock';
 import type { UiApi } from './ui-api';

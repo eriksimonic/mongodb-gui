@@ -18,27 +18,25 @@ import {
   type ShellEvaluation,
   type ShellRuntimeState,
 } from '@mongo-gui/core';
-import { editorUiEvents } from '../editor/editor-events';
-import { prepareSqlRun, type SqlSampler } from '../editor/sql-run';
+import { editorUiEvents, prepareSqlRun, type SqlSampler } from '../editor';
 import {
   addColumns,
-  discoverColumns,
-  isPlainObject,
-  parseCursorBatch,
-  parseEjson,
-  type ColumnDef,
-  type JsonObject,
-} from '../results/result-model';
-import { fullDocumentText } from '../results/full-documents';
-import { withoutPath, withValueAtPath } from '../results/document-path';
-import {
   createExportSink,
+  discoverColumns,
   EXPORT_FORMATS,
   exportHead,
   exportRow,
   exportTail,
+  fullDocumentText,
+  isPlainObject,
+  parseCursorBatch,
+  parseEjson,
+  withoutPath,
+  withValueAtPath,
+  type ColumnDef,
   type ExportFormat,
-} from '../results/result-export';
+  type JsonObject,
+} from '../results';
 import {
   appendOutput,
   appendPage,

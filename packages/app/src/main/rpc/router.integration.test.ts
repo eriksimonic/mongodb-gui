@@ -3,7 +3,8 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import type { RpcEvent, RpcResult } from '@mongo-gui/core';
-import { createAppServices, createRouter, type AppServices, type Router } from './router';
+import { createRouter, type Router } from './router';
+import { createAppServices, type AppServices } from './app-services';
 // The Testcontainers harness lives with the adapter tests. It is not exported from the
 // adapter package, so this test reads it from the workspace source.
 import {

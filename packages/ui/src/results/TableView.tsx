@@ -24,7 +24,7 @@ import {
 import { IconColumns } from '@tabler/icons-react';
 import { AgGridReact, type CustomCellRendererProps, type CustomHeaderProps } from 'ag-grid-react';
 import { useMemo, useState } from 'react';
-import { TreeMenu, type TreeMenuEntry } from '../components/connections/TreeMenu';
+import { TreeMenu, type TreeMenuEntry } from '../kit/TreeMenu';
 import { notifyError } from '../kit/notify-error';
 import { copyText } from '../kit/copy';
 import { compareCells } from './cell-order';

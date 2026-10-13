@@ -12,13 +12,8 @@ import {
   type RpcEvent,
   type RpcResult,
 } from '@mongo-gui/core';
-import {
-  createAppServices,
-  createRouter,
-  type AppServices,
-  type ConnectionRegistry,
-  type Router,
-} from './router';
+import { createRouter, type ConnectionRegistry, type Router } from './router';
+import { createAppServices, type AppServices } from './app-services';
 
 // The adapter functions are replaced so the router is tested without a driver. Everything else
 // in the adapter, including the error helpers, keeps its real behaviour.

@@ -9,12 +9,7 @@ import {
   type ShellRuntimeState,
 } from '@mongo-gui/core';
 import { z } from 'zod';
-import {
-  collectionOfFind,
-  parseCursorBatch,
-  summariseResult,
-  type JsonObject,
-} from '../results/result-model';
+import { collectionOfFind, parseCursorBatch, summariseResult, type JsonObject } from '../results';
 
 export type ResultView = 'table' | 'tree' | 'json';
 

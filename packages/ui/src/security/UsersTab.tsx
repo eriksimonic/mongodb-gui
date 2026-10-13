@@ -6,7 +6,7 @@ import { useStore } from 'zustand';
 import type { SecurityStore } from './security-store';
 import { copyText } from '../kit/copy';
 import { useAppStore } from '../state/app-store-context';
-import { TreeMenu, type TreeMenuEntry } from '../components/connections/TreeMenu';
+import { TreeMenu, type TreeMenuEntry } from '../kit/TreeMenu';
 import { userConnectionString } from './connection-string';
 import { capabilityReason, CREATE_USERS_REASON, GRANT_ROLES_REASON } from './capability-reasons';
 import { ChangePasswordDialog } from './ChangePasswordDialog';

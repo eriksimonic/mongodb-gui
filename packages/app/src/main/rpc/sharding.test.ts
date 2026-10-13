@@ -12,13 +12,8 @@ import {
   type RpcEvent,
   type RpcResult,
 } from '@mongo-gui/core';
-import {
-  createAppServices,
-  createRouter,
-  type AppServices,
-  type ConnectionRegistry,
-  type Router,
-} from './router';
+import { createRouter, type ConnectionRegistry, type Router } from './router';
+import { createAppServices, type AppServices } from './app-services';
 
 // The adapter's writes are replaced. The dry run builder is real, so the summary is checked.
 vi.mock('@mongo-gui/mongo-adapter', async (importOriginal) => {

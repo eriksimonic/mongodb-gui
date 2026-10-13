@@ -51,10 +51,9 @@ import {
   EMPTY_MONITOR_VIEW,
   type MonitorView,
 } from './monitor-state';
-import { createExplainActions, type ExplainActions } from '../explain/explain-actions';
-import type { ExplainPanelState } from '../explain/explain-model';
+import { createExplainActions, type ExplainActions, type ExplainPanelState } from '../explain';
 import { catalogKey, connectionNodeId } from './node-ids';
-import { useDockerCredentialsStore } from '../components/connections/docker-credentials-store';
+import { useDockerCredentialsStore } from '../connections';
 import type { ThemeSetting } from '../theme/color-scheme';
 import { readCachedPreferences, writeCachedPreferences } from '../theme/preferences-cache';
 

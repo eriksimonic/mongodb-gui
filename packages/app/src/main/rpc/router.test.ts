@@ -31,14 +31,13 @@ import { EncryptedStore, Vault } from '@mongo-gui/storage';
 import type { DockerRuntime } from '../docker/runtime';
 import type { Logger } from '../log';
 import {
-  createAppServices,
-  createRepos,
   createRouter,
   type ConnectionRegistry,
   type NativeDialogs,
   type Router,
   type StoreHandles,
 } from './router';
+import { createAppServices, createRepos } from './app-services';
 
 const FAST_KDF = { N: 2 ** 10, r: 8, p: 1 };
 const PASSWORD = 'correct horse battery';

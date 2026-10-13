@@ -11,13 +11,8 @@ import {
   type UpdateState,
 } from '@mongo-gui/core';
 import { CHECK_INTERVAL_MS, FIRST_CHECK_DELAY_MS, type UpdaterBackend } from '../updates/updater';
-import {
-  createAppServices,
-  createRouter,
-  type AppServices,
-  type Router,
-  type UpdatesService,
-} from './router';
+import { createRouter, type Router, type UpdatesService } from './router';
+import { createAppServices, type AppServices } from './app-services';
 
 const FAST_KDF = { N: 2 ** 10, r: 8, p: 1 };
 const PASSWORD = 'correct horse battery';
