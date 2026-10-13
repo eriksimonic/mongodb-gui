@@ -356,6 +356,14 @@ stage spec and "not measured". The `$lookup` card above them sums their work, an
 indexes the join used after "via". An orange mark counts its collection scans. Its details show
 "Indexes used" and "Collection scans".
 
+To see numbers for the stages inside the pipeline, click "Measure" on the `$lookup` card. The app
+runs the stages before the `$lookup` and takes the first document that reaches it. It puts that
+document's `let` values and local field into the inner pipeline, and explains the pipeline on its
+own against the joined collection in a new Explain tab. A line above that plan names the
+document's values. The `$lookup` runs its pipeline once per document, so other documents can
+give other numbers. Measure needs a server from 6.0 on, which echoes the aggregate in its
+explain output.
+
 "List" shows one row for each stage, with a bar for documents or time. Each stage has an icon
 and a category. The categories are scan, fetch, filter, sort, projection, limit, lookup, group,
 merge, sharding, text, geo, write, cache, express and unknown. Hover over a stage to read what it

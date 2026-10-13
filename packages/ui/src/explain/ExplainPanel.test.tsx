@@ -575,3 +575,23 @@ describe('ExplainPanel $lookup index use', () => {
     expect(within(details).getByText('Collection scans')).toBeInTheDocument();
   });
 });
+
+describe('ExplainPanel $lookup measure', () => {
+  it('explains the inner pipeline for one sampled document in a new panel', async () => {
+    const api = await connectedApi();
+    const sample = JSON.stringify({ vars: { p: { $numberInt: '64' } } });
+    const evaluate = vi.spyOn(api.rpc.shell, 'evaluate').mockResolvedValue({
+      requestId: '00000000-0000-4000-8000-000000000001',
+      result: { type: 'string', printableEjson: JSON.stringify(sample), hasMore: false },
+      elapsedMs: 1,
+    });
+    const runCommand = vi.spyOn(api.rpc.explain, 'runCommand');
+    renderPanel(api, panelFor('lab/category-graph'));
+    fireEvent.click(screen.getByRole('button', { name: 'Measure' }));
+    await waitFor(() => expect(runCommand).toHaveBeenCalled());
+    expect(evaluate.mock.calls[0]?.[0].code).toContain('db.getCollection("products")');
+    const command = JSON.parse(runCommand.mock.calls[0]?.[0].commandEjson ?? '{}');
+    expect(command.aggregate).toBe('reviews');
+    expect(JSON.stringify(command.pipeline)).toContain('{"$literal":{"$numberInt":"64"}}');
+  });
+});

@@ -13,11 +13,12 @@ import { IconRefresh } from '@tabler/icons-react';
 import {
   explainInWords,
   PlanVerbositySchema,
+  type PlanStage,
   type PlanTree,
   type PlanVerbosity,
 } from '@mongo-gui/core';
 import { useState } from 'react';
-import { errorText } from '../components/notify-error';
+import { errorText, notifyError } from '../components/notify-error';
 import { useAppStore } from '../state/app-store-context';
 import { stageIdByName, type ExplainPanelState } from './explain-model';
 import { ExplainIndexSuggestion, ExplainSummaryBar, ExplainWarnings } from './ExplainParts';
@@ -77,6 +78,11 @@ function ExplainPanelBody({ panel }: { readonly panel: ExplainPanelState }) {
       >
         <code>{statement}</code>
       </button>
+      {panel.note === undefined ? null : (
+        <Text size="xs" c="dimmed">
+          {panel.note}
+        </Text>
+      )}
 
       <Group gap={8} wrap="wrap" justify="space-between">
         <Group gap={8} wrap="wrap">
@@ -159,6 +165,7 @@ function ExplainPanelBody({ panel }: { readonly panel: ExplainPanelState }) {
             }}
           >
             <PlanView
+              panelId={panel.id}
               tree={outcome.result.tree}
               collection={panel.collection}
               selection={selection}
@@ -179,14 +186,25 @@ function ExplainPanelBody({ panel }: { readonly panel: ExplainPanelState }) {
 }
 
 interface PlanViewProps {
+  readonly panelId: string;
   readonly tree: PlanTree;
   readonly collection: string | undefined;
   readonly selection: StageSelection | undefined;
   readonly onSelect: (selection: StageSelection | undefined) => void;
 }
 
-function PlanView({ tree, collection, selection, onSelect }: PlanViewProps) {
+function PlanView({ panelId, tree, collection, selection, onSelect }: PlanViewProps) {
   const [view, setView] = useState<'graph' | 'list'>('graph');
+  const measureLookup = useAppStore((state) => state.measureLookup);
+
+  async function measure(stage: PlanStage): Promise<void> {
+    try {
+      await measureLookup(panelId, stage);
+    } catch (error) {
+      notifyError(error, 'The $lookup could not be measured');
+    }
+  }
+
   if (tree.command === 'unknown') {
     return <NoPlan message={explainInWords(tree)[0] ?? 'The explain output is not a plan.'} />;
   }
@@ -217,6 +235,7 @@ function PlanView({ tree, collection, selection, onSelect }: PlanViewProps) {
           rejected={tree.rejected}
           selection={selection}
           onSelect={onSelect}
+          onMeasure={measure}
         />
       ) : (
         <PlanTreeView

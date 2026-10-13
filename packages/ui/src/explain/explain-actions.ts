@@ -1,4 +1,12 @@
-import { rewriteForExplain, toAppError, type PlanVerbosity, type RpcClient } from '@mongo-gui/core';
+import {
+  appError,
+  AppErrorException,
+  rewriteForExplain,
+  toAppError,
+  type PlanStage,
+  type PlanVerbosity,
+  type RpcClient,
+} from '@mongo-gui/core';
 import type { AppStore } from '../state/app-store';
 import {
   commandCollection,
@@ -6,6 +14,15 @@ import {
   type ExplainPanelState,
   type ExplainRequest,
 } from './explain-model';
+import {
+  echoedAggregate,
+  lookupPosition,
+  lookupSpec,
+  measuredCommand,
+  parseSample,
+  sampleCode,
+  sampleNote,
+} from './lookup-measure';
 
 /** The explain actions the app store adds. Each opens or re-runs one explain panel. */
 export interface ExplainActions {
@@ -23,7 +40,15 @@ export interface ExplainActions {
     // Set for a profiler update or remove entry, with the collection it names.
     readonly profileOp?: 'update' | 'remove';
     readonly collection?: string;
+    /** Shown above the plan. */
+    readonly note?: string;
   }): Promise<string>;
+  /**
+   * Explains the inner pipeline of a $lookup on its own, for one document that reaches the
+   * $lookup, in a new panel. Resolves to the panel id. Rejects when the plan has no echoed
+   * aggregate or no document reaches the $lookup.
+   */
+  measureLookup(panelId: string, stage: PlanStage): Promise<string>;
   /** Runs the panel's request again. A verbosity replaces the last one and the rest stays. */
   rerunExplain(panelId: string, verbosity?: PlanVerbosity): Promise<void>;
   /** Forgets a panel after its tab closes. */
@@ -152,6 +177,7 @@ export function createExplainActions(
       commandEjson,
       profileOp,
       collection: named,
+      note,
     }) {
       const existing = findPanel(
         connectionId,
@@ -180,10 +206,51 @@ export function createExplainActions(
           },
           verbosity: 'executionStats',
         },
+        ...(note === undefined ? {} : { note }),
         outcome: { state: 'loading' },
       });
       await run(id);
       return id;
+    },
+
+    async measureLookup(panelId, stage) {
+      const panel = get().explainPanels[panelId];
+      const spec = lookupSpec(stage.raw);
+      if (panel === undefined || panel.outcome.state !== 'ready' || spec === undefined) {
+        throw new AppErrorException(appError('VALIDATION', 'This stage is not a $lookup.'));
+      }
+      const echo = echoedAggregate(panel.outcome.result.rawEjson);
+      const position = echo === undefined ? -1 : lookupPosition(echo.pipeline, spec);
+      if (echo === undefined || position < 0) {
+        throw new AppErrorException(
+          appError(
+            'VALIDATION',
+            'The explain output does not echo the aggregate, so the $lookup cannot be measured. Servers from 6.0 on echo it.',
+          ),
+        );
+      }
+      const { connectionId, database } = panel.request;
+      const evaluation = await rpc.shell.evaluate({
+        connectionId,
+        database,
+        code: sampleCode(echo.collection, echo.pipeline.slice(0, position), spec),
+      });
+      if (evaluation.error !== undefined) {
+        throw new AppErrorException(evaluation.error);
+      }
+      const sample =
+        evaluation.result === undefined ? undefined : parseSample(evaluation.result.printableEjson);
+      if (sample === undefined) {
+        throw new AppErrorException(
+          appError('NOT_FOUND', 'No document reaches the $lookup, so there is nothing to measure.'),
+        );
+      }
+      return get().openExplainCommand({
+        connectionId,
+        database,
+        commandEjson: measuredCommand(spec, sample),
+        note: sampleNote(spec, echo.collection, sample),
+      });
     },
 
     async rerunExplain(panelId, verbosity) {

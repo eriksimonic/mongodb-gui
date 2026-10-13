@@ -31,6 +31,8 @@ export interface ExplainPanelState {
   readonly collection: string | undefined;
   /** The last request. Re-running changes the verbosity and keeps the rest. */
   readonly request: ExplainRequest;
+  /** A line above the plan that says what was explained, for a measured $lookup pipeline. */
+  readonly note?: string;
   readonly outcome: ExplainOutcome;
 }
 
@@ -426,7 +428,8 @@ function plainNumbers(_: string, value: unknown): unknown {
     : value;
 }
 
-function compactJson(value: unknown): string {
+/** JSON on one line, with plain keys unquoted and canonical EJSON numbers as numbers. */
+export function compactJson(value: unknown): string {
   return (
     JSON.stringify(value, plainNumbers)
       ?.replace(/"([A-Za-z_$][\w$]*)":/g, '$1: ')

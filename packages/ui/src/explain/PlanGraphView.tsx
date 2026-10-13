@@ -1,4 +1,13 @@
-import { ActionIcon, Badge, CloseButton, Group, Select, Text, Tooltip } from '@mantine/core';
+import {
+  ActionIcon,
+  Badge,
+  Button,
+  CloseButton,
+  Group,
+  Select,
+  Text,
+  Tooltip,
+} from '@mantine/core';
 import { IconMinus, IconPlus, IconZoomReset } from '@tabler/icons-react';
 import { describeStage, type PlanStage } from '@mongo-gui/core';
 import { useEffect, useMemo, useRef, useState, type KeyboardEvent } from 'react';
@@ -35,6 +44,8 @@ export interface PlanGraphViewProps {
   readonly selection: StageSelection | undefined;
   /** Called with the picked stage, or undefined when the details pane is closed. */
   readonly onSelect: (selection: StageSelection | undefined) => void;
+  /** Explains the inner pipeline of a measured $lookup on its own. No button when undefined. */
+  readonly onMeasure?: ((stage: PlanStage) => Promise<void>) | undefined;
 }
 
 const WINNING = 'winning';
@@ -75,7 +86,13 @@ function siblingOf(id: string, step: number, onScreen: ReadonlySet<string>): str
  * gets thicker with the documents its input returns. Clicking a card opens its details beside the
  * graph. Arrow keys move along the lines, Enter selects and Space opens or closes a card.
  */
-export function PlanGraphView({ root, rejected, selection, onSelect }: PlanGraphViewProps) {
+export function PlanGraphView({
+  root,
+  rejected,
+  selection,
+  onSelect,
+  onMeasure,
+}: PlanGraphViewProps) {
   const [planKey, setPlanKey] = useState(WINNING);
   const rejectedIndex = planKey === WINNING ? undefined : Number(planKey);
   const plan = (rejectedIndex === undefined ? undefined : rejected[rejectedIndex]) ?? root;
@@ -307,6 +324,13 @@ export function PlanGraphView({ root, rejected, selection, onSelect }: PlanGraph
                     onSelect({ id: node.id });
                   }}
                   onToggle={() => toggle(node.id)}
+                  onMeasure={
+                    onMeasure !== undefined &&
+                    node.stage.name === '$lookup' &&
+                    isMeasured(node.stage)
+                      ? () => onMeasure(node.stage)
+                      : undefined
+                  }
                 />
               ))}
             </div>
@@ -363,6 +387,7 @@ interface StageCardProps {
   readonly onKeyDown: (event: KeyboardEvent<HTMLDivElement>) => void;
   readonly onClick: () => void;
   readonly onToggle: () => void;
+  readonly onMeasure: (() => Promise<void>) | undefined;
 }
 
 function StageCard({
@@ -375,7 +400,9 @@ function StageCard({
   onKeyDown,
   onClick,
   onToggle,
+  onMeasure,
 }: StageCardProps) {
+  const [measuring, setMeasuring] = useState(false);
   const { stage } = node;
   const info = describeStage(stage.name);
   const failed = stage.name === SHARD_ERROR;
@@ -445,6 +472,22 @@ function StageCard({
             {formatCount(scans)} collection {scans === 1 ? 'scan' : 'scans'}
           </Badge>
         ) : null}
+        {onMeasure === undefined ? null : (
+          <Button
+            size="compact-xs"
+            variant="light"
+            ml="auto"
+            loading={measuring}
+            title="Explain the inner pipeline on its own, for one document that reaches this $lookup"
+            onClick={(event) => {
+              event.stopPropagation();
+              setMeasuring(true);
+              void onMeasure().finally(() => setMeasuring(false));
+            }}
+          >
+            Measure
+          </Button>
+        )}
       </div>
       {node.hasChildren ? (
         <button
