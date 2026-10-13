@@ -4,12 +4,19 @@ import { describe, expect, it, vi } from 'vitest';
 import { renderWithApp } from '../../test-support/render';
 import { SettingsModal } from './SettingsModal';
 
+/** Opens the settings on a tab. */
+async function renderSettings(tab: string) {
+  const result = renderWithApp(<SettingsModal />, {
+    mock: { preset: 'unlocked' },
+    initialState: { settingsOpen: true },
+  });
+  fireEvent.click(await screen.findByRole('tab', { name: tab }));
+  return result;
+}
+
 describe('SettingsModal', () => {
   it('shows the update check switch on and saves the change', async () => {
-    const { api } = renderWithApp(<SettingsModal />, {
-      mock: { preset: 'unlocked' },
-      initialState: { settingsOpen: true },
-    });
+    const { api } = await renderSettings('Updates');
 
     const toggle = await screen.findByRole('switch', { name: /Check for updates/ });
     expect(toggle).toBeChecked();
@@ -22,10 +29,7 @@ describe('SettingsModal', () => {
   });
 
   it('turns the update check back on', async () => {
-    const { api } = renderWithApp(<SettingsModal />, {
-      mock: { preset: 'unlocked' },
-      initialState: { settingsOpen: true },
-    });
+    const { api } = await renderSettings('Updates');
     fireEvent.click(await screen.findByRole('switch', { name: /Check for updates/ }));
     await waitFor(async () => expect((await api.rpc.settings.get()).checkForUpdates).toBe(false));
 
@@ -37,10 +41,7 @@ describe('SettingsModal', () => {
   });
 
   it('shows the idle lock minutes from the saved settings', async () => {
-    renderWithApp(<SettingsModal />, {
-      mock: { preset: 'unlocked' },
-      initialState: { settingsOpen: true },
-    });
+    await renderSettings('Security');
     expect(await screen.findByLabelText('Idle lock (minutes)')).toHaveValue('30');
   });
 
@@ -56,10 +57,7 @@ describe('SettingsModal', () => {
     ['0', '1'],
     ['5000', '1440'],
   ])('clamps a typed idle lock of %s minutes to %s before saving', async (typed, saved) => {
-    const { api } = renderWithApp(<SettingsModal />, {
-      mock: { preset: 'unlocked' },
-      initialState: { settingsOpen: true },
-    });
+    const { api } = await renderSettings('Security');
     const field = await screen.findByLabelText('Idle lock (minutes)');
     fireEvent.change(field, { target: { value: typed } });
     fireEvent.blur(field);
@@ -69,10 +67,7 @@ describe('SettingsModal', () => {
   });
 
   it('restores the saved idle lock when the field is left empty', async () => {
-    const { api } = renderWithApp(<SettingsModal />, {
-      mock: { preset: 'unlocked' },
-      initialState: { settingsOpen: true },
-    });
+    const { api } = await renderSettings('Security');
     const update = vi.spyOn(api.rpc.settings, 'update');
     const field = await screen.findByLabelText('Idle lock (minutes)');
     fireEvent.change(field, { target: { value: '' } });

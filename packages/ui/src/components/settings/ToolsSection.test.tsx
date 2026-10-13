@@ -5,16 +5,19 @@ import { renderWithApp } from '../../test-support/render';
 import type { MockToolsMode } from '../../api/mock-tools';
 import { SettingsModal } from './SettingsModal';
 
-function renderSettings(tools: MockToolsMode = 'ok') {
-  return renderWithApp(<SettingsModal />, {
+/** Opens the settings on a tab. */
+async function renderSettings(tools: MockToolsMode = 'ok', tab = 'MongoDB tools') {
+  const result = renderWithApp(<SettingsModal />, {
     mock: { preset: 'unlocked', tools },
     initialState: { settingsOpen: true },
   });
+  fireEvent.click(await screen.findByRole('tab', { name: tab }));
+  return result;
 }
 
 describe('ToolsSection', () => {
   it('lists the bundled and downloaded installs', async () => {
-    renderSettings();
+    await renderSettings();
     const bundled = await screen.findByTestId('tools-row-bundled');
     expect(within(bundled).getByText('100.19.1')).toBeInTheDocument();
     expect(within(bundled).getByText('Bundled')).toBeInTheDocument();
@@ -24,18 +27,18 @@ describe('ToolsSection', () => {
   });
 
   it('shows the health message of a broken install', async () => {
-    renderSettings('broken');
+    await renderSettings('broken');
     const bundled = await screen.findByTestId('tools-row-bundled');
     expect(within(bundled).getByText(/libgssapi_krb5/)).toBeInTheDocument();
   });
 
   it('shows an empty state when no tools are installed', async () => {
-    renderSettings('missing');
+    await renderSettings('missing');
     expect(await screen.findByText('No tools are installed.')).toBeInTheDocument();
   });
 
   it('saves the default version', async () => {
-    const { api } = renderSettings();
+    const { api } = await renderSettings();
     const row = await screen.findByTestId('tools-row-downloaded:100.12.1');
     fireEvent.click(within(row).getByRole('radio'));
 
@@ -45,7 +48,7 @@ describe('ToolsSection', () => {
   });
 
   it('removes a downloaded install', async () => {
-    const { api } = renderSettings();
+    const { api } = await renderSettings();
     const row = await screen.findByTestId('tools-row-downloaded:100.12.1');
     fireEvent.click(within(row).getByRole('button', { name: 'Remove' }));
 
@@ -54,7 +57,7 @@ describe('ToolsSection', () => {
   });
 
   it('opens the licence', async () => {
-    renderSettings();
+    await renderSettings();
     const row = await screen.findByTestId('tools-row-bundled');
     fireEvent.click(within(row).getByRole('button', { name: 'Licence' }));
 
@@ -62,7 +65,7 @@ describe('ToolsSection', () => {
   });
 
   it('downloads another version and lists it', async () => {
-    renderSettings();
+    await renderSettings();
     fireEvent.click(await screen.findByRole('button', { name: 'Download another version…' }));
     const dialog = await screen.findByRole('dialog', { name: 'Download MongoDB Database Tools' });
     fireEvent.click(within(dialog).getByRole('textbox', { name: 'Version' }));
@@ -75,16 +78,16 @@ describe('ToolsSection', () => {
   });
 
   it('shows the bundled tools line in the about section', async () => {
-    renderSettings();
-    expect(
-      await screen.findByText('Includes MongoDB Database Tools 100.19.1, Apache License 2.0'),
-    ).toBeInTheDocument();
+    await renderSettings('ok', 'About');
+    expect(await screen.findByText('MongoDB Database Tools 100.19.1')).toBeInTheDocument();
     expect(screen.getByRole('button', { name: 'Tools licence' })).toBeInTheDocument();
   });
 
   it('omits the bundled tools line when nothing is bundled', async () => {
-    renderSettings('missing');
+    await renderSettings('missing');
     await screen.findByText('No tools are installed.');
+    fireEvent.click(screen.getByRole('tab', { name: 'About' }));
+    await screen.findByRole('heading', { name: 'About' });
     expect(screen.queryByRole('button', { name: 'Tools licence' })).toBeNull();
   });
 });

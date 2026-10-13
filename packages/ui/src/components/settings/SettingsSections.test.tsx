@@ -5,16 +5,19 @@ import { renderWithApp } from '../../test-support/render';
 import { SettingsModal } from './SettingsModal';
 import { LICENCE_URL, PROJECT_URL } from './links';
 
-function renderSettings() {
-  return renderWithApp(<SettingsModal />, {
+/** Opens the settings on a tab. */
+async function renderSettings(tab = 'Appearance') {
+  const result = renderWithApp(<SettingsModal />, {
     mock: { preset: 'unlocked' },
     initialState: { settingsOpen: true },
   });
+  fireEvent.click(await screen.findByRole('tab', { name: tab }));
+  return result;
 }
 
 describe('SettingsModal sections', () => {
-  it('shows every section heading', async () => {
-    renderSettings();
+  it('shows a heading on every tab', async () => {
+    await await renderSettings();
     for (const title of [
       'Appearance',
       'Security',
@@ -25,12 +28,13 @@ describe('SettingsModal sections', () => {
       'MongoDB tools',
       'About',
     ]) {
+      fireEvent.click(await screen.findByRole('tab', { name: title }));
       expect(await screen.findByRole('heading', { name: title })).toBeInTheDocument();
     }
   });
 
   it('saves the GPU option and offers a restart', async () => {
-    const { api } = renderSettings();
+    const { api } = await renderSettings('Performance');
     fireEvent.click(await screen.findByRole('switch', { name: /Disable GPU acceleration/ }));
 
     await waitFor(async () =>
@@ -40,7 +44,7 @@ describe('SettingsModal sections', () => {
   });
 
   it('saves the theme and shows the choice', async () => {
-    const { api } = renderSettings();
+    const { api } = await renderSettings();
     fireEvent.click(await screen.findByRole('radio', { name: 'Light' }));
 
     await waitFor(async () => expect((await api.rpc.settings.get()).theme).toBe('light'));
@@ -48,7 +52,7 @@ describe('SettingsModal sections', () => {
   });
 
   it('switches the page to the light scheme when the theme is light', async () => {
-    renderSettings();
+    await renderSettings();
     fireEvent.click(await screen.findByRole('radio', { name: 'Light' }));
 
     await waitFor(() =>
@@ -57,7 +61,7 @@ describe('SettingsModal sections', () => {
   });
 
   it('saves the editor font size, clamped on blur', async () => {
-    const { api } = renderSettings();
+    const { api } = await renderSettings();
     const field = await screen.findByLabelText('Editor font size');
     fireEvent.change(field, { target: { value: '99' } });
     fireEvent.blur(field);
@@ -67,7 +71,7 @@ describe('SettingsModal sections', () => {
   });
 
   it('saves the tree density', async () => {
-    const { api } = renderSettings();
+    const { api } = await renderSettings();
     fireEvent.click(await screen.findByRole('radio', { name: 'Comfortable' }));
 
     await waitFor(async () =>
@@ -76,7 +80,7 @@ describe('SettingsModal sections', () => {
   });
 
   it('resets the saved layout', async () => {
-    const { api } = renderSettings();
+    const { api } = await renderSettings();
     await api.rpc.layout.set({ key: 'dockview:main', value: { grid: {}, panels: {} } });
 
     fireEvent.click(await screen.findByRole('button', { name: 'Reset layout' }));
@@ -87,7 +91,7 @@ describe('SettingsModal sections', () => {
   });
 
   it('opens the change password dialog from the security section', async () => {
-    renderSettings();
+    await renderSettings('Security');
     fireEvent.click(await screen.findByRole('button', { name: 'Change master password' }));
 
     const dialog = await screen.findByRole('dialog', { name: 'Change master password' });
@@ -97,21 +101,21 @@ describe('SettingsModal sections', () => {
   });
 
   it('locks the vault from the security section', async () => {
-    const { api } = renderSettings();
+    const { api } = await renderSettings('Security');
     fireEvent.click(await screen.findByRole('button', { name: 'Lock now' }));
 
     await waitFor(async () => expect((await api.rpc.vault.status()).state).toBe('locked'));
   });
 
   it('saves the Docker auto connect switch', async () => {
-    const { api } = renderSettings();
+    const { api } = await renderSettings('Connections');
     fireEvent.click(await screen.findByRole('switch', { name: /Connect Docker instances/ }));
 
     await waitFor(async () => expect((await api.rpc.settings.get()).dockerAutoConnect).toBe(true));
   });
 
   it('shows the current version and runs a check', async () => {
-    const { api } = renderSettings();
+    const { api } = await renderSettings('Updates');
     const check = vi.spyOn(api.rpc.updates, 'check');
     expect(await screen.findByText(/Last checked: Never/)).toBeInTheDocument();
 
@@ -120,7 +124,7 @@ describe('SettingsModal sections', () => {
   });
 
   it('clears the history after a confirmation', async () => {
-    const { api } = renderSettings();
+    const { api } = await renderSettings('Data');
     const clear = vi.spyOn(api.rpc.history, 'clear');
     fireEvent.click(await screen.findByRole('button', { name: 'Clear history' }));
 
@@ -132,20 +136,20 @@ describe('SettingsModal sections', () => {
   });
 
   it('enables the export and import buttons', async () => {
-    renderSettings();
+    await renderSettings('Connections');
     expect(await screen.findByRole('button', { name: 'Export connections' })).toBeEnabled();
     expect(screen.getByRole('button', { name: 'Import connections' })).toBeEnabled();
   });
 
-  it('opens the export dialog from the data section', async () => {
-    renderSettings();
+  it('opens the export dialog from the connections tab', async () => {
+    await renderSettings('Connections');
     fireEvent.click(await screen.findByRole('button', { name: 'Export connections' }));
 
     expect(await screen.findByRole('dialog', { name: 'Export connections' })).toBeInTheDocument();
   });
 
   it('opens the import dialog after the open dialog returns a file', async () => {
-    const { api } = renderSettings();
+    const { api } = await renderSettings('Connections');
     const open = vi.spyOn(api.rpc.app, 'showOpenDialog');
     fireEvent.click(await screen.findByRole('button', { name: 'Import connections' }));
 
@@ -154,7 +158,7 @@ describe('SettingsModal sections', () => {
   });
 
   it('shows the runtime versions and opens the project links through openExternal', async () => {
-    const { api } = renderSettings();
+    const { api } = await renderSettings('About');
     const open = vi.spyOn(api.rpc.app, 'openExternal');
     expect(await screen.findByText(/Electron /)).toBeInTheDocument();
 
@@ -166,7 +170,7 @@ describe('SettingsModal sections', () => {
   });
 
   it('closes on Escape', async () => {
-    renderSettings();
+    await renderSettings();
     const dialog = await screen.findByRole('dialog', { name: 'Settings' });
     fireEvent.keyDown(dialog, { key: 'Escape' });
     await waitFor(() => expect(screen.queryByRole('dialog', { name: 'Settings' })).toBeNull());

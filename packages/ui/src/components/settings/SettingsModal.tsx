@@ -1,20 +1,30 @@
 import {
+  Box,
   Button,
-  Divider,
   Group,
-  Input,
   Modal,
   NumberInput,
   SegmentedControl,
   Stack,
   Switch,
+  Tabs,
   Text,
   Title,
 } from '@mantine/core';
 import { modals } from '@mantine/modals';
 import { notifications } from '@mantine/notifications';
+import {
+  IconDatabase,
+  IconGauge,
+  IconInfoCircle,
+  IconLock,
+  IconPalette,
+  IconPlugConnected,
+  IconRefresh,
+  IconTool,
+} from '@tabler/icons-react';
 import type { AppVersions, Settings, SettingsPatch, StartupSettings } from '@mongo-gui/core';
-import { useEffect, useState, type ReactNode } from 'react';
+import { useEffect, useId, useState, type ReactNode } from 'react';
 import { useUiApi } from '../../api/ui-api';
 import { LICENCE_URL, PROJECT_URL } from './links';
 import { useAppStore } from '../../state/app-store-context';
@@ -35,18 +45,38 @@ import {
   type NumericRange,
 } from './settings-limits';
 
+/** The height of the tab content. Fixed, so the dialog keeps its size when the tab changes. */
+const PANEL_HEIGHT = 'calc(460px * var(--mg-font-scale, 1))';
+
 /** The settings screen. Each control saves when the user changes it, and reads back the stored value. */
 export function SettingsModal() {
   const open = useAppStore((state) => state.settingsOpen);
   const setOpen = useAppStore((state) => state.setSettingsOpen);
   return (
-    <Modal opened={open} onClose={() => setOpen(false)} title="Settings" size="lg" centered>
+    <Modal
+      opened={open}
+      onClose={() => setOpen(false)}
+      title="Settings"
+      size="calc(780px * var(--mg-font-scale, 1))"
+      centered
+    >
       {open ? <SettingsForm /> : null}
     </Modal>
   );
 }
 
-/** Loads the saved settings when it mounts. The sections below read them from the store. */
+const TABS = [
+  { value: 'appearance', label: 'Appearance', icon: IconPalette },
+  { value: 'security', label: 'Security', icon: IconLock },
+  { value: 'connections', label: 'Connections', icon: IconPlugConnected },
+  { value: 'data', label: 'Data', icon: IconDatabase },
+  { value: 'updates', label: 'Updates', icon: IconRefresh },
+  { value: 'performance', label: 'Performance', icon: IconGauge },
+  { value: 'tools', label: 'MongoDB tools', icon: IconTool },
+  { value: 'about', label: 'About', icon: IconInfoCircle },
+] as const;
+
+/** Loads the saved settings when it mounts. Each tab reads them from the store. */
 function SettingsForm() {
   const settings = useAppStore((state) => state.settings);
   const loadSettings = useAppStore((state) => state.loadSettings);
@@ -66,24 +96,51 @@ function SettingsForm() {
     );
   }
 
+  const panels: Record<(typeof TABS)[number]['value'], ReactNode> = {
+    appearance: <AppearanceSection settings={settings} />,
+    security: <SecuritySection settings={settings} />,
+    connections: <ConnectionsSection />,
+    data: <DataSection settings={settings} />,
+    updates: <UpdatesSection settings={settings} />,
+    performance: <PerformanceSection />,
+    tools: <ToolsSettings settings={settings} />,
+    about: <AboutSection />,
+  };
+
   return (
-    <Stack gap="xl">
-      <AppearanceSection settings={settings} />
-      <Divider />
-      <SecuritySection settings={settings} />
-      <Divider />
-      <ConnectionsSection />
-      <Divider />
-      <UpdatesSection settings={settings} />
-      <Divider />
-      <DataSection settings={settings} />
-      <Divider />
-      <PerformanceSection />
-      <Divider />
-      <ToolsSettings settings={settings} />
-      <Divider />
-      <AboutSection />
-    </Stack>
+    <Tabs
+      orientation="vertical"
+      defaultValue="appearance"
+      keepMounted={false}
+      variant="pills"
+      styles={{
+        tab: { justifyContent: 'flex-start', paddingBlock: 8 },
+        tabLabel: { textAlign: 'left' },
+      }}
+    >
+      <Tabs.List
+        w="calc(180px * var(--mg-font-scale, 1))"
+        pr="md"
+        style={{ borderRight: '1px solid var(--mg-border)', gap: 6, flex: 'none' }}
+      >
+        {TABS.map(({ value, label, icon: Icon }) => (
+          <Tabs.Tab key={value} value={value} leftSection={<Icon size={14} />}>
+            {label}
+          </Tabs.Tab>
+        ))}
+      </Tabs.List>
+      {TABS.map(({ value }) => (
+        <Tabs.Panel
+          key={value}
+          value={value}
+          pl="lg"
+          h={PANEL_HEIGHT}
+          style={{ overflowY: 'auto', flex: 1, minWidth: 0 }}
+        >
+          {panels[value]}
+        </Tabs.Panel>
+      ))}
+    </Tabs>
   );
 }
 
@@ -91,7 +148,7 @@ interface SectionProps {
   readonly settings: Settings;
 }
 
-/** A titled group of controls. The heading names the region for screen readers. */
+/** The content of one tab: a heading and its rows. The heading names the region for screen readers. */
 function Section({
   id,
   title,
@@ -102,12 +159,49 @@ function Section({
   readonly children: ReactNode;
 }) {
   return (
-    <Stack gap="md" component="section" aria-labelledby={id}>
-      <Title order={5} id={id}>
+    <Stack gap={0} component="section" aria-labelledby={id}>
+      <Title order={5} id={id} mb="xs">
         {title}
       </Title>
       {children}
     </Stack>
+  );
+}
+
+/**
+ * One setting: the label and its description on the left, the control on the right. Every setting
+ * uses it, so labels and controls line up across tabs. The control gets the label's id.
+ */
+function SettingRow({
+  label,
+  description,
+  children,
+}: {
+  readonly label: string;
+  readonly description?: string;
+  readonly children: (labelId: string) => ReactNode;
+}) {
+  const labelId = useId();
+  return (
+    <Group
+      justify="space-between"
+      wrap="nowrap"
+      gap="xl"
+      py="md"
+      style={{ borderBottom: '1px solid var(--mg-border)' }}
+    >
+      <Stack gap={2} miw={0}>
+        <Text size="sm" id={labelId}>
+          {label}
+        </Text>
+        {description === undefined ? null : (
+          <Text size="xs" c="dimmed">
+            {description}
+          </Text>
+        )}
+      </Stack>
+      <Box style={{ flex: 'none' }}>{children(labelId)}</Box>
+    </Group>
   );
 }
 
@@ -125,22 +219,24 @@ function AppearanceSection({ settings }: SectionProps) {
   const resetLayout = useAppStore((state) => state.resetLayout);
   return (
     <Section id="settings-appearance" title="Appearance">
-      <Input.Wrapper id="settings-theme" label="Theme">
-        <SegmentedControl
-          aria-labelledby="settings-theme-label"
-          value={settings.theme}
-          onChange={(value) => {
-            if (value === 'dark' || value === 'light' || value === 'system') {
-              void save({ theme: value });
-            }
-          }}
-          data={[
-            { label: 'Dark', value: 'dark' },
-            { label: 'Light', value: 'light' },
-            { label: 'System', value: 'system' },
-          ]}
-        />
-      </Input.Wrapper>
+      <SettingRow label="Theme" description="Dark, light, or the scheme of the operating system.">
+        {(labelId) => (
+          <SegmentedControl
+            aria-labelledby={labelId}
+            value={settings.theme}
+            onChange={(value) => {
+              if (value === 'dark' || value === 'light' || value === 'system') {
+                void save({ theme: value });
+              }
+            }}
+            data={[
+              { label: 'Dark', value: 'dark' },
+              { label: 'Light', value: 'light' },
+              { label: 'System', value: 'system' },
+            ]}
+          />
+        )}
+      </SettingRow>
       <NumericField
         label="Editor font size"
         description="Font size in pixels for the query and JSON editors."
@@ -148,37 +244,41 @@ function AppearanceSection({ settings }: SectionProps) {
         value={settings.editorFontSize}
         onSave={(editorFontSize) => save({ editorFontSize })}
       />
-      <Input.Wrapper id="settings-density" label="Tree density">
-        <SegmentedControl
-          aria-labelledby="settings-density-label"
-          value={settings.treeDensity}
-          onChange={(value) => {
-            if (value === 'compact' || value === 'comfortable') {
-              void save({ treeDensity: value });
+      <SettingRow label="Tree density" description="Row height of the connection tree.">
+        {(labelId) => (
+          <SegmentedControl
+            aria-labelledby={labelId}
+            value={settings.treeDensity}
+            onChange={(value) => {
+              if (value === 'compact' || value === 'comfortable') {
+                void save({ treeDensity: value });
+              }
+            }}
+            data={[
+              { label: 'Compact', value: 'compact' },
+              { label: 'Comfortable', value: 'comfortable' },
+            ]}
+          />
+        )}
+      </SettingRow>
+      <SettingRow label="Panel layout" description="Puts every panel back in its default place.">
+        {() => (
+          <Button
+            variant="default"
+            onClick={() =>
+              void runReported(async () => {
+                await resetLayout();
+                notifications.show({
+                  title: 'Layout reset',
+                  message: 'The panels are back in their default places.',
+                });
+              })
             }
-          }}
-          data={[
-            { label: 'Compact', value: 'compact' },
-            { label: 'Comfortable', value: 'comfortable' },
-          ]}
-        />
-      </Input.Wrapper>
-      <Group>
-        <Button
-          variant="default"
-          onClick={() =>
-            void runReported(async () => {
-              await resetLayout();
-              notifications.show({
-                title: 'Layout reset',
-                message: 'The panels are back in their default places.',
-              });
-            })
-          }
-        >
-          Reset layout
-        </Button>
-      </Group>
+          >
+            Reset layout
+          </Button>
+        )}
+      </SettingRow>
     </Section>
   );
 }
@@ -196,14 +296,20 @@ function SecuritySection({ settings }: SectionProps) {
         value={settings.idleLockMinutes}
         onSave={(idleLockMinutes) => save({ idleLockMinutes })}
       />
-      <Group gap="xs">
-        <Button variant="default" onClick={() => setChanging(true)}>
-          Change master password
-        </Button>
-        <Button variant="default" onClick={() => void runReported(() => lock())}>
-          Lock now
-        </Button>
-      </Group>
+      <SettingRow label="Master password" description="The password that unlocks the vault.">
+        {() => (
+          <Button variant="default" onClick={() => setChanging(true)}>
+            Change master password
+          </Button>
+        )}
+      </SettingRow>
+      <SettingRow label="Lock" description="Locks the vault now. Open connections close.">
+        {() => (
+          <Button variant="default" onClick={() => void runReported(() => lock())}>
+            Lock now
+          </Button>
+        )}
+      </SettingRow>
       <ChangePasswordModal
         opened={changing}
         onClose={() => setChanging(false)}
@@ -219,19 +325,56 @@ function SecuritySection({ settings }: SectionProps) {
 }
 
 function ConnectionsSection() {
+  const { rpc } = useUiApi();
   const autoConnect = useAppStore((state) => state.docker.autoConnect);
   const setDockerAutoConnect = useAppStore((state) => state.setDockerAutoConnect);
+  const [exporting, setExporting] = useState(false);
+  // The import modal opens once the open dialog has returned a file.
+  const [importPath, setImportPath] = useState<string | undefined>(undefined);
+
+  async function chooseImportFile() {
+    const picked = await rpc.app.showOpenDialog({
+      title: 'Choose a connections file',
+      filters: [CONNECTIONS_FILE_FILTER],
+    });
+    if (picked.path !== undefined) {
+      setImportPath(picked.path);
+    }
+  }
   return (
     <Section id="settings-connections" title="Connections">
-      <Switch
+      <SettingRow
         label="Connect Docker instances automatically"
         description="Connects each MongoDB container on this machine when the app finds it."
-        checked={autoConnect}
-        onChange={(event) => {
-          const enabled = event.currentTarget.checked;
-          void runReported(() => setDockerAutoConnect(enabled));
-        }}
-      />
+      >
+        {(labelId) => (
+          <Switch
+            aria-labelledby={labelId}
+            checked={autoConnect}
+            onChange={(event) => {
+              const enabled = event.currentTarget.checked;
+              void runReported(() => setDockerAutoConnect(enabled));
+            }}
+          />
+        )}
+      </SettingRow>
+      <SettingRow
+        label="Connections file"
+        description="Moves saved connections to another machine, in an encrypted file."
+      >
+        {() => (
+          <Group gap="xs" wrap="nowrap">
+            <Button variant="default" onClick={() => setExporting(true)}>
+              Export connections
+            </Button>
+            <Button variant="default" onClick={() => void runReported(chooseImportFile)}>
+              Import connections
+            </Button>
+          </Group>
+        )}
+      </SettingRow>
+      <ConnectionsExportModal opened={exporting} onClose={() => setExporting(false)} />
+      <ConnectionsImportModal path={importPath} onClose={() => setImportPath(undefined)} />
     </Section>
   );
 }
@@ -247,27 +390,29 @@ function PerformanceSection() {
   }, [rpc]);
   return (
     <Section id="settings-performance" title="Performance">
-      <Switch
+      <SettingRow
         label="Disable GPU acceleration"
         description="Saves about 90 MB of memory. Drawing moves to the CPU, so large grids and charts use more of it. Takes effect after a restart."
-        checked={startup?.disableGpu ?? false}
-        disabled={startup === undefined}
-        onChange={(event) => {
-          const disableGpu = event.currentTarget.checked;
-          void runReported(async () => {
-            setStartup(await rpc.app.setStartupSettings({ disableGpu }));
-            setChanged(true);
-          });
-        }}
-      />
+      >
+        {(labelId) => (
+          <Switch
+            aria-labelledby={labelId}
+            checked={startup?.disableGpu ?? false}
+            disabled={startup === undefined}
+            onChange={(event) => {
+              const disableGpu = event.currentTarget.checked;
+              void runReported(async () => {
+                setStartup(await rpc.app.setStartupSettings({ disableGpu }));
+                setChanged(true);
+              });
+            }}
+          />
+        )}
+      </SettingRow>
       {changed && (
-        <Button
-          variant="default"
-          size="xs"
-          onClick={() => void runReported(() => rpc.app.restart())}
-        >
-          Restart now
-        </Button>
+        <Group py="md">
+          <Button onClick={() => void runReported(() => rpc.app.restart())}>Restart now</Button>
+        </Group>
       )}
     </Section>
   );
@@ -283,60 +428,51 @@ function UpdatesSection({ settings }: SectionProps) {
     updates.lastCheckedAt === undefined ? 'Never' : formatDateTime(updates.lastCheckedAt);
   return (
     <Section id="settings-updates" title="Updates">
-      <Switch
+      <SettingRow
         label="Check for updates"
         description="Looks for a new version on GitHub while the app runs."
-        checked={settings.checkForUpdates}
-        onChange={(event) => {
-          const enabled = event.currentTarget.checked;
-          void runReported(async () => {
-            await save({ checkForUpdates: enabled });
-            // The updater reacts to the switch, so its phase may have changed.
-            await refreshUpdates();
-          });
-        }}
-      />
-      <Stack gap={2}>
-        <Text size="sm">Current version {updates.current}</Text>
-        <Text size="sm" c="dimmed">
-          Last checked: {lastChecked}
-        </Text>
-      </Stack>
-      <Group>
-        <Button
-          variant="default"
-          loading={checking}
-          onClick={() => {
-            setChecking(true);
-            void runReported(checkForUpdates).finally(() => {
-              setChecking(false);
-            });
-          }}
-        >
-          Check now
-        </Button>
-      </Group>
+      >
+        {(labelId) => (
+          <Switch
+            aria-labelledby={labelId}
+            checked={settings.checkForUpdates}
+            onChange={(event) => {
+              const enabled = event.currentTarget.checked;
+              void runReported(async () => {
+                await save({ checkForUpdates: enabled });
+                // The updater reacts to the switch, so its phase may have changed.
+                await refreshUpdates();
+              });
+            }}
+          />
+        )}
+      </SettingRow>
+      <SettingRow
+        label={`Current version ${updates.current}`}
+        description={`Last checked: ${lastChecked}`}
+      >
+        {() => (
+          <Button
+            variant="default"
+            loading={checking}
+            onClick={() => {
+              setChecking(true);
+              void runReported(checkForUpdates).finally(() => {
+                setChecking(false);
+              });
+            }}
+          >
+            Check now
+          </Button>
+        )}
+      </SettingRow>
     </Section>
   );
 }
 
 function DataSection({ settings }: SectionProps) {
-  const { rpc } = useUiApi();
   const save = useSaveSettings();
   const clearHistory = useAppStore((state) => state.clearHistory);
-  const [exporting, setExporting] = useState(false);
-  // The import modal opens once the open dialog has returned a file.
-  const [importPath, setImportPath] = useState<string | undefined>(undefined);
-
-  async function chooseImportFile() {
-    const picked = await rpc.app.showOpenDialog({
-      title: 'Choose a connections file',
-      filters: [CONNECTIONS_FILE_FILTER],
-    });
-    if (picked.path !== undefined) {
-      setImportPath(picked.path);
-    }
-  }
   return (
     <Section id="settings-data" title="Data">
       <NumericField
@@ -353,42 +489,36 @@ function DataSection({ settings }: SectionProps) {
         value={settings.historyLimit}
         onSave={(historyLimit) => save({ historyLimit })}
       />
-      <Group gap="xs">
-        <Button
-          variant="light"
-          color="red"
-          onClick={() =>
-            modals.openConfirmModal({
-              title: 'Clear query history',
-              children: (
-                <Text size="sm">Every saved history entry is deleted. This cannot be undone.</Text>
-              ),
-              labels: { confirm: 'Clear history', cancel: 'Cancel' },
-              confirmProps: { color: 'red' },
-              onConfirm: () =>
-                void runReported(async () => {
-                  await clearHistory();
-                  notifications.show({
-                    title: 'History cleared',
-                    message: 'All history entries are deleted.',
-                  });
-                }),
-            })
-          }
-        >
-          Clear history
-        </Button>
-      </Group>
-      <Group gap="xs">
-        <Button variant="default" onClick={() => setExporting(true)}>
-          Export connections
-        </Button>
-        <Button variant="default" onClick={() => void runReported(chooseImportFile)}>
-          Import connections
-        </Button>
-      </Group>
-      <ConnectionsExportModal opened={exporting} onClose={() => setExporting(false)} />
-      <ConnectionsImportModal path={importPath} onClose={() => setImportPath(undefined)} />
+      <SettingRow label="Query history" description="Deletes every saved history entry.">
+        {() => (
+          <Button
+            variant="light"
+            color="red"
+            onClick={() =>
+              modals.openConfirmModal({
+                title: 'Clear query history',
+                children: (
+                  <Text size="sm">
+                    Every saved history entry is deleted. This cannot be undone.
+                  </Text>
+                ),
+                labels: { confirm: 'Clear history', cancel: 'Cancel' },
+                confirmProps: { color: 'red' },
+                onConfirm: () =>
+                  void runReported(async () => {
+                    await clearHistory();
+                    notifications.show({
+                      title: 'History cleared',
+                      message: 'All history entries are deleted.',
+                    });
+                  }),
+              })
+            }
+          >
+            Clear history
+          </Button>
+        )}
+      </SettingRow>
     </Section>
   );
 }
@@ -427,39 +557,41 @@ function AboutSection() {
   const open = (url: string) => void runReported(() => rpc.app.openExternal({ url }));
   return (
     <Section id="settings-about" title="About">
-      <Stack gap={2}>
-        <Text size="sm" fw={600}>
-          Mongo GUI
-        </Text>
-        <Text size="sm">Version {version}</Text>
-        <Text size="sm" c="dimmed">
-          {versions === undefined
+      <SettingRow
+        label={`Mongo GUI ${version}`}
+        description={
+          versions === undefined
             ? 'Loading runtime versions'
-            : `Electron ${versions.electron}, Chromium ${versions.chrome}, Node.js ${versions.node}`}
-        </Text>
-      </Stack>
-      <Group gap="xs">
-        <Button variant="default" onClick={() => open(PROJECT_URL)}>
-          Repository
-        </Button>
-        <Button variant="default" onClick={() => open(LICENCE_URL)}>
-          Project licence
-        </Button>
-      </Group>
+            : `Electron ${versions.electron}, Chromium ${versions.chrome}, Node.js ${versions.node}`
+        }
+      >
+        {() => (
+          <Group gap="xs" wrap="nowrap">
+            <Button variant="default" onClick={() => open(PROJECT_URL)}>
+              Repository
+            </Button>
+            <Button variant="default" onClick={() => open(LICENCE_URL)}>
+              Project licence
+            </Button>
+          </Group>
+        )}
+      </SettingRow>
       {bundled === undefined ? null : (
-        <Group gap="xs">
-          <Text size="sm">
-            Includes MongoDB Database Tools {bundled.version}, Apache License 2.0
-          </Text>
-          <Button size="compact-sm" variant="default" onClick={() => setLicenceOpen(true)}>
-            Tools licence
-          </Button>
-          <ToolsLicenceModal
-            installId={licenceOpen ? bundled.id : undefined}
-            onClose={() => setLicenceOpen(false)}
-          />
-        </Group>
+        <SettingRow
+          label={`MongoDB Database Tools ${bundled.version}`}
+          description="Included with the app, under the Apache License 2.0."
+        >
+          {() => (
+            <Button variant="default" onClick={() => setLicenceOpen(true)}>
+              Tools licence
+            </Button>
+          )}
+        </SettingRow>
       )}
+      <ToolsLicenceModal
+        installId={licenceOpen && bundled !== undefined ? bundled.id : undefined}
+        onClose={() => setLicenceOpen(false)}
+      />
     </Section>
   );
 }
@@ -479,27 +611,30 @@ interface NumericFieldProps {
 function NumericField({ label, description, range, value, onSave }: NumericFieldProps) {
   const [draft, setDraft] = useState<number | string>(value);
   return (
-    <NumberInput
-      label={label}
-      description={description}
-      min={range.min}
-      max={range.max}
-      allowDecimal={false}
-      value={draft}
-      onChange={setDraft}
-      onBlur={() => {
-        if (typeof draft !== 'number') {
-          setDraft(value);
-          return;
-        }
-        const next = clampToRange(draft, range);
-        setDraft(next);
-        if (next !== value) {
-          void onSave(next);
-        }
-      }}
-      w={220}
-    />
+    <SettingRow label={label} description={description}>
+      {(labelId) => (
+        <NumberInput
+          aria-labelledby={labelId}
+          min={range.min}
+          max={range.max}
+          allowDecimal={false}
+          value={draft}
+          onChange={setDraft}
+          onBlur={() => {
+            if (typeof draft !== 'number') {
+              setDraft(value);
+              return;
+            }
+            const next = clampToRange(draft, range);
+            setDraft(next);
+            if (next !== value) {
+              void onSave(next);
+            }
+          }}
+          w="calc(110px * var(--mg-font-scale, 1))"
+        />
+      )}
+    </SettingRow>
   );
 }
 

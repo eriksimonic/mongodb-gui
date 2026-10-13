@@ -48,7 +48,7 @@ Decisions from the diagnostics, connections and profiler work. Follow them for n
 ## Consistency
 
 - A menu that exists in two places (connection menu and Docker-linked connection menu) comes from one shared item list, so the two never drift apart.
-- Settings labels all use the same label component. Controls inside a section are one medium gap apart, and sections are one extra-large gap apart.
+- Settings sit in vertical tabs with a fixed width and a fixed panel height, so the dialog keeps its size between tabs. Each setting is one `SettingRow`: the label and description on the left, the control on the right, and a border below.
 
 ## Working in the repo
 
