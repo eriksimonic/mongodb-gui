@@ -79,7 +79,7 @@ test('editor, results, paging, tree edit, print, history and favourites, end to 
 
     await test.step('page to the end', async () => {
       // Scrolling the grid to its end loads the next page.
-      const body = window.locator('.ag-body-viewport');
+      const body = window.locator('.ag-body-vertical-scroll-viewport');
       for (let guard = 0; guard < 20; guard += 1) {
         await body.evaluate((element) => element.scrollTo(0, element.scrollHeight));
         await window.waitForTimeout(150);
