@@ -493,6 +493,7 @@ export function createAppStore(api: UiApi, initial: Partial<AppData> = {}): AppS
     const editorActions = createEditorActions({
       rpc,
       get: () => get(),
+      connect: (id) => get().connect(id),
       update: (update) => set((state) => ({ editors: update(state.editors) })),
       saveSettings: (patch) => get().updateSettings(patch),
     });
@@ -744,6 +745,12 @@ export function createAppStore(api: UiApi, initial: Partial<AppData> = {}): AppS
           const status = await rpc.connections.connect({ id });
           setStatus(id, status);
           if (status.state === 'connected') {
+            // Open the node on a fresh catalog, so the tree lists the databases and collections
+            // of the server that just connected.
+            set((state) => ({
+              ...withoutConnectionCatalog(state, id),
+              expanded: { ...state.expanded, [connectionNodeId(id)]: true },
+            }));
             const stamp = new Date().toISOString();
             set((state) =>
               state.connections.state === 'ready'

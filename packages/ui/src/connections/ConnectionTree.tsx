@@ -502,7 +502,9 @@ export function ConnectionTree() {
     } else if (event.key === 'End') {
       target = edgeFocusKey(rows, 'last');
     } else if (event.key === 'ArrowRight') {
-      if (row.expandable && !row.expanded) {
+      if (row.kind === 'connection' && canConnect(statuses[row.connectionId])) {
+        void connect(row.connectionId);
+      } else if (row.expandable && !row.expanded) {
         expandRow(row);
       } else {
         target = firstChildKey(rows, row.key);

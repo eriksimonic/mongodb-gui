@@ -7,7 +7,7 @@ import { registerMongoshTokens } from './mongosh-tokens';
 import { useEditorFontSize } from './use-editor-font-size';
 import type { ReadOnlyCodeProps } from './ReadOnlyCode';
 import { readOnlyLanguage } from './read-only-language';
-import { APP_FONT } from '../../theme/theme';
+import { CODE_FONT } from '../../theme/theme';
 
 /** Scrolling within this many pixels of the end asks for more. */
 const NEAR_END_PX = 200;
@@ -45,7 +45,7 @@ export function ReadOnlyMonaco({ label, value, language, wrap, onNearEnd }: Read
         minimap: { enabled: false },
         scrollBeyondLastLine: false,
         fontSize,
-        fontFamily: APP_FONT,
+        fontFamily: CODE_FONT,
         tabSize: 2,
         wordWrap: wrap === true ? 'on' : 'off',
         automaticLayout: true,

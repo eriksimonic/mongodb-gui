@@ -41,13 +41,13 @@ import {
 } from './result-model';
 import { typeBucket, typeColor } from '../schema';
 import { exactCopyTextOf } from './tree-rows';
-import { APP_FONT } from '../theme/theme';
+import { TABLE_FONT } from '../theme/theme';
 
 ModuleRegistry.registerModules([AllCommunityModule]);
 
 // The dark grid takes its colours from docs/color-palette.md.
 const DARK_THEME = themeQuartz.withPart(colorSchemeDark).withParams({
-  fontFamily: APP_FONT,
+  fontFamily: TABLE_FONT,
   backgroundColor: '#0a0a0c',
   foregroundColor: '#f5f3ee',
   headerBackgroundColor: '#222226',
@@ -58,7 +58,7 @@ const DARK_THEME = themeQuartz.withPart(colorSchemeDark).withParams({
   accentColor: '#ffd60a',
   chromeBackgroundColor: '#222226',
 });
-const LIGHT_THEME = themeQuartz.withPart(colorSchemeLight).withParams({ fontFamily: APP_FONT });
+const LIGHT_THEME = themeQuartz.withPart(colorSchemeLight).withParams({ fontFamily: TABLE_FONT });
 const ROW_HEIGHT_PX = 28;
 
 interface Row {

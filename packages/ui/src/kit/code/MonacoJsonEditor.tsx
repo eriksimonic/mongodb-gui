@@ -4,7 +4,7 @@ import { useMemo } from 'react';
 import './monaco-setup';
 import { useEditorFontSize } from './use-editor-font-size';
 import type { JsonEditorHandle, JsonEditorProps } from './JsonEditor';
-import { APP_FONT } from '../../theme/theme';
+import { CODE_FONT } from '../../theme/theme';
 import { defineEditorThemes, themeFor } from './editor-theme';
 
 /** Monaco in JSON mode. Loaded lazily by JsonEditor, so Monaco is not evaluated outside the editors. */
@@ -27,7 +27,7 @@ export function MonacoJsonEditor({
       minimap: { enabled: false },
       scrollBeyondLastLine: false,
       fontSize,
-      fontFamily: APP_FONT,
+      fontFamily: CODE_FONT,
       tabSize: 2,
       wordWrap: 'on' as const,
       automaticLayout: true,

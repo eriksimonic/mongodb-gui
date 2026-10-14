@@ -159,13 +159,10 @@ describe('buildTreeRows', () => {
     ]);
   });
 
-  it('shows a not-connected hint under an expanded disconnected connection', () => {
+  it('does not open a disconnected connection', () => {
     const rows = buildTreeRows(input({ expanded: { [connectionNodeId(local.id)]: true } }));
-    expect(rows[1]).toMatchObject({
-      kind: 'message',
-      depth: 1,
-      label: 'Not connected. Double-click to connect.',
-    });
+    expect(rows[0]).toMatchObject({ kind: 'connection', expandable: false, expanded: false });
+    expect(rows[1]?.kind).not.toBe('message');
   });
 
   it('shows the error message in red under a failed connection', () => {

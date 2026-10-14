@@ -1,10 +1,16 @@
+import '@fontsource-variable/inter';
+import '@fontsource-variable/manrope';
 import '@fontsource/jetbrains-mono/400.css';
 import '@fontsource/jetbrains-mono/400-italic.css';
 import '@fontsource/jetbrains-mono/600.css';
 import { createTheme, type MantineColorsTuple } from '@mantine/core';
 
-/** The one font of the app, for the UI and the editors. The files ship with the app. */
-export const APP_FONT = '"JetBrains Mono", ui-monospace, Menlo, Consolas, monospace';
+/** Code, editors and code-like values. The font files ship with the app. */
+export const CODE_FONT = '"JetBrains Mono", ui-monospace, Menlo, Consolas, monospace';
+/** Labels, buttons, menus and other UI text. */
+export const UI_FONT = '"Manrope Variable", system-ui, "Segoe UI", sans-serif';
+/** Data tables, where Inter keeps digits and narrow columns readable. */
+export const TABLE_FONT = '"Inter Variable", system-ui, "Segoe UI", sans-serif';
 
 /*
  * Colour ladders from docs/color-palette.md. Shade 6 is the solid colour, which filled controls
@@ -115,9 +121,9 @@ export const appTheme = createTheme({
   black: '#0f0f11',
   defaultRadius: 'sm',
   radius: { sm: '4px', md: '6px' },
-  fontFamily: APP_FONT,
-  fontFamilyMonospace: APP_FONT,
-  headings: { fontFamily: APP_FONT, fontWeight: '600' },
+  fontFamily: UI_FONT,
+  fontFamilyMonospace: CODE_FONT,
+  headings: { fontFamily: UI_FONT, fontWeight: '600' },
   spacing: { xs: '4px', sm: '6px', md: '10px', lg: '14px', xl: '20px' },
   components: {
     ActionIcon: { defaultProps: { size: 'sm', variant: 'subtle' } },
@@ -136,7 +142,9 @@ export const appTheme = createTheme({
     Popover: { styles: popup },
     Combobox: { styles: popup },
     // A sticky header paints the page colour by default, which is near black inside a dialog.
-    Table: { styles: { thead: { background: 'var(--mg-surface-3)' } } },
+    Table: {
+      styles: { table: { fontFamily: TABLE_FONT }, th: { background: 'var(--mg-surface-3)' } },
+    },
     Modal: {
       defaultProps: { radius: 'md', overlayProps: { backgroundOpacity: 0.7, color: '#0f0f11' } },
       styles: {

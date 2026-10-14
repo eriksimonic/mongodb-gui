@@ -139,15 +139,6 @@ function connectionChildren(
   status: ConnectionStatus,
   depth: number,
 ): TreeRow[] {
-  if (status.state === 'connecting') {
-    return [messageRow(parentKey, connectionId, depth, 'Connecting')];
-  }
-  if (status.state === 'error') {
-    return [messageRow(parentKey, connectionId, depth, status.error.message, 'red')];
-  }
-  if (status.state === 'disconnected') {
-    return [messageRow(parentKey, connectionId, depth, 'Not connected. Double-click to connect.')];
-  }
   const tools = [
     ...replicaSetRows(input, connectionId, status, parentKey, depth),
     ...toolRows(connectionId, parentKey, depth),
@@ -421,7 +412,9 @@ function connectionRows(
 ): TreeRow[] {
   const key = connectionNodeId(connection.id);
   const status = input.statuses[connection.id] ?? DISCONNECTED;
-  const expanded = input.expanded[key] === true && extras.missing !== true;
+  // Only a connected connection opens. A disconnected one has nothing to show until it connects.
+  const canOpen = status.state === 'connected' && extras.missing !== true;
+  const expanded = input.expanded[key] === true && canOpen;
   const row = makeRow({
     key,
     kind: 'connection',
@@ -429,7 +422,7 @@ function connectionRows(
     label: connection.name,
     connectionId: connection.id,
     parentKey,
-    expandable: extras.missing !== true,
+    expandable: canOpen,
     expanded,
     color: connection.color,
     status,
@@ -438,6 +431,12 @@ function connectionRows(
   });
   if (extras.missing === true) {
     return [row, messageRow(key, connection.id, depth + CHILD, 'Container not found', 'red')];
+  }
+  if (status.state === 'connecting') {
+    return [row, messageRow(key, connection.id, depth + CHILD, 'Connecting')];
+  }
+  if (status.state === 'error') {
+    return [row, messageRow(key, connection.id, depth + CHILD, status.error.message, 'red')];
   }
   if (!expanded) {
     return [row];

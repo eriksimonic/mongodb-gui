@@ -8,7 +8,7 @@ import { stackedValues } from './chart-series';
 import { formatAxisValue, formatClock, formatValue } from './format';
 import { chartPalette, type ChartPalette } from '../theme/palette';
 import './monitor.css';
-import { APP_FONT } from '../theme/theme';
+import { CODE_FONT } from '../theme/theme';
 
 export interface UPlotChartProps {
   readonly label: string;
@@ -25,7 +25,7 @@ export interface UPlotChartProps {
   readonly height?: number;
 }
 
-const AXIS_FONT = `11px ${APP_FONT}`;
+const AXIS_FONT = `11px ${CODE_FONT}`;
 const X_AXIS_HEIGHT_PX = 26;
 const Y_AXIS_WIDTH_PX = 56;
 const X_TICK_SPACE_PX = 84;

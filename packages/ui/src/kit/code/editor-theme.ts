@@ -110,11 +110,18 @@ export function defineEditorThemes(monaco: typeof Monaco): void {
   }
   defined.add(monaco);
   // Monaco measures the glyphs once. A measure taken before the bundled font loads puts the cursor
-  // and the selection off the characters.
+  // and the selection off the characters. The browser loads a font face only when text uses it,
+  // so `fonts.ready` can resolve before JetBrains Mono starts loading. Load the faces the editors
+  // use, then measure again.
   // Tests run without a document, and jsdom has no font loading.
   const fonts =
     typeof document === 'undefined' ? undefined : (document.fonts as FontFaceSet | undefined);
-  void fonts?.ready.then(() => monaco.editor.remeasureFonts());
+  if (fonts) {
+    const faces = ['400', '600', 'italic 400'].map((face) => `${face} 13px "JetBrains Mono"`);
+    void Promise.all(faces.map((face) => fonts.load(face)))
+      .then(() => monaco.editor.remeasureFonts())
+      .catch(() => undefined);
+  }
   monaco.editor.defineTheme(EDITOR_THEME_DARK, {
     base: 'vs-dark',
     inherit: true,

@@ -10,6 +10,7 @@ import {
   translateSql,
   translateSqlStatement,
   type AppError,
+  type ConnectionStatus,
   type EditorLanguage,
   type PreviewEdit,
   type RpcClient,
@@ -87,7 +88,11 @@ export interface EditorStoreAccess {
     readonly editors: EditorsState;
     /** The saved settings. Undefined while the vault is locked. */
     readonly settings: Settings | undefined;
+    /** The connection status of each connection id. */
+    readonly statuses: Readonly<Record<string, ConnectionStatus | undefined>>;
   };
+  /** Connects a connection, and keeps its status in the store. Does nothing once connected. */
+  readonly connect: (connectionId: string) => Promise<void>;
   readonly update: (update: (editors: EditorsState) => EditorsState) => void;
   /** Saves a settings patch, and the store keeps the settings it returns. */
   readonly saveSettings: (patch: SettingsPatch) => Promise<unknown>;
@@ -272,6 +277,12 @@ export function createEditorActions(access: EditorStoreAccess) {
     update((state) => beginRun(state, id, requestId, startedAt));
     let evaluation: ShellEvaluation;
     try {
+      // A tab restored after a restart, or one whose server dropped, runs the query by connecting.
+      await access.connect(tab.connectionId);
+      const status = access.get().statuses[tab.connectionId];
+      if (status?.state === 'error') {
+        throw new AppErrorException(status.error);
+      }
       evaluation = await rpc.shell.evaluate({
         connectionId: tab.connectionId,
         requestId,

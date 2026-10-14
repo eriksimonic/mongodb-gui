@@ -45,6 +45,19 @@ describe('editor actions: runs', () => {
     expect(history[0]).toMatchObject({ database: 'analytics', resultCount: 12 });
   });
 
+  it('connects a disconnected connection before it runs', async () => {
+    const api = await connectedMockApi();
+    const store = await storeOn(api);
+    await store.getState().disconnect(localConnectionId);
+    const id = store
+      .getState()
+      .openEditor({ connectionId: localConnectionId, database: 'analytics' });
+    await store.getState().runEditor(id, 'db.bson_samples.find()');
+
+    expect(store.getState().statuses[localConnectionId]?.state).toBe('connected');
+    expect(store.getState().editors.tabs[id]?.result).toMatchObject({ type: 'Cursor' });
+  });
+
   it('cancels a running statement and ends with a CANCELLED error', async () => {
     const api = await connectedMockApi();
     const store = await storeOn(api);
