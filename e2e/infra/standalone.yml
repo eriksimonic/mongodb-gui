@@ -1,0 +1,28 @@
+services:
+  mongo:
+    image: ${MONGO_IMAGE:-mongo:8.0.17}
+    environment:
+      MONGO_INITDB_ROOT_USERNAME: root
+      MONGO_INITDB_ROOT_PASSWORD: e2e-root-secret
+    # Port 0 on the host lets Docker pick a free port. Read it back with `compose port`.
+    ports:
+      - '127.0.0.1::27017'
+    # The check authenticates so it only passes on the final server, not on the
+    # entrypoint's temporary init server, which is started without the real users.
+    healthcheck:
+      test:
+        - CMD
+        - mongosh
+        - --quiet
+        - -u
+        - root
+        - -p
+        - e2e-root-secret
+        - --authenticationDatabase
+        - admin
+        - --eval
+        - "db.adminCommand('ping')"
+      interval: 2s
+      timeout: 5s
+      retries: 30
+      start_period: 10s

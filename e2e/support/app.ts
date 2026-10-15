@@ -18,9 +18,11 @@ const APP_EXIT_TIMEOUT_MS = 30_000;
 /**
  * A line that counts as an error. Covers Node and Chromium `Error` text, uncaught renderer
  * exceptions, the `"level":"error"` lines from the main-process logger, and Chromium's
- * `ERROR:` prefix.
+ * `ERROR:` prefix. Also covers the warn lines `rpc method unknown` and `rpc input rejected`.
+ * The UI sent a method or input that the main process does not accept, so it is a wiring bug.
  */
-const ERROR_LINE = /Error|Uncaught|"level":"error"|ERROR:/;
+const ERROR_LINE =
+  /Error|Uncaught|"level":"error"|ERROR:|"message":"rpc (method unknown|input rejected)"/;
 
 /**
  * Known harmless messages from Chromium on Linux runners. Add an entry only with a reason.

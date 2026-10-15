@@ -9,7 +9,10 @@ const repoRoot = resolve(import.meta.dirname, '..');
  * The returned function stops the container after the run.
  */
 export default async function globalSetup(): Promise<() => Promise<void>> {
-  await runPnpmBuild();
+  // CI builds once and shares the output, so it sets E2E_PREBUILT to skip this build.
+  if (process.env['E2E_PREBUILT'] !== '1') {
+    await runPnpmBuild();
+  }
   const mongo = await startSeededMongo();
   process.env[MONGO_URI_ENV] = mongo.uri;
   return async () => {

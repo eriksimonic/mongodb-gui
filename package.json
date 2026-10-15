@@ -23,7 +23,8 @@
     "check": "pnpm run lint && pnpm run typecheck && pnpm run test",
     "format": "prettier --write .",
     "format:check": "prettier --check .",
-    "test:e2e": "playwright test -c e2e/playwright.config.ts"
+    "test:e2e": "playwright test -c e2e/playwright.config.ts",
+    "test:wiring": "playwright test -c e2e/wiring/playwright.config.ts"
   },
   "devDependencies": {
     "@eslint/js": "^9.39.5",

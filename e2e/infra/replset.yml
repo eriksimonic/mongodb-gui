@@ -1,0 +1,47 @@
+# Three-member replica set rs0 for the e2e replica set topology.
+# Every member uses the host network and its own loopback port, so the set
+# config can name 127.0.0.1:<port> and no /etc/hosts edit is needed.
+services:
+  rs1:
+    image: ${MONGO_IMAGE:-mongo:8.0.17}
+    network_mode: host
+    command: ['mongod', '--replSet', 'rs0', '--bind_ip', '127.0.0.1', '--port', '27031']
+    # The first member initiates the set. The check runs on every attempt, so it
+    # only initiates while the set is not initiated yet, and it passes only once
+    # a primary exists. `up --wait` therefore returns with a primary in place.
+    healthcheck:
+      test:
+        - CMD
+        - mongosh
+        - --quiet
+        - mongodb://127.0.0.1:27031/?directConnection=true
+        - --eval
+        - |
+          if (db.hello().setName !== 'rs0') {
+            rs.initiate({
+              _id: 'rs0',
+              members: [
+                // Priority 2 makes rs1 the primary, so the journeys see a fixed primary.
+                { _id: 0, host: '127.0.0.1:27031', priority: 2 },
+                { _id: 1, host: '127.0.0.1:27032', priority: 1 },
+                { _id: 2, host: '127.0.0.1:27033', priority: 1 },
+              ],
+            });
+          }
+          if (!db.hello().isWritablePrimary) {
+            throw new Error('no primary yet');
+          }
+      interval: 2s
+      timeout: 10s
+      retries: 60
+      start_period: 5s
+
+  rs2:
+    image: ${MONGO_IMAGE:-mongo:8.0.17}
+    network_mode: host
+    command: ['mongod', '--replSet', 'rs0', '--bind_ip', '127.0.0.1', '--port', '27032']
+
+  rs3:
+    image: ${MONGO_IMAGE:-mongo:8.0.17}
+    network_mode: host
+    command: ['mongod', '--replSet', 'rs0', '--bind_ip', '127.0.0.1', '--port', '27033']

@@ -1,0 +1,21 @@
+# Standalone mongod with no published port. The app can only reach it through
+# the Docker socket and its own forwarder, which is what the docker-direct path tests.
+services:
+  mongo:
+    image: ${MONGO_IMAGE:-mongo:8.0.17}
+    container_name: mongo-gui-e2e-docker
+    volumes:
+      - ./docker-seed.js:/docker-entrypoint-initdb.d/docker-seed.js:ro
+    # The entrypoint seeds on a temporary server before the final one starts, so
+    # a plain ping would pass too early. Counting the seed proves the init ran.
+    healthcheck:
+      test:
+        - CMD
+        - mongosh
+        - --quiet
+        - --eval
+        - "if (db.getSiblingDB('docker_shop').orders.countDocuments() !== 2) throw new Error('seed not visible yet')"
+      interval: 2s
+      timeout: 5s
+      retries: 30
+      start_period: 5s
