@@ -68,14 +68,18 @@ export function removeUserDataDir(userDataDir: string): Promise<void> {
   return rm(userDataDir, { recursive: true, force: true, maxRetries: 3 });
 }
 
-/** Launches the built app from packages/app/out against the given profile directory. */
+/**
+ * Launches the built app from packages/app/out against the given profile directory.
+ * With E2E_PACKAGED_EXECUTABLE set, runs that packaged binary instead and passes no main entry.
+ */
 export async function launchApp(
   userDataDir: string,
   extraArgs: readonly string[] = [],
 ): Promise<AppSession> {
+  const packaged = process.env.E2E_PACKAGED_EXECUTABLE;
   const app = await electron.launch({
-    executablePath: electronBinary(),
-    args: [mainEntry, '--no-sandbox', ...extraArgs],
+    executablePath: packaged ? packaged : electronBinary(),
+    args: [...(packaged ? [] : [mainEntry]), '--no-sandbox', ...extraArgs],
     env: {
       ...process.env,
       MONGO_GUI_USER_DATA: userDataDir,
