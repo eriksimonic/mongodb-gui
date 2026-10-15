@@ -14,8 +14,14 @@ export interface ClientConfig {
 export function buildClientOptions(profile: ConnectionProfileInput): ClientConfig {
   const options: Partial<MongoClientOptions> = {
     appName: APP_NAME,
-    serverSelectionTimeoutMS: profile.connectTimeoutMs ?? DEFAULT_TIMEOUT_MS,
   };
+  // A driver option overrides the same setting in the URI, so the default applies only when the URI has none.
+  const timeoutMs =
+    profile.connectTimeoutMs ??
+    (/[?&]serverSelectionTimeoutMS=/i.test(profile.uri) ? undefined : DEFAULT_TIMEOUT_MS);
+  if (timeoutMs !== undefined) {
+    options.serverSelectionTimeoutMS = timeoutMs;
+  }
   if (profile.connectTimeoutMs !== undefined) {
     options.connectTimeoutMS = profile.connectTimeoutMs;
   }

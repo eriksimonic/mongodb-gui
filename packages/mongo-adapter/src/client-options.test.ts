@@ -13,6 +13,13 @@ describe('buildClientOptions', () => {
     expect(options).toEqual({ appName: 'mongo-gui', serverSelectionTimeoutMS: 10000 });
   });
 
+  it('leaves server selection to the uri when the uri sets it', () => {
+    const { options } = buildClientOptions(
+      profile({ uri: 'mongodb://localhost:27017/?serverSelectionTimeoutMS=1000' }),
+    );
+    expect(options.serverSelectionTimeoutMS).toBeUndefined();
+  });
+
   it('uses connectTimeoutMs for server selection and connection timeouts', () => {
     const { options } = buildClientOptions(profile({ connectTimeoutMs: 2000 }));
     expect(options.serverSelectionTimeoutMS).toBe(2000);

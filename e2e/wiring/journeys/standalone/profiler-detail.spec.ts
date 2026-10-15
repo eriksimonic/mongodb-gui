@@ -135,10 +135,8 @@ test('profiler: select a slow query, see its namespace, command and metrics', as
     await expect(row).toHaveCount(1);
     await row.click();
 
-    // The detail pane is the element after the resize splitter. Scope the checks to it, so the grid cell does not count.
-    const pane = page
-      .getByRole('separator', { name: 'Resize the detail pane', exact: true })
-      .locator('xpath=following-sibling::div[1]');
+    // Scope the checks to the detail pane, so the grid cell does not count.
+    const pane = page.getByRole('region', { name: 'Operation detail', exact: true });
     await expect(pane.getByText(NAMESPACE, { exact: true })).toBeVisible();
     await expect(page.getByRole('button', { name: 'Explain', exact: true })).toBeEnabled();
 

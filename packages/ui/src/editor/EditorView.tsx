@@ -114,6 +114,9 @@ export function EditorView({ tabId }: EditorViewProps) {
   const databases = useAppStore((state) =>
     tab === undefined ? undefined : state.databases[tab.connectionId],
   );
+  const connected = useAppStore((state) =>
+    tab === undefined ? false : state.statuses[tab.connectionId]?.state === 'connected',
+  );
   const connectionName = useAppStore((state) => {
     if (tab === undefined || state.connections.state !== 'ready') {
       return undefined;
@@ -126,13 +129,13 @@ export function EditorView({ tabId }: EditorViewProps) {
   const connectionId = tab?.connectionId;
 
   useEffect(() => {
-    if (connectionId !== undefined && databases === undefined) {
+    if (connectionId !== undefined && connected && databases === undefined) {
       store
         .getState()
         .loadDatabases(connectionId)
         .catch(() => undefined);
     }
-  }, [store, connectionId, databases]);
+  }, [store, connectionId, connected, databases]);
 
   const source = useMemo(
     () =>

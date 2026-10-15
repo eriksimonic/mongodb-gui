@@ -84,7 +84,11 @@ export function ProfilerDetail({
         onPointerCancel={endDrag}
         onKeyDown={handleSplitterKey}
       />
-      <Box className="mg-profiler-detail" style={{ width, flex: '0 0 auto' }}>
+      <Box
+        role="region"
+        aria-label="Operation detail"
+        className="mg-profiler-detail"
+        style={{ width, flex: '0 0 auto' }}>
         {entry === undefined ? (
           <Text size="sm" c="dimmed" p={8}>
             Select an operation to see its command.
