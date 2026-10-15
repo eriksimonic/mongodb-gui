@@ -97,9 +97,30 @@ test('editor, results, paging, tree edit, print, history and favourites, end to 
       await window.screenshot({ path: `${OUTPUT_DIR}/editor-tree.png`, animations: 'disabled' });
 
       await viewSwitch(window, 'json').click();
-      await expect(window.locator('.monaco-editor').nth(1).locator('.view-lines')).toContainText(
-        'ORD-',
-      );
+      try {
+        await expect(window.locator('.monaco-editor').nth(1).locator('.view-lines')).toContainText(
+          'ORD-',
+        );
+      } catch (error) {
+        // Temporary. macOS CI rendered only four lines. Put the layout in the error message so the
+        // CI annotation shows it.
+        const layout = await window.locator('body').evaluate((body) => ({
+          viewport: [
+            body.ownerDocument.defaultView?.innerWidth,
+            body.ownerDocument.defaultView?.innerHeight,
+          ],
+          editors: [...body.querySelectorAll('.monaco-editor')].map((editor) => {
+            const box = editor.getBoundingClientRect();
+            return [
+              Math.round(box.width),
+              Math.round(box.height),
+              editor.querySelectorAll('.view-line').length,
+            ];
+          }),
+        }));
+        const reason = error instanceof Error ? error.message : String(error);
+        throw new Error(`JSON view layout ${JSON.stringify(layout)}. ${reason}`);
+      }
       await window.screenshot({ path: `${OUTPUT_DIR}/editor-json.png`, animations: 'disabled' });
 
       await viewSwitch(window, 'table').click();
