@@ -26,6 +26,16 @@ describe('AbsolutePathSchema', () => {
   );
 });
 
+describe('AbsolutePathSchema drive and UNC forms', () => {
+  it.each(['C:\\x', 'c:/x', '\\\\host\\x', '/x'])('accepts absolute %s', (path) => {
+    expect(AbsolutePathSchema.safeParse(path).success).toBe(true);
+  });
+
+  it.each(['data/x.csv', 'data\\x.csv', 'C:x', '\\x'])('refuses relative %s', (path) => {
+    expect(AbsolutePathSchema.safeParse(path).success).toBe(false);
+  });
+});
+
 describe('CsvOptionsSchema', () => {
   it('applies the documented defaults', () => {
     expect(CsvOptionsSchema.parse({})).toEqual({

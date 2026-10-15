@@ -92,6 +92,30 @@ describe('createCsvParser', () => {
     ]);
   });
 
+  it('splits CRLF and lone CR records, and ends a record at a final lone CR', () => {
+    expect(parseAll('a\r\nb\rc\n')).toEqual([['a'], ['b'], ['c']]);
+    expect(parseAll('a\r')).toEqual([['a']]);
+  });
+
+  it('keeps CRLF and lone CR inside quoted fields', () => {
+    expect(parseAll('"x\r\ny",1\r\n"a\rb",2\n')).toEqual([
+      ['x\r\ny', '1'],
+      ['a\rb', '2'],
+    ]);
+  });
+
+  it('skips blank CRLF and CR-only lines', () => {
+    expect(parseAll('a\r\n\r\n1,"x\r\ny"\r\n')).toEqual([['a'], ['1', 'x\r\ny']]);
+    expect(parseAll('a\r\r\nb')).toEqual([['a'], ['b']]);
+  });
+
+  it('keeps a CR and LF split across chunks inside a quoted field', () => {
+    const parser = createCsvParser({ delimiter: ',' });
+    const first = parser.write('"a\r');
+    const second = parser.write('\nb"\r\n');
+    expect([...first, ...second, ...parser.flush()]).toEqual([['a\r\nb']]);
+  });
+
   it('refuses a file that ends inside a quoted field', () => {
     const parser = createCsvParser({ delimiter: ',' });
     parser.write('a,"unfinished\nmore');
@@ -156,6 +180,11 @@ describe('formatCsvField and formatCsvRow', () => {
     expect(formatCsvField('a\tb', '\t')).toBe('"a\tb"');
   });
 
+  it('quotes CRLF and lone CR values', () => {
+    expect(formatCsvField('a\r\nb', ',')).toBe('"a\r\nb"');
+    expect(formatCsvRow(['a\rb', 'c'], ',')).toBe('"a\rb",c');
+  });
+
   it('joins fields with the delimiter', () => {
     expect(formatCsvRow(['id', 'a,b', 'c'], ',')).toBe('id,"a,b",c');
     expect(formatCsvRow(['1', '2'], '|')).toBe('1|2');
@@ -165,5 +194,12 @@ describe('formatCsvField and formatCsvRow', () => {
     const values = ['plain', 'a,b', 'say "hi"', 'two\nlines', '', 'x\r\ny', ';semi;'];
     const line = formatCsvRow(values, ',');
     expect(parseAll(`${line}\n`)).toEqual([values]);
+  });
+
+  it('round trips CRLF and lone CR values, also when chunked one character at a time', () => {
+    const values = ['a\rb', 'c\r\nd', 'e\r', '\r'];
+    const text = `${formatCsvRow(values, ',')}\r\n`;
+    expect(parseAll(text)).toEqual([values]);
+    expect(parseChunked(text, 1)).toEqual([values]);
   });
 });
