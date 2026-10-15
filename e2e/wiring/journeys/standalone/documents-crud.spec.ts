@@ -74,7 +74,9 @@ test('documents panel: insert, edit, delete, count and delete by filter reach th
 
     // replaceDocument. Edit replaces the document that has the same _id.
     const before = await items.findOne({ name: 'keep-c' });
-    expect(before).not.toBeNull();
+    if (before === null) {
+      throw new Error('The seeded keep-c document is missing.');
+    }
     const keepRow = page
       .getByRole('row')
       .filter({ has: page.getByRole('cell', { name: 'keep-c' }) });
@@ -83,13 +85,13 @@ test('documents panel: insert, edit, delete, count and delete by filter reach th
     await typeIntoEditor(
       page,
       editDialog,
-      JSON.stringify({ _id: { $oid: String(before?._id) }, name: 'replaced-c', kind: 'keep' }),
+      JSON.stringify({ _id: { $oid: String(before._id) }, name: 'replaced-c', kind: 'keep' }),
     );
     await editDialog.getByRole('button', { name: 'Save', exact: true }).click();
     await expect(editDialog).toBeHidden();
     await expect
-      .poll(() => items.findOne({ _id: before?._id }))
-      .toEqual({ _id: before?._id, name: 'replaced-c', kind: 'keep' });
+      .poll(() => items.findOne({ _id: before._id }))
+      .toEqual({ _id: before._id, name: 'replaced-c', kind: 'keep' });
 
     // countDocuments. Three documents have kind seed.
     const seedCount = await items.countDocuments({ kind: 'seed' });

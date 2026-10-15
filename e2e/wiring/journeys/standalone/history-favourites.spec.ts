@@ -16,9 +16,7 @@ test('run a statement, save it as a favourite, remove it, then clear the history
       .insertMany([{ text: 'one' }, { text: 'two' }]);
 
     await page.goto(wiring.url);
-    await page
-      .getByRole('treeitem', { name: 'Local dev', exact: true })
-      .click({ button: 'right' });
+    await page.getByRole('treeitem', { name: 'Local dev', exact: true }).click({ button: 'right' });
     await page.getByRole('menuitem', { name: 'Connect', exact: true }).click();
     await page.getByRole('treeitem', { name: database, exact: true }).click({ button: 'right' });
     await page.getByRole('menuitem', { name: 'Open editor', exact: true }).click();

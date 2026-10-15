@@ -26,11 +26,11 @@ Pass a timeout as the last argument, for example `beforeAll(async () => { ... },
 
 ## Tasks
 
-| Id | Edits | Reads | Model | Waits for |
-| --- | --- | --- | --- | --- |
-| T1 | `packages/ui/src/editor/language-tokens.test.ts` | same file, lines 1 to 40 | Haiku | none |
-| T2 | `packages/ui/src/management/DocumentsPanel.test.tsx` | same file, lines 1 to 60 | Haiku | none |
-| V1 | none | both diffs | Opus | T1, T2 |
+| Id  | Edits                                                | Reads                    | Model | Waits for |
+| --- | ---------------------------------------------------- | ------------------------ | ----- | --------- |
+| T1  | `packages/ui/src/editor/language-tokens.test.ts`     | same file, lines 1 to 40 | Haiku | none      |
+| T2  | `packages/ui/src/management/DocumentsPanel.test.tsx` | same file, lines 1 to 60 | Haiku | none      |
+| V1  | none                                                 | both diffs               | Opus  | T1, T2    |
 
 - T1. Add a 60000 ms timeout argument to the `beforeAll` at line 12. Acceptance check, run alone and again with the whole suite in V1: `pnpm vitest run --project unit packages/ui/src/editor/language-tokens.test.ts` passes all 55 tests.
 - T2. Add a 20000 ms timeout argument to the one test at line 29. Acceptance check: `pnpm vitest run --project unit packages/ui/src/management/DocumentsPanel.test.tsx` passes.

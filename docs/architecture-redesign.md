@@ -53,6 +53,7 @@ packages/
 See `git show d471f76`.
 
 App side:
+
 - `rpc/profiler.ts` exports `createProfilerService({ port, getClient, emit })`. It returns `operations()` (the `entry(...)` list), `stopConnection(id)` and `stopAll()`. The state it owns (live tails) lives inside it.
 - `router.ts` builds the service, spreads `...profiler.operations()` into the operations map, and calls the stop hooks from `rendererResets`, `onStatusChange` and `lockEvents`.
 - The test-injected port type (`ProfilerPort`) lives in the feature file. `RouterDeps` imports the type.
@@ -60,6 +61,7 @@ App side:
 - Router tests for the feature are named `<feature>.test.ts`.
 
 UI side:
+
 - `profiler/index.ts` exports only what outside code uses.
 - Two kinds of import may bypass the index. Lazy `import('../x/XPanel')` in `screens/ShellPanels.tsx` stays direct to keep code splitting. Mocks and fixtures are imported directly, so mock code is never part of the index the production app loads.
 - Mocks moved from `api/mock-<feature>*.ts` to `<feature>/mock*.ts`.
@@ -71,20 +73,22 @@ Existing helpers to build on: `router.ts` already has `managementOperations()`, 
 
 ### Waves 0 and 1: done
 
-| Commit | What |
-|---|---|
+| Commit    | What                                                                                                                                                                                                                                                                                                                                                                                                                     |
+| --------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
 | `48234b5` | Wave 0. Helpers move to `kit/` and `theme/`. `JsonEditor`, `ReadOnlyCode` and their Monaco files move to `kit/code/`. The mongosh tokenizer is split into `kit/code/mongosh-tokens.ts`, so the viewer no longer imports the editor. One `validationError` in core. The strict canonical EJSON helpers merge into adapter `ejson.ts`. The `killcursors` test now uses op `'other'`, which is what the normaliser returns. |
-| `2636e2a` | Group A, monitor and diagnostics. `managed` and `readOnly` move to `operation.ts` as `connectionCalls(getClient, emit)`. `kit/use-polling.ts` replaces the interval effects in LogsTab, TopTab, OperationsPanel and ReplicationPanel. |
-| `9857b40` | `DestructiveDialog` becomes `kit/ConfirmDialog.tsx`. It already had six users. |
-| `538576a` | Groups B, C and D in one commit, because they ran in parallel and share edits in router.ts and mock-rpc-client.ts. Path checks shared by router, gridfs and transfers are in `rpc/picked-paths.ts`. |
-| `aa447f9` | Groups E and F. `createAppServices`, the backup tools factory and `createRepos` move to `rpc/app-services.ts`. |
+| `2636e2a` | Group A, monitor and diagnostics. `managed` and `readOnly` move to `operation.ts` as `connectionCalls(getClient, emit)`. `kit/use-polling.ts` replaces the interval effects in LogsTab, TopTab, OperationsPanel and ReplicationPanel.                                                                                                                                                                                    |
+| `9857b40` | `DestructiveDialog` becomes `kit/ConfirmDialog.tsx`. It already had six users.                                                                                                                                                                                                                                                                                                                                           |
+| `538576a` | Groups B, C and D in one commit, because they ran in parallel and share edits in router.ts and mock-rpc-client.ts. Path checks shared by router, gridfs and transfers are in `rpc/picked-paths.ts`.                                                                                                                                                                                                                      |
+| `aa447f9` | Groups E and F. `createAppServices`, the backup tools factory and `createRepos` move to `rpc/app-services.ts`.                                                                                                                                                                                                                                                                                                           |
 
 Results:
+
 - `router.ts` is 588 lines (was 2,562). Each namespace has its own `rpc/<feature>.ts`. Stateless features export `<feature>Operations(deps)`. Features with state export `create<Feature>Service(deps)` with `operations()` and stop hooks.
 - `ui/src/components/` is gone. Every feature folder has an `index.ts`, and its mocks are in the folder.
 - Router tests are named `<feature>.test.ts`. Split test files were merged with the same test counts: top-sort, IndexesPanel, replication plans, ConnectionTree and tree-model.
 
 Deviations from the plan:
+
 - The monitor service names its RPC list `rpcOperations()`, because `operations()` is already the `monitor.operations` call.
 - The two `redactAppError` copies stay. The security one redacts passwords from a secrets list. The shell one also redacts URIs in the message.
 - The relaxed EJSON parse in adapter `changes/helpers.ts` and the lenient parse in `explain/run-explain.ts` do different jobs from the strict one, so they stay.
@@ -105,12 +109,14 @@ Deviations from the plan:
 Facts from the scan: 409 test files, about 6,790 tests at runtime (6,734 pass, 55 skipped), about 84k test lines against about 100k source lines. Most packages have 1.0 to 1.5 test lines per source line. UI has 0.44. e2e has 3 tests.
 
 Rules:
+
 - Pure logic is tested once, in `core`.
 - Adapter tests run against a real MongoDB (they already do, via testcontainers). Do not repeat their assertions with fakes elsewhere.
 - Router tests check wiring and error mapping per feature, table-driven (`it.each`), not one hand-written test per error code.
 - UI tests check panel behaviour. They do not re-check what core's model tests already check.
 
 Candidates:
+
 - `app/src/main/rpc/router.test.ts` (1,863 lines, 76 cases): split by feature to match the router split, then turn the error-mapping cases into tables.
 - `core/src/sql`: 13.2k test lines. `break-hostile-input.test.ts` and `break-hostile-input-2.test.ts` cover the same area. `translate.test.ts` (3,065 lines, 246 cases) has single-case `it`s that suit `it.each`.
 - Explain is tested in core (normalise, rewrite), adapter (`run-explain.test.ts`), app (`explain.integration.test.ts`), ui model and ui panel. Check which panel and model tests re-assert core normalise output.
@@ -133,6 +139,7 @@ Candidates:
 Run from the repo root: `pnpm typecheck`, `pnpm lint`, `pnpm vitest run --project unit`.
 
 Baseline at `aa447f9`:
+
 - Typecheck: 0 errors.
 - Lint: 0 errors, 9 warnings (react-hooks `incompatible-library` on `useVirtualizer`).
 - Unit: 6,786 pass, 10 skipped, with 3 load-related failures in the full run. `management/DocumentsPanel.test.tsx` "loads up to 200 documents when Load more is pressed", and the Monaco suites `editor/language-tokens.test.ts` and `editor/MongoshMonaco.test.tsx` (beforeAll timeout loading Monaco), sometimes fail under load. All pass when run alone. Re-run them alone before blaming a change.

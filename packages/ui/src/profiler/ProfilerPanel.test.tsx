@@ -144,7 +144,6 @@ function bodyText(): string {
   return document.body.textContent ?? '';
 }
 
-
 describe('ProfilerPanel', () => {
   it('lists the operations of the database and only its namespaces', async () => {
     const api = await connectedApi();

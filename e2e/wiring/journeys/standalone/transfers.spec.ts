@@ -35,7 +35,10 @@ async function seed(database: string): Promise<void> {
   const client = new MongoClient(mongoUriFromEnv());
   try {
     await client.db(database).dropDatabase();
-    await client.db(database).collection('items').insertMany(DOCS.map((doc) => ({ ...doc })));
+    await client
+      .db(database)
+      .collection('items')
+      .insertMany(DOCS.map((doc) => ({ ...doc })));
   } finally {
     await client.close();
   }
