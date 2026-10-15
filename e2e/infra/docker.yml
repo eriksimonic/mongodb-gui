@@ -16,6 +16,6 @@ services:
         - --eval
         - "if (db.getSiblingDB('docker_shop').orders.countDocuments() !== 2) throw new Error('seed not visible yet')"
       interval: 2s
-      timeout: 5s
+      timeout: 30s
       retries: 30
       start_period: 5s

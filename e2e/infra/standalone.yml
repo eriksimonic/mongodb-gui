@@ -23,6 +23,6 @@ services:
         - --eval
         - "db.adminCommand('ping')"
       interval: 2s
-      timeout: 5s
+      timeout: 30s
       retries: 30
       start_period: 10s
