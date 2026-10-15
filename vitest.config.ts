@@ -17,6 +17,10 @@ export default defineConfig({
             '**/.claude/**',
             '**/*.integration.test.{ts,tsx}',
           ],
+          // The Windows and macOS runners are slower than a laptop. The 5 s and 10 s defaults failed a
+          // different slow test on each run.
+          testTimeout: 20_000,
+          hookTimeout: 60_000,
           // Cleans up rendered trees and drains timers before each jsdom file tears down.
           setupFiles: ['packages/ui/src/test-support/vitest-setup.ts'],
         },
