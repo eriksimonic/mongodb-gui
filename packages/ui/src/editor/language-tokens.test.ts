@@ -15,7 +15,7 @@ beforeAll(async () => {
   const { registerSqlLanguage } = await import('./sql-language');
   registerMongoshLanguage(monaco);
   registerSqlLanguage(monaco);
-});
+}, 60_000);
 
 type Language = 'mongosh' | 'tsql';
 

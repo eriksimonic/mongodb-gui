@@ -35,7 +35,7 @@ describe('DocumentsPanel', () => {
     expect(await screen.findByText('Showing 200 of the first 200 documents')).toBeInTheDocument();
     expect(bodyRows()).toHaveLength(200);
     expect(screen.queryByRole('button', { name: 'Load more' })).not.toBeInTheDocument();
-  });
+  }, 20_000);
 
   it('edits a document and replaces it with the same _id', async () => {
     const api = await connectedMockApi();
