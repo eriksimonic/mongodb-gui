@@ -142,7 +142,10 @@ describe('createToolsDownloads', () => {
     await downloads.start(VERSION);
     await settle();
     expect(last()).toMatchObject({ phase: 'error', error: { code: 'VALIDATION' } });
-    expect(await readdir(roots.downloaded)).toEqual([]);
+    // The service sends the final event first and removes the staging folder in its cleanup.
+    await vi.waitFor(async () => {
+      expect(await readdir(roots.downloaded)).toEqual([]);
+    });
   });
 
   it('cancels mid-stream and deletes the partial file', async () => {
@@ -157,7 +160,10 @@ describe('createToolsDownloads', () => {
     release();
     await settle();
     expect(last()?.phase).toBe('cancelled');
-    expect(await readdir(roots.downloaded)).toEqual([]);
+    // The service sends the final event first and removes the staging folder in its cleanup.
+    await vi.waitFor(async () => {
+      expect(await readdir(roots.downloaded)).toEqual([]);
+    });
   });
 
   it('refuses a second download while one runs', async () => {
@@ -191,7 +197,10 @@ describe('createToolsDownloads', () => {
     await downloads.start(VERSION);
     await settle();
     expect(last()).toMatchObject({ phase: 'error', error: { code: 'VALIDATION' } });
-    expect(await readdir(roots.downloaded)).toEqual([]);
+    // The service sends the final event first and removes the staging folder in its cleanup.
+    await vi.waitFor(async () => {
+      expect(await readdir(roots.downloaded)).toEqual([]);
+    });
   });
 
   it('refuses an archive whose binary reports another version', async () => {
@@ -199,7 +208,10 @@ describe('createToolsDownloads', () => {
     await downloads.start(VERSION);
     await settle();
     expect(last()).toMatchObject({ phase: 'error', error: { code: 'VALIDATION' } });
-    expect(await readdir(roots.downloaded)).toEqual([]);
+    // The service sends the final event first and removes the staging folder in its cleanup.
+    await vi.waitFor(async () => {
+      expect(await readdir(roots.downloaded)).toEqual([]);
+    });
   });
 
   it('refuses a redirect to a host that is not trusted', async () => {
