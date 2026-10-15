@@ -15,7 +15,8 @@ const SPEC = 'smoke';
 const MASTER_PASSWORD = 'correct horse battery staple';
 const WRONG_PASSWORD = 'wrong horse battery staple';
 const CONNECTION_NAME = 'E2E Mongo';
-const SERVER_VERSION = '8.0.17';
+// The platform job runs against a native mongod whose version differs from the container image.
+const SERVER_VERSION = /Connected\. Server \d+\.\d+\.\d+/;
 
 test('master password, connection tree and lock, end to end', async () => {
   const userDataDir = await createUserDataDir();
@@ -46,7 +47,7 @@ test('master password, connection tree and lock, end to end', async () => {
       await dialog.getByLabel('Name', { exact: true }).fill(CONNECTION_NAME);
       await dialog.getByLabel('Connection URI').fill(mongoUriFromEnv());
       await dialog.getByRole('button', { name: 'Test connection' }).click();
-      await expect(dialog.getByRole('status')).toContainText(`Connected. Server ${SERVER_VERSION}`);
+      await expect(dialog.getByRole('status')).toContainText(SERVER_VERSION);
       await captureStep(window, SPEC, '03-test-connection-ok');
     });
 

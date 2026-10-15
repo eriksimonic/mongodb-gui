@@ -274,6 +274,19 @@ describe.each(IMAGES)('replica set administration on %s', (image) => {
         if (target === undefined) {
           throw new Error('no healthy secondary');
         }
+        // The server can still bump the configuration version after the previous test. A reconfig
+        // planned across that bump is refused, so wait until two reads in a row agree.
+        let lastVersion: number | undefined;
+        await waitUntil(
+          async () => {
+            const { version } = await getReplicaSetConfig(client);
+            const stable = version === lastVersion;
+            lastVersion = version;
+            return stable;
+          },
+          DEFAULT_WAIT_MS,
+          'a stable configuration version',
+        );
         const plan = await updateMember(client, {
           memberId: target.id,
           patch: { tags: { region: 'test' } },
