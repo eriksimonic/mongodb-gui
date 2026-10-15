@@ -165,6 +165,89 @@ jobs:
           path: e2e/output
           if-no-files-found: ignore
 
+  # The e2e specs on Windows and macOS, against a native mongod because those runners have no Docker.
+  platform:
+    name: platform (${{ matrix.os }})
+    runs-on: ${{ matrix.os }}
+    needs: build
+    timeout-minutes: 30
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [windows-latest, macos-latest]
+    defaults:
+      run:
+        shell: bash
+    steps:
+      - name: Check out the repository
+        uses: actions/checkout@v7
+
+      - name: Set up pnpm
+        uses: pnpm/action-setup@v6
+        with:
+          version: 12.10.1
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v7
+        with:
+          node-version: 24
+          cache: pnpm
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      # The build job already built the app. Reuse its output instead of building again.
+      - name: Download the app build
+        uses: actions/download-artifact@v7
+        with:
+          name: app-out
+          path: packages/app/out
+
+      - name: Install mongod on Windows
+        if: ${{ runner.os == 'Windows' }}
+        run: choco install mongodb --no-progress -y
+
+      - name: Install mongod on macOS
+        if: ${{ runner.os == 'macOS' }}
+        run: |
+          brew tap mongodb/brew
+          brew install mongodb-community
+
+      # Starts mongod in the background on the default port and waits until it accepts connections.
+      # The Windows package puts mongod.exe under Program Files without adding it to PATH.
+      - name: Start mongod
+        run: |
+          if [ "$RUNNER_OS" = "Windows" ]; then
+            MONGOD=$(ls /c/Program\ Files/MongoDB/Server/*/bin/mongod.exe | tail -n 1)
+          else
+            MONGOD=$(command -v mongod)
+          fi
+          echo "using $MONGOD"
+          mkdir -p "$RUNNER_TEMP/mongo-data"
+          nohup "$MONGOD" --dbpath "$RUNNER_TEMP/mongo-data" --bind_ip 127.0.0.1 --port 27017 > "$RUNNER_TEMP/mongod.log" 2>&1 &
+          for attempt in $(seq 1 30); do
+            (echo > /dev/tcp/127.0.0.1/27017) 2>/dev/null && exit 0
+            sleep 2
+          done
+          cat "$RUNNER_TEMP/mongod.log"
+          exit 1
+
+      # No display setup: Windows and macOS runners have a desktop session.
+      - name: Run end-to-end tests
+        run: pnpm test:e2e
+        env:
+          # Skips the build inside global setup. The build job already built the app.
+          E2E_PREBUILT: '1'
+          E2E_MONGO_URI: mongodb://127.0.0.1:27017
+
+      - name: Upload e2e output
+        if: failure()
+        uses: actions/upload-artifact@v7
+        with:
+          name: platform-output-${{ matrix.os }}
+          path: e2e/output
+          if-no-files-found: ignore
+
   # One job per package, so a failure names the package and each job pulls only its images.
   integration:
     name: integration (${{ matrix.package }})
