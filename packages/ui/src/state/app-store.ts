@@ -1,6 +1,7 @@
 import {
   defaultDashboardLayout,
   dashboardLayoutKey,
+  ConnectionProfileInputSchema,
   toAppError,
   type AppError,
   type CollectionInfo,
@@ -53,7 +54,12 @@ import {
 } from './monitor-state';
 import { createExplainActions, type ExplainActions, type ExplainPanelState } from '../explain';
 import { catalogKey, connectionNodeId } from './node-ids';
-import { useDockerCredentialsStore } from '../connections';
+import {
+  buildMongoUri,
+  parseMongoUri,
+  useConnectionPasswordStore,
+  useDockerCredentialsStore,
+} from '../connections';
 import type { ThemeSetting } from '../theme/color-scheme';
 import { readCachedPreferences, writeCachedPreferences } from '../theme/preferences-cache';
 
@@ -324,6 +330,14 @@ export interface AppActions extends EditorActions, ExplainActions {
     readonly password: string;
     readonly authSource: string;
   }): Promise<void>;
+  /**
+   * Tests the URI with the typed credentials, saves it on the profile and connects. Throws the
+   * AppError of a failed test, and then saves nothing.
+   */
+  connectWithPassword(
+    id: string,
+    credentials: { readonly username: string; readonly password: string },
+  ): Promise<void>;
   disconnectContainer(containerId: string): Promise<void>;
   setDockerAutoConnect(enabled: boolean): Promise<void>;
   setSettingsOpen(open: boolean): void;
@@ -541,6 +555,32 @@ export function createAppStore(api: UiApi, initial: Partial<AppData> = {}): AppS
         containerId: profile.dockerContainerId,
         containerName: container?.name ?? profile.name,
         hint: container?.hasCredentials === true ? 'envFound' : 'noEnv',
+      });
+    }
+
+    /**
+     * A saved connection that is not a Docker profile and whose server rejected its credentials
+     * opens the password dialog, with the user name from the saved URI.
+     */
+    function offerPassword(connectionId: string, status: ConnectionStatus): void {
+      if (status.state !== 'error' || status.error.code !== 'AUTH_FAILED') {
+        return;
+      }
+      const connections = get().connections;
+      const profile =
+        connections.state === 'ready'
+          ? connections.data.find((item) => item.id === connectionId)
+          : undefined;
+      if (profile === undefined || profile.source === 'docker') {
+        return;
+      }
+      void rpc.connections.get({ id: connectionId }).then((full) => {
+        const parsed = parseMongoUri(full.uri);
+        useConnectionPasswordStore.getState().open({
+          connectionId,
+          connectionName: profile.name,
+          username: parsed.ok ? parsed.form.username : '',
+        });
       });
     }
 
@@ -766,9 +806,27 @@ export function createAppStore(api: UiApi, initial: Partial<AppData> = {}): AppS
             );
           }
           offerDockerCredentials(id, status);
+          offerPassword(id, status);
         } catch (error) {
           setStatus(id, { state: 'error', error: toAppError(error) });
         }
+      },
+
+      async connectWithPassword(id, credentials) {
+        // The schema drops the id and the timestamps, which a test call does not take.
+        const input = ConnectionProfileInputSchema.parse(await rpc.connections.get({ id }));
+        const parsed = parseMongoUri(input.uri);
+        if (!parsed.ok) {
+          throw new Error(parsed.message);
+        }
+        const uri = buildMongoUri({ ...parsed.form, ...credentials });
+        const result = await rpc.connections.test({ ...input, uri });
+        if (!result.ok) {
+          throw result.error;
+        }
+        await rpc.connections.update({ id, patch: { uri } });
+        await get().loadConnections();
+        await get().connect(id);
       },
 
       async disconnect(id) {

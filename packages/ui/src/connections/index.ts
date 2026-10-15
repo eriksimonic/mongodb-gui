@@ -4,3 +4,6 @@ export { ConnectionTree } from './ConnectionTree';
 export { connectionTopologyLabel } from './connection-status-label';
 export { DockerCredentialsDialog } from './DockerCredentialsDialog';
 export { useDockerCredentialsStore } from './docker-credentials-store';
+export { ConnectionPasswordDialog } from './ConnectionPasswordDialog';
+export { useConnectionPasswordStore } from './connection-password-store';
+export { buildMongoUri, parseMongoUri } from './uri-form';

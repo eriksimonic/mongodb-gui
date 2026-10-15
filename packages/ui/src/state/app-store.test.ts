@@ -1,9 +1,9 @@
-import { describe, expect, it } from 'vitest';
+import { describe, expect, it, vi } from 'vitest';
 import { localConnectionId, mockMasterPassword, stagingConnectionId } from '../api/mock-fixtures';
 import { createMockUiApi } from '../api/mock-rpc-client';
 
 const SECURE_CONTAINER_ID = 'e7b2c9a4d1f3065b8c2e7d9a4f1b3c6e0d8a2f5b7c9e1d3a6f8b0c2e4d6a8f1c';
-import { useDockerCredentialsStore } from '../connections';
+import { useConnectionPasswordStore, useDockerCredentialsStore } from '../connections';
 import { createAppStore, type AppStore } from './app-store';
 
 async function unlockedStore(): Promise<AppStore> {
@@ -73,6 +73,17 @@ describe('createAppStore connections', () => {
     expect(store.getState().statuses[stagingConnectionId]).toMatchObject({
       state: 'error',
       error: { code: 'AUTH_FAILED' },
+    });
+  });
+
+  it('opens the password dialog when a saved connection fails to authenticate', async () => {
+    const store = await unlockedStore();
+    await store.getState().connect(stagingConnectionId);
+    await vi.waitFor(() => {
+      expect(useConnectionPasswordStore.getState().request).toMatchObject({
+        connectionId: stagingConnectionId,
+        connectionName: 'Staging',
+      });
     });
   });
 

@@ -20,7 +20,12 @@ import {
   type DockviewReadyEvent,
   type DockviewTheme,
 } from 'dockview-react';
-import { ConnectionDialog, ConnectionManager, DockerCredentialsDialog } from '../connections';
+import {
+  ConnectionDialog,
+  ConnectionManager,
+  ConnectionPasswordDialog,
+  DockerCredentialsDialog,
+} from '../connections';
 import { useUiApi } from '../api/ui-api';
 import { ManagementDialogs } from '../management';
 import { runReported } from '../kit/notify-error';
@@ -822,6 +827,7 @@ export function ShellScreen() {
                 />
               )}
               <DockerCredentialsDialog />
+              <ConnectionPasswordDialog />
               <ManagementDialogs
                 onDatabaseDropped={(connectionId, database) => {
                   if (dockApi.current !== undefined) {
