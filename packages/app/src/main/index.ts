@@ -21,6 +21,7 @@ import {
   parseWindowBounds,
   type WindowBounds,
 } from '@mongo-gui/core';
+import { scriptedDialogs } from './dialog-picks';
 import { createRouter, type NativeDialogs, type Router } from './rpc/router';
 import { createAppServices, type AppServices } from './rpc/app-services';
 import { registerIpc, sendEvent } from './rpc/ipc';
@@ -36,6 +37,12 @@ const userDataOverride = app.isPackaged ? undefined : process.env['MONGO_GUI_USE
 if (userDataOverride !== undefined && userDataOverride !== '') {
   app.setPath('userData', userDataOverride);
 }
+
+// The e2e tests read this trace to see which RPC calls reached the router. A packaged app never writes it.
+const rpcTracePath = app.isPackaged ? undefined : process.env['MONGO_GUI_RPC_TRACE'];
+
+// The e2e tests script the open and save dialogs with this. A packaged app never reads it.
+const dialogPicks = app.isPackaged ? undefined : process.env['MONGO_GUI_DIALOG_PICKS'];
 
 // Electron reads this before it is ready, and the vault opens after that, so the option is kept
 // in a plain file. The --disable-gpu command line flag also works without it.
@@ -384,7 +391,11 @@ app
         chrome: process.versions.chrome,
         node: process.versions.node,
       }),
-      dialogs: nativeDialogs,
+      dialogs:
+        dialogPicks === undefined || dialogPicks === ''
+          ? nativeDialogs
+          : scriptedDialogs(dialogPicks),
+      ...(rpcTracePath === undefined || rpcTracePath === '' ? {} : { rpcTracePath }),
       startup: {
         read: () => readStartupSettings(app.getPath('userData')),
         write: (settings) => {

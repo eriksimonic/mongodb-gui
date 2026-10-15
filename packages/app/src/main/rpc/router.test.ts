@@ -1860,3 +1860,76 @@ describe('connection files', { timeout: 30_000 }, () => {
     expectError(await router.handle('app.restart', undefined), 'INTERNAL');
   });
 });
+
+describe('rpc trace and rejection logs', () => {
+  /** Builds a router over a temp store, and removes the store after the run. */
+  async function withRouter(
+    options: { log?: Logger; rpcTracePath?: string },
+    run: (router: Router) => Promise<void>,
+  ): Promise<void> {
+    const dir = mkdtempSync(join(tmpdir(), 'rpc-log-'));
+    const services = createAppServices({ userDataDir: dir, kdf: FAST_KDF, failureDelayMs: 0 });
+    try {
+      await run(createRouter({ ...services, onEvent: () => undefined, ...options }));
+    } finally {
+      await services.dispose();
+      rmSync(dir, { recursive: true, force: true });
+    }
+  }
+
+  it('appends one line per call with its outcome when a trace path is set', async () => {
+    const traceDir = mkdtempSync(join(tmpdir(), 'rpc-trace-'));
+    const trace = join(traceDir, 'rpc.jsonl');
+    try {
+      await withRouter({ rpcTracePath: trace }, async (router) => {
+        expectValue(await router.handle('vault.status', undefined));
+        expectError(await router.handle('connections.get', { id: 'not-a-uuid' }), 'VALIDATION');
+      });
+
+      const lines = readFileSync(trace, 'utf8')
+        .trim()
+        .split('\n')
+        .map((line) => JSON.parse(line) as unknown);
+      expect(lines).toEqual([
+        { method: 'vault.status', outcome: 'ok' },
+        { method: 'connections.get', outcome: 'VALIDATION' },
+      ]);
+    } finally {
+      rmSync(traceDir, { recursive: true, force: true });
+    }
+  });
+
+  it('logs a rejected input as a warning without the input', async () => {
+    const captured = captureLogger();
+    await withRouter({ log: captured.logger }, async (router) => {
+      expectError(
+        await router.handle('connections.get', { id: 'secret-not-a-uuid' }),
+        'VALIDATION',
+      );
+    });
+
+    expect(captured.records).toContainEqual(
+      expect.objectContaining({
+        level: 'warn',
+        message: 'rpc input rejected',
+        fields: { method: 'connections.get' },
+      }),
+    );
+    expect(JSON.stringify(captured.records)).not.toContain('secret-not-a-uuid');
+  });
+
+  it('logs an unknown method as a warning', async () => {
+    const captured = captureLogger();
+    await withRouter({ log: captured.logger }, async (router) => {
+      expectError(await router.handle('shell.explode', {}), 'VALIDATION');
+    });
+
+    expect(captured.records).toContainEqual(
+      expect.objectContaining({
+        level: 'warn',
+        message: 'rpc method unknown',
+        fields: { method: 'shell.explode' },
+      }),
+    );
+  });
+});

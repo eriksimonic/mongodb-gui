@@ -1,4 +1,4 @@
-import { statSync } from 'node:fs';
+import { appendFileSync, statSync } from 'node:fs';
 import { ExportWriter } from './export-file';
 import { dirname } from 'node:path';
 import {
@@ -154,6 +154,11 @@ export interface RouterDeps {
    * fail with INTERNAL. Tests pass fakes.
    */
   readonly backupTools?: (wiring: BackupToolsWiring) => BackupTools;
+  /**
+   * Appends one JSON line per handle call to this file, so the e2e tests can see which calls
+   * reached the router. index.ts sets it from MONGO_GUI_RPC_TRACE, and never in a packaged app.
+   */
+  readonly rpcTracePath?: string;
 }
 
 /** What the router gives the backup services: its event sink and its folder pick check. */
@@ -508,28 +513,41 @@ export function createRouter(deps: RouterDeps): Router {
       };
     },
     async handle(method, input) {
-      const op = operations.get(method);
-      if (op === undefined) {
-        return failure(appError('VALIDATION', 'The method is not known.', method));
+      const result = await dispatch(method, input);
+      if (deps.rpcTracePath !== undefined) {
+        const outcome = result.ok ? 'ok' : result.error.code;
+        appendFileSync(deps.rpcTracePath, `${JSON.stringify({ method, outcome })}\n`);
       }
-      try {
-        const parsedInput = op.call.input.safeParse(input);
-        if (!parsedInput.success) {
-          return failure(appError('VALIDATION', 'The input is invalid.', method));
-        }
-        const value = await op.run(parsedInput.data);
-        const parsedOutput = op.call.output.safeParse(value);
-        if (!parsedOutput.success) {
-          return failure(appError('INTERNAL', 'The handler returned an unexpected value.', method));
-        }
-        // Browsing keeps the vault unlocked. A locked vault ignores the touch.
-        deps.vault.touch();
-        return { ok: true, value: parsedOutput.data };
-      } catch (error) {
-        return failure(describeFailure(method, error));
-      }
+      return result;
     },
   };
+
+  /** Runs one call. handle wraps it so every outcome reaches the trace. */
+  async function dispatch(method: string, input: unknown): Promise<RpcResult> {
+    const op = operations.get(method);
+    if (op === undefined) {
+      deps.log?.warn('rpc method unknown', { method });
+      return failure(appError('VALIDATION', 'The method is not known.', method));
+    }
+    try {
+      const parsedInput = op.call.input.safeParse(input);
+      if (!parsedInput.success) {
+        deps.log?.warn('rpc input rejected', { method });
+        return failure(appError('VALIDATION', 'The input is invalid.', method));
+      }
+      const value = await op.run(parsedInput.data);
+      const parsedOutput = op.call.output.safeParse(value);
+      if (!parsedOutput.success) {
+        deps.log?.error('rpc output rejected', { method });
+        return failure(appError('INTERNAL', 'The handler returned an unexpected value.', method));
+      }
+      // Browsing keeps the vault unlocked. A locked vault ignores the touch.
+      deps.vault.touch();
+      return { ok: true, value: parsedOutput.data };
+    } catch (error) {
+      return failure(describeFailure(method, error));
+    }
+  }
 
   /**
    * Maps a thrown error to the response. Known AppErrors keep their code. Repository calls
