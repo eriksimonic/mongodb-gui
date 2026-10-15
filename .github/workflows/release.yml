@@ -89,6 +89,47 @@ jobs:
             packages/app/release/linux-unpacked/resources/mongo-tools/bin/mongodump --version
           fi
 
+      # Starts the unpacked app and checks that it reaches the master password prompt.
+      # Both build steps leave the unpacked directory behind. out/ is already built by dist.
+      - name: Run the packaged app smoke test
+        shell: bash
+        env:
+          E2E_NO_MONGO: '1'
+          E2E_PREBUILT: '1'
+        run: |
+          release=packages/app/release
+          case "$RUNNER_OS" in
+            Windows) exe="$release/win-unpacked/Mongo GUI.exe" ;;
+            Linux) exe="$release/linux-unpacked/mongo-gui" ;;
+            macOS)
+              exe=
+              for dir in "$release"/mac-arm64 "$release"/mac; do
+                if [ -d "$dir/Mongo GUI.app" ]; then
+                  exe="$dir/Mongo GUI.app/Contents/MacOS/Mongo GUI"
+                  break
+                fi
+              done
+              if [ -z "$exe" ]; then
+                echo "::error::No 'Mongo GUI.app' under $release/mac-arm64 or $release/mac. Found:"
+                ls "$release"
+                exit 1
+              fi
+              ;;
+          esac
+          if [ ! -f "$exe" ]; then
+            echo "::error::Packaged app not found at $exe"
+            ls "$release"
+            exit 1
+          fi
+          # Node resolves a native absolute path, which Git Bash's /d/a/... form is not.
+          E2E_PACKAGED_EXECUTABLE="$(node -p "require('path').resolve(process.argv[1])" "$exe")"
+          export E2E_PACKAGED_EXECUTABLE
+          if [ "$RUNNER_OS" = "Linux" ]; then
+            xvfb-run -a pnpm exec playwright test -c e2e/playwright.config.ts persistence.spec.ts
+          else
+            pnpm exec playwright test -c e2e/playwright.config.ts persistence.spec.ts
+          fi
+
       - name: Upload installers for inspection
         if: ${{ !startsWith(github.ref, 'refs/tags/v') }}
         uses: actions/upload-artifact@v7
