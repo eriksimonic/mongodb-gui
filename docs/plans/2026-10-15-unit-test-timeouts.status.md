@@ -1,0 +1,3 @@
+- T1 (Haiku): done, added a 60_000 ms timeout to the beforeAll in language-tokens.test.ts, 55 of 55 tests pass alone.
+- T2 (Haiku): done, added a 20_000 ms timeout to the "Load more" test in DocumentsPanel.test.tsx, 7 of 7 tests pass.
+- V1 (Opus): pass, diff holds only the two timeout arguments, `pnpm test` shows 358 files and 6814 tests passed, 0 failed, 0 skipped. Nothing committed.
