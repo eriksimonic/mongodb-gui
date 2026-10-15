@@ -65,7 +65,7 @@ test('editor, results, paging, tree edit, print, history and favourites, end to 
 
     await test.step('type the query and see field completion', async () => {
       await window.locator('.monaco-editor .view-lines').first().click();
-      await window.keyboard.press('Control+A');
+      await window.keyboard.press('ControlOrMeta+A');
       await window.keyboard.press('Delete');
       await window.keyboard.type('db.orders.', { delay: 60 });
       await expect(window.locator('.suggest-widget').first()).toBeVisible();
@@ -74,7 +74,7 @@ test('editor, results, paging, tree edit, print, history and favourites, end to 
     });
 
     await test.step('run with Ctrl+Enter and read the first page', async () => {
-      await window.keyboard.press('Control+Enter');
+      await window.keyboard.press('ControlOrMeta+Enter');
       await expect(window.getByText(/^1 to \d+ of \?$/)).toBeVisible();
     });
 
@@ -121,10 +121,10 @@ test('editor, results, paging, tree edit, print, history and favourites, end to 
 
     await test.step('print and count with Run all, and read the print line in Output', async () => {
       await window.locator('.monaco-editor .view-lines').first().click();
-      await window.keyboard.press('Control+A');
+      await window.keyboard.press('ControlOrMeta+A');
       await window.keyboard.press('Delete');
       await window.keyboard.type('print("hi"); db.orders.countDocuments()', { delay: 10 });
-      await window.keyboard.press('Control+Shift+Enter');
+      await window.keyboard.press('ControlOrMeta+Shift+Enter');
       const log = window.getByRole('log', { name: 'Output' });
       await expect(log.getByText('hi', { exact: true })).toBeVisible();
     });
@@ -142,7 +142,7 @@ test('editor, results, paging, tree edit, print, history and favourites, end to 
 
     await test.step('save the query as a favourite', async () => {
       await window.locator('.monaco-editor .view-lines').first().click();
-      await window.keyboard.press('Control+A');
+      await window.keyboard.press('ControlOrMeta+A');
       await window.keyboard.press('Delete');
       await window.keyboard.type('db.orders.find({ status: "paid" })', { delay: 10 });
       await window

@@ -102,10 +102,16 @@ export async function launchApp(
   return { app, window, mainStderr, rendererErrors };
 }
 
-/** Closes the window the way a user does, then waits for the process to exit. */
+/** Closes the window the way a user does, quits on macOS where closing does not, then waits for exit. */
 export async function closeWindowAndWaitForExit(session: AppSession): Promise<number | null> {
   const exit = waitForExit(session.app.process());
   await session.window.close();
+  if (process.platform === 'darwin') {
+    // On macOS the app stays running after its last window closes, so the user quits it with Cmd+Q.
+    await session.app.evaluate(({ app }) => {
+      app.quit();
+    });
+  }
   return exit;
 }
 
