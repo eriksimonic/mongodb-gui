@@ -66,6 +66,24 @@ describe('exportTargetProblem', () => {
     expect(exportTargetProblem(`${dir}/x/../y.json`)).toBeDefined();
   });
 
+  it('refuses a backslash parent segment and a Windows drive path that climbs out', () => {
+    expect(exportTargetProblem('..\\escape.json')).toBeDefined();
+    expect(exportTargetProblem('C:\\a\\..\\b.json')).toBeDefined();
+  });
+
+  it('refuses a mixed-separator parent segment', () => {
+    expect(exportTargetProblem(`${dir}\\..\\escape.json`)).toBeDefined();
+  });
+
+  it('accepts a UNC path and a forward-slash path that does not exist', () => {
+    expect(exportTargetProblem('\\\\host\\share\\out.json')).toBeUndefined();
+    expect(exportTargetProblem('C:/out/a.json')).toBeUndefined();
+  });
+
+  it('accepts a mixed-separator path without a parent segment', () => {
+    expect(exportTargetProblem(`${dir}/sub\\new.csv`)).toBeUndefined();
+  });
+
   it('refuses a symbolic link at the target', () => {
     const target = join(dir, 'real.json');
     const link = join(dir, 'link.json');
