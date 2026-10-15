@@ -1,6 +1,6 @@
 import { spawn } from 'node:child_process';
 import { resolve } from 'node:path';
-import { MONGO_URI_ENV, startSeededMongo } from './support/mongo';
+import { MONGO_URI_ENV, seedExistingMongo, startSeededMongo } from './support/mongo';
 
 const repoRoot = resolve(import.meta.dirname, '..');
 
@@ -13,7 +13,15 @@ export default async function globalSetup(): Promise<() => Promise<void>> {
   if (process.env['E2E_PREBUILT'] !== '1') {
     await runPnpmBuild();
   }
-  const mongo = await startSeededMongo();
+  // E2E_NO_MONGO=1 skips MongoDB. E2E_MONGO_URI seeds that existing server instead of a container.
+  if (process.env['E2E_NO_MONGO'] === '1') {
+    return async () => {};
+  }
+  const existingUri = process.env[MONGO_URI_ENV];
+  const mongo =
+    existingUri !== undefined && existingUri !== ''
+      ? await seedExistingMongo(existingUri)
+      : await startSeededMongo();
   process.env[MONGO_URI_ENV] = mongo.uri;
   return async () => {
     await mongo.stop();

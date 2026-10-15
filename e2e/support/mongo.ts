@@ -47,6 +47,12 @@ export async function startSeededMongo(): Promise<StartedMongo> {
   };
 }
 
+/** Seeds an already running server at `uri`. Nothing is started, so stop does nothing. */
+export async function seedExistingMongo(uri: string): Promise<StartedMongo> {
+  await seedWhenReady(uri);
+  return { uri, stop: async () => {} };
+}
+
 /** Reads the URI that the global setup stored for the specs. */
 export function mongoUriFromEnv(): string {
   const uri = process.env[MONGO_URI_ENV];
