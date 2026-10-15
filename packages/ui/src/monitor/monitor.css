@@ -16,7 +16,7 @@
   border: 1px solid var(--mg-border);
   border-radius: var(--mantine-radius-sm);
   background: var(--mg-surface-1);
-  box-shadow: 0 4px 12px var(--mg-shadow);
+  box-shadow: var(--mg-shadow);
   font-size: calc(var(--mg-font-scale, 1) * 12px);
   line-height: 1.5;
   pointer-events: none;
