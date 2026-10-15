@@ -262,9 +262,7 @@ jobs:
     runs-on: ubuntu-latest
     needs: build
     timeout-minutes: 20
-    # Non-blocking for a trial of about two weeks before it becomes required.
     # See "Stability rules" in docs/e2e-test-strategy.md.
-    continue-on-error: true
     strategy:
       fail-fast: false
       matrix:
@@ -373,8 +371,6 @@ jobs:
     needs: wiring
     if: always()
     timeout-minutes: 10
-    # Non-blocking for the same trial period as the wiring segments.
-    continue-on-error: true
     steps:
       - name: Check out the repository
         uses: actions/checkout@v7

@@ -102,7 +102,7 @@ Two changes make wiring bugs fail a test instead of passing silently.
 - Pinned Mongo and Electron versions.
 - Build once in CI and share the artifact. `e2e/global-setup.ts` builds inside each run today.
 - Fetch mongo-tools in the backup job. Only the app integration job fetches them now.
-- Each segment runs non-blocking for about two weeks. It becomes required only after it stays green.
+- Each segment is required in CI from the start. The planned two-week non-blocking trial was skipped.
 - Before a release, run the Electron smoke against the packaged build on each shipped OS.
 
 ## Execution model
@@ -172,7 +172,7 @@ Recorded while phases 2 to 5 were built.
 - The replica set members use host networking on `127.0.0.1:27031` to `27033` and advertise those addresses, so no job edits `/etc/hosts`. Member 27031 has priority 2, so the primary is the same on every start.
 - The docker segment also starts the standalone stack, because the test server seeds its saved connections from that URI.
 - The test server has the bundled MongoDB tools and a per-test `wiring.setDialogPicks` for the native dialogs. `test.use({ realDocker: true })` gives it the host Docker socket.
-- CI runs the wiring segments and the coverage step with `continue-on-error: true` for the trial period.
+- CI requires the wiring segments and the coverage step.
 
 ## Estimate
 
