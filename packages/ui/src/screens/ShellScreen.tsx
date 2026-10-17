@@ -564,7 +564,12 @@ export function ShellScreen() {
         if (target.kind === 'collection') {
           openCollectionPanel(
             dockApi.current,
-            { panel: 'changes', connectionId, database: target.database, collection: target.collection },
+            {
+              panel: 'changes',
+              connectionId,
+              database: target.database,
+              collection: target.collection,
+            },
             collectionPanels.current,
           );
           return;

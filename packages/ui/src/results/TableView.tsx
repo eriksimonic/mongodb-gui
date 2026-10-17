@@ -190,8 +190,7 @@ function CellRenderer(props: CustomCellRendererProps<Row, unknown>) {
           view.type === 'ObjectId' || view.align === 'right'
             ? 'var(--mantine-font-family-monospace)'
             : undefined,
-        color:
-          valueColor(view.type) ?? typeColor(typeBucket(view.type), scheme),
+        color: valueColor(view.type) ?? typeColor(typeBucket(view.type), scheme),
       }}
       title={view.title ?? view.text}
       onMouseEnter={

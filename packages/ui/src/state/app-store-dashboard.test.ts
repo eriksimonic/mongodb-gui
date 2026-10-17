@@ -96,7 +96,9 @@ describe('dashboard store', () => {
 
     const view = store.getState().dashboards[localConnectionId];
     expect(view?.error?.message).toBe('disk full');
-    expect(view?.layout.rows.flatMap((row) => row.panels.map((item) => item.id))).not.toContain('queues');
+    expect(view?.layout.rows.flatMap((row) => row.panels.map((item) => item.id))).not.toContain(
+      'queues',
+    );
   });
 
   it('records a failed read and keeps saves off', async () => {
@@ -139,7 +141,9 @@ describe('dashboard store', () => {
       .moveDashboardPanel(localConnectionId, 'replication-lag', 'operations-by-type', 'above');
     const ids = store
       .getState()
-      .dashboards[localConnectionId]?.layout.rows.flatMap((row) => row.panels.map((item) => item.id));
+      .dashboards[localConnectionId]?.layout.rows.flatMap((row) =>
+        row.panels.map((item) => item.id),
+      );
     expect(ids?.[0]).toBe('replication-lag');
   });
 
@@ -147,7 +151,15 @@ describe('dashboard store', () => {
     const api = createMockUiApi({ preset: 'unlocked' });
     const stored = {
       version: 2,
-      rows: [{ h: 300, panels: [{ id: 'memory', f: 0.5 }, { id: 'queues', f: 0.5 }] }],
+      rows: [
+        {
+          h: 300,
+          panels: [
+            { id: 'memory', f: 0.5 },
+            { id: 'queues', f: 0.5 },
+          ],
+        },
+      ],
     } as const;
     let resolveRead: (result: { value: unknown }) => void = () => undefined;
     const pendingRead = new Promise<{ value: unknown }>((resolve) => {

@@ -248,7 +248,12 @@ function IndexDetail({ index, database, collection, onEdit, onHide, onDrop }: In
         >
           Copy createIndex
         </Button>
-        <Button size="xs" variant="default" disabled={protectedIndex || !canEditIndex(index)} onClick={onEdit}>
+        <Button
+          size="xs"
+          variant="default"
+          disabled={protectedIndex || !canEditIndex(index)}
+          onClick={onEdit}
+        >
           Edit
         </Button>
         <Button size="xs" color="red" variant="outline" disabled={protectedIndex} onClick={onDrop}>
@@ -347,7 +352,12 @@ export function IndexesPanel({ connectionId, database, collection }: CollectionP
 
   return (
     <Stack gap={0} h="100%">
-      <Group justify="space-between" px="md" py="sm" style={{ borderBottom: '1px solid var(--mg-border)' }}>
+      <Group
+        justify="space-between"
+        px="md"
+        py="sm"
+        style={{ borderBottom: '1px solid var(--mg-border)' }}
+      >
         <Group gap="xs">
           <Button leftSection={<IconPlus size={14} />} onClick={() => setCreating(true)}>
             Create index
@@ -404,8 +414,7 @@ export function IndexesPanel({ connectionId, database, collection }: CollectionP
                     onClick={() => setSelected(index.name)}
                     style={{
                       cursor: 'pointer',
-                      background:
-                        index.name === selected ? 'var(--mg-surface-2)' : undefined,
+                      background: index.name === selected ? 'var(--mg-surface-2)' : undefined,
                     }}
                   >
                     <Table.Td ff="monospace">{index.name}</Table.Td>

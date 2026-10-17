@@ -776,7 +776,12 @@ describe('createDockerRuntime forwarder certificates', () => {
 describe('createDockerRuntime pruneMissing', () => {
   const GONE_ID = 'f'.repeat(64);
 
-  function addProfiles(harness: Harness): { docker: string; stopped: string; gone: string; manual: string } {
+  function addProfiles(harness: Harness): {
+    docker: string;
+    stopped: string;
+    gone: string;
+    manual: string;
+  } {
     const make = (name: string, source: 'manual' | 'docker', containerId?: string): string =>
       harness.repos.connections.create({
         name,
@@ -801,7 +806,10 @@ describe('createDockerRuntime pruneMissing', () => {
 
     await harness.runtime.pruneMissing((event) => harness.events.push(event));
 
-    const left = harness.repos.connections.list().map((profile) => profile.name).sort();
+    const left = harness.repos.connections
+      .list()
+      .map((profile) => profile.name)
+      .sort();
     expect(left).toEqual(['down', 'manual', 'up']);
     expect(harness.connections.disconnected).toContain(ids.gone);
     expect(harness.events).toEqual([

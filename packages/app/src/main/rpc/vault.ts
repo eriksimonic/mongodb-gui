@@ -1,4 +1,10 @@
-import { appError, AppErrorException, rpcContract, toAppError, type RpcEvent } from '@mongo-gui/core';
+import {
+  appError,
+  AppErrorException,
+  rpcContract,
+  toAppError,
+  type RpcEvent,
+} from '@mongo-gui/core';
 import type { ConnectionManager } from '@mongo-gui/mongo-adapter';
 import type { SettingsRepository, Vault } from '@mongo-gui/storage';
 import type { DockerRuntime } from '../docker/runtime';

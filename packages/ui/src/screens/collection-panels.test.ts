@@ -103,7 +103,12 @@ describe('restoredCollectionRequest', () => {
         collection: 'orders',
         section: 'indexes',
       }),
-    ).toEqual({ panel: 'indexes', connectionId: CONNECTION, database: 'shop', collection: 'orders' });
+    ).toEqual({
+      panel: 'indexes',
+      connectionId: CONNECTION,
+      database: 'shop',
+      collection: 'orders',
+    });
   });
 
   it('ignores panels that are not collection panels and params that lack a name', () => {

@@ -155,12 +155,12 @@ export function MonitorDashboard({ connectionId }: MonitorDashboardProps) {
   const [pickerOpen, setPickerOpen] = useState(false);
   const [aboutId, setAboutId] = useState<string | undefined>(undefined);
   // A resize shows through `preview` and commits to the store when the pointer is released.
-  const [preview, setPreview] = useState<((layout: DashboardLayout) => DashboardLayout) | undefined>(
-    undefined,
-  );
-  const [drag, setDrag] = useState<{ id: string; target?: { id: string; place: DropPlace } } | undefined>(
-    undefined,
-  );
+  const [preview, setPreview] = useState<
+    ((layout: DashboardLayout) => DashboardLayout) | undefined
+  >(undefined);
+  const [drag, setDrag] = useState<
+    { id: string; target?: { id: string; place: DropPlace } } | undefined
+  >(undefined);
   const canvasRef = useRef<HTMLDivElement>(null);
   const [areaWidth, setAreaWidth] = useState(0);
 
@@ -190,7 +190,10 @@ export function MonitorDashboard({ connectionId }: MonitorDashboardProps) {
   const capabilities = capabilitiesOf(status, view.samples.at(-1));
   const { wiredTiger, replicaSet } = capabilities;
   const layout = dashboard.layout;
-  const shownLayout = useMemo(() => (preview === undefined ? layout : preview(layout)), [layout, preview]);
+  const shownLayout = useMemo(
+    () => (preview === undefined ? layout : preview(layout)),
+    [layout, preview],
+  );
   const rows = useMemo(
     () => visibleRows(shownLayout, { wiredTiger, replicaSet }),
     [shownLayout, wiredTiger, replicaSet],
@@ -200,7 +203,13 @@ export function MonitorDashboard({ connectionId }: MonitorDashboardProps) {
   const shownRows = useMemo(
     () =>
       narrow
-        ? rows.flatMap((row) => row.panels.map((panel) => ({ index: row.index, h: row.h, panels: [{ ...panel, f: 1 }] })))
+        ? rows.flatMap((row) =>
+            row.panels.map((panel) => ({
+              index: row.index,
+              h: row.h,
+              panels: [{ ...panel, f: 1 }],
+            })),
+          )
         : rows,
     [rows, narrow],
   );
@@ -244,11 +253,24 @@ export function MonitorDashboard({ connectionId }: MonitorDashboardProps) {
   const aboutPanel: PanelSpec | undefined = aboutId === undefined ? undefined : findPanel(aboutId);
 
   function cardWidth(id: string): number {
-    return canvasRef.current?.querySelector(`[data-panel-id="${id}"]`)?.getBoundingClientRect().width ?? 0;
+    return (
+      canvasRef.current?.querySelector(`[data-panel-id="${id}"]`)?.getBoundingClientRect().width ??
+      0
+    );
   }
 
   /** Moves the boundary between two neighbours, and the row height when `h` is given. */
-  function resize(leftId: string, rightId: string | undefined, rowIndex: number, startH: number, dx: number, dy: number, final: boolean, startLeft: number, startPair: number): void {
+  function resize(
+    leftId: string,
+    rightId: string | undefined,
+    rowIndex: number,
+    startH: number,
+    dx: number,
+    dy: number,
+    final: boolean,
+    startLeft: number,
+    startPair: number,
+  ): void {
     const min = Math.min(MIN_PANEL_PX, startPair / 2);
     const share =
       rightId === undefined || startPair === 0
@@ -257,7 +279,9 @@ export function MonitorDashboard({ connectionId }: MonitorDashboardProps) {
     const height = Math.max(ROW_MIN_HEIGHT_PX, startH + dy);
     const change = (current: DashboardLayout): DashboardLayout => {
       const split =
-        share === undefined || rightId === undefined ? current : splitPanels(current, leftId, rightId, share);
+        share === undefined || rightId === undefined
+          ? current
+          : splitPanels(current, leftId, rightId, share);
       return setRowHeight(split, rowIndex, height);
     };
     if (final) {
@@ -272,11 +296,21 @@ export function MonitorDashboard({ connectionId }: MonitorDashboardProps) {
   }
 
   /** The panel and the side of it under the pointer while a header is dragged. */
-  function dropTargetAt(id: string, x: number, y: number): { id: string; place: DropPlace } | undefined {
+  function dropTargetAt(
+    id: string,
+    x: number,
+    y: number,
+  ): { id: string; place: DropPlace } | undefined {
     for (const element of document.elementsFromPoint(x, y)) {
       const card = element.closest('[data-panel-id]');
       const targetId = card?.getAttribute('data-panel-id');
-      if (card !== null && card !== undefined && targetId !== null && targetId !== undefined && targetId !== id) {
+      if (
+        card !== null &&
+        card !== undefined &&
+        targetId !== null &&
+        targetId !== undefined &&
+        targetId !== id
+      ) {
         const box = card.getBoundingClientRect();
         const fx = (x - box.left) / box.width;
         const fy = (y - box.top) / box.height;
@@ -475,11 +509,24 @@ export function MonitorDashboard({ connectionId }: MonitorDashboardProps) {
                       const firstUnit = spec.series[0]?.unit;
                       // A stat panel shows one series. Its value comes from the newest sample.
                       const statSeries = spec.chart === 'stat' ? spec.series[0] : undefined;
-                      const startResize = (event: PointerEvent<HTMLElement>, withHeight: boolean) => {
+                      const startResize = (
+                        event: PointerEvent<HTMLElement>,
+                        withHeight: boolean,
+                      ) => {
                         const startLeft = cardWidth(id);
                         const startPair = startLeft + (next === undefined ? 0 : cardWidth(next.id));
                         trackOffset(event, (dx, dy, final) =>
-                          resize(id, narrow ? undefined : next?.id, row.index, row.h, dx, withHeight ? dy : 0, final, startLeft, startPair),
+                          resize(
+                            id,
+                            narrow ? undefined : next?.id,
+                            row.index,
+                            row.h,
+                            dx,
+                            withHeight ? dy : 0,
+                            final,
+                            startLeft,
+                            startPair,
+                          ),
                         );
                       };
                       return (
@@ -495,8 +542,19 @@ export function MonitorDashboard({ connectionId }: MonitorDashboardProps) {
                               onMove={(x, y, final) => moveHeader(id, x, y, final)}
                               onGrip={(dx, dy, final) => {
                                 const startLeft = cardWidth(id);
-                                const startPair = startLeft + (next === undefined ? 0 : cardWidth(next.id));
-                                resize(id, narrow ? undefined : next?.id, row.index, row.h, dx, dy, final, startLeft, startPair);
+                                const startPair =
+                                  startLeft + (next === undefined ? 0 : cardWidth(next.id));
+                                resize(
+                                  id,
+                                  narrow ? undefined : next?.id,
+                                  row.index,
+                                  row.h,
+                                  dx,
+                                  dy,
+                                  final,
+                                  startLeft,
+                                  startPair,
+                                );
                               }}
                             >
                               {statSeries === undefined ? (

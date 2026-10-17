@@ -45,16 +45,30 @@ function migrateLayout(value: unknown): unknown {
   if (!Array.isArray(panels) || panels.length > MAX_LAYOUT_PANELS) {
     return value;
   }
-  type Old = { id: string; w: number; h: number; rect?: { x: number; y: number; w: number; h: number } };
+  type Old = {
+    id: string;
+    w: number;
+    h: number;
+    rect?: { x: number; y: number; w: number; h: number };
+  };
   const old = panels as Old[];
-  if (old.some((panel) => typeof panel?.id !== 'string' || ![1, 2, 3].includes(panel.w) || ![1, 2].includes(panel.h))) {
+  if (
+    old.some(
+      (panel) =>
+        typeof panel?.id !== 'string' || ![1, 2, 3].includes(panel.w) || ![1, 2].includes(panel.h),
+    )
+  ) {
     return value;
   }
   const rows: { h: number; panels: { id: string; f: number }[] }[] = [];
   if (old.some((panel) => panel.rect !== undefined)) {
     const placed = old
       .map((panel, index) => ({ panel, index, rect: panel.rect }))
-      .sort((a, b) => (a.rect?.y ?? 1e9 + a.index) - (b.rect?.y ?? 1e9 + b.index) || (a.rect?.x ?? 0) - (b.rect?.x ?? 0));
+      .sort(
+        (a, b) =>
+          (a.rect?.y ?? 1e9 + a.index) - (b.rect?.y ?? 1e9 + b.index) ||
+          (a.rect?.x ?? 0) - (b.rect?.x ?? 0),
+      );
     let bandBottom = -1;
     for (const { panel, rect } of placed) {
       const width = rect?.w ?? panel.w * 400;
@@ -84,7 +98,10 @@ function migrateLayout(value: unknown): unknown {
   }
   return {
     version: DASHBOARD_LAYOUT_VERSION,
-    rows: rows.map((row) => ({ h: Math.min(MAX_ROW_HEIGHT_PX, Math.max(ROW_MIN_HEIGHT_PX, Math.round(row.h))), panels: normaliseRow(row.panels) })),
+    rows: rows.map((row) => ({
+      h: Math.min(MAX_ROW_HEIGHT_PX, Math.max(ROW_MIN_HEIGHT_PX, Math.round(row.h))),
+      panels: normaliseRow(row.panels),
+    })),
   };
 }
 

@@ -12,13 +12,32 @@ describe('parseDashboardLayout', () => {
     const layout = {
       version: DASHBOARD_LAYOUT_VERSION,
       rows: [
-        { h: 300, panels: [{ id: 'memory', f: 0.5 }, { id: 'queues', f: 0.5 }] },
+        {
+          h: 300,
+          panels: [
+            { id: 'memory', f: 0.5 },
+            { id: 'queues', f: 0.5 },
+          ],
+        },
         { h: 200, panels: [{ id: 'network', f: 1 }] },
       ],
     };
     expect(parseDashboardLayout(layout)).toEqual(layout);
-    const uneven = { version: 2, rows: [{ h: 300, panels: [{ id: 'a', f: 0.2 }, { id: 'b', f: 0.2 }] }] };
-    expect(parseDashboardLayout(uneven)?.rows[0]?.panels.map((panel) => panel.f)).toEqual([0.5, 0.5]);
+    const uneven = {
+      version: 2,
+      rows: [
+        {
+          h: 300,
+          panels: [
+            { id: 'a', f: 0.2 },
+            { id: 'b', f: 0.2 },
+          ],
+        },
+      ],
+    };
+    expect(parseDashboardLayout(uneven)?.rows[0]?.panels.map((panel) => panel.f)).toEqual([
+      0.5, 0.5,
+    ]);
   });
 
   it('returns undefined for a missing value, an unknown version or a row without panels', () => {
@@ -31,7 +50,15 @@ describe('parseDashboardLayout', () => {
   it('returns undefined when a panel appears twice', () => {
     const duplicated = {
       version: 2,
-      rows: [{ h: 300, panels: [{ id: 'network', f: 0.5 }, { id: 'network', f: 0.5 }] }],
+      rows: [
+        {
+          h: 300,
+          panels: [
+            { id: 'network', f: 0.5 },
+            { id: 'network', f: 0.5 },
+          ],
+        },
+      ],
     };
     expect(parseDashboardLayout(duplicated)).toBeUndefined();
   });
@@ -45,7 +72,10 @@ describe('parseDashboardLayout', () => {
         { id: 'c', w: 3, h: 2 },
       ],
     });
-    expect(migrated?.rows.map((row) => row.panels.map((panel) => panel.id))).toEqual([['a', 'b'], ['c']]);
+    expect(migrated?.rows.map((row) => row.panels.map((panel) => panel.id))).toEqual([
+      ['a', 'b'],
+      ['c'],
+    ]);
     expect(migrated?.rows[0]?.panels[0]?.f).toBeCloseTo(2 / 3);
     expect(migrated?.rows[1]?.panels[0]?.f).toBe(1);
   });
@@ -59,7 +89,10 @@ describe('parseDashboardLayout', () => {
         { id: 'left', w: 1, h: 1, rect: { x: 0, y: 0, w: 300, h: 200 } },
       ],
     });
-    expect(migrated?.rows.map((row) => row.panels.map((panel) => panel.id))).toEqual([['left', 'right'], ['low']]);
+    expect(migrated?.rows.map((row) => row.panels.map((panel) => panel.id))).toEqual([
+      ['left', 'right'],
+      ['low'],
+    ]);
   });
 
   it('accepts the default layout', () => {

@@ -34,7 +34,8 @@ export function OutputPanel() {
     };
   }, [rpc]);
   return (
-    <Tabs className="mg-tab-separators"
+    <Tabs
+      className="mg-tab-separators"
       defaultValue="output"
       keepMounted={false}
       styles={{

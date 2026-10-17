@@ -220,83 +220,83 @@ export function CreateIndexDialog({
             </Alert>
           )}
           <Stack gap="sm" p="md" style={BOX}>
-          <Text size="sm" fw={500} c="dimmed">
-            Keys
-          </Text>
-          {draft.fields.map((item, index) => (
-            <Group key={index} gap="sm" wrap="nowrap" align="center">
-              <Text size="sm" c="dimmed" w={12}>
-                {index + 1}
-              </Text>
-              <Autocomplete
-                ff="monospace"
-                aria-label={`Field ${index + 1}`}
-                placeholder="Field name"
-                data={suggestions}
-                value={item.field}
-                onChange={(value) => setField(index, { field: value })}
-                style={{ flex: 1 }}
-                autoComplete="off"
-              />
-              <Select
-                aria-label={`Order of field ${index + 1}`}
-                data={ORDER_DATA}
-                value={item.order}
-                onChange={(value) => {
-                  if (isIndexOrder(value)) {
-                    setField(index, { order: value });
-                  }
-                }}
-                allowDeselect={false}
-                w={180}
-              />
-              <ActionIcon
-                aria-label="Remove field"
-                variant="subtle"
-                color="red"
-                disabled={draft.fields.length === 1}
-                onClick={() =>
-                  update({ fields: draft.fields.filter((_, position) => position !== index) })
-                }
-              >
-                <IconTrash size={14} />
-              </ActionIcon>
-            </Group>
-          ))}
-          <Group gap="md">
-            <Button
-              variant="subtle"
-              leftSection={<IconPlus size={14} />}
-              onClick={() => update({ fields: [...draft.fields, { field: '', order: '1' }] })}
-            >
-              Add key
-            </Button>
-            <Text size="xs" c="dimmed">
-              Types: ascending, descending, text, 2dsphere, hashed, wildcard
+            <Text size="sm" fw={500} c="dimmed">
+              Keys
             </Text>
-          </Group>
+            {draft.fields.map((item, index) => (
+              <Group key={index} gap="sm" wrap="nowrap" align="center">
+                <Text size="sm" c="dimmed" w={12}>
+                  {index + 1}
+                </Text>
+                <Autocomplete
+                  ff="monospace"
+                  aria-label={`Field ${index + 1}`}
+                  placeholder="Field name"
+                  data={suggestions}
+                  value={item.field}
+                  onChange={(value) => setField(index, { field: value })}
+                  style={{ flex: 1 }}
+                  autoComplete="off"
+                />
+                <Select
+                  aria-label={`Order of field ${index + 1}`}
+                  data={ORDER_DATA}
+                  value={item.order}
+                  onChange={(value) => {
+                    if (isIndexOrder(value)) {
+                      setField(index, { order: value });
+                    }
+                  }}
+                  allowDeselect={false}
+                  w={180}
+                />
+                <ActionIcon
+                  aria-label="Remove field"
+                  variant="subtle"
+                  color="red"
+                  disabled={draft.fields.length === 1}
+                  onClick={() =>
+                    update({ fields: draft.fields.filter((_, position) => position !== index) })
+                  }
+                >
+                  <IconTrash size={14} />
+                </ActionIcon>
+              </Group>
+            ))}
+            <Group gap="md">
+              <Button
+                variant="subtle"
+                leftSection={<IconPlus size={14} />}
+                onClick={() => update({ fields: [...draft.fields, { field: '', order: '1' }] })}
+              >
+                Add key
+              </Button>
+              <Text size="xs" c="dimmed">
+                Types: ascending, descending, text, 2dsphere, hashed, wildcard
+              </Text>
+            </Group>
           </Stack>
 
           <Group grow align="flex-start" gap="md">
-          <TextInput
-            label="Name"
-            description="Generated from the keys when empty. Type to override."
-            placeholder={previewName}
-            value={draft.name}
-            onChange={(event) => update({ name: event.currentTarget.value })}
-            autoComplete="off"
-            styles={{ input: { fontFamily: 'var(--mantine-font-family-monospace)' } }}
-          />
-          <TextInput
-            label="Collation"
-            aria-label="Collation as EJSON"
-            description="Server default when empty"
-            placeholder='{ "locale": "en" }'
-            value={draft.collationEjson}
-            onChange={(event) => update({ collationEjson: event.currentTarget.value })}
-            autoComplete="off"
-            styles={{ input: { fontFamily: 'var(--mantine-font-family-monospace)' } }}
-          />
+            <TextInput
+              label="Name"
+              description="Generated from the keys when empty. Type to override."
+              placeholder={previewName}
+              value={draft.name}
+              onChange={(event) => update({ name: event.currentTarget.value })}
+              autoComplete="off"
+              styles={{ input: { fontFamily: 'var(--mantine-font-family-monospace)' } }}
+            />
+            <TextInput
+              label="Collation"
+              aria-label="Collation as EJSON"
+              description="Server default when empty"
+              placeholder='{ "locale": "en" }'
+              value={draft.collationEjson}
+              onChange={(event) => update({ collationEjson: event.currentTarget.value })}
+              autoComplete="off"
+              styles={{ input: { fontFamily: 'var(--mantine-font-family-monospace)' } }}
+            />
           </Group>
 
           <Stack gap="md" p="md" style={BOX}>
@@ -409,7 +409,12 @@ export function CreateIndexDialog({
             <Text size="sm" fw={500} c="dimmed">
               Command
             </Text>
-            <JsonEditor label="createIndexes command preview" readOnly height={150} value={preview} />
+            <JsonEditor
+              label="createIndexes command preview"
+              readOnly
+              height={150}
+              value={preview}
+            />
           </Stack>
 
           {request.ok || keyFields.length === 0 ? null : (
@@ -427,19 +432,19 @@ export function CreateIndexDialog({
               Reads and writes continue during the build. Progress shows in the Indexes panel.
             </Text>
             <Group gap="sm" wrap="nowrap">
-            <Button
-              variant="default"
-              leftSection={<IconCopy size={14} />}
-              onClick={() => void navigator.clipboard.writeText(preview)}
-            >
-              Copy command
-            </Button>
-            <Button variant="default" onClick={onClose}>
-              Cancel
-            </Button>
-            <Button disabled={!request.ok} loading={busy} type="submit">
-              {editing === undefined ? 'Create index' : 'Replace index'}
-            </Button>
+              <Button
+                variant="default"
+                leftSection={<IconCopy size={14} />}
+                onClick={() => void navigator.clipboard.writeText(preview)}
+              >
+                Copy command
+              </Button>
+              <Button variant="default" onClick={onClose}>
+                Cancel
+              </Button>
+              <Button disabled={!request.ok} loading={busy} type="submit">
+                {editing === undefined ? 'Create index' : 'Replace index'}
+              </Button>
             </Group>
           </Group>
         </Stack>

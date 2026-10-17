@@ -58,7 +58,13 @@ export function UnlockScreen() {
             </Alert>
           )}
           <Stack gap="sm">
-            <Anchor component="button" type="button" size="sm" c="var(--mg-link)" onClick={() => setResetOpen(true)}>
+            <Anchor
+              component="button"
+              type="button"
+              size="sm"
+              c="var(--mg-link)"
+              onClick={() => setResetOpen(true)}
+            >
               Reset store
             </Anchor>
             <Text size="xs" c="dimmed">

@@ -27,9 +27,29 @@ const REPLICA_CONNECTED: ConnectionStatus = {
 const WIREDTIGER_LAYOUT: DashboardLayout = {
   version: 2,
   rows: [
-    { h: 300, panels: [{ id: 'wt-cache', f: 0.5 }, { id: 'wt-cache-fill', f: 0.25 }, { id: 'tickets', f: 0.25 }] },
-    { h: 300, panels: [{ id: 'transactions-open', f: 0.25 }, { id: 'transactions-rate', f: 0.5 }, { id: 'wt-pages', f: 0.25 }] },
-    { h: 300, panels: [{ id: 'block-io', f: 0.5 }, { id: 'operations-by-type', f: 0.5 }] },
+    {
+      h: 300,
+      panels: [
+        { id: 'wt-cache', f: 0.5 },
+        { id: 'wt-cache-fill', f: 0.25 },
+        { id: 'tickets', f: 0.25 },
+      ],
+    },
+    {
+      h: 300,
+      panels: [
+        { id: 'transactions-open', f: 0.25 },
+        { id: 'transactions-rate', f: 0.5 },
+        { id: 'wt-pages', f: 0.25 },
+      ],
+    },
+    {
+      h: 300,
+      panels: [
+        { id: 'block-io', f: 0.5 },
+        { id: 'operations-by-type', f: 0.5 },
+      ],
+    },
   ],
 };
 

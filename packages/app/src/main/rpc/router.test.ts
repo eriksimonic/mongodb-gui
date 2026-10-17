@@ -952,7 +952,13 @@ describe('docker calls', () => {
     expectValue(await router.handle('vault.lock', undefined));
     expectValue(await router.handle('vault.unlock', { password: PASSWORD }));
 
-    expect(docker.calls).toEqual(['suspend', 'cleanupAll', 'pruneMissing', 'autoConnect', 'resume']);
+    expect(docker.calls).toEqual([
+      'suspend',
+      'cleanupAll',
+      'pruneMissing',
+      'autoConnect',
+      'resume',
+    ]);
   });
 });
 

@@ -109,9 +109,11 @@ export function movePanel(
   if (target === undefined) {
     return layout;
   }
-  const beside = (place === 'left' || place === 'right') && target.panels.length < MAX_PANELS_PER_ROW;
+  const beside =
+    (place === 'left' || place === 'right') && target.panels.length < MAX_PANELS_PER_ROW;
   if (beside) {
-    const at = target.panels.findIndex((panel) => panel.id === targetId) + (place === 'right' ? 1 : 0);
+    const at =
+      target.panels.findIndex((panel) => panel.id === targetId) + (place === 'right' ? 1 : 0);
     const panels = [...target.panels.map((panel) => ({ ...panel, f: 1 }))];
     panels.splice(at, 0, { id, f: 1 });
     rows[targetIndex] = { ...target, panels };
@@ -157,7 +159,11 @@ export function splitPanels(
 }
 
 /** Sets the height of a row. Rows below it move with it. */
-export function setRowHeight(layout: DashboardLayout, rowIndex: number, height: number): DashboardLayout {
+export function setRowHeight(
+  layout: DashboardLayout,
+  rowIndex: number,
+  height: number,
+): DashboardLayout {
   const h = Math.max(ROW_MIN_HEIGHT_PX, Math.round(height));
   return {
     ...layout,
@@ -211,7 +217,10 @@ export interface VisibleRow {
  * The rows to draw. Panels whose requirement the connection lacks, and ids the catalogue no longer
  * has, are left out, and the rest share the full row width. A row left empty is skipped.
  */
-export function visibleRows(layout: DashboardLayout, capabilities: ServerCapabilities): VisibleRow[] {
+export function visibleRows(
+  layout: DashboardLayout,
+  capabilities: ServerCapabilities,
+): VisibleRow[] {
   return layout.rows.flatMap((row, index) => {
     const shown = row.panels.flatMap((placed) => {
       const spec = findPanel(placed.id);

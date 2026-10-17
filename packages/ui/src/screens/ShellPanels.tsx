@@ -749,4 +749,3 @@ export function GridFsDockPanel({ params }: IDockviewPanelProps<GridFsDockPanelP
     </Box>
   );
 }
-

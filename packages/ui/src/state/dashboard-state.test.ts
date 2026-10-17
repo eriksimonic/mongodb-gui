@@ -27,7 +27,13 @@ function panel(id: string): PanelSpec {
 const TWO_PANELS: DashboardLayout = {
   version: 2,
   rows: [
-    { h: 300, panels: [{ id: 'connections', f: 0.5 }, { id: 'network', f: 0.5 }] },
+    {
+      h: 300,
+      panels: [
+        { id: 'connections', f: 0.5 },
+        { id: 'network', f: 0.5 },
+      ],
+    },
   ],
 };
 
@@ -72,7 +78,13 @@ describe('movePanel', () => {
   const three: DashboardLayout = {
     version: 2,
     rows: [
-      { h: 300, panels: [{ id: 'a', f: 0.5 }, { id: 'b', f: 0.5 }] },
+      {
+        h: 300,
+        panels: [
+          { id: 'a', f: 0.5 },
+          { id: 'b', f: 0.5 },
+        ],
+      },
       { h: 200, panels: [{ id: 'c', f: 1 }] },
     ],
   };
@@ -85,7 +97,11 @@ describe('movePanel', () => {
 
   it('makes a new row above or below, with the source row height, and drops the emptied row', () => {
     const next = movePanel(three, 'a', 'c', 'below');
-    expect(next.rows.map((row) => row.panels.map((item) => item.id))).toEqual([['b'], ['c'], ['a']]);
+    expect(next.rows.map((row) => row.panels.map((item) => item.id))).toEqual([
+      ['b'],
+      ['c'],
+      ['a'],
+    ]);
     expect(next.rows[0]?.panels[0]?.f).toBe(1);
     expect(next.rows[2]?.h).toBe(300);
   });
@@ -100,10 +116,21 @@ describe('splitPanels and setRowHeight', () => {
   it('moves one boundary and leaves the other panels alone', () => {
     const layout: DashboardLayout = {
       version: 2,
-      rows: [{ h: 300, panels: [{ id: 'a', f: 0.25 }, { id: 'b', f: 0.25 }, { id: 'c', f: 0.5 }] }],
+      rows: [
+        {
+          h: 300,
+          panels: [
+            { id: 'a', f: 0.25 },
+            { id: 'b', f: 0.25 },
+            { id: 'c', f: 0.5 },
+          ],
+        },
+      ],
     };
     const next = splitPanels(layout, 'a', 'b', 0.8);
-    next.rows[0]?.panels.forEach((item, index) => expect(item.f).toBeCloseTo([0.4, 0.1, 0.5][index] ?? 0));
+    next.rows[0]?.panels.forEach((item, index) =>
+      expect(item.f).toBeCloseTo([0.4, 0.1, 0.5][index] ?? 0),
+    );
   });
 
   it('sets a row height with a floor', () => {
@@ -148,7 +175,15 @@ describe('readStoredLayout', () => {
   it('rejects a layout that places a panel twice', () => {
     const duplicated = {
       version: 2,
-      rows: [{ h: 300, panels: [{ id: 'network', f: 0.5 }, { id: 'network', f: 0.5 }] }],
+      rows: [
+        {
+          h: 300,
+          panels: [
+            { id: 'network', f: 0.5 },
+            { id: 'network', f: 0.5 },
+          ],
+        },
+      ],
     };
     expect(readStoredLayout(duplicated).state).toBe('invalid');
   });
@@ -158,7 +193,14 @@ describe('visibleRows', () => {
   const layout: DashboardLayout = {
     version: 2,
     rows: [
-      { h: 300, panels: [{ id: 'wt-cache', f: 0.5 }, { id: 'network', f: 0.25 }, { id: 'replication-lag', f: 0.25 }] },
+      {
+        h: 300,
+        panels: [
+          { id: 'wt-cache', f: 0.5 },
+          { id: 'network', f: 0.25 },
+          { id: 'replication-lag', f: 0.25 },
+        ],
+      },
     ],
   };
 
@@ -166,13 +208,20 @@ describe('visibleRows', () => {
     const standalone = visibleRows(layout, { wiredTiger: false, replicaSet: false });
     expect(standalone[0]?.panels.map((item) => [item.id, item.f])).toEqual([['network', 1]]);
     const replica = visibleRows(layout, { wiredTiger: true, replicaSet: true });
-    expect(replica[0]?.panels.map((item) => item.id)).toEqual(['wt-cache', 'network', 'replication-lag']);
+    expect(replica[0]?.panels.map((item) => item.id)).toEqual([
+      'wt-cache',
+      'network',
+      'replication-lag',
+    ]);
     const unknown = visibleRows(layout, { wiredTiger: undefined, replicaSet: undefined });
     expect(unknown[0]?.panels).toHaveLength(3);
   });
 
   it('skips panel ids the catalogue does not have, and rows left empty', () => {
-    const retired: DashboardLayout = { version: 2, rows: [{ h: 300, panels: [{ id: 'retired', f: 1 }] }] };
+    const retired: DashboardLayout = {
+      version: 2,
+      rows: [{ h: 300, panels: [{ id: 'retired', f: 1 }] }],
+    };
     expect(visibleRows(retired, { wiredTiger: true, replicaSet: true })).toEqual([]);
   });
 });

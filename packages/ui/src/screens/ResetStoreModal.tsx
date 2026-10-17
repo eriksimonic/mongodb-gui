@@ -45,8 +45,8 @@ export function ResetStoreModal({ opened, onClose }: ResetStoreModalProps) {
     >
       <Stack gap="lg">
         <Text size="sm">
-          There is no password recovery. Resetting deletes every saved connection, history entry and favourite. It cannot be undone.
-          Type {CONFIRMATION} to confirm.
+          There is no password recovery. Resetting deletes every saved connection, history entry and
+          favourite. It cannot be undone. Type {CONFIRMATION} to confirm.
         </Text>
         <TextInput
           label="Confirmation"

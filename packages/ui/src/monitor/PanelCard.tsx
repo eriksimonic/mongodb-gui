@@ -2,12 +2,7 @@ import { ActionIcon, Group, Menu, Paper, Stack, Text } from '@mantine/core';
 import { IconDotsVertical } from '@tabler/icons-react';
 import type { ReactNode } from 'react';
 import type { SeriesUnit } from '@mongo-gui/core';
-import {
-  CHART_HEIGHT_PX,
-  type ChartMode,
-  type ChartSeries,
-  type ChartWindow,
-} from './chart-types';
+import { CHART_HEIGHT_PX, type ChartMode, type ChartSeries, type ChartWindow } from './chart-types';
 import { formatValue } from './format';
 import { UPlotChart } from './UPlotChart';
 import { trackOffset, trackPointer } from './track-offset';
