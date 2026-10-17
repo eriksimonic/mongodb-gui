@@ -19,3 +19,22 @@ const bridge: PreloadBridge = {
 };
 
 contextBridge.exposeInMainWorld('mongoGui', bridge);
+
+// The header draws its own window buttons and drives the window through this object.
+contextBridge.exposeInMainWorld('mongoGuiWindow', {
+  act(action: 'minimize' | 'toggle-maximize' | 'close'): void {
+    ipcRenderer.send('mongo-gui:window', action);
+  },
+  isMaximized(): Promise<boolean> {
+    return ipcRenderer.invoke('mongo-gui:window');
+  },
+  onMaximized(listener: (maximized: boolean) => void): () => void {
+    const handler = (_event: IpcRendererEvent, maximized: boolean): void => {
+      listener(maximized);
+    };
+    ipcRenderer.on('mongo-gui:maximized', handler);
+    return () => {
+      ipcRenderer.removeListener('mongo-gui:maximized', handler);
+    };
+  },
+});

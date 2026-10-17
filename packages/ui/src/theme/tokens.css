@@ -111,3 +111,14 @@
   border-color: var(--mg-border);
   color: var(--mg-text-muted);
 }
+
+/* The app header drags the window. Controls in it stay clickable. */
+.mg-app-header {
+  -webkit-app-region: drag;
+}
+
+.mg-app-header button,
+.mg-app-header a,
+.mg-app-header input {
+  -webkit-app-region: no-drag;
+}

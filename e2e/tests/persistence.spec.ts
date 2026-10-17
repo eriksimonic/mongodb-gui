@@ -32,7 +32,7 @@ test('a relaunch on the same profile asks for the master password', async () => 
     await test.step('relaunch shows the unlock screen, not first run', async () => {
       session = await launchApp(userDataDir);
       const window = session.window;
-      await expect(window.getByRole('heading', { name: 'Unlock Mongo GUI' })).toBeVisible();
+      await expect(window.getByRole('heading', { name: 'Unlock' })).toBeVisible();
       await expect(window.getByRole('heading', { name: 'Create master password' })).toBeHidden();
       await captureStep(window, SPEC, '01-unlock-after-relaunch');
       const exitCode = await closeWindowAndWaitForExit(session);

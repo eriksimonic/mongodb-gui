@@ -1,7 +1,7 @@
 /// <reference types="vite/client" />
 import 'dockview/dist/styles/dockview.css';
 import '../theme/dockview-theme.css';
-import { Box, Button, Flex, Group, Menu, Text } from '@mantine/core';
+import { ActionIcon, Box, Flex, Group, Menu, Text, Tooltip } from '@mantine/core';
 import { useHotkeys } from '@mantine/hooks';
 import { IconDatabase, IconHelp, IconKeyboard, IconLock, IconSettings } from '@tabler/icons-react';
 import type { ChangeTarget, RpcClient } from '@mongo-gui/core';
@@ -23,6 +23,7 @@ import { useUiApi } from '../api/ui-api';
 import { ManagementDialogs } from '../management';
 import { runReported } from '../kit/notify-error';
 import { SettingsModal } from '../settings';
+import { WindowControls } from './WindowControls';
 import { FOCUS_TREE_SEARCH_EVENT } from '../connections/search-constants';
 import { ShortcutsModal } from '../shortcuts/ShortcutsModal';
 import { shellHotkeys } from '../shortcuts/shortcuts';
@@ -751,7 +752,12 @@ export function ShellScreen() {
                 justify="space-between"
                 wrap="nowrap"
                 gap={8}
-                style={{ borderBottom: '1px solid var(--mg-border)', flex: '0 0 auto' }}
+                className="mg-app-header"
+                style={{
+                  background: 'var(--mg-surface-0)',
+                  borderBottom: '1px solid var(--mg-border)',
+                  flex: '0 0 auto',
+                }}
               >
                 <Group gap={8} wrap="nowrap">
                   <IconDatabase size={18} color="var(--mg-accent)" aria-hidden="true" />
@@ -763,9 +769,11 @@ export function ShellScreen() {
                 <Group gap={8} wrap="nowrap">
                   <Menu position="bottom-end" withinPortal>
                     <Menu.Target>
-                      <Button variant="default" size="xs" leftSection={<IconHelp size={14} />}>
-                        Help
-                      </Button>
+                      <Tooltip label="Help">
+                        <ActionIcon variant="default" size="md" aria-label="Help">
+                          <IconHelp size={16} aria-hidden="true" />
+                        </ActionIcon>
+                      </Tooltip>
                     </Menu.Target>
                     <Menu.Dropdown>
                       <Menu.Item
@@ -776,22 +784,27 @@ export function ShellScreen() {
                       </Menu.Item>
                     </Menu.Dropdown>
                   </Menu>
-                  <Button
-                    variant="default"
-                    size="xs"
-                    leftSection={<IconSettings size={14} />}
-                    onClick={() => setSettingsOpen(true)}
-                  >
-                    Settings
-                  </Button>
-                  <Button
-                    variant="default"
-                    size="xs"
-                    leftSection={<IconLock size={14} />}
-                    onClick={() => void runReported(() => lock())}
-                  >
-                    Lock
-                  </Button>
+                  <Tooltip label="Settings">
+                    <ActionIcon
+                      variant="default"
+                      size="md"
+                      aria-label="Settings"
+                      onClick={() => setSettingsOpen(true)}
+                    >
+                      <IconSettings size={16} aria-hidden="true" />
+                    </ActionIcon>
+                  </Tooltip>
+                  <Tooltip label="Lock">
+                    <ActionIcon
+                      variant="default"
+                      size="md"
+                      aria-label="Lock"
+                      onClick={() => void runReported(() => lock())}
+                    >
+                      <IconLock size={16} aria-hidden="true" />
+                    </ActionIcon>
+                  </Tooltip>
+                  <WindowControls />
                 </Group>
               </Group>
               <Box style={{ flex: 1, minHeight: 0 }}>

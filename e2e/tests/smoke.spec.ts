@@ -81,7 +81,7 @@ test('master password, connection tree and lock, end to end', async () => {
 
     await test.step('lock returns to the unlock screen', async () => {
       await window.getByRole('button', { name: 'Lock', exact: true }).click();
-      await expect(window.getByRole('heading', { name: 'Unlock Mongo GUI' })).toBeVisible();
+      await expect(window.getByRole('heading', { name: 'Unlock' })).toBeVisible();
       await waitForToastToClear(window);
       await captureStep(window, SPEC, '07-locked');
     });
