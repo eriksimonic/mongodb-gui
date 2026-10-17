@@ -761,7 +761,8 @@ and index size.
 
 Each database has a GridFS node in the tree. Open a bucket from that node.
 
-1. Click "New GridFS bucket" in the database menu, type a "Bucket name", and confirm.
+1. Click "New GridFS bucket" in the database menu or in the menu of the GridFS node, type a
+   "Bucket name", and confirm. The GridFS node menu also has "Refresh".
 2. Click "Upload file" and pick a file. When a file with the same name exists, the app asks
    "Replace existing file?". Choose "Skip", "Replace" or "Replace all", or click "Stop".
 3. Search the file list with "Filename contains". The search matches any part of the name.

@@ -23,7 +23,7 @@ import {
 } from '../state/node-ids';
 import { useProfilerOpener } from '../profiler';
 import { useGridFsOpener } from '../gridfs';
-import { GridFsBucketContextMenu } from '../gridfs';
+import { GridFsBucketContextMenu, GridFsNodeContextMenu } from '../gridfs';
 import { runReported } from '../kit/notify-error';
 import { ConnectionContextMenu } from './ConnectionContextMenu';
 import { DockerContainerContextMenu } from './DockerContainerContextMenu';
@@ -61,6 +61,7 @@ type MenuTarget =
   | { readonly kind: 'docker' }
   | { readonly kind: 'member'; readonly connectionId: string; readonly host: string }
   | { readonly kind: 'database'; readonly connectionId: string; readonly database: string }
+  | { readonly kind: 'gridfs'; readonly connectionId: string; readonly database: string }
   | {
       readonly kind: 'gridfsBucket';
       readonly connectionId: string;
@@ -157,6 +158,10 @@ function menuTargetFor(
             database: row.database,
             collection: row.collection,
           };
+    case 'gridfs':
+      return row.database === undefined
+        ? undefined
+        : { kind: 'gridfs', connectionId: row.connectionId, database: row.database };
     case 'gridfs-bucket':
       return row.database === undefined || row.bucket === undefined
         ? undefined
@@ -711,6 +716,16 @@ export function ConnectionTree() {
     if (target.kind === 'database') {
       return (
         <DatabaseContextMenu
+          connectionId={target.connectionId}
+          database={target.database}
+          position={position}
+          onClose={closeMenu}
+        />
+      );
+    }
+    if (target.kind === 'gridfs') {
+      return (
+        <GridFsNodeContextMenu
           connectionId={target.connectionId}
           database={target.database}
           position={position}

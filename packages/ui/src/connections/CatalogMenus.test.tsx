@@ -2,6 +2,7 @@
 import { fireEvent, screen, waitFor, within } from '@testing-library/react';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { localConnectionId } from '../api/mock-fixtures';
+import { GridFsBucketDialogs } from '../gridfs';
 import { ManagementDialogs } from '../management';
 import { useBackupDialogs } from '../backup';
 import { TransferModals } from '../transfers';
@@ -17,6 +18,7 @@ async function renderTreeWithShopOpen() {
     <>
       <ConnectionTree />
       <ManagementDialogs />
+      <GridFsBucketDialogs />
     </>,
     { api },
   );
@@ -46,6 +48,15 @@ describe('tree context menus for databases and collections', () => {
     fireEvent.click(await screen.findByText('New collection'));
 
     expect(await screen.findByText('New collection in shop')).toBeInTheDocument();
+  });
+
+  it('offers a new bucket and a refresh on the GridFS node', async () => {
+    await renderTreeWithShopOpen();
+    fireEvent.contextMenu(screen.getByRole('treeitem', { name: 'GridFS' }));
+    expect(await screen.findByText('Refresh')).toBeInTheDocument();
+    fireEvent.click(screen.getByText('New GridFS bucket'));
+
+    expect(await screen.findByRole('dialog', { name: 'New GridFS bucket' })).toBeInTheDocument();
   });
 
   it('offers the collection actions on a collection and opens the drop confirmation', async () => {

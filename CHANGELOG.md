@@ -10,6 +10,7 @@ All notable changes to Mongo GUI are listed here, newest first.
   stages appear under the `$lookup` in the same plan, with the numbers of one document multiplied by
   the number of runs, labelled as an estimate. A `$lookup` that cannot be measured shows "Not
   measured" with the reason on hover and a Retry button. Measure no longer opens a second tab.
+- The GridFS node of a database has a menu with "New GridFS bucket" and "Refresh".
 - The mouse wheel zooms the explain plan graph around the pointer.
 - The explain command box completes collection names, fields and operators like the query editor.
 - The collection menu starts with "Open in editor", then "Query", then "Collection", which holds
