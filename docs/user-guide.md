@@ -198,20 +198,17 @@ Keyboard use in the tree:
 Right-click a database or collection to see its menu. Related items sit in submenus, which open
 when the pointer is over them or with Right. The collection menu offers these items:
 
-- "Open documents" opens an editor tab with `db.<collection>.find({})` and runs it.
+- "Open in editor" opens an editor tab with `db.<collection>.find({})` and runs it.
 - "Query" runs a SQL statement in a SQL tab, whatever the default editor language:
   "Select top 1000 rows" (`SELECT TOP 1000 * FROM <collection>;`), "Select first row"
   (`SELECT TOP 1 * …`) and "Count rows" (`SELECT COUNT(*) …`).
-- "Manage documents" lists the documents in the Documents panel.
-- "Structure" holds "Indexes", "Validation", "Analyse schema" and "Shard collection". The last one
-  works on a sharded cluster only.
-- "Monitoring" holds "Collection stats" and "Watch changes".
+- "Collection" holds "Indexes", "Validation", "Analyse schema", "Collection stats", "Watch changes" and "Shard collection". The last one works on a sharded cluster only.
 - "Import and export" holds "Import data", "Export data", "Generate data" and "Back up
   collection…".
 - "Rename", "Clear" and "Drop" change the collection. Each one asks for confirmation.
 - "Refresh" reloads the node.
 
-Double-click a collection to open the same query tab as "Open documents". A collection name that
+Double-click a collection to open the same query tab as "Open in editor". A collection name that
 is not a plain identifier, such as `daily-totals`, runs as `db.getCollection("daily-totals").find({})`.
 So does a name that starts with `_`, contains `$` or matches a `db` method, such as `stats`.
 If the active tab on the same connection is empty, the query replaces its text. Otherwise the query
@@ -338,9 +335,11 @@ server returned.
 
 Use the "Verbosity" control to choose how much the server reports:
 
-- `queryPlanner` shows the plan without running the query.
-- `executionStats` runs the query and shows counts and timings for each stage.
-- `allPlansExecution` runs the query and also reports the candidate plans.
+- "Plan only" (`queryPlanner`) shows the plan without running the query.
+- "With stats" (`executionStats`) runs the query and shows counts and timings for each stage.
+- "All plans" (`allPlansExecution`) runs the query and also reports the candidate plans.
+
+Hover a choice to see the same description in the app.
 
 The summary row shows the index used, keys examined, documents examined, documents returned,
 the ratio of examined to returned documents, and the time.
@@ -363,13 +362,19 @@ stage spec and "not measured". The `$lookup` card above them sums their work, an
 indexes the join used after "via". An orange mark counts its collection scans. Its details show
 "Indexes used" and "Collection scans".
 
-To see numbers for the stages inside the pipeline, click "Measure" on the `$lookup` card. The app
+When an aggregate explain finishes, the app measures each `$lookup` by itself, one after the other. It
 runs the stages before the `$lookup` and takes the first document that reaches it. It puts that
 document's `let` values and local field into the inner pipeline, and explains the pipeline on its
-own against the joined collection in a new Explain tab. A line above that plan names the
-document's values. The `$lookup` runs its pipeline once per document, so other documents can
-give other numbers. Measure needs a server from 6.0 on, which echoes the aggregate in its
-explain output.
+own against the joined collection. The measured stages replace the "not measured" cards under the
+`$lookup`, in the same plan, with no new tab. Their counters are those of the one document times
+the number of documents that reach the `$lookup`, so the label reads "measured on 1 document and
+multiplied by 100 runs (estimate)". Other documents can give other numbers. Re-running the explain
+measures again. The "Plan only" choice does not measure, because it runs nothing.
+
+A `$lookup` the app cannot measure shows "Not measured" on its card. Hover the text for the reason, and
+click "Retry" to try again. The reasons are a server before 6.0, which does not echo the aggregate in
+its explain output, a `$lookup` inside `$facet`, `$unionWith` or another inner pipeline, and no
+document reaching the `$lookup`.
 
 "List" shows one row for each stage, with a bar for documents or time. Each stage has an icon
 and a category. The categories are scan, fetch, filter, sort, projection, limit, lookup, group,
@@ -508,17 +513,9 @@ the collection in an editor.
 
 ### Documents
 
-Choose "Open documents" from the collection menu to run `find({})` in an editor tab. Choose
-"Manage documents" to open the "Documents" panel.
-
-- Type a filter in "Filter". "Count matches" counts the documents the filter matches.
-- "Load more" fetches the next page.
-- Each row has "Edit document", "Duplicate document" and "Delete document" controls. Double-click
-  a row to open its document in the editor too.
-- Click "Insert document" to add a document. The editor takes EJSON text.
-- "Delete matching" deletes every document that matches the filter. The button reads "Delete N
-  matching" once you have counted the matches. "Delete all shown" deletes only the rows on the
-  screen. Both ask for confirmation.
+Choose "Open in editor" from the collection menu, or press Enter on the collection, to run
+`find({})` in an editor tab. Filter, insert, edit and delete documents with queries in that tab.
+Open a document from the results to edit it.
 
 ## Monitoring
 

@@ -14,7 +14,7 @@ Decisions from the diagnostics, connections and profiler work. Follow them for n
 
 - Order in a Diagnostics toolbar: Refresh, then inputs and selects, then switches, then actions. A destructive action comes last. Status text is dimmed and sits at the right edge.
 - The profiler filter row ends with Refresh. This was asked for by the owner and differs from Diagnostics. Decide on one order if the two views are ever merged.
-- Controls in a toolbar share one size (`xs`). Search boxes are 320 px wide.
+- Controls in a toolbar share one size (`xs`) and one height, including a segmented control next to a button. Search boxes are 320 px wide.
 - Button labels are short enough to fit on one line: Explain, Open in editor, Copy.
 - Remove a button that duplicates another path. New connection lives in the Connections dialog and in the empty connection tree, not in the top bar.
 - A control that belongs with another sits next to it. "Only problematic" is next to Tail and Apply.
@@ -56,3 +56,10 @@ Decisions from the diagnostics, connections and profiler work. Follow them for n
 - A `SIGSEGV` or `SIGTRAP` in a Vitest worker is a known flake. Run the file alone or run the check again.
 - Restart the Electron app after a change under `packages/app/src/main`, `packages/shell-runtime` or the core schemas, because the renderer reload does not pick it up. See `.claude/skills/run-app/SKILL.md`.
 - Commit messages have a plain subject and body, with no trailers.
+
+## Popups and completion
+
+- Menus, popovers and dropdowns have a strong border and `--mg-shadow-popup`, so they stand apart from the rows behind them. Both live in the shared `popup` styles of `theme.ts`.
+- A collapse or close button never sits over a scrollbar. Put it in a strip beside the content.
+- Completion lists group names (fields, collections) first, then operators, then functions, and sort each group alphabetically. `completionGroup` in `completion-model.ts` owns the order.
+- A code editor in a small box renders its suggest widget outside the box (`fixedOverflowWidgets`).

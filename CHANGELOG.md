@@ -2,6 +2,39 @@
 
 All notable changes to Mongo GUI are listed here, newest first.
 
+## Unreleased
+
+### Added
+
+- Explain measures every top-level `$lookup` by itself when an aggregate finishes. The measured inner
+  stages appear under the `$lookup` in the same plan, with the numbers of one document multiplied by
+  the number of runs, labelled as an estimate. A `$lookup` that cannot be measured shows "Not
+  measured" with the reason on hover and a Retry button. Measure no longer opens a second tab.
+- The mouse wheel zooms the explain plan graph around the pointer.
+- The explain command box completes collection names, fields and operators like the query editor.
+- The collection menu starts with "Open in editor", then "Query", then "Collection", which holds
+  Indexes, Validation, Analyse schema, Collection stats, Watch changes and Shard collection.
+
+### Changed
+
+- Enter and double-click on a collection open the query editor again. The collection panel has no
+  Documents tab. Insert, edit and delete documents with queries in the editor.
+- The explain verbosity choices read "Plan only", "With stats" and "All plans", and a hover names the
+  server setting. The verbosity control and Re-run share one height.
+- The explain command box grows to 200 px and scrolls inside. Its collapse button sits beside the
+  editor instead of over the scrollbar.
+- The completion list sorts fields first, then operators, then functions, each group alphabetically.
+- Menus and popups have a border and a deeper shadow, so they stand apart from the rows behind them.
+- A plan narrower than the explain canvas is centred.
+
+### Fixed
+
+- Typing `{` or `,` in the editor opens completion for object keys, and Monaco's own word list no
+  longer adds `db` and `find` to the suggestions.
+- The completion list is no longer cut off at the edge of the editor.
+- Replica set member rules and the shard drain dry run live in `core`, so the UI mocks and the
+  adapter cannot drift apart.
+
 ## 0.3.0 - 2026-10-12
 
 ### Added
