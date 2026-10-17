@@ -52,10 +52,10 @@ describe('tree context menus for databases and collections', () => {
     await renderTreeWithShopOpen();
     fireEvent.contextMenu(screen.getByRole('treeitem', { name: 'customers' }));
 
-    for (const label of ['Open documents', 'Rename', 'Clear', 'Drop', 'Refresh']) {
+    for (const label of ['Open in editor', 'Rename', 'Clear', 'Drop', 'Refresh']) {
       expect(await screen.findByText(label)).toBeInTheDocument();
     }
-    await openSubmenu('Structure');
+    await openSubmenu('Collection');
     expect(await screen.findByText('Indexes')).toBeInTheDocument();
     expect(screen.getByText('Validation')).toBeInTheDocument();
     fireEvent.click(screen.getByText('Drop'));

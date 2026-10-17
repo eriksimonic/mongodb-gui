@@ -141,8 +141,8 @@ export function CollectionContextMenu({
   const entries: TreeMenuEntry[] = [
     {
       kind: 'item',
-      label: 'Open documents',
-      onSelect: () => requestPanel({ panel: 'documents', ...target }),
+      label: 'Open in editor',
+      onSelect: () => void openCollectionQuery(target),
     },
     {
       kind: 'submenu',
@@ -166,14 +166,8 @@ export function CollectionContextMenu({
       ],
     },
     {
-      kind: 'item',
-      label: 'Open in editor',
-      onSelect: () => void openCollectionQuery(target),
-    },
-    { kind: 'divider' },
-    {
       kind: 'submenu',
-      label: 'Structure',
+      label: 'Collection',
       entries: [
         {
           kind: 'item',
@@ -192,19 +186,6 @@ export function CollectionContextMenu({
         },
         {
           kind: 'item',
-          label: 'Shard collection',
-          disabled: !sharding.available,
-          reason: sharding.available ? undefined : sharding.reason,
-          onSelect: () => setManagementDialog({ kind: 'shardCollection', ...target }),
-        },
-      ],
-    },
-    {
-      kind: 'submenu',
-      label: 'Monitoring',
-      entries: [
-        {
-          kind: 'item',
           label: 'Collection stats',
           onSelect: () => requestPanel({ panel: 'stats', ...target }),
         },
@@ -212,6 +193,13 @@ export function CollectionContextMenu({
           kind: 'item',
           label: 'Watch changes',
           onSelect: () => requestPanel({ panel: 'changes', ...target }),
+        },
+        {
+          kind: 'item',
+          label: 'Shard collection',
+          disabled: !sharding.available,
+          reason: sharding.available ? undefined : sharding.reason,
+          onSelect: () => setManagementDialog({ kind: 'shardCollection', ...target }),
         },
       ],
     },

@@ -25,7 +25,7 @@ test('create, hide, unhide and drop an index, and read the collection stats', as
     await databaseRow.press('ArrowRight');
     const collectionRow = page.getByRole('treeitem', { name: 'items', exact: true });
     await collectionRow.click({ button: 'right' });
-    await page.getByRole('menuitem', { name: 'Structure', exact: true }).hover();
+    await page.getByRole('menuitem', { name: 'Collection', exact: true }).hover();
     await page.getByRole('menuitem', { name: 'Indexes', exact: true }).click();
 
     // collections.indexes: only the _id index so far. listIndexBuilds polls on open.
@@ -63,7 +63,7 @@ test('create, hide, unhide and drop an index, and read the collection stats', as
 
     // management.dropIndex, confirmed by typing the name
     await collectionRow.click({ button: 'right' });
-    await page.getByRole('menuitem', { name: 'Structure', exact: true }).hover();
+    await page.getByRole('menuitem', { name: 'Collection', exact: true }).hover();
     await page.getByRole('menuitem', { name: 'Indexes', exact: true }).click();
     await row.getByRole('button', { name: 'Drop', exact: true }).click();
     const confirm = page.getByRole('dialog');

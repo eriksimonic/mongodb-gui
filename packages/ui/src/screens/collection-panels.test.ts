@@ -10,7 +10,7 @@ import {
 
 const CONNECTION = 'c1';
 const orders: PanelRequest = {
-  panel: 'documents',
+  panel: 'validation',
   connectionId: CONNECTION,
   database: 'shop',
   collection: 'orders',
@@ -110,7 +110,7 @@ describe('restoredCollectionRequest', () => {
     const params = { connectionId: CONNECTION, database: 'shop', collection: 'orders' };
     expect(restoredCollectionRequest('monitor', params)).toBeUndefined();
     expect(restoredCollectionRequest('profiler', params)).toBeUndefined();
-    expect(restoredCollectionRequest('documents', { connectionId: CONNECTION })).toBeUndefined();
-    expect(restoredCollectionRequest('documents', undefined)).toBeUndefined();
+    expect(restoredCollectionRequest('indexes', { connectionId: CONNECTION })).toBeUndefined();
+    expect(restoredCollectionRequest('indexes', undefined)).toBeUndefined();
   });
 });

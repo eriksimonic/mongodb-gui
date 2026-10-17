@@ -6,10 +6,10 @@ import { useAppStore } from '../state/app-store-context';
 import { ChangesPanel } from '../changes';
 import { CollectionStatsPanel } from '../diagnostics';
 import { formatBytes } from '../kit/input-rules';
-import { DocumentsPanel, IndexesPanel, ValidationPanel } from '../management';
+import { IndexesPanel, ValidationPanel } from '../management';
 import { SchemaPanel } from '../schema';
 
-export type CollectionSection = 'documents' | 'indexes' | 'validation' | 'schema' | 'changes' | 'stats';
+export type CollectionSection = 'indexes' | 'validation' | 'schema' | 'changes' | 'stats';
 
 export interface CollectionPanelProps {
   readonly connectionId: string;
@@ -92,7 +92,8 @@ export function CollectionPanel({
           </Group>
         )}
       </Group>
-      <Tabs className="mg-tab-separators"
+      <Tabs
+        className="mg-tab-separators"
         value={active}
         onChange={(value) => {
           if (value !== null) {
@@ -105,7 +106,6 @@ export function CollectionPanel({
         style={{ flex: 1, minHeight: 0, display: 'flex', flexDirection: 'column' }}
       >
         <Tabs.List px="md" mt="sm">
-          <Tabs.Tab value="documents">Documents</Tabs.Tab>
           <Tabs.Tab
             value="indexes"
             rightSection={
@@ -124,9 +124,6 @@ export function CollectionPanel({
           <Tabs.Tab value="stats">Collection stats</Tabs.Tab>
         </Tabs.List>
         <Box style={{ flex: 1, minHeight: 0, overflow: 'auto' }}>
-          <Tabs.Panel value="documents">
-            <DocumentsPanel {...params} />
-          </Tabs.Panel>
           <Tabs.Panel value="indexes">
             <IndexesPanel {...params} />
           </Tabs.Panel>

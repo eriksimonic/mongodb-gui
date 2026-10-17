@@ -31,7 +31,6 @@ export function isStalePanel(
 const COLLECTION_PANEL_KINDS: readonly PanelRequest['panel'][] = [
   'indexes',
   'validation',
-  'documents',
   'schema',
   'changes',
   'stats',
@@ -61,7 +60,7 @@ export function restoredCollectionRequest(
     component === 'collection'
       ? typeof section === 'string' && isCollectionPanelKind(section)
         ? section
-        : 'documents'
+        : 'indexes'
       : (component as PanelRequest['panel']);
   if (
     typeof connectionId !== 'string' ||

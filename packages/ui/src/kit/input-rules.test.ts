@@ -6,7 +6,7 @@ import {
   formatJson,
   parseJsonObject,
 } from './input-rules';
-import { cellText, columnsOf, duplicateText, toDocumentRow, topLevelKeys } from '../management';
+import { topLevelKeys } from '../management';
 
 describe('name rules', () => {
   it('asks for a name when the field is empty', () => {
@@ -58,34 +58,12 @@ describe('formatting', () => {
   });
 });
 
-describe('document rows', () => {
-  const text = '{"_id":{"$oid":"64b7f0f0e4b0a1b2c3d4e5f6"},"sku":"A-1","qty":{"$numberInt":"2"}}';
-
-  it('keeps the _id as EJSON and flattens the other top-level fields', () => {
-    const row = toDocumentRow(text);
-    expect(row?.idEjson).toBe('{"$oid":"64b7f0f0e4b0a1b2c3d4e5f6"}');
-    expect(row?.fields).toEqual({ sku: 'A-1', qty: '{"$numberInt":"2"}' });
-  });
-
-  it('returns nothing for a document without an _id or text that is not an object', () => {
-    expect(toDocumentRow('{"sku":"A-1"}')).toBeUndefined();
-    expect(toDocumentRow('not json')).toBeUndefined();
-  });
-
-  it('removes the _id when a document is duplicated', () => {
-    const row = toDocumentRow(text);
-    expect(row).toBeDefined();
-    if (row !== undefined) {
-      expect(duplicateText(row)).not.toContain('_id');
-      expect(duplicateText(row)).toContain('"sku": "A-1"');
-    }
-  });
-
-  it('cuts long cell text and lists columns in first-seen order', () => {
-    expect(cellText('x'.repeat(100))).toHaveLength(80);
-    const rows = [toDocumentRow('{"_id":1,"a":1,"b":2}'), toDocumentRow('{"_id":2,"c":3,"a":4}')];
-    const present = rows.filter((row) => row !== undefined);
-    expect(columnsOf(present)).toEqual(['a', 'b', 'c']);
+describe('top level keys', () => {
+  it('lists the field names of the documents, sorted, without _id', () => {
     expect(topLevelKeys(['{"_id":1,"z":1}', '{"_id":2,"a":1}'])).toEqual(['a', 'z']);
+  });
+
+  it('skips text that is not an object with an _id', () => {
+    expect(topLevelKeys(['{"sku":"A-1"}', 'not json'])).toEqual([]);
   });
 });

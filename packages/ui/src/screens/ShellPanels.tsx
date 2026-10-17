@@ -50,7 +50,7 @@ import {
 import { ConnectionTree } from '../connections';
 import { TreeMenu, type TreeMenuEntry } from '../kit/TreeMenu';
 import { isOutputCollapsed, toggleOutputPanel } from './output-collapse';
-import { DocumentsPanel, IndexesPanel, ValidationPanel } from '../management';
+import { IndexesPanel, ValidationPanel } from '../management';
 import { UsersRolesPanel } from '../security';
 import { ShardingPanel } from '../sharding';
 import { ChangesPanel } from '../changes';
@@ -636,7 +636,7 @@ export function CollectionDockPanel({
         connectionId={params.connectionId}
         database={params.database}
         collection={params.collection}
-        section={params.section ?? 'documents'}
+        section={params.section ?? 'indexes'}
         onSectionChange={(section) => api.updateParameters({ section })}
       />
     </Box>
@@ -750,11 +750,3 @@ export function GridFsDockPanel({ params }: IDockviewPanelProps<GridFsDockPanelP
   );
 }
 
-/** Dock panel: sampled documents of one collection. */
-export function DocumentsDockPanel({ params }: IDockviewPanelProps<CollectionPanelParams>) {
-  return (
-    <Box h="100%" style={{ overflow: 'auto' }}>
-      <DocumentsPanel {...params} />
-    </Box>
-  );
-}

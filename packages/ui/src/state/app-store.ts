@@ -172,7 +172,7 @@ export interface ValidationFieldRequest {
 
 /** A request to show a collection panel. The shell opens or focuses it, then clears the request. */
 export interface PanelRequest {
-  readonly panel: 'indexes' | 'validation' | 'documents' | 'schema' | 'changes' | 'stats';
+  readonly panel: 'indexes' | 'validation' | 'schema' | 'changes' | 'stats';
   readonly connectionId: string;
   readonly database: string;
   readonly collection: string;
