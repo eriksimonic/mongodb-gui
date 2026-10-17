@@ -1,22 +1,31 @@
 import {
   Alert,
   Button,
+  Code,
   Group,
   NumberInput,
   Select,
+  SimpleGrid,
   Stack,
   Switch,
   Text,
   TextInput,
 } from '@mantine/core';
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState, type CSSProperties } from 'react';
 import { useStore } from 'zustand';
-import type { ReconfigChange, ReplicaSetMember } from '@mongo-gui/core';
+import { AddMemberInputSchema, type ReconfigChange, type ReplicaSetMember } from '@mongo-gui/core';
 import { errorText } from '../kit/notify-error';
 import type { ReplicationStore } from './replication-store';
-import { ActionModal } from './ReplicationDialogs';
+import { ActionModal, Callout } from './ReplicationDialogs';
 import { TagsEditor } from './TagsEditor';
-import { rowsToTags, tagsToRows, type TagRow } from './replication-model';
+import {
+  configDiff,
+  duplicateTagKey,
+  rowsToTags,
+  tagsToRows,
+  type DiffToken,
+  type TagRow,
+} from './replication-model';
 
 export type MemberDialogMode =
   | { readonly kind: 'add' }
@@ -37,9 +46,9 @@ const TITLES: Readonly<Record<MemberDialogMode['kind'], string>> = {
 };
 
 /**
- * Adds, edits or removes one member. The user fills in the change, previews it, and only then can
- * apply it. The preview is the adapter's dry run. A refused preview names the reason and keeps
- * Apply disabled.
+ * Adds, edits or removes one member. The dialog plans the change as the user fills it in, and
+ * Apply stays off until the plan of the current form comes back without a refusal. The plan is the
+ * adapter's dry run.
  */
 export function MemberDialog({ mode, setName, store, onClose }: MemberDialogProps) {
   const pending = useStore(store, (state) => state.pending);
@@ -57,94 +66,98 @@ export function MemberDialog({ mode, setName, store, onClose }: MemberDialogProp
   const [buildIndexes, setBuildIndexes] = useState(seed.buildIndexes);
   const [delay, setDelay] = useState(seed.delay);
   const [tags, setTags] = useState<TagRow[]>(seed.tags);
-  const [previewError, setPreviewError] = useState<string | undefined>(undefined);
-  // The preview is valid only for the form it was made from. Any edit clears it.
-  const [previewed, setPreviewed] = useState(false);
+  // The key of the form the last plan, or its failure, came from. A newer form shows neither.
+  const [plannedKey, setPlannedKey] = useState<string | undefined>(undefined);
+  const [failure, setFailure] = useState<{ key: string; text: string } | undefined>(undefined);
+  // Plans run one after another, so the store's pending plan is always the last one made.
+  const chain = useRef<Promise<void>>(Promise.resolve());
+  const latest = useRef(0);
 
   useEffect(() => () => clearPlan(), [clearPlan]);
 
-  function edited() {
-    setPreviewed(false);
-    setPreviewError(undefined);
+  const change = buildChange();
+  const key = change === undefined ? undefined : JSON.stringify(change);
+  const unchanged = mode.kind === 'edit' && key === JSON.stringify(seedChange());
+
+  useEffect(() => {
+    latest.current += 1;
+    const ticket = latest.current;
     clearPlan();
+    if (change === undefined || key === undefined || unchanged) {
+      return undefined;
+    }
+    const timer = setTimeout(
+      () => {
+        chain.current = chain.current.then(async () => {
+          if (ticket !== latest.current) {
+            return;
+          }
+          try {
+            await planChange(change);
+            if (ticket === latest.current) {
+              setPlannedKey(key);
+            }
+          } catch (error) {
+            if (ticket === latest.current) {
+              setFailure({ key, text: errorText(error) });
+            }
+          }
+        });
+      },
+      mode.kind === 'remove' ? 0 : PLAN_DEBOUNCE_MS,
+    );
+    return () => clearTimeout(timer);
+    // The key stands for the change, so a new object with the same content does not replan.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [key, unchanged]);
+
+  function seedChange(): ReconfigChange | undefined {
+    return changeFor(mode, seed);
   }
 
   function buildChange(): ReconfigChange | undefined {
-    if (mode.kind === 'remove') {
-      return { kind: 'remove', memberId: mode.member.id };
-    }
-    if (mode.kind === 'edit') {
-      return {
-        kind: 'update',
-        memberId: mode.member.id,
-        patch: { priority, votes, hidden, secondaryDelaySecs: delay, tags: rowsToTags(tags) },
-      };
-    }
-    if (host.trim() === '') {
-      return undefined;
-    }
-    return {
-      kind: 'add',
-      member: {
-        host: host.trim(),
-        priority,
-        votes,
-        hidden,
-        arbiterOnly: arbiter,
-        buildIndexes,
-        secondaryDelaySecs: delay,
-        tags: rowsToTags(tags),
-      },
-    };
+    return changeFor(mode, { host, priority, votes, hidden, arbiter, buildIndexes, delay, tags });
   }
 
-  async function preview() {
-    setPreviewError(undefined);
-    const change = buildChange();
-    if (change === undefined) {
-      setPreviewError('Enter the host name of the member, such as db4.example.net:27017');
-      return;
-    }
-    try {
-      await planChange(change);
-      setPreviewed(true);
-    } catch (failure) {
-      setPreviewError(errorText(failure));
-    }
-  }
-
+  const planned = key !== undefined && plannedKey === key;
+  const planError = failure !== undefined && failure.key === key ? failure.text : undefined;
   const plan = pending?.plan;
-  const refused = plan?.refused;
-  const canApply = previewed && plan !== undefined && refused === undefined && !stale;
-  const title = `${TITLES[mode.kind]}${mode.kind === 'add' ? '' : ` ${mode.member.name}`}`;
+  const refused = planned ? plan?.refused : undefined;
+  const canApply = planned && plan !== undefined && refused === undefined && !stale;
+  const title = mode.kind === 'add' ? 'Add member' : TITLES[mode.kind];
+  const subtitle = mode.kind === 'add' ? `Replica set ${setName}` : mode.member.name;
 
   const notice = (
     <Stack gap="xs">
-      {previewError === undefined ? null : (
+      {planError === undefined ? null : (
         <Alert color="red" variant="light" role="alert">
-          {previewError}
+          {planError}
         </Alert>
       )}
-      {previewed && refused !== undefined ? (
-        <Alert color="red" variant="light" title="This change is refused" role="alert">
+      {refused === undefined ? null : (
+        <Callout color="red" title="This change is refused">
           {refused}
-        </Alert>
-      ) : null}
-      {previewed && plan !== undefined && refused === undefined ? (
-        <Stack gap={4} aria-label="Dry run">
+        </Callout>
+      )}
+      {planned && plan !== undefined && refused === undefined
+        ? plan.warnings.map((warning) => <Callout key={warning}>{warning}</Callout>)
+        : null}
+      {planned && plan !== undefined && refused === undefined && mode.kind !== 'remove' ? (
+        <Stack gap={4} aria-label="Change preview">
           <Text size="sm" fw={500}>
-            Dry run
+            Change preview
           </Text>
-          {plan.changes.map((change) => (
-            <Text key={change} size="sm">
-              {change}
-            </Text>
-          ))}
-          {plan.warnings.map((warning) => (
-            <Text key={warning} size="sm" c="orange">
-              {warning}
-            </Text>
-          ))}
+          <Code block aria-label="Config diff">
+            {configDiff(plan.current, plan.next).map((line, row) => (
+              <div key={row}>
+                {line.map((token, index) => (
+                  <span key={index} style={TOKEN_STYLE[token.kind]}>
+                    {token.text}
+                  </span>
+                ))}
+              </div>
+            ))}
+          </Code>
         </Stack>
       ) : null}
       {stale ? (
@@ -156,7 +169,7 @@ export function MemberDialog({ mode, setName, store, onClose }: MemberDialogProp
               variant="default"
               onClick={() => {
                 void refresh();
-                setPreviewed(false);
+                setPlannedKey(undefined);
               }}
             >
               Refresh
@@ -170,8 +183,16 @@ export function MemberDialog({ mode, setName, store, onClose }: MemberDialogProp
   return (
     <ActionModal
       title={title}
-      confirmLabel="Apply"
-      confirmColor={mode.kind === 'remove' ? 'red' : 'blue'}
+      subtitle={subtitle}
+      confirmLabel={mode.kind === 'remove' ? 'Remove member' : 'Apply'}
+      {...(mode.kind === 'remove'
+        ? { confirmColor: 'red', confirmVariant: 'outline' as const }
+        : {})}
+      {...(mode.kind === 'remove'
+        ? {}
+        : {
+            footerHint: `${mode.kind === 'add' ? 'Adding' : 'Editing'} changes the set configuration.`,
+          })}
       confirmDisabled={!canApply}
       typedConfirmation={setName}
       notice={notice}
@@ -179,116 +200,142 @@ export function MemberDialog({ mode, setName, store, onClose }: MemberDialogProp
       onClose={onClose}
     >
       {mode.kind === 'remove' ? (
-        <Text size="sm">
-          Remove {mode.member.name} from {setName}. The member stops replicating and its vote goes
-          with it. A primary cannot be removed until it steps down.
-        </Text>
-      ) : null}
-      {mode.kind === 'add' ? (
+        <Callout color="red">
+          Remove {mode.member.name} from {setName}? It stops replicating and no longer votes. Data
+          on the node is not deleted. A primary cannot be removed until it steps down.
+        </Callout>
+      ) : (
         <>
           <TextInput
             label="Host"
             placeholder="db4.example.net:27017"
             value={host}
-            onChange={(event) => {
-              setHost(event.currentTarget.value);
-              edited();
-            }}
+            readOnly={mode.kind === 'edit'}
+            onChange={(event) => setHost(event.currentTarget.value)}
             autoComplete="off"
             spellCheck={false}
           />
-          <Switch
-            label="Arbiter"
-            description="Votes but holds no data. Its priority is 0."
-            checked={arbiter}
-            onChange={(event) => {
-              const checked = event.currentTarget.checked;
-              setArbiter(checked);
-              if (checked) {
-                setPriority(0);
-              }
-              edited();
-            }}
-          />
-          <Switch
-            label="Build indexes"
-            checked={buildIndexes}
-            onChange={(event) => {
-              setBuildIndexes(event.currentTarget.checked);
-              edited();
-            }}
-          />
-        </>
-      ) : null}
-      {mode.kind === 'edit' ? (
-        <Text size="sm" c="dimmed">
-          {mode.member.name}: arbiter and build-index settings stay as they are. Change those by
-          removing the member and adding it again.
-        </Text>
-      ) : null}
-      {mode.kind === 'remove' ? null : (
-        <>
-          <NumberInput
-            label="Priority"
-            description="0 to 1000. Zero never becomes primary."
-            min={0}
-            max={1000}
-            allowDecimal={false}
-            value={priority}
-            onChange={(value) => {
-              setPriority(Number(value) || 0);
-              edited();
-            }}
-          />
-          <Select
-            label="Votes"
-            allowDeselect={false}
-            data={[
-              { value: '1', label: '1' },
-              { value: '0', label: '0' },
-            ]}
-            value={String(votes)}
-            onChange={(value) => {
-              setVotes(value === '0' ? 0 : 1);
-              edited();
-            }}
-          />
-          <Switch
-            label="Hidden"
-            description="Hidden members take no client reads and must have priority 0."
-            checked={hidden}
-            onChange={(event) => {
-              setHidden(event.currentTarget.checked);
-              edited();
-            }}
-          />
-          <NumberInput
-            label="Delay in seconds"
-            description="A delayed member never becomes primary."
-            min={0}
-            allowDecimal={false}
-            value={delay}
-            onChange={(value) => {
-              setDelay(Number(value) || 0);
-              edited();
-            }}
-          />
-          <TagsEditor
-            rows={tags}
-            onChange={(rows) => {
-              setTags(rows);
-              edited();
-            }}
-          />
+          <SimpleGrid cols={2} verticalSpacing="sm">
+            <Switch
+              label="Arbiter"
+              description="Votes but holds no data. Its priority is 0."
+              checked={arbiter}
+              disabled={mode.kind === 'edit'}
+              onChange={(event) => {
+                const checked = event.currentTarget.checked;
+                setArbiter(checked);
+                if (checked) {
+                  setPriority(0);
+                }
+              }}
+            />
+            <Switch
+              label="Build indexes"
+              description="Turn off only for a pure backup member."
+              checked={buildIndexes}
+              disabled={mode.kind === 'edit'}
+              onChange={(event) => setBuildIndexes(event.currentTarget.checked)}
+            />
+            <Switch
+              label="Hidden"
+              description="Takes no client reads and must have priority 0."
+              checked={hidden}
+              onChange={(event) => setHidden(event.currentTarget.checked)}
+            />
+          </SimpleGrid>
+          <SimpleGrid cols={3} style={{ alignItems: 'start' }}>
+            <NumberInput
+              label="Priority"
+              inputWrapperOrder={INPUT_FIRST}
+              description="0 to 1000. Zero never becomes primary."
+              min={0}
+              max={1000}
+              allowDecimal={false}
+              value={priority}
+              onChange={(value) => setPriority(Number(value) || 0)}
+            />
+            <Select
+              label="Votes"
+              inputWrapperOrder={INPUT_FIRST}
+              allowDeselect={false}
+              data={[
+                { value: '1', label: '1' },
+                { value: '0', label: '0' },
+              ]}
+              value={String(votes)}
+              onChange={(value) => setVotes(value === '0' ? 0 : 1)}
+            />
+            <NumberInput
+              label="Delay in seconds"
+              inputWrapperOrder={INPUT_FIRST}
+              description="A delayed member never becomes primary."
+              min={0}
+              allowDecimal={false}
+              value={delay}
+              onChange={(value) => setDelay(Number(value) || 0)}
+            />
+          </SimpleGrid>
+          <TagsEditor rows={tags} onChange={setTags} />
         </>
       )}
-      <Group justify="flex-end">
-        <Button variant="default" size="xs" onClick={() => void preview()}>
-          Preview change
-        </Button>
-      </Group>
     </ActionModal>
   );
+}
+
+const PLAN_DEBOUNCE_MS = 300;
+
+const TOKEN_STYLE: Readonly<Record<DiffToken['kind'], CSSProperties>> = {
+  plain: {},
+  key: { color: 'var(--mg-code-key)' },
+  string: { color: 'var(--mg-code-string)' },
+  number: { color: 'var(--mg-code-number)' },
+};
+
+/** Puts a field's description under its input, so inputs in one row line up. */
+const INPUT_FIRST: ('label' | 'input' | 'description' | 'error')[] = [
+  'label',
+  'input',
+  'description',
+  'error',
+];
+
+/** The change a form stands for, or undefined while it cannot be planned yet. */
+function changeFor(mode: MemberDialogMode, form: FormSeed): ReconfigChange | undefined {
+  if (mode.kind === 'remove') {
+    return { kind: 'remove', memberId: mode.member.id };
+  }
+  if (duplicateTagKey(form.tags) !== undefined) {
+    return undefined;
+  }
+  if (mode.kind === 'edit') {
+    return {
+      kind: 'update',
+      memberId: mode.member.id,
+      patch: {
+        priority: form.priority,
+        votes: form.votes,
+        hidden: form.hidden,
+        secondaryDelaySecs: form.delay,
+        tags: rowsToTags(form.tags),
+      },
+    };
+  }
+  if (!AddMemberInputSchema.shape.host.safeParse(form.host.trim()).success) {
+    return undefined;
+  }
+  return {
+    kind: 'add',
+    member: {
+      host: form.host.trim(),
+      priority: form.priority,
+      votes: form.votes,
+      hidden: form.hidden,
+      arbiterOnly: form.arbiter,
+      buildIndexes: form.buildIndexes,
+      secondaryDelaySecs: form.delay,
+      tags: rowsToTags(form.tags),
+    },
+  };
 }
 
 interface FormSeed {

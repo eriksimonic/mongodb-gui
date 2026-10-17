@@ -1,4 +1,9 @@
-import type { AppError, ReplicaSetMember, ReplicaSetStatus } from '@mongo-gui/core';
+import type {
+  AppError,
+  ReplicaSetConfig,
+  ReplicaSetMember,
+  ReplicaSetStatus,
+} from '@mongo-gui/core';
 
 const NOT_INITIALISED_CODE_NAME = 'NotYetInitialized';
 const NO_REPLICATION_CODE_NAME = 'NoReplicationEnabled';
@@ -92,9 +97,56 @@ export function oplogWindowLabel(status: ReplicaSetStatus): string {
   return oplog.sizeMb === undefined ? window : `${window} of ${oplog.sizeMb} MB`;
 }
 
+/** An instant as "now", "N s ago", "N min ago" or "N h ago" relative to `nowMs`. */
+export function formatAgo(iso: string, nowMs: number): string {
+  const seconds = Math.max(0, Math.round((nowMs - Date.parse(iso)) / 1000));
+  if (seconds < 2) {
+    return 'now';
+  }
+  if (seconds < 60) {
+    return `${seconds} s ago`;
+  }
+  if (seconds < 3600) {
+    return `${Math.floor(seconds / 60)} min ago`;
+  }
+  if (seconds < 86400) {
+    return `${Math.floor(seconds / 3600)} h ago`;
+  }
+  return `${Math.floor(seconds / 86400)} d ago`;
+}
+
+/** The members that count as healthy, and the votes a majority needs. */
+export function memberCounts(status: ReplicaSetStatus): { healthy: number; majority: number } {
+  const voting = status.members.filter((member) => member.votes > 0).length;
+  return {
+    healthy: status.members.filter((member) => member.health === 1).length,
+    majority: status.majorityVoteCount ?? Math.floor(voting / 2) + 1,
+  };
+}
+
+/** The oplog window without the size. The size is the card's second line. */
+export function oplogWindowText(status: ReplicaSetStatus): string {
+  return status.oplog === undefined
+    ? 'Unknown'
+    : formatDuration(Math.round(status.oplog.windowSeconds));
+}
+
+/** The secondaries that can take over from the primary: healthy, voting and above priority 0. */
+export function electableSecondaries(status: ReplicaSetStatus): ReplicaSetMember[] {
+  return status.members.filter(
+    (member) =>
+      memberMeaning(member) === 'secondary' &&
+      member.priority > 0 &&
+      member.votes > 0 &&
+      !member.hidden &&
+      member.secondaryDelaySecs === 0,
+  );
+}
+
 export interface ElectionEvent {
   readonly at: string;
   readonly summary: string;
+  readonly term?: number;
 }
 
 /**
@@ -108,7 +160,8 @@ export function electionEvents(status: ReplicaSetStatus): ElectionEvent[] {
     if (member.electionDate !== undefined) {
       events.push({
         at: member.electionDate,
-        summary: `${member.name} became primary${termText(status.term)}`,
+        summary: `${member.name} became primary`,
+        ...(status.term === undefined ? {} : { term: status.term }),
       });
     }
   }
@@ -120,14 +173,13 @@ export function electionEvents(status: ReplicaSetStatus): ElectionEvent[] {
         : '';
     events.push({
       at: metrics['lastElectionDate'],
-      summary: `Last election${reason}${termText(metrics['termAtLastElection'])}`,
+      summary: `Election${reason}`,
+      ...(typeof metrics['termAtLastElection'] === 'number'
+        ? { term: metrics['termAtLastElection'] }
+        : {}),
     });
   }
   return events.sort((left, right) => right.at.localeCompare(left.at));
-}
-
-function termText(term: unknown): string {
-  return typeof term === 'number' ? ` (term ${term})` : '';
 }
 
 function isRecord(value: unknown): value is Record<string, unknown> {
@@ -193,4 +245,98 @@ export function duplicateTagKey(rows: readonly TagRow[]): string | undefined {
     seen.add(key);
   }
   return undefined;
+}
+
+/** A piece of the change preview and how to colour it. */
+export interface DiffToken {
+  readonly text: string;
+  readonly kind: 'plain' | 'key' | 'string' | 'number';
+}
+
+const MEMBER_FIELDS = [
+  'priority',
+  'votes',
+  'hidden',
+  'arbiterOnly',
+  'buildIndexes',
+  'secondaryDelaySecs',
+  'tags',
+] as const;
+
+const MEMBER_DEFAULTS: Readonly<Record<(typeof MEMBER_FIELDS)[number], unknown>> = {
+  priority: 1,
+  votes: 1,
+  hidden: false,
+  arbiterOnly: false,
+  buildIndexes: true,
+  secondaryDelaySecs: 0,
+  tags: {},
+};
+
+function valueToken(value: unknown): DiffToken {
+  if (typeof value === 'number') {
+    return { text: String(value), kind: 'number' };
+  }
+  if (typeof value === 'string') {
+    return { text: JSON.stringify(value), kind: 'string' };
+  }
+  return { text: JSON.stringify(value), kind: 'plain' };
+}
+
+/**
+ * The change preview as lines of tokens: one line per added, removed or changed member, then the
+ * version bump. It compares the two configurations, so it shows what the server will store.
+ */
+export function configDiff(current: ReplicaSetConfig, next: ReplicaSetConfig): DiffToken[][] {
+  const lines: DiffToken[][] = [];
+  const before = new Map(current.members.map((member) => [member.id, member]));
+  const kept = new Set<number>();
+  next.members.forEach((member, index) => {
+    const old = before.get(member.id);
+    const path: DiffToken = { text: `members[${index}]`, kind: 'plain' };
+    if (old === undefined) {
+      const fields = MEMBER_FIELDS.filter(
+        (field) => JSON.stringify(member[field]) !== JSON.stringify(MEMBER_DEFAULTS[field]),
+      );
+      const body: DiffToken[] = [{ text: ' + { ', kind: 'plain' }, ...pair('host', member.host)];
+      for (const field of fields) {
+        body.push({ text: ', ', kind: 'plain' }, ...pair(field, member[field]));
+      }
+      lines.push([path, ...body, { text: ' }', kind: 'plain' }]);
+      return;
+    }
+    kept.add(member.id);
+    for (const field of MEMBER_FIELDS) {
+      if (JSON.stringify(old[field]) !== JSON.stringify(member[field])) {
+        lines.push([
+          { text: `${path.text}.`, kind: 'plain' },
+          { text: field, kind: 'key' },
+          { text: '  ', kind: 'plain' },
+          valueToken(old[field]),
+          { text: ' → ', kind: 'plain' },
+          valueToken(member[field]),
+        ]);
+      }
+    }
+  });
+  for (const member of current.members) {
+    if (!kept.has(member.id) && !next.members.some((item) => item.id === member.id)) {
+      lines.push([
+        { text: `members[${member.id}] − { `, kind: 'plain' },
+        ...pair('host', member.host),
+        { text: ' }', kind: 'plain' },
+      ]);
+    }
+  }
+  lines.push([
+    { text: 'version  ', kind: 'plain' },
+    valueToken(current.version),
+    { text: ' → ', kind: 'plain' },
+    valueToken(next.version),
+  ]);
+  return lines;
+}
+
+function pair(key: string, value: unknown): DiffToken[] {
+  return [{ text: key, kind: 'key' }, { text: ': ', kind: 'plain' }, valueToken(value)];
 }

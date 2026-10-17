@@ -40,7 +40,7 @@ import {
   IconX,
   type Icon,
 } from '@tabler/icons-react';
-import { lazy, Suspense, useEffect, useState, type HTMLAttributes } from 'react';
+import { lazy, Suspense, useCallback, useEffect, useState, type HTMLAttributes } from 'react';
 import {
   type DockviewApi,
   type IDockviewHeaderActionsProps,
@@ -171,8 +171,9 @@ export interface ReplicationPanelParams {
 }
 
 /** The replica set panel of one connection. Closing the tab drops its state and stops auto refresh. */
-export function ReplicationDockPanel({ params }: IDockviewPanelProps<ReplicationPanelParams>) {
-  return <ReplicationPanel connectionId={params.connectionId} />;
+export function ReplicationDockPanel({ params, api }: IDockviewPanelProps<ReplicationPanelParams>) {
+  const setTitle = useCallback((name: string) => api.setTitle(`Replica set ${name}`), [api]);
+  return <ReplicationPanel connectionId={params.connectionId} onSetName={setTitle} />;
 }
 
 /** Params of an editor panel. The tab's state lives in the store, so only its id is passed. */

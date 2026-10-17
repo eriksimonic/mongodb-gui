@@ -50,3 +50,28 @@ export function MemberContextMenu({
   ];
   return <TreeMenu entries={entries} position={position} onClose={onClose} />;
 }
+
+export interface ReplicaSetContextMenuProps {
+  readonly connectionId: string;
+  readonly connectionName: string;
+  readonly position: { readonly x: number; readonly y: number };
+  readonly onClose: () => void;
+}
+
+/** Menu of the replica set node. It opens the panel, like a click on the node. */
+export function ReplicaSetContextMenu({
+  connectionId,
+  connectionName,
+  position,
+  onClose,
+}: ReplicaSetContextMenuProps) {
+  const openPanel = usePanelOpener();
+  const entries: TreeMenuEntry[] = [
+    {
+      kind: 'item',
+      label: 'Open replica set panel',
+      onSelect: () => openPanel({ kind: 'replication', connectionId, connectionName }),
+    },
+  ];
+  return <TreeMenu entries={entries} position={position} onClose={onClose} />;
+}

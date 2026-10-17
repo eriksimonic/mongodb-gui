@@ -1,4 +1,5 @@
 import { Alert, Button, Group, Modal, NumberInput, Stack, Text, TextInput } from '@mantine/core';
+import { IconAlertCircle } from '@tabler/icons-react';
 import { useState, type ReactNode } from 'react';
 import {
   AddMemberInputSchema,
@@ -12,10 +13,16 @@ export interface ActionModalProps {
   readonly title: string;
   readonly confirmLabel: string;
   readonly confirmColor?: string;
+  /** Destructive confirms use an outline in their colour. */
+  readonly confirmVariant?: 'filled' | 'outline';
+  /** A second line under the title, such as the set the dialog acts on. */
+  readonly subtitle?: string;
+  /** Text at the left of the footer. */
+  readonly footerHint?: string;
   readonly confirmDisabled?: boolean;
   /** When set, Apply stays disabled until the user types this text exactly. */
   readonly typedConfirmation?: string | undefined;
-  /** Shown above the buttons, such as a refusal or a refresh offer. */
+  /** Shown above the typed confirmation, such as a preview, a warning or a refusal. */
   readonly notice?: ReactNode;
   readonly onConfirm: () => Promise<void>;
   readonly onClose: () => void;
@@ -29,7 +36,10 @@ export interface ActionModalProps {
 export function ActionModal({
   title,
   confirmLabel,
-  confirmColor = 'blue',
+  confirmColor,
+  confirmVariant = 'filled',
+  subtitle,
+  footerHint,
   confirmDisabled = false,
   typedConfirmation,
   notice,
@@ -57,57 +67,107 @@ export function ActionModal({
   }
 
   return (
-    <Modal opened onClose={onClose} title={title} centered size={640}>
+    <Modal
+      opened
+      onClose={onClose}
+      centered
+      size={640}
+      title={
+        subtitle === undefined ? (
+          title
+        ) : (
+          <Stack gap={0}>
+            <Text fw={600}>{title}</Text>
+            <Text size="xs" c="dimmed">
+              {subtitle}
+            </Text>
+          </Stack>
+        )
+      }
+    >
       <Stack gap="lg">
         {children}
+        {notice}
         {typedConfirmation === undefined ? null : (
           <TextInput
             label={`Type ${typedConfirmation} to confirm`}
             aria-label={`Type ${typedConfirmation} to confirm`}
+            placeholder={typedConfirmation}
             value={typed}
             onChange={(event) => setTyped(event.currentTarget.value)}
             autoComplete="off"
             spellCheck={false}
           />
         )}
-        {notice}
         {error === undefined ? null : (
           <Alert color="red" variant="light" role="alert">
             {error}
           </Alert>
         )}
-        <Group justify="flex-end">
-          <Button variant="default" onClick={onClose}>
-            Cancel
-          </Button>
-          <Button
-            color={confirmColor}
-            disabled={disabled}
-            loading={busy}
-            onClick={() => void confirm()}
-          >
-            {confirmLabel}
-          </Button>
+        <Group
+          justify={footerHint === undefined ? 'flex-end' : 'space-between'}
+          pt="md"
+          style={{ borderTop: '1px solid var(--mg-border)' }}
+        >
+          {footerHint === undefined ? null : (
+            <Text size="xs" c="dimmed">
+              {footerHint}
+            </Text>
+          )}
+          <Group gap="xs">
+            <Button variant="default" onClick={onClose}>
+              Cancel
+            </Button>
+            <Button
+              {...(confirmColor === undefined ? {} : { color: confirmColor })}
+              variant={confirmVariant}
+              disabled={disabled}
+              loading={busy}
+              onClick={() => void confirm()}
+            >
+              {confirmLabel}
+            </Button>
+          </Group>
         </Group>
       </Stack>
     </Modal>
   );
 }
 
+/** A warning box with a title and a body, for effects the user should read before confirming. */
+export function Callout({
+  title,
+  children,
+  color = 'orange',
+}: {
+  readonly title?: string;
+  readonly children: ReactNode;
+  readonly color?: 'orange' | 'red';
+}) {
+  return (
+    <Alert color={color} variant="light" icon={<IconAlertCircle size={16} />} title={title}>
+      <Text size="sm">{children}</Text>
+    </Alert>
+  );
+}
+
 export interface StepDownDialogProps {
   readonly primary: string;
+  /** The secondaries that can take over, as "host is N s behind". */
+  readonly electable: readonly string[];
   readonly onStepDown: (seconds: number) => Promise<string>;
   readonly onClose: () => void;
 }
 
 /** Steps the primary down for a number of seconds. The set elects a new primary meanwhile. */
-export function StepDownDialog({ primary, onStepDown, onClose }: StepDownDialogProps) {
+export function StepDownDialog({ primary, electable, onStepDown, onClose }: StepDownDialogProps) {
   const [seconds, setSeconds] = useState<number>(60);
   return (
     <ActionModal
       title="Step down primary"
       confirmLabel="Step down"
-      confirmColor="orange"
+      confirmColor="red"
+      confirmVariant="outline"
       confirmDisabled={!inRange(seconds, MIN_STEP_DOWN_SECONDS, MAX_STEP_DOWN_SECONDS)}
       onConfirm={async () => {
         await onStepDown(seconds);
@@ -127,6 +187,11 @@ export function StepDownDialog({ primary, onStepDown, onClose }: StepDownDialogP
         onChange={(value) => setSeconds(Number(value))}
         allowDecimal={false}
       />
+      <Callout title="Writes pause until a new primary is elected">
+        {electable.length === 0
+          ? 'No secondary can take over, so the set has no primary until this member steps up again.'
+          : `Usually a few seconds. ${electable.join(', ')}.`}
+      </Callout>
     </ActionModal>
   );
 }
@@ -144,7 +209,6 @@ export function FreezeDialog({ member, onFreeze, onClose }: FreezeDialogProps) {
     <ActionModal
       title="Freeze member"
       confirmLabel="Freeze"
-      confirmColor="orange"
       confirmDisabled={!inRange(seconds, 0, MAX_STEP_DOWN_SECONDS)}
       onConfirm={() => onFreeze(seconds)}
       onClose={onClose}
@@ -200,25 +264,27 @@ export function InitiateDialog({ defaultHost, onInitiate, onClose }: InitiateDia
         node elects itself primary. This writes the configuration to the node and cannot be undone
         from this panel. Add the other members after the set is up.
       </Text>
-      <TextInput
-        label="Set name"
-        value={setName}
-        error={setNameValid ? undefined : 'Use letters, digits, dashes and underscores'}
-        onChange={(event) => setSetName(event.currentTarget.value)}
-        autoComplete="off"
-        spellCheck={false}
-      />
-      <TextInput
-        label="Host"
-        description="The address other members use to reach this node."
-        value={host}
-        error={host === '' ? undefined : hostError}
-        onChange={(event) => {
-          setTypedHost(event.currentTarget.value);
-        }}
-        autoComplete="off"
-        spellCheck={false}
-      />
+      <Group grow align="flex-start">
+        <TextInput
+          label="Set name"
+          value={setName}
+          error={setNameValid ? undefined : 'Use letters, digits, dashes and underscores'}
+          onChange={(event) => setSetName(event.currentTarget.value)}
+          autoComplete="off"
+          spellCheck={false}
+        />
+        <TextInput
+          label="Host"
+          description="The address other members use to reach this node."
+          value={host}
+          error={host === '' ? undefined : hostError}
+          onChange={(event) => {
+            setTypedHost(event.currentTarget.value);
+          }}
+          autoComplete="off"
+          spellCheck={false}
+        />
+      </Group>
     </ActionModal>
   );
 }

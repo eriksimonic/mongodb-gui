@@ -76,7 +76,6 @@ interface MockSet {
 const STATE_CODES = { PRIMARY: 1, SECONDARY: 2, ARBITER: 7 } as const;
 const MOCK_SET_NAME = 'rs0';
 const MOCK_HOST = 'localhost:27017';
-const PRIMARY_OPTIME_MS = Date.UTC(2026, 9, 9, 10, 0, 10);
 const OPLOG_FIRST_AGO_MS = 3_600_000;
 const OPLOG_SIZE_MB = 512;
 const OPLOG_USED_MB = 40;
@@ -200,7 +199,7 @@ export function createMockReplication(options: MockReplicationOptions): MockRepl
 
   function statusOf(set: MockSet): ReplicaSetStatus {
     const primary = set.members.find((member) => member.state === 'PRIMARY');
-    const primaryOptime = PRIMARY_OPTIME_MS;
+    const primaryOptime = now();
     const electionDate = new Date(now() - ELECTION_AGO_MS).toISOString();
     return {
       setName: set.setName,

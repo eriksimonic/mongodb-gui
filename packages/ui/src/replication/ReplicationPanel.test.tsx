@@ -27,6 +27,12 @@ function memberRow(host: string): HTMLElement {
   return row;
 }
 
+/** Opens a member's action menu and picks one item. */
+async function pickAction(host: string, item: RegExp): Promise<void> {
+  fireEvent.click(within(memberRow(host)).getByRole('button', { name: /^Actions for / }));
+  fireEvent.click(await screen.findByRole('menuitem', { name: item }));
+}
+
 function dialog(): HTMLElement {
   return screen.getByRole('dialog');
 }
@@ -41,8 +47,8 @@ describe('ReplicationPanel', () => {
     renderPanel(api);
 
     expect(await screen.findByText('Replica set rs0')).toBeInTheDocument();
-    expect(screen.getByText('Primary: localhost:27017')).toBeInTheDocument();
-    expect(screen.getByText('Config version 4, term 2')).toBeInTheDocument();
+    expect(screen.getByText('Primary localhost:27017')).toBeInTheDocument();
+    expect(screen.getByText('v4')).toBeInTheDocument();
     await waitForMembers(3);
 
     expect(memberRow('localhost:27017').querySelector('[data-meaning]')).toHaveAttribute(
@@ -77,7 +83,7 @@ describe('ReplicationPanel', () => {
     renderPanel(api);
     await waitForMembers(3);
 
-    fireEvent.click(screen.getByRole('button', { name: 'Step down' }));
+    fireEvent.click(screen.getByRole('button', { name: 'Step down…' }));
     expect(within(dialog()).getByText(/will not seek election again/)).toBeInTheDocument();
     fireEvent.change(within(dialog()).getByLabelText('Seconds'), { target: { value: '30' } });
     fireEvent.click(within(dialog()).getByRole('button', { name: 'Step down' }));
@@ -85,7 +91,7 @@ describe('ReplicationPanel', () => {
     await waitFor(() =>
       expect(spy).toHaveBeenCalledWith({ connectionId: localConnectionId, stepDownSeconds: 30 }),
     );
-    await waitFor(() => expect(screen.getByText('Primary: localhost:27018')).toBeInTheDocument());
+    await waitFor(() => expect(screen.getByText('Primary localhost:27018')).toBeInTheDocument());
   });
 
   it('shows a refused add as a red reason and keeps Apply disabled', async () => {
@@ -98,7 +104,6 @@ describe('ReplicationPanel', () => {
     fireEvent.change(within(dialog()).getByLabelText('Host'), {
       target: { value: 'localhost:27018' },
     });
-    fireEvent.click(within(dialog()).getByRole('button', { name: 'Preview change' }));
 
     const refusal = await within(dialog()).findByText('This change is refused');
     expect(refusal.closest('[role="alert"]')).toHaveTextContent(/already a member/);
@@ -115,14 +120,12 @@ describe('ReplicationPanel', () => {
     renderPanel(api);
     await waitForMembers(3);
 
-    fireEvent.click(within(memberRow('localhost:27018')).getByRole('button', { name: 'Edit' }));
+    await pickAction('localhost:27018', /Edit member/);
     fireEvent.change(within(dialog()).getByLabelText('Priority'), { target: { value: '3' } });
-    fireEvent.click(within(dialog()).getByRole('button', { name: 'Preview change' }));
 
-    const dryRun = await within(dialog()).findByLabelText('Dry run');
-    expect(
-      within(dryRun).getByText(/Set priority of localhost:27018 from 1 to 3/),
-    ).toBeInTheDocument();
+    const dryRun = await within(dialog()).findByLabelText('Change preview');
+    expect(dryRun).toHaveTextContent(/members\[1\]\.priority\s+1 → 3/);
+    expect(dryRun).toHaveTextContent(/version\s+4 → 5/);
     const apply = within(dialog()).getByRole('button', { name: 'Apply' });
     expect(apply).toBeDisabled();
 
@@ -136,7 +139,7 @@ describe('ReplicationPanel', () => {
     await waitFor(() =>
       expect(within(memberRow('localhost:27018')).getAllByText('3')[0]).toBeInTheDocument(),
     );
-    expect(screen.getByText('Config version 5, term 2')).toBeInTheDocument();
+    expect(screen.getByText('v5')).toBeInTheDocument();
   });
 
   it('removes the arbiter only after the set name is typed', async () => {
@@ -145,12 +148,11 @@ describe('ReplicationPanel', () => {
     renderPanel(api);
     await waitForMembers(3);
 
-    fireEvent.click(within(memberRow('localhost:27019')).getByRole('button', { name: 'Remove' }));
-    fireEvent.click(within(dialog()).getByRole('button', { name: 'Preview change' }));
-    await within(dialog()).findByLabelText('Dry run');
+    await pickAction('localhost:27019', /Remove from set/);
 
-    const apply = within(dialog()).getByRole('button', { name: 'Apply' });
+    const apply = within(dialog()).getByRole('button', { name: 'Remove member' });
     const typed = within(dialog()).getByLabelText('Type rs0 to confirm');
+    await waitFor(() => expect(dialog()).toHaveTextContent(/Data\s+on the node is not deleted/));
     expect(apply).toBeDisabled();
     fireEvent.change(typed, { target: { value: 'rs' } });
     expect(apply).toBeDisabled();
@@ -168,7 +170,7 @@ describe('ReplicationPanel', () => {
     renderPanel(api);
 
     expect(await screen.findByText('No replica set yet')).toBeInTheDocument();
-    fireEvent.click(screen.getByRole('button', { name: 'Initiate' }));
+    fireEvent.click(screen.getByRole('button', { name: 'Initiate…' }));
     fireEvent.change(within(dialog()).getByLabelText('Set name'), { target: { value: 'rs1' } });
     fireEvent.change(within(dialog()).getByLabelText('Type rs1 to confirm'), {
       target: { value: 'rs1' },
@@ -182,7 +184,7 @@ describe('ReplicationPanel', () => {
     const api = await replicaSetApi();
     renderPanel(api);
     await waitForMembers(3);
-    expect(screen.getByRole('button', { name: 'Step down' })).toBeEnabled();
+    expect(screen.getByRole('button', { name: 'Step down…' })).toBeEnabled();
 
     vi.spyOn(api.rpc.replication, 'getStatus').mockRejectedValueOnce(
       new AppErrorException(appError('CONNECTION_FAILED', 'Could not connect to the server')),
@@ -190,17 +192,14 @@ describe('ReplicationPanel', () => {
     fireEvent.click(screen.getByRole('button', { name: 'Refresh' }));
 
     expect(await screen.findByText('Could not connect to the server')).toBeInTheDocument();
-    expect(screen.getByRole('button', { name: 'Step down' })).toBeDisabled();
+    expect(screen.getByRole('button', { name: 'Step down…' })).toBeDisabled();
     expect(screen.getByRole('button', { name: 'Add member' })).toBeDisabled();
     expect(
-      within(memberRow('localhost:27018')).getByRole('button', { name: 'Edit' }),
-    ).toBeDisabled();
-    expect(
-      within(memberRow('localhost:27018')).getByRole('button', { name: 'Remove' }),
+      within(memberRow('localhost:27018')).getByRole('button', { name: /^Actions for / }),
     ).toBeDisabled();
 
     fireEvent.click(screen.getByRole('button', { name: 'Refresh' }));
-    await waitFor(() => expect(screen.getByRole('button', { name: 'Step down' })).toBeEnabled());
+    await waitFor(() => expect(screen.getByRole('button', { name: 'Step down…' })).toBeEnabled());
   });
 
   it('keeps the step-down minimum at 11 seconds', async () => {
@@ -208,7 +207,7 @@ describe('ReplicationPanel', () => {
     renderPanel(api);
     await waitForMembers(3);
 
-    fireEvent.click(screen.getByRole('button', { name: 'Step down' }));
+    fireEvent.click(screen.getByRole('button', { name: 'Step down…' }));
     const seconds = within(dialog()).getByLabelText('Seconds');
     const confirm = within(dialog()).getByRole('button', { name: 'Step down' });
     fireEvent.change(seconds, { target: { value: '10' } });
@@ -224,7 +223,7 @@ describe('ReplicationPanel', () => {
     renderPanel(api);
 
     await screen.findByText('No replica set yet');
-    fireEvent.click(screen.getByRole('button', { name: 'Initiate' }));
+    fireEvent.click(screen.getByRole('button', { name: 'Initiate…' }));
     const host = within(dialog()).getByLabelText('Host');
     await waitFor(() => expect(host).toHaveValue('localhost:27017'));
 
@@ -249,7 +248,7 @@ describe('ReplicationPanel', () => {
     renderPanel(api);
 
     await screen.findByText('No replica set yet');
-    fireEvent.click(screen.getByRole('button', { name: 'Initiate' }));
+    fireEvent.click(screen.getByRole('button', { name: 'Initiate…' }));
     const host = within(dialog()).getByLabelText('Host');
     await waitFor(() => expect(host).toHaveValue('localhost:27017'));
     fireEvent.change(host, { target: { value: 'user:pw@db4:27017' } });

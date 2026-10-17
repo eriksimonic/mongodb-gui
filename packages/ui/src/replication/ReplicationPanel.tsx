@@ -1,9 +1,13 @@
 import {
+  ActionIcon,
   Alert,
   Badge,
   Box,
   Button,
+  Code,
   Group,
+  Menu,
+  SimpleGrid,
   Stack,
   Switch,
   Table,
@@ -11,8 +15,8 @@ import {
   Title,
   Tooltip,
 } from '@mantine/core';
-import { IconPlus, IconRefresh } from '@tabler/icons-react';
-import { useCallback, useEffect, useState } from 'react';
+import { IconDotsVertical, IconPlus, IconRefresh } from '@tabler/icons-react';
+import { useCallback, useEffect, useState, type ReactNode } from 'react';
 import { useStore } from 'zustand';
 import type { ReplicaSetMember } from '@mongo-gui/core';
 import { useUiApi } from '../api/ui-api';
@@ -21,14 +25,17 @@ import { usePolling } from '../kit/use-polling';
 import { FreezeDialog, InitiateDialog, StepDownDialog } from './ReplicationDialogs';
 import { MemberDialog, type MemberDialogMode } from './MemberDialogs';
 import {
+  electableSecondaries,
   electionEvents,
+  formatAgo,
+  formatDuration,
   formatLag,
   isNoReplicationError,
   isUninitiatedError,
+  memberCounts,
   memberMeaning,
   memberMeaningLabel,
   MEMBER_MEANING_COLOUR,
-  oplogWindowLabel,
 } from './replication-model';
 import {
   AUTO_REFRESH_MS,
@@ -38,6 +45,8 @@ import {
 
 export interface ReplicationPanelProps {
   readonly connectionId: string;
+  /** Called with the set name once the status is read, so the tab can carry it. */
+  readonly onSetName?: (setName: string) => void;
 }
 
 type OpenDialog =
@@ -50,13 +59,14 @@ type OpenDialog =
  * The replica set panel of one connection. It shows the members, the set header and the elections
  * the status reports, and runs the administration actions through dialogs.
  */
-export function ReplicationPanel({ connectionId }: ReplicationPanelProps) {
+export function ReplicationPanel({ connectionId, onSetName }: ReplicationPanelProps) {
   const api = useUiApi();
   const [store] = useState<ReplicationStore>(() => createReplicationStore(api, connectionId));
   const status = useStore(store, (state) => state.status);
   const config = useStore(store, (state) => state.config);
   const error = useStore(store, (state) => state.error);
   const loading = useStore(store, (state) => state.loading);
+  const now = useStore(store, (state) => state.readAt);
   const autoRefresh = useStore(store, (state) => state.autoRefresh);
   const setAutoRefresh = useStore(store, (state) => state.setAutoRefresh);
   const refresh = useStore(store, (state) => state.refresh);
@@ -69,6 +79,13 @@ export function ReplicationPanel({ connectionId }: ReplicationPanelProps) {
     void store.getState().loadSelfHost();
   }, [store]);
 
+  const setName = status?.setName;
+  useEffect(() => {
+    if (setName !== undefined) {
+      onSetName?.(setName);
+    }
+  }, [setName, onSetName]);
+
   const pollRefresh = useCallback(() => void store.getState().refresh(), [store]);
   usePolling(pollRefresh, autoRefresh ? AUTO_REFRESH_MS : undefined);
 
@@ -77,6 +94,7 @@ export function ReplicationPanel({ connectionId }: ReplicationPanelProps) {
   const self = status?.members.find((member) => member.self);
   const primary = status?.members.find((member) => member.state === 'PRIMARY');
   const selfIsPrimary = self?.state === 'PRIMARY';
+  const counts = status === undefined ? { healthy: 0, majority: 0 } : memberCounts(status);
 
   return (
     <Stack gap="sm" p="md" h="100%" style={{ overflow: 'auto' }} data-testid="replication-panel">
@@ -85,14 +103,10 @@ export function ReplicationPanel({ connectionId }: ReplicationPanelProps) {
           <Title order={4}>
             {status === undefined ? 'Replica set' : `Replica set ${status.setName}`}
           </Title>
-          {status === undefined ? null : (
-            <>
-              <Text size="sm">Primary: {primary?.name ?? 'none'}</Text>
-              <Text size="sm">Oplog window: {oplogWindowLabel(status)}</Text>
-              <Text size="sm">
-                Config version {config?.version ?? '–'}, term {status.term ?? '–'}
-              </Text>
-            </>
+          {primary === undefined ? null : (
+            <Badge variant="light" color="blue" tt="none">
+              Primary {primary.name}
+            </Badge>
           )}
         </Group>
         <Group gap={8} wrap="nowrap" style={{ flexShrink: 0 }}>
@@ -120,11 +134,10 @@ export function ReplicationPanel({ connectionId }: ReplicationPanelProps) {
                 <Button
                   variant="default"
                   size="xs"
-                  color="orange"
                   disabled={!selfIsPrimary || statusStale}
                   onClick={() => setDialog({ kind: 'stepDown' })}
                 >
-                  Step down
+                  Step down…
                 </Button>
               </Tooltip>
               <Button
@@ -140,6 +153,30 @@ export function ReplicationPanel({ connectionId }: ReplicationPanelProps) {
         </Group>
       </Group>
 
+      {status === undefined ? null : (
+        <SimpleGrid cols={4} spacing="sm">
+          <StatCard label="Primary" value={primary?.name ?? 'none'} mono>
+            {self !== undefined && self.name === primary?.name ? 'this connection' : null}
+          </StatCard>
+          <StatCard
+            label="Oplog window"
+            value={
+              status.oplog === undefined
+                ? 'Unknown'
+                : formatDuration(Math.round(status.oplog.windowSeconds))
+            }
+          >
+            {status.oplog?.sizeMb === undefined ? null : `of ${status.oplog.sizeMb} MB`}
+          </StatCard>
+          <StatCard label="Config" value={`v${config?.version ?? '–'}`}>
+            {status.term === undefined ? null : `term ${status.term}`}
+          </StatCard>
+          <StatCard label="Members" value={String(status.members.length)}>
+            {`${counts.healthy} healthy · majority ${counts.majority}`}
+          </StatCard>
+        </SimpleGrid>
+      )}
+
       {error === undefined || uninitiated || standalone ? null : (
         <Alert color="red" variant="light" role="alert">
           {errorText(error)}
@@ -149,10 +186,11 @@ export function ReplicationPanel({ connectionId }: ReplicationPanelProps) {
         <Alert color="blue" variant="light" title="No replica set yet">
           <Group justify="space-between" wrap="nowrap">
             <Text size="sm">
-              This server runs with --replSet but has no configuration. Start a set with it.
+              This server runs with <Code>--replSet</Code> but has no configuration. Start a set
+              with it.
             </Text>
             <Button size="xs" onClick={() => setDialog({ kind: 'initiate' })}>
-              Initiate
+              Initiate…
             </Button>
           </Group>
         </Alert>
@@ -184,10 +222,9 @@ export function ReplicationPanel({ connectionId }: ReplicationPanelProps) {
                   <Table.Th>Votes</Table.Th>
                   <Table.Th>Hidden</Table.Th>
                   <Table.Th>Delay</Table.Th>
-                  <Table.Th>Arbiter</Table.Th>
-                  <Table.Th>Build indexes</Table.Th>
+                  <Table.Th>Indexes</Table.Th>
                   <Table.Th>Tags</Table.Th>
-                  <Table.Th>Actions</Table.Th>
+                  <Table.Th aria-label="Actions" />
                 </Table.Tr>
               </Table.Thead>
               <Table.Tbody>
@@ -195,6 +232,7 @@ export function ReplicationPanel({ connectionId }: ReplicationPanelProps) {
                   <MemberRow
                     key={member.id}
                     member={member}
+                    now={now}
                     disabled={statusStale}
                     onAction={(next) => setDialog(next)}
                   />
@@ -204,18 +242,29 @@ export function ReplicationPanel({ connectionId }: ReplicationPanelProps) {
           </Box>
 
           <Stack gap={4}>
-            <Text size="sm" fw={500}>
-              Elections
-            </Text>
+            <Group gap="xs">
+              <Text size="sm" fw={500}>
+                Elections
+              </Text>
+              <Text size="xs" c="dimmed">
+                last {electionEvents(status).length}
+              </Text>
+            </Group>
             {electionEvents(status).length === 0 ? (
               <Text size="sm" c="dimmed">
                 The status reports no elections.
               </Text>
             ) : (
               electionEvents(status).map((event) => (
-                <Text key={`${event.at}-${event.summary}`} size="sm">
-                  {formatInstant(event.at)}: {event.summary}
-                </Text>
+                <Group key={`${event.at}-${event.summary}`} gap="md" wrap="nowrap">
+                  <Text size="sm" c="dimmed" w={110} title={formatInstant(event.at)}>
+                    {formatAgo(event.at, now)}
+                  </Text>
+                  <Text size="sm" c="dimmed" ff="monospace" w={60}>
+                    {event.term === undefined ? '' : `term ${event.term}`}
+                  </Text>
+                  <Text size="sm">{event.summary}</Text>
+                </Group>
               ))
             )}
           </Stack>
@@ -228,6 +277,13 @@ export function ReplicationPanel({ connectionId }: ReplicationPanelProps) {
           store={store}
           setName={status?.setName ?? ''}
           primaryName={primary?.name}
+          electable={
+            status === undefined
+              ? []
+              : electableSecondaries(status).map(
+                  (member) => `${member.name} is ${formatLag(member.lagSeconds)} behind`,
+                )
+          }
           selfName={self?.name}
           defaultHost={selfHost}
           onClose={() => setDialog(undefined)}
@@ -242,6 +298,7 @@ interface DialogHostProps {
   readonly store: ReplicationStore;
   readonly setName: string;
   readonly primaryName: string | undefined;
+  readonly electable: readonly string[];
   readonly selfName: string | undefined;
   readonly defaultHost: string | undefined;
   readonly onClose: () => void;
@@ -252,6 +309,7 @@ function DialogHost({
   store,
   setName,
   primaryName,
+  electable,
   selfName,
   defaultHost,
   onClose,
@@ -262,6 +320,7 @@ function DialogHost({
       return (
         <StepDownDialog
           primary={primaryName ?? 'The primary'}
+          electable={electable}
           onStepDown={(seconds) => state.stepDown(seconds)}
           onClose={onClose}
         />
@@ -287,26 +346,54 @@ function DialogHost({
   }
 }
 
+interface StatCardProps {
+  readonly label: string;
+  readonly value: string;
+  readonly mono?: boolean;
+  readonly children?: ReactNode;
+}
+
+function StatCard({ label, value, mono = false, children }: StatCardProps) {
+  return (
+    <Box
+      p="sm"
+      style={{ border: '1px solid var(--mg-border)', borderRadius: 8 }}
+      data-testid={`stat-${label}`}
+    >
+      <Text size="sm" c="dimmed">
+        {label}
+      </Text>
+      <Text fz={22} fw={600} ff={mono ? 'monospace' : 'text'}>
+        {value}
+      </Text>
+      <Text size="xs" c="dimmed" mih={16}>
+        {children}
+      </Text>
+    </Box>
+  );
+}
+
 interface MemberRowProps {
   readonly member: ReplicaSetMember;
+  readonly now: number;
   /** True while the last read failed. The row's actions stay off until a read succeeds. */
   readonly disabled: boolean;
   readonly onAction: (dialog: OpenDialog) => void;
 }
 
-function MemberRow({ member, disabled, onAction }: MemberRowProps) {
+function MemberRow({ member, now, disabled, onAction }: MemberRowProps) {
   const meaning = memberMeaning(member);
-  const tags = Object.entries(member.tags)
-    .map(([key, value]) => `${key}=${value}`)
-    .join(', ');
+  const tags = Object.entries(member.tags).map(([key, value]) => `${key}=${value}`);
   return (
     <Table.Tr>
       <Table.Td>
-        {member.name}
+        <Text span ff="monospace" fz="sm">
+          {member.name}
+        </Text>
         {member.self ? (
           <Text span size="xs" c="dimmed">
             {' '}
-            (connected)
+            connected
           </Text>
         ) : null}
       </Table.Td>
@@ -314,54 +401,87 @@ function MemberRow({ member, disabled, onAction }: MemberRowProps) {
         <Badge
           color={MEMBER_MEANING_COLOUR[meaning]}
           variant="light"
+          radius="sm"
           data-meaning={meaning}
           miw="max-content"
         >
           {memberMeaningLabel(meaning)}
         </Badge>
       </Table.Td>
-      <Table.Td>{member.health === 1 ? 'Up' : 'Down'}</Table.Td>
-      <Table.Td>{formatLag(member.lagSeconds)}</Table.Td>
       <Table.Td>
-        {member.optimeDate === undefined ? '–' : formatInstant(member.optimeDate)}
+        <Group gap={6} wrap="nowrap">
+          <Box
+            w={7}
+            h={7}
+            style={{
+              borderRadius: '50%',
+              background: member.health === 1 ? 'var(--mg-link)' : 'var(--mg-danger)',
+            }}
+          />
+          {member.health === 1 ? 'Up' : 'Down'}
+        </Group>
       </Table.Td>
-      <Table.Td>{member.priority}</Table.Td>
-      <Table.Td>{member.votes}</Table.Td>
-      <Table.Td>{member.hidden ? 'Yes' : 'No'}</Table.Td>
-      <Table.Td>{member.secondaryDelaySecs} s</Table.Td>
-      <Table.Td>{member.arbiterOnly ? 'Yes' : 'No'}</Table.Td>
-      <Table.Td>{member.buildIndexes ? 'Yes' : 'No'}</Table.Td>
-      <Table.Td>{tags === '' ? '–' : tags}</Table.Td>
+      <Table.Td ta="right">{formatLag(member.lagSeconds)}</Table.Td>
       <Table.Td>
-        <Group gap={4} wrap="nowrap">
-          <Button
-            size="compact-xs"
-            variant="default"
-            disabled={disabled}
-            onClick={() => onAction({ kind: 'member', mode: { kind: 'edit', member } })}
-          >
-            Edit
-          </Button>
-          <Button
-            size="compact-xs"
-            variant="default"
-            color="red"
-            disabled={disabled}
-            onClick={() => onAction({ kind: 'member', mode: { kind: 'remove', member } })}
-          >
-            Remove
-          </Button>
-          {member.self ? (
-            <Button
-              size="compact-xs"
-              variant="default"
+        {member.optimeDate === undefined ? '–' : formatAgo(member.optimeDate, now)}
+      </Table.Td>
+      <Table.Td ta="right">{member.priority}</Table.Td>
+      <Table.Td ta="right">{member.votes}</Table.Td>
+      <Table.Td c="dimmed">{member.hidden ? 'Yes' : 'No'}</Table.Td>
+      <Table.Td c="dimmed">{member.secondaryDelaySecs} s</Table.Td>
+      <Table.Td>{member.buildIndexes ? 'Yes' : 'No'}</Table.Td>
+      <Table.Td>
+        {tags.length === 0 ? (
+          '–'
+        ) : (
+          <Group gap={4} wrap="nowrap">
+            {tags.map((tag) => (
+              <Badge key={tag} variant="default" radius="sm" tt="none" ff="monospace">
+                {tag}
+              </Badge>
+            ))}
+          </Group>
+        )}
+      </Table.Td>
+      <Table.Td>
+        <Menu position="bottom-end" withinPortal>
+          <Menu.Target>
+            <ActionIcon
+              variant="subtle"
+              color="gray"
+              size="sm"
+              aria-label={`Actions for ${member.name}`}
               disabled={disabled}
+            >
+              <IconDotsVertical size={14} />
+            </ActionIcon>
+          </Menu.Target>
+          <Menu.Dropdown>
+            <Menu.Item onClick={() => onAction({ kind: 'member', mode: { kind: 'edit', member } })}>
+              Edit member…
+            </Menu.Item>
+            <Menu.Item
+              disabled={!member.self}
+              rightSection={
+                member.self ? undefined : (
+                  <Text size="xs" c="dimmed">
+                    connected member only
+                  </Text>
+                )
+              }
               onClick={() => onAction({ kind: 'freeze' })}
             >
-              Freeze
-            </Button>
-          ) : null}
-        </Group>
+              Freeze…
+            </Menu.Item>
+            <Menu.Divider />
+            <Menu.Item
+              color="red"
+              onClick={() => onAction({ kind: 'member', mode: { kind: 'remove', member } })}
+            >
+              Remove from set…
+            </Menu.Item>
+          </Menu.Dropdown>
+        </Menu>
       </Table.Td>
     </Table.Tr>
   );
