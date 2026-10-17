@@ -204,7 +204,7 @@ export function ConnectionTree() {
   const openPanel = usePanelOpener();
   const profilerOpener = useProfilerOpener();
   const openEditor = useAppStore((state) => state.openEditor);
-  const requestPanel = useAppStore((state) => state.requestPanel);
+  const openCollectionQuery = useAppStore((state) => state.openCollectionQuery);
   const [focusKey, setFocusKey] = useState<string | undefined>(undefined);
   const [menu, setMenu] = useState<MenuAnchor | undefined>(undefined);
   const searchInput = useRef<HTMLInputElement>(null);
@@ -517,8 +517,7 @@ export function ConnectionTree() {
   /** A collection opens a query tab that lists its documents. */
   function openCollectionRow(row: TreeRowModel) {
     if (row.database !== undefined && row.collection !== undefined) {
-      requestPanel({
-        panel: 'documents',
+      void openCollectionQuery({
         connectionId: row.connectionId,
         database: row.database,
         collection: row.collection,
