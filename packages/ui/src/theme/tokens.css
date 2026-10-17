@@ -23,6 +23,7 @@
   --mg-text-muted: #a19d96;
   --mg-text-faint: #75716a;
   --mg-shadow: 0 4px 12px rgb(0 0 0 / 35%);
+  --mg-shadow-popup: 0 10px 28px rgb(0 0 0 / 60%);
   --mg-accent: #f4b223;
   --mg-accent-hover: #ffc43d;
   --mg-accent-ink: #1a1406;
@@ -62,6 +63,7 @@
   --mg-text-muted: #6a665f;
   --mg-text-faint: #928d85;
   --mg-shadow: 0 4px 12px rgb(0 0 0 / 12%);
+  --mg-shadow-popup: 0 10px 28px rgb(0 0 0 / 22%);
   --mg-accent: #f4b223;
   --mg-accent-hover: #e9a511;
   --mg-accent-ink: #1a1406;

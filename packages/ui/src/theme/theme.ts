@@ -127,8 +127,14 @@ const dark: MantineColorsTuple = [
   '#100d0a',
 ];
 
-/** Popups sit one surface step above the page. */
-const popup = { dropdown: { background: 'var(--mg-surface-2)' } };
+/** Popups sit one surface step above the page. A border and a deep shadow keep them apart from the rows behind. */
+const popup = {
+  dropdown: {
+    background: 'var(--mg-surface-2)',
+    border: '1px solid var(--mg-border-strong)',
+    boxShadow: 'var(--mg-shadow-popup)',
+  },
+};
 
 /** Shared by both colour schemes. Compact controls and spacing so the tree and dialogs fit a small window. */
 export const appTheme = createTheme({
@@ -179,7 +185,7 @@ export const appTheme = createTheme({
       styles: { root: { fontWeight: 500 } },
     },
     Badge: { styles: { root: { fontWeight: 600, letterSpacing: '0.02em' } } },
-    Menu: { styles: popup },
+    Menu: { styles: { ...popup, divider: { borderColor: 'var(--mg-border-strong)' } } },
     Popover: { styles: popup },
     Combobox: { styles: popup },
     // A sticky header paints the page colour by default, which is near black inside a dialog.
