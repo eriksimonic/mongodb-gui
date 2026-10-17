@@ -464,7 +464,7 @@ export function MonitorDashboard({ connectionId }: MonitorDashboardProps) {
       )}
 
       <div className="mg-dashboard-frame" data-stale={connected ? 'false' : 'true'}>
-        <Stack gap="sm">
+        <Stack gap={8}>
           <div className="mg-kpi-grid">
             {tiles.map((tile) => (
               <StatTile key={tile.label} label={tile.label} value={tile.value} />
@@ -540,22 +540,6 @@ export function MonitorDashboard({ connectionId }: MonitorDashboardProps) {
                               dropPlace={drag?.target?.id === id ? drag.target.place : undefined}
                               menu={menu}
                               onMove={(x, y, final) => moveHeader(id, x, y, final)}
-                              onGrip={(dx, dy, final) => {
-                                const startLeft = cardWidth(id);
-                                const startPair =
-                                  startLeft + (next === undefined ? 0 : cardWidth(next.id));
-                                resize(
-                                  id,
-                                  narrow ? undefined : next?.id,
-                                  row.index,
-                                  row.h,
-                                  dx,
-                                  dy,
-                                  final,
-                                  startLeft,
-                                  startPair,
-                                );
-                              }}
                             >
                               {statSeries === undefined ? (
                                 <PanelChartBody

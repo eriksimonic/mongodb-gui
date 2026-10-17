@@ -5,7 +5,7 @@ import type { SeriesUnit } from '@mongo-gui/core';
 import { CHART_HEIGHT_PX, type ChartMode, type ChartSeries, type ChartWindow } from './chart-types';
 import { formatValue } from './format';
 import { UPlotChart } from './UPlotChart';
-import { trackOffset, trackPointer } from './track-offset';
+import { trackPointer } from './track-offset';
 
 export interface PanelCardProps {
   readonly id: string;
@@ -17,14 +17,12 @@ export interface PanelCardProps {
   readonly menu: ReactNode;
   /** The header is the move handle. Called with the pointer position on every move and at the end. */
   readonly onMove: (x: number, y: number, final: boolean) => void;
-  /** The corner grip resizes the width and the row height together. Offsets are from the press. */
-  readonly onGrip: (dx: number, dy: number, final: boolean) => void;
   readonly children: ReactNode;
 }
 
 /**
  * The frame every panel shares: title, unit caption and a menu, with the body below. The header
- * moves the panel, and the grip in the bottom corner resizes it. The card fills its slot in a row.
+ * moves the panel. The card fills its slot in a row.
  */
 export function PanelCard({
   id,
@@ -34,7 +32,6 @@ export function PanelCard({
   dropPlace,
   menu,
   onMove,
-  onGrip,
   children,
 }: PanelCardProps) {
   return (
@@ -77,13 +74,6 @@ export function PanelCard({
         </Group>
         {children}
       </Stack>
-      <div
-        className="mg-panel-grip"
-        role="separator"
-        aria-label={`Resize ${title}`}
-        title="Drag to resize"
-        onPointerDown={(event) => trackOffset(event, onGrip)}
-      />
     </Paper>
   );
 }
