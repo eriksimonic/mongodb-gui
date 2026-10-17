@@ -70,11 +70,14 @@ test('warnings: the tab lists the startup warnings the server holds', async ({ p
   }
 
   await openDiagnostics(page, wiring.url);
-  await page.getByRole('tab', { name: 'Startup warnings', exact: true }).click();
+  // The tab shows a count badge once the server holds warnings, so its name is "Startup warnings N".
+  await page.getByRole('tab', { name: /^Startup warnings/ }).click();
 
   // The toolbar counts the lines the tab holds. With no warnings, the count is zero and no line shows.
   const count = messages.length;
-  await expect(page.getByText(`Showing ${count} of ${count} lines`)).toBeVisible();
+  await expect(
+    page.getByText(`Showing ${count} of ${count} · logged once at server start`),
+  ).toBeVisible();
   const [first] = messages;
   if (first !== undefined) {
     const grid = page.getByRole('grid', { name: 'Server log lines', exact: true });
@@ -104,11 +107,11 @@ test('host and build: the version, host name and argv match the server', async (
   await openDiagnostics(page, wiring.url);
   await page.getByRole('tab', { name: 'Host and build', exact: true }).click();
 
-  // Each value sits in the second cell of the row that names it.
-  const row = (label: string) =>
-    page.getByRole('row').filter({ has: page.getByRole('cell', { name: label, exact: true }) });
-  await expect(row('Version').getByRole('cell').nth(1)).toHaveText(build['version'] as string);
-  await expect(row('Host name').getByRole('cell').nth(1)).toHaveText(hostname);
+  // Each label sits in a text block, and its value in the block that follows it.
+  const valueOf = (label: string) =>
+    page.getByText(label, { exact: true }).locator('xpath=following-sibling::*[1]');
+  await expect(valueOf('Version')).toHaveText(build['version'] as string);
+  await expect(valueOf('Host name')).toHaveText(hostname);
   // The arguments show as one line, joined with spaces.
   await expect(page.getByText(argv.join(' '), { exact: true })).toBeVisible();
 });

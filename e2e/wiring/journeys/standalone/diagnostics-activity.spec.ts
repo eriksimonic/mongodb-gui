@@ -201,9 +201,10 @@ test('connection pools: the tab shows the pool totals the server reports', async
     await connectLocalDev(page, wiring.url);
     await openLocalDevDiagnostics(page);
     await page.getByRole('tab', { name: 'Connection pools', exact: true }).click();
-    await expect(page.getByRole('cell', { name: 'In use', exact: true })).toBeVisible();
-    await expect(page.getByRole('cell', { name: 'Available', exact: true })).toBeVisible();
-    await expect(page.getByRole('cell', { name: 'Created', exact: true })).toBeVisible();
+    // The totals are stat cards, each labelled by its data-testid, so the label alone is checked.
+    await expect(page.getByTestId('stat-In use')).toBeVisible();
+    await expect(page.getByTestId('stat-Available')).toBeVisible();
+    await expect(page.getByTestId('stat-Created')).toBeVisible();
     await expect(page.getByRole('columnheader', { name: 'Host', exact: true })).toBeVisible();
   } finally {
     await client.close();
