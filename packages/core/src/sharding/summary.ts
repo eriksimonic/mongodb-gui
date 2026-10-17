@@ -1,5 +1,5 @@
 import { appError, AppErrorException } from '../domain/errors';
-import type { ShardCollectionSummary, ShardKey } from './types';
+import type { RemoveShardStatus, ShardCollectionSummary, ShardKey } from './types';
 
 export interface ShardCollectionPlan {
   readonly database: string;
@@ -72,6 +72,18 @@ export function summarizeShardCollection(plan: ShardCollectionPlan): ShardCollec
     ...(plan.numInitialChunks === undefined ? {} : { numInitialChunks: plan.numInitialChunks }),
     steps,
     warnings: [],
+  };
+}
+
+/** The removeShard dry run, returned until the caller passes confirmDraining: true. */
+export function drainDryRun(
+  base: Pick<RemoveShardStatus, 'shard' | 'host' | 'shardCount'>,
+): RemoveShardStatus {
+  return {
+    ...base,
+    dryRun: true,
+    wouldDrain: true,
+    message: `Draining ${base.shard} moves all of its chunks to the other shards. Pass confirmDraining: true to start it.`,
   };
 }
 

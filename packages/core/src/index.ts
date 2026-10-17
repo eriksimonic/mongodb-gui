@@ -60,6 +60,7 @@ export * from './profiler/types';
 export * from './redact';
 export * from './connections/direct-uri';
 export * from './replication/normalise';
+export * from './replication/patch-rules';
 export * from './replication/types';
 export * from './replication/rpc-schemas';
 export * from './rpc/bridge';

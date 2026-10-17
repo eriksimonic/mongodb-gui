@@ -1,4 +1,5 @@
 import {
+  memberPatchRefusal,
   AppErrorException,
   rpcContract,
   type ReconfigChange,
@@ -555,22 +556,9 @@ function applyPatch(
   patch: ReplicaSetMemberPatch,
   refusals: string[],
 ): MockMember | undefined {
-  if (patch.id !== undefined && patch.id !== target.id) {
-    refusals.push(
-      `Member ${target.host} keeps its id ${target.id}. Remove it and add the new member instead.`,
-    );
-    return undefined;
-  }
-  if (patch.host !== undefined && patch.host !== target.host) {
-    refusals.push(
-      `Member ${target.id} keeps its host ${target.host}. Remove it and add the new member instead.`,
-    );
-    return undefined;
-  }
-  if (patch.arbiterOnly !== undefined && patch.arbiterOnly !== target.arbiterOnly) {
-    refusals.push(
-      `Member ${target.host} cannot change between an arbiter and a data member. Remove it and add the new member instead.`,
-    );
+  const refused = memberPatchRefusal(target, patch);
+  if (refused !== undefined) {
+    refusals.push(refused);
     return undefined;
   }
   const priority = patch.priority ?? target.priority;

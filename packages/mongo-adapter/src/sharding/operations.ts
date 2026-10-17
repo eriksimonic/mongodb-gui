@@ -1,5 +1,6 @@
 import { Binary, type MongoClient } from 'mongodb';
 import {
+  drainDryRun,
   AddShardToZoneInputSchema,
   BalancerWindowInputSchema,
   EnableShardingInputSchema,
@@ -326,12 +327,7 @@ export async function removeShardStatus(
           `${parsed.shard} is the primary shard of ${ownedNames.join(', ')}. Confirming the drain moves those databases to other shards.`,
         );
       }
-      return {
-        ...base,
-        dryRun: true,
-        wouldDrain: true,
-        message: `Draining ${parsed.shard} moves all of its chunks to the other shards. Pass confirmDraining: true to start it.`,
-      };
+      return drainDryRun(base);
     }
     const reply: unknown = await client.db('admin').command({ removeShard: parsed.shard });
     return {

@@ -1,4 +1,5 @@
 import {
+  drainDryRun,
   summarizeShardCollection,
   type BalancerStatus,
   type ShardCollectionCall,
@@ -369,12 +370,7 @@ export function createShardingCalls(context: MockShardingContext): RpcClient['sh
           );
         }
         if (confirmDraining !== true) {
-          return {
-            ...base,
-            dryRun: true,
-            wouldDrain: true,
-            message: `Draining ${shard} moves all of its chunks to the other shards. Pass confirmDraining: true to start it.`,
-          };
+          return drainDryRun(base);
         }
         return { ...base, dryRun: false, wouldDrain: false, state: 'started' };
       },

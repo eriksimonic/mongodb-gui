@@ -1,5 +1,6 @@
 import { BSON, type MongoClient } from 'mongodb';
 import {
+  memberPatchRefusal,
   AddMemberInputSchema,
   AppErrorException,
   appError,
@@ -238,28 +239,9 @@ function updateChange(
     notes.refusals.push(`No member has id ${memberId}.`);
     return [...members];
   }
-  if (patch.id !== undefined && patch.id !== target.id) {
-    notes.refusals.push(
-      `Member ${target.host} keeps its id ${target.id}. Remove it and add the new member instead.`,
-    );
-    return [...members];
-  }
-  if (patch.host !== undefined && patch.host !== target.host) {
-    notes.refusals.push(
-      `Member ${target.id} keeps its host ${target.host}. Remove it and add the new member instead.`,
-    );
-    return [...members];
-  }
-  if (patch.arbiterOnly !== undefined && patch.arbiterOnly !== target.arbiterOnly) {
-    notes.refusals.push(
-      `Member ${target.host} cannot change between an arbiter and a data member. Remove it and add the new member instead.`,
-    );
-    return [...members];
-  }
-  if (patch.buildIndexes !== undefined && patch.buildIndexes !== target.buildIndexes) {
-    notes.refusals.push(
-      `Member ${target.host} cannot change buildIndexes. Remove it and add the new member instead.`,
-    );
+  const refused = memberPatchRefusal(target, patch);
+  if (refused !== undefined) {
+    notes.refusals.push(refused);
     return [...members];
   }
   const edited: ReplicaSetMemberConfig = {
