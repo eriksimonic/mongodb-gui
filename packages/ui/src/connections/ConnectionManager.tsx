@@ -229,6 +229,7 @@ export function ConnectionManager() {
       size="min(1080px, 94vw)"
       centered
       padding={0}
+      styles={{ header: { padding: '12px 20px' }, title: { flex: 1 } }}
       closeButtonProps={{ 'aria-label': 'Close' }}
     >
       <Group
@@ -286,14 +287,14 @@ export function ConnectionManager() {
             </ScrollArea>
           )}
         </Stack>
-        <Stack gap="md" p="md" style={{ flex: 1, minWidth: 0 }}>
+        <Stack gap={0} style={{ flex: 1, minWidth: 0, minHeight: 0 }}>
           {single === undefined ? (
             <Text size="sm" c="dimmed">
               Pick a connection to see its details.
             </Text>
           ) : (
             <>
-              <Group justify="space-between" wrap="nowrap">
+              <Group justify="space-between" wrap="nowrap" p="lg">
                 <Group gap="xs" wrap="nowrap" style={{ minWidth: 0 }}>
                   <Box
                     w={12}
@@ -325,38 +326,40 @@ export function ConnectionManager() {
                   </Button>
                 </Group>
               </Group>
-              <ScrollArea style={{ flex: 1 }} type="auto">
+              <ScrollArea style={{ flex: 1 }} px="lg" type="auto">
                 <DetailRows connection={single} />
               </ScrollArea>
-              <Group justify="space-between" wrap="nowrap">
-                <Group gap="xs" wrap="nowrap">
-                  <Button
-                    size="xs"
-                    variant="default"
-                    onClick={() => setDialog({ kind: 'edit', connectionId: single.id })}
-                  >
-                    Edit
-                  </Button>
-                  <Button size="xs" variant="default" onClick={() => void runReported(clone)}>
-                    Duplicate
-                  </Button>
-                  <Button
-                    size="xs"
-                    variant="subtle"
-                    color="gray"
-                    onClick={() => void runReported(copyUri)}
-                  >
-                    Copy URI without password
+              <Stack gap="xs" p="lg" style={{ borderTop: '1px solid var(--mg-border)' }}>
+                <Group justify="space-between" wrap="nowrap">
+                  <Group gap="xs" wrap="nowrap">
+                    <Button
+                      size="xs"
+                      variant="default"
+                      onClick={() => setDialog({ kind: 'edit', connectionId: single.id })}
+                    >
+                      Edit
+                    </Button>
+                    <Button size="xs" variant="default" onClick={() => void runReported(clone)}>
+                      Duplicate
+                    </Button>
+                    <Button
+                      size="xs"
+                      variant="subtle"
+                      color="gray"
+                      onClick={() => void runReported(copyUri)}
+                    >
+                      Copy URI without password
+                    </Button>
+                  </Group>
+                  <Button size="xs" variant="outline" color="red" onClick={confirmDelete}>
+                    Delete
                   </Button>
                 </Group>
-                <Button size="xs" variant="outline" color="red" onClick={confirmDelete}>
-                  Delete
-                </Button>
-              </Group>
-              <Text size="xs" c="dimmed">
-                Deleting a connection removes its saved URI and stored password. This cannot be
-                undone.
-              </Text>
+                <Text size="xs" c="dimmed">
+                  Deleting a connection removes its saved URI and stored password. This cannot be
+                  undone.
+                </Text>
+              </Stack>
             </>
           )}
         </Stack>
@@ -365,6 +368,16 @@ export function ConnectionManager() {
       <ConnectionsImportModal path={importPath} onClose={() => setImportPath(undefined)} />
     </Modal>
   );
+}
+
+/** The local date and time to the minute, like 2026-10-09 12:04. */
+function exactTime(iso: string): string {
+  const date = new Date(iso);
+  if (Number.isNaN(date.getTime())) {
+    return iso;
+  }
+  const pad = (value: number): string => String(value).padStart(2, '0');
+  return `${date.getFullYear()}-${pad(date.getMonth() + 1)}-${pad(date.getDate())} ${pad(date.getHours())}:${pad(date.getMinutes())}`;
 }
 
 function statusLabel(state: string | undefined): string {
@@ -406,22 +419,36 @@ function ConnectionRow({
         width: '100%',
         borderLeft: `3px solid ${connection.color ?? 'var(--mg-border-strong)'}`,
         borderBottom: '1px solid var(--mg-border)',
-        background: picked ? 'var(--mg-surface-2)' : 'transparent',
+        background: picked
+          ? 'color-mix(in srgb, var(--mg-accent) 14%, transparent)'
+          : 'transparent',
       }}
     >
-      <Group justify="space-between" wrap="nowrap" align="flex-start">
+      <Group justify="space-between" wrap="nowrap" align="center">
         <Stack gap={2} style={{ minWidth: 0 }}>
           <Group gap={6} wrap="nowrap">
             <Text size="sm" fw={500} truncate="end">
               {connection.name}
             </Text>
+            {status === 'connected' ? (
+              <Box
+                w={7}
+                h={7}
+                aria-hidden="true"
+                style={{ borderRadius: '50%', background: 'var(--mantine-color-blue-5)' }}
+              />
+            ) : null}
           </Group>
           <Text size="xs" c="dimmed" ff="monospace" truncate="end">
             {serverText(connection)}
           </Text>
         </Stack>
         <Text size="xs" c="dimmed" style={{ flexShrink: 0 }}>
-          {status === 'connected' ? 'connected' : formatAge(connection.lastAccessedAt)}
+          {status === 'connected'
+            ? 'connected'
+            : connection.lastAccessedAt === undefined
+              ? ''
+              : formatAge(connection.lastAccessedAt)}
         </Text>
       </Group>
     </UnstyledButton>
@@ -469,7 +496,7 @@ function DetailRows({ connection }: { readonly connection: ConnectionProfileSumm
   }
   rows.push([
     'Last connected',
-    connection.lastAccessedAt === undefined ? 'Never' : formatAge(connection.lastAccessedAt),
+    connection.lastAccessedAt === undefined ? 'Not yet' : exactTime(connection.lastAccessedAt),
   ]);
   return (
     <Stack gap={0}>
@@ -478,7 +505,7 @@ function DetailRows({ connection }: { readonly connection: ConnectionProfileSumm
           key={label}
           wrap="nowrap"
           align="flex-start"
-          py={8}
+          py={10}
           style={{ borderBottom: '1px solid var(--mg-border)' }}
         >
           <Text size="sm" c="dimmed" w={150} style={{ flexShrink: 0 }}>
