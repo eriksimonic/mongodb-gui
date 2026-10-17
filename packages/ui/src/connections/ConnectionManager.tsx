@@ -1,32 +1,24 @@
 import {
+  Box,
   Button,
-  Checkbox,
-  ColorSwatch,
   Group,
   Modal,
   ScrollArea,
   Stack,
-  Table,
   Text,
   TextInput,
   UnstyledButton,
 } from '@mantine/core';
 import { modals } from '@mantine/modals';
 import { notifications } from '@mantine/notifications';
-import type { ConnectionProfile, ConnectionProfileInput } from '@mongo-gui/core';
-import {
-  IconArrowDown,
-  IconArrowUp,
-  IconCopy,
-  IconDatabaseExport,
-  IconDatabaseImport,
-  IconLink,
-  IconPencil,
-  IconPlayerPlay,
-  IconPlus,
-  IconTrash,
-} from '@tabler/icons-react';
-import { useMemo, useState, type ReactNode } from 'react';
+import type {
+  ConnectionProfile,
+  ConnectionProfileInput,
+  ConnectionProfileSummary,
+} from '@mongo-gui/core';
+import { IconDownload, IconPlus, IconSearch, IconUpload } from '@tabler/icons-react';
+import { useMemo, useState } from 'react';
+import { parseMongoUri } from './uri-form';
 import { useUiApi } from '../api/ui-api';
 import { useAppStore } from '../state/app-store-context';
 import { runReported } from '../kit/notify-error';
@@ -39,21 +31,9 @@ import {
   DEFAULT_CONNECTION_SORT,
   EMPTY_FILTERS,
   formatAge,
-  securityText,
   serverText,
   visibleConnections,
-  type ConnectionColumn,
-  type ConnectionFilters,
-  type ConnectionSort,
 } from './connection-table-model';
-
-const COLUMNS: readonly { key: ConnectionColumn; label: string }[] = [
-  { key: 'name', label: 'Name' },
-  { key: 'server', label: 'Server' },
-  { key: 'security', label: 'Security' },
-  { key: 'color', label: 'Color' },
-  { key: 'lastAccessed', label: 'Last accessed' },
-];
 
 /** The saved fields of a profile, as the input for a new one. */
 function inputOf(profile: ConnectionProfile): ConnectionProfileInput {
@@ -80,37 +60,26 @@ export function ConnectionManager() {
   const removeConnection = useAppStore((state) => state.removeConnection);
   const loadConnections = useAppStore((state) => state.loadConnections);
   const expandConnection = useAppStore((state) => state.expandConnection);
-  const [filters, setFilters] = useState<ConnectionFilters>(EMPTY_FILTERS);
-  const [sort, setSort] = useState<ConnectionSort>(DEFAULT_CONNECTION_SORT);
-  const [selected, setSelected] = useState<readonly string[]>([]);
+  const statuses = useAppStore((state) => state.statuses);
+  const [query, setQuery] = useState('');
+  const [selectedId, setSelectedId] = useState<string | undefined>(undefined);
   const [exporting, setExporting] = useState(false);
   const [testing, setTesting] = useState(false);
   const [importPath, setImportPath] = useState<string | undefined>(undefined);
 
   const all = useMemo(() => (connections.state === 'ready' ? connections.data : []), [connections]);
-  const rows = useMemo(() => visibleConnections(all, filters, sort), [all, filters, sort]);
-  // A removed connection leaves the selection, so a toolbar action never targets a missing row.
-  const chosen = all.filter((connection) => selected.includes(connection.id));
-  const single = chosen.length === 1 ? chosen[0] : undefined;
-  const allShown = rows.length > 0 && rows.every((row) => selected.includes(row.id));
-
-  function sortBy(column: ConnectionColumn) {
-    setSort((current) =>
-      current.column === column
-        ? { column, direction: current.direction === 'asc' ? 'desc' : 'asc' }
-        : { column, direction: column === 'lastAccessed' ? 'desc' : 'asc' },
+  const rows = useMemo(() => {
+    const needle = query.trim().toLowerCase();
+    return visibleConnections(all, EMPTY_FILTERS, DEFAULT_CONNECTION_SORT).filter(
+      (connection) =>
+        needle === '' ||
+        connection.name.toLowerCase().includes(needle) ||
+        serverText(connection).toLowerCase().includes(needle),
     );
-  }
-
-  function toggle(id: string) {
-    setSelected((current) =>
-      current.includes(id) ? current.filter((item) => item !== id) : [...current, id],
-    );
-  }
-
-  function toggleAll() {
-    setSelected(allShown ? [] : rows.map((row) => row.id));
-  }
+  }, [all, query]);
+  // The first row is shown until one is picked, and a removed connection never stays picked.
+  const single = all.find((connection) => connection.id === selectedId) ?? rows[0];
+  const chosen = single === undefined ? [] : [single];
 
   function confirmDelete() {
     const names = chosen.map((connection) => connection.name);
@@ -129,7 +98,7 @@ export function ConnectionManager() {
           for (const connection of chosen) {
             await removeConnection(connection.id);
           }
-          setSelected([]);
+          setSelectedId(undefined);
         });
       },
     });
@@ -195,7 +164,10 @@ export function ConnectionManager() {
       return;
     }
     await navigator.clipboard.writeText(single.uriRedacted);
-    notifications.show({ title: 'Copied', message: 'The redacted URI is on the clipboard.' });
+    notifications.show({
+      title: 'Copied',
+      message: 'The URI without its password is on the clipboard.',
+    });
   }
 
   async function chooseImportFile() {
@@ -219,211 +191,304 @@ export function ConnectionManager() {
     <Modal
       opened={open}
       onClose={() => setManagerOpen(false)}
-      title="Connections"
-      size="min(1000px, 94vw)"
+      title={
+        <Group justify="space-between" wrap="nowrap" w="100%">
+          <Text fw={600} size="lg">
+            Connections
+          </Text>
+          <Group gap="xs" wrap="nowrap">
+            <Button
+              size="xs"
+              variant="subtle"
+              color="gray"
+              leftSection={<IconUpload size={14} />}
+              onClick={() => void runReported(chooseImportFile)}
+            >
+              Import
+            </Button>
+            <Button
+              size="xs"
+              variant="subtle"
+              color="gray"
+              leftSection={<IconDownload size={14} />}
+              onClick={() => setExporting(true)}
+            >
+              Export
+            </Button>
+            <Button
+              size="xs"
+              variant="light"
+              leftSection={<IconPlus size={14} />}
+              onClick={() => setDialog({ kind: 'create' })}
+            >
+              New connection
+            </Button>
+          </Group>
+        </Group>
+      }
+      size="min(1080px, 94vw)"
       centered
+      padding={0}
       closeButtonProps={{ 'aria-label': 'Close' }}
     >
-      <Stack gap="sm">
-        <Group gap={2} wrap="wrap">
-          <ToolButton icon={<IconPlus size={16} />} onClick={() => setDialog({ kind: 'create' })}>
-            New connection
-          </ToolButton>
-          <ToolButton
-            icon={<IconPencil size={16} />}
-            disabled={single === undefined}
-            onClick={() => single && setDialog({ kind: 'edit', connectionId: single.id })}
-          >
-            Edit
-          </ToolButton>
-          <ToolButton
-            icon={<IconTrash size={16} />}
-            disabled={chosen.length === 0}
-            onClick={confirmDelete}
-          >
-            Delete
-          </ToolButton>
-          <ToolButton
-            icon={<IconCopy size={16} />}
-            disabled={single === undefined}
-            onClick={() => void runReported(clone)}
-          >
-            Clone
-          </ToolButton>
-          <ToolButton
-            icon={<IconPlayerPlay size={16} />}
-            disabled={single === undefined}
-            loading={testing}
-            onClick={() => void runReported(test)}
-          >
-            Test
-          </ToolButton>
-          <ToolButton
-            icon={<IconLink size={16} />}
-            disabled={single === undefined}
-            onClick={() => void runReported(copyUri)}
-          >
-            To URI
-          </ToolButton>
-          <ToolButton icon={<IconDatabaseExport size={16} />} onClick={() => setExporting(true)}>
-            Export
-          </ToolButton>
-          <ToolButton
-            icon={<IconDatabaseImport size={16} />}
-            onClick={() => void runReported(chooseImportFile)}
-          >
-            Import
-          </ToolButton>
-        </Group>
-        {connections.state !== 'ready' ? (
-          <Text size="sm" c="dimmed">
-            {connections.state === 'error' ? connections.error.message : 'Loading connections'}
-          </Text>
-        ) : (
-          <ScrollArea.Autosize mah="60vh" type="auto">
-            <Table stickyHeader highlightOnHover verticalSpacing={6} fz="sm" withTableBorder>
-              <Table.Thead>
-                <Table.Tr>
-                  <Table.Th w={36}>
-                    <Checkbox
-                      size="xs"
-                      aria-label="Select all connections"
-                      checked={allShown}
-                      indeterminate={!allShown && selected.length > 0}
-                      onChange={toggleAll}
-                    />
-                  </Table.Th>
-                  {COLUMNS.map((column) => (
-                    <Table.Th key={column.key}>
-                      <Stack gap={4}>
-                        <UnstyledButton
-                          onClick={() => sortBy(column.key)}
-                          aria-label={`Sort by ${column.label}`}
-                        >
-                          <Group gap={2} wrap="nowrap">
-                            {column.label}
-                            {sort.column === column.key ? (
-                              sort.direction === 'asc' ? (
-                                <IconArrowUp size={12} />
-                              ) : (
-                                <IconArrowDown size={12} />
-                              )
-                            ) : null}
-                          </Group>
-                        </UnstyledButton>
-                        <TextInput
-                          size="xs"
-                          aria-label={`Filter ${column.label}`}
-                          value={filters[column.key]}
-                          onChange={(event) =>
-                            setFilters({ ...filters, [column.key]: event.currentTarget.value })
-                          }
-                        />
-                      </Stack>
-                    </Table.Th>
-                  ))}
-                </Table.Tr>
-              </Table.Thead>
-              <Table.Tbody>
-                {rows.map((connection) => {
-                  const picked = selected.includes(connection.id);
-                  return (
-                    <Table.Tr
-                      key={connection.id}
-                      style={{
-                        cursor: 'pointer',
-                        ...(picked ? { background: 'var(--mantine-primary-color-light)' } : {}),
-                      }}
-                      onClick={(event) =>
-                        // A plain click picks this row alone. Ctrl or Cmd adds or removes it.
-                        event.ctrlKey || event.metaKey
-                          ? toggle(connection.id)
-                          : setSelected([connection.id])
-                      }
-                      onDoubleClick={() => {
-                        setManagerOpen(false);
-                        void expandConnection(connection.id);
-                      }}
-                    >
-                      <Table.Td onClick={(event) => event.stopPropagation()}>
-                        <Checkbox
-                          size="xs"
-                          aria-label={`Select ${connection.name}`}
-                          checked={picked}
-                          onChange={() => toggle(connection.id)}
-                        />
-                      </Table.Td>
-                      <Table.Td fw={600} style={{ color: connection.color }}>
-                        {connection.name}
-                      </Table.Td>
-                      <Table.Td style={{ fontFamily: 'var(--mantine-font-family-monospace)' }}>
-                        {serverText(connection)}
-                      </Table.Td>
-                      <Table.Td>{securityText(connection)}</Table.Td>
-                      <Table.Td>
-                        {connection.color === undefined ? null : (
-                          <Group gap={6} wrap="nowrap">
-                            <ColorSwatch color={connection.color} size={12} />
-                            <Text size="xs">{connection.color}</Text>
-                          </Group>
-                        )}
-                      </Table.Td>
-                      <Table.Td c="dimmed">{formatAge(connection.lastAccessedAt)}</Table.Td>
-                    </Table.Tr>
-                  );
-                })}
-              </Table.Tbody>
-            </Table>
-          </ScrollArea.Autosize>
-        )}
-        {connections.state === 'ready' && rows.length === 0 ? (
-          <Text size="sm" c="dimmed">
-            {all.length === 0 ? 'No saved connections yet.' : 'No connection matches the filters.'}
-          </Text>
-        ) : null}
-        <Group justify="flex-end" gap="xs">
-          <Button
+      <Group
+        align="stretch"
+        gap={0}
+        wrap="nowrap"
+        h="min(620px, 80vh)"
+        style={{ borderTop: '1px solid var(--mg-border)' }}
+      >
+        <Stack
+          gap="xs"
+          w={380}
+          p="sm"
+          style={{ borderRight: '1px solid var(--mg-border)', flexShrink: 0, minHeight: 0 }}
+        >
+          <TextInput
             size="xs"
-            disabled={chosen.length === 0}
-            onClick={() => void runReported(connectChosen)}
-          >
-            Connect
-          </Button>
-          <Button size="xs" variant="default" onClick={() => setManagerOpen(false)}>
-            Cancel
-          </Button>
-        </Group>
-      </Stack>
+            aria-label="Search connections"
+            placeholder="Search by name or host"
+            leftSection={<IconSearch size={14} />}
+            value={query}
+            onChange={(event) => setQuery(event.currentTarget.value)}
+          />
+          <Text size="xs" c="dimmed">
+            {all.length} saved, stored encrypted
+          </Text>
+          {connections.state !== 'ready' ? (
+            <Text size="sm" c="dimmed">
+              {connections.state === 'error' ? connections.error.message : 'Loading connections'}
+            </Text>
+          ) : (
+            <ScrollArea style={{ flex: 1 }} type="auto">
+              <Stack gap={0} role="listbox" aria-label="Saved connections">
+                {rows.map((connection) => (
+                  <ConnectionRow
+                    key={connection.id}
+                    connection={connection}
+                    picked={connection.id === single?.id}
+                    status={statuses[connection.id]?.state}
+                    onPick={() => setSelectedId(connection.id)}
+                    onOpen={() => {
+                      setManagerOpen(false);
+                      void expandConnection(connection.id);
+                    }}
+                  />
+                ))}
+              </Stack>
+              {rows.length === 0 ? (
+                <Text size="sm" c="dimmed" p="xs">
+                  {all.length === 0
+                    ? 'No saved connections yet.'
+                    : 'No connection matches the search.'}
+                </Text>
+              ) : null}
+            </ScrollArea>
+          )}
+        </Stack>
+        <Stack gap="md" p="md" style={{ flex: 1, minWidth: 0 }}>
+          {single === undefined ? (
+            <Text size="sm" c="dimmed">
+              Pick a connection to see its details.
+            </Text>
+          ) : (
+            <>
+              <Group justify="space-between" wrap="nowrap">
+                <Group gap="xs" wrap="nowrap" style={{ minWidth: 0 }}>
+                  <Box
+                    w={12}
+                    h={12}
+                    style={{
+                      borderRadius: '50%',
+                      background: single.color ?? 'var(--mg-border-strong)',
+                      flexShrink: 0,
+                    }}
+                  />
+                  <Text fw={600} size="lg" truncate="end">
+                    {single.name}
+                  </Text>
+                  <Text size="xs" c="dimmed">
+                    {statusLabel(statuses[single.id]?.state)}
+                  </Text>
+                </Group>
+                <Group gap="xs" wrap="nowrap">
+                  <Button
+                    size="xs"
+                    variant="default"
+                    loading={testing}
+                    onClick={() => void runReported(test)}
+                  >
+                    Test
+                  </Button>
+                  <Button size="xs" onClick={() => void runReported(connectChosen)}>
+                    Connect
+                  </Button>
+                </Group>
+              </Group>
+              <ScrollArea style={{ flex: 1 }} type="auto">
+                <DetailRows connection={single} />
+              </ScrollArea>
+              <Group justify="space-between" wrap="nowrap">
+                <Group gap="xs" wrap="nowrap">
+                  <Button
+                    size="xs"
+                    variant="default"
+                    onClick={() => setDialog({ kind: 'edit', connectionId: single.id })}
+                  >
+                    Edit
+                  </Button>
+                  <Button size="xs" variant="default" onClick={() => void runReported(clone)}>
+                    Duplicate
+                  </Button>
+                  <Button
+                    size="xs"
+                    variant="subtle"
+                    color="gray"
+                    onClick={() => void runReported(copyUri)}
+                  >
+                    Copy URI without password
+                  </Button>
+                </Group>
+                <Button size="xs" variant="outline" color="red" onClick={confirmDelete}>
+                  Delete
+                </Button>
+              </Group>
+              <Text size="xs" c="dimmed">
+                Deleting a connection removes its saved URI and stored password. This cannot be
+                undone.
+              </Text>
+            </>
+          )}
+        </Stack>
+      </Group>
       <ConnectionsExportModal opened={exporting} onClose={() => setExporting(false)} />
       <ConnectionsImportModal path={importPath} onClose={() => setImportPath(undefined)} />
     </Modal>
   );
 }
 
-function ToolButton({
-  icon,
-  disabled = false,
-  loading = false,
-  onClick,
-  children,
+function statusLabel(state: string | undefined): string {
+  switch (state) {
+    case 'connected':
+      return 'Connected';
+    case 'connecting':
+      return 'Connecting';
+    case 'error':
+      return 'Error';
+    default:
+      return 'Disconnected';
+  }
+}
+
+function ConnectionRow({
+  connection,
+  picked,
+  status,
+  onPick,
+  onOpen,
 }: {
-  readonly icon: ReactNode;
-  readonly disabled?: boolean;
-  readonly loading?: boolean;
-  readonly onClick: () => void;
-  readonly children: ReactNode;
+  readonly connection: ConnectionProfileSummary;
+  readonly picked: boolean;
+  readonly status: string | undefined;
+  readonly onPick: () => void;
+  readonly onOpen: () => void;
 }) {
   return (
-    <Button
-      size="xs"
-      variant="subtle"
-      color="gray"
-      leftSection={icon}
-      disabled={disabled}
-      loading={loading}
-      onClick={onClick}
+    <UnstyledButton
+      role="option"
+      aria-selected={picked}
+      onClick={onPick}
+      onDoubleClick={onOpen}
+      px="sm"
+      py={8}
+      style={{
+        display: 'block',
+        width: '100%',
+        borderLeft: `3px solid ${connection.color ?? 'var(--mg-border-strong)'}`,
+        borderBottom: '1px solid var(--mg-border)',
+        background: picked ? 'var(--mg-surface-2)' : 'transparent',
+      }}
     >
-      {children}
-    </Button>
+      <Group justify="space-between" wrap="nowrap" align="flex-start">
+        <Stack gap={2} style={{ minWidth: 0 }}>
+          <Group gap={6} wrap="nowrap">
+            <Text size="sm" fw={500} truncate="end">
+              {connection.name}
+            </Text>
+          </Group>
+          <Text size="xs" c="dimmed" ff="monospace" truncate="end">
+            {serverText(connection)}
+          </Text>
+        </Stack>
+        <Text size="xs" c="dimmed" style={{ flexShrink: 0 }}>
+          {status === 'connected' ? 'connected' : formatAge(connection.lastAccessedAt)}
+        </Text>
+      </Group>
+    </UnstyledButton>
+  );
+}
+
+function DetailRows({ connection }: { readonly connection: ConnectionProfileSummary }) {
+  const parsed = parseMongoUri(connection.uriRedacted);
+  const form = parsed.ok ? parsed.form : undefined;
+  const rows: [string, string][] = [['Connection string', connection.uriRedacted]];
+  if (form !== undefined) {
+    rows.push(['Scheme', form.scheme]);
+    rows.push([
+      'Hosts',
+      form.hosts.length === 1
+        ? (form.hosts[0] ?? '')
+        : `${form.hosts.length}${form.replicaSet === '' ? '' : `, replica set ${form.replicaSet}`}`,
+    ]);
+    if (form.username !== '') {
+      rows.push([
+        'User',
+        form.authSource === ''
+          ? form.username
+          : `${form.username}, auth database ${form.authSource}`,
+      ]);
+    }
+    if (form.database !== '') {
+      rows.push(['Default database', form.database]);
+    }
+  }
+  const readPreference = connection.readPreference ?? form?.readPreference;
+  if (readPreference !== undefined) {
+    rows.push(['Read preference', readPreference]);
+  }
+  const tls = connection.tls;
+  if (tls?.enabled === true || form?.tls.enabled === true || form?.scheme === 'mongodb+srv') {
+    rows.push([
+      'TLS',
+      tls?.caFile === undefined || tls.caFile === '' ? 'on' : `on, CA file ${tls.caFile}`,
+    ]);
+  }
+  const timeout = connection.connectTimeoutMs ?? form?.connectTimeoutMs;
+  if (timeout !== undefined) {
+    rows.push(['Connect timeout', `${timeout} ms`]);
+  }
+  rows.push([
+    'Last connected',
+    connection.lastAccessedAt === undefined ? 'Never' : formatAge(connection.lastAccessedAt),
+  ]);
+  return (
+    <Stack gap={0}>
+      {rows.map(([label, value]) => (
+        <Group
+          key={label}
+          wrap="nowrap"
+          align="flex-start"
+          py={8}
+          style={{ borderBottom: '1px solid var(--mg-border)' }}
+        >
+          <Text size="sm" c="dimmed" w={150} style={{ flexShrink: 0 }}>
+            {label}
+          </Text>
+          <Text size="sm" ff="monospace" style={{ wordBreak: 'break-all', minWidth: 0 }}>
+            {value}
+          </Text>
+        </Group>
+      ))}
+    </Stack>
   );
 }

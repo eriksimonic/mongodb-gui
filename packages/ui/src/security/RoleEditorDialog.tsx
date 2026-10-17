@@ -86,7 +86,7 @@ export function RoleEditorDialog({ store, database, role, onClose }: RoleEditorD
   }
 
   return (
-    <Modal opened onClose={onClose} title={title} centered size="lg">
+    <Modal opened onClose={onClose} title={title} centered size={640}>
       <form
         onSubmit={(event) => {
           event.preventDefault();
@@ -95,7 +95,7 @@ export function RoleEditorDialog({ store, database, role, onClose }: RoleEditorD
           }
         }}
       >
-        <Stack gap="sm">
+        <Stack gap="lg">
           <TextInput
             label="Role name"
             value={name}

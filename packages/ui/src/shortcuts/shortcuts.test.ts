@@ -25,12 +25,14 @@ describe('shortcut registry', () => {
     const lock = vi.fn();
     const openHelp = vi.fn();
     const toggleOutput = vi.fn();
-    const hotkeys = shellHotkeys({ openSettings, lock, openHelp, toggleOutput });
+    const focusSearch = vi.fn();
+    const hotkeys = shellHotkeys({ openSettings, lock, openHelp, toggleOutput, focusSearch });
 
-    expect(hotkeys.map(([keys]) => keys)).toEqual(['mod+,', 'mod+l', 'shift+?', 'mod+j']);
+    expect(hotkeys.map(([keys]) => keys)).toEqual(['mod+,', 'mod+l', 'shift+?', 'mod+j', 'mod+t']);
     for (const [, action] of hotkeys) {
       action();
     }
+    expect(focusSearch).toHaveBeenCalledOnce();
     expect(openSettings).toHaveBeenCalledOnce();
     expect(lock).toHaveBeenCalledOnce();
     expect(openHelp).toHaveBeenCalledOnce();

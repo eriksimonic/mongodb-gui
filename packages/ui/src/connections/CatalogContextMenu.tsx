@@ -135,16 +135,14 @@ export function CollectionContextMenu({
   const setManagementDialog = useAppStore((state) => state.setManagementDialog);
   const setTransferDialog = useAppStore((state) => state.setTransferDialog);
   const refreshDatabase = useAppStore((state) => state.refreshDatabase);
-  const changesOpener = useChangesOpener();
   const sharding = shardingAvailability(useAppStore((state) => state.statuses[connectionId]));
-  const openPanel = usePanelOpener();
   const target = { connectionId, database, collection };
   const runSql = (sql: string) => () => void openCollectionQuery(target, sql);
   const entries: TreeMenuEntry[] = [
     {
       kind: 'item',
       label: 'Open documents',
-      onSelect: () => void openCollectionQuery(target),
+      onSelect: () => requestPanel({ panel: 'documents', ...target }),
     },
     {
       kind: 'submenu',
@@ -169,8 +167,8 @@ export function CollectionContextMenu({
     },
     {
       kind: 'item',
-      label: 'Manage documents',
-      onSelect: () => requestPanel({ panel: 'documents', ...target }),
+      label: 'Open in editor',
+      onSelect: () => void openCollectionQuery(target),
     },
     { kind: 'divider' },
     {
@@ -208,14 +206,12 @@ export function CollectionContextMenu({
         {
           kind: 'item',
           label: 'Collection stats',
-          onSelect: () =>
-            openPanel({ kind: 'collectionStats', connectionId, database, collection }),
+          onSelect: () => requestPanel({ panel: 'stats', ...target }),
         },
         {
           kind: 'item',
           label: 'Watch changes',
-          onSelect: () =>
-            changesOpener?.open(connectionId, { kind: 'collection', database, collection }),
+          onSelect: () => requestPanel({ panel: 'changes', ...target }),
         },
       ],
     },

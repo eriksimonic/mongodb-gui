@@ -20,7 +20,7 @@ export function dockerOperations(deps: DockerDeps): [string, Operation][] {
   const docker = (): DockerRuntime => requireDocker(deps.docker);
   return [
     entry('docker.status', rpcContract.docker.status, () => docker().status()),
-    entry('docker.list', rpcContract.docker.list, () => docker().list()),
+    entry('docker.list', rpcContract.docker.list, () => docker().list(deps.emit)),
     entry('docker.connect', rpcContract.docker.connect, (input) =>
       docker().connect(input.containerId),
     ),

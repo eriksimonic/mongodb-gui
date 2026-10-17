@@ -134,12 +134,12 @@ describe('tab settings and saved text', () => {
     state = setTabText(state, 'a', 'db.x.find()');
     state = setTabDatabase(state, 'a', 'billing');
     state = setTabBatchSize(state, 'a', 500);
-    state = setTabView(state, 'a', 'json');
+    state = setTabView(state, 'a', 'tree');
     expect(state.tabs.a).toMatchObject({
       text: 'db.x.find()',
       database: 'billing',
       batchSize: 500,
-      view: 'json',
+      view: 'tree',
     });
   });
 
@@ -191,8 +191,20 @@ describe('tab settings and saved text', () => {
   it('keeps the language of a tab through text and view changes', () => {
     let state = setTabLanguage(withTab('a'), 'a', 'sql');
     state = setTabText(state, 'a', 'SELECT 1');
-    state = setTabView(state, 'a', 'json');
+    state = setTabView(state, 'a', 'tree');
     expect(state.tabs.a?.language).toBe('sql');
+  });
+
+  it('keeps an untouched default query across the language switch', () => {
+    let state = setTabText(withTab('a'), 'a', 'db.orders.find({})');
+    state = setTabLanguage(state, 'a', 'sql');
+    expect(state.tabs.a?.text).toBe('SELECT * FROM orders;');
+    state = setTabLanguage(state, 'a', 'mongosh');
+    expect(state.tabs.a?.text).toBe('db.orders.find({})');
+    state = setTabText(withTab('b'), 'b', "db.getCollection('a-b').find({})");
+    expect(setTabLanguage(state, 'b', 'sql').tabs.b?.text).toBe('SELECT * FROM [a-b];');
+    state = setTabText(withTab('c'), 'c', 'db.orders.find({ a: 1 })');
+    expect(setTabLanguage(state, 'c', 'sql').tabs.c?.text).toBe('');
   });
 
   it('has no other text when it opens', () => {
@@ -588,6 +600,7 @@ describe('saving and restoring tabs', () => {
     let state = withTab('a', 'open already');
     state = restoreTabs(state, CONNECTION, saved);
     expect(state.order).toEqual(['a', 'b']);
+    expect(saved.tabs[0]?.view).toBe('table');
     expect(state.tabs.a?.text).toBe('open already');
     expect(state.tabs.b).toMatchObject({ database: 'billing', batchSize: 20, savedText: '' });
     expect(state.activeId).toBe('b');

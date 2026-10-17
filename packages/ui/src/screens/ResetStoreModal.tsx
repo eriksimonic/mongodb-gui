@@ -39,12 +39,13 @@ export function ResetStoreModal({ opened, onClose }: ResetStoreModalProps) {
       opened={opened}
       onClose={handleClose}
       title="Reset store"
+      size={440}
       centered
       closeButtonProps={{ 'aria-label': 'Close' }}
     >
-      <Stack gap="sm">
+      <Stack gap="lg">
         <Text size="sm">
-          This deletes every saved connection, history entry and favourite. It cannot be undone.
+          There is no password recovery. Resetting deletes every saved connection, history entry and favourite. It cannot be undone.
           Type {CONFIRMATION} to confirm.
         </Text>
         <TextInput

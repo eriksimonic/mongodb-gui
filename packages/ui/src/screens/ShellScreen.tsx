@@ -3,14 +3,7 @@ import 'dockview/dist/styles/dockview.css';
 import '../theme/dockview-theme.css';
 import { Box, Button, Flex, Group, Menu, Text } from '@mantine/core';
 import { useHotkeys } from '@mantine/hooks';
-import {
-  IconDatabase,
-  IconHelp,
-  IconKeyboard,
-  IconLock,
-  IconServer,
-  IconSettings,
-} from '@tabler/icons-react';
+import { IconDatabase, IconHelp, IconKeyboard, IconLock, IconSettings } from '@tabler/icons-react';
 import type { ChangeTarget, RpcClient } from '@mongo-gui/core';
 import { lazy, Suspense, useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import {
@@ -30,6 +23,7 @@ import { useUiApi } from '../api/ui-api';
 import { ManagementDialogs } from '../management';
 import { runReported } from '../kit/notify-error';
 import { SettingsModal } from '../settings';
+import { FOCUS_TREE_SEARCH_EVENT } from '../connections/search-constants';
 import { ShortcutsModal } from '../shortcuts/ShortcutsModal';
 import { shellHotkeys } from '../shortcuts/shortcuts';
 import { TransferModals } from '../transfers';
@@ -68,6 +62,7 @@ import { OUTPUT_SHARE, toggleOutputPanel } from './output-collapse';
 import {
   ChangesDockPanel,
   ConnectionsPanel,
+  CollectionDockPanel,
   DocumentsDockPanel,
   EditorDockPanel,
   ExplainDockPanel,
@@ -100,6 +95,7 @@ const PANEL_COMPONENTS = {
   operations: OperationsPanelView,
   sharding: ShardingDockPanel,
   replication: ReplicationDockPanel,
+  collection: CollectionDockPanel,
   indexes: IndexesDockPanel,
   validation: ValidationDockPanel,
   documents: DocumentsDockPanel,
@@ -125,12 +121,6 @@ const MONGO_THEME: DockviewTheme = { ...themeDark, name: 'mongo-gui', className:
 type ConnectionsState = AppData['connections'];
 
 const SIDEBAR_WIDTH_PX = 280;
-const PANEL_TITLE_SUFFIX: Readonly<Record<PanelRequest['panel'], string>> = {
-  indexes: 'indexes',
-  validation: 'validation',
-  documents: 'documents',
-  schema: 'schema',
-};
 
 /**
  * Lays out the three default panels: connections on the left, welcome in the centre, and output
@@ -161,6 +151,11 @@ function handleDockReady({ api }: { readonly api: DockviewApi }) {
   });
   // The initial sizes are set on the groups, because the panel options do not size the first split.
   api.getPanel('connections')?.group.api.setSize({ width: SIDEBAR_WIDTH_PX });
+  // The panel has its own header, so the tab strip above it would repeat the title.
+  const connectionsGroup = api.getPanel('connections')?.group;
+  if (connectionsGroup) {
+    connectionsGroup.header.hidden = true;
+  }
   api.getPanel('output')?.group.api.setSize({ height: Math.round(height * OUTPUT_SHARE) });
 }
 
@@ -410,7 +405,7 @@ function openGridFsPanel(
 }
 
 function panelId(request: PanelRequest): string {
-  return `${request.panel}:${request.connectionId}:${request.database}.${request.collection}`;
+  return `collection:${request.connectionId}:${request.database}.${request.collection}`;
 }
 
 /**
@@ -425,6 +420,7 @@ function openCollectionPanel(
   const id = panelId(request);
   const existing = api.getPanel(id);
   if (existing !== undefined) {
+    existing.api.updateParameters({ section: request.panel });
     existing.api.setActive();
     return;
   }
@@ -433,9 +429,10 @@ function openCollectionPanel(
   // dockview group hides the tree's content while another of its tabs is active.
   api.addPanel({
     id,
-    component: request.panel,
-    title: `${request.database}.${request.collection} ${PANEL_TITLE_SUFFIX[request.panel]}`,
+    component: 'collection',
+    title: `${request.database}.${request.collection}`,
     params: {
+      section: request.panel,
       connectionId: request.connectionId,
       database: request.database,
       collection: request.collection,
@@ -503,7 +500,6 @@ export function ShellScreen() {
   const stopMonitor = useAppStore((state) => state.stopMonitor);
   const dialog = useAppStore((state) => state.dialog);
   const setDialog = useAppStore((state) => state.setDialog);
-  const setManagerOpen = useAppStore((state) => state.setManagerOpen);
   const setSettingsOpen = useAppStore((state) => state.setSettingsOpen);
   const panelRequest = useAppStore((state) => state.panelRequest);
   const clearPanelRequest = useAppStore((state) => state.clearPanelRequest);
@@ -546,7 +542,16 @@ export function ShellScreen() {
         openStatsPanel(dockApi.current, request);
         return;
       case 'collectionStats':
-        openStatsPanel(dockApi.current, request);
+        openCollectionPanel(
+          dockApi.current,
+          {
+            panel: 'stats',
+            connectionId: request.connectionId,
+            database: request.database,
+            collection: request.collection,
+          },
+          collectionPanels.current,
+        );
         return;
       default:
         openConnectionPanel(dockApi.current, request);
@@ -555,9 +560,18 @@ export function ShellScreen() {
   const changesOpener = useMemo<ChangesOpener>(
     () => ({
       open(connectionId, target) {
-        if (dockApi.current !== undefined) {
-          openChangesPanel(dockApi.current, connectionId, target);
+        if (dockApi.current === undefined) {
+          return;
         }
+        if (target.kind === 'collection') {
+          openCollectionPanel(
+            dockApi.current,
+            { panel: 'changes', connectionId, database: target.database, collection: target.collection },
+            collectionPanels.current,
+          );
+          return;
+        }
+        openChangesPanel(dockApi.current, connectionId, target);
       },
     }),
     [],
@@ -613,6 +627,7 @@ export function ShellScreen() {
       openSettings: () => setSettingsOpen(true),
       lock: () => void runReported(() => lock()),
       openHelp: () => setShortcutsOpen(true),
+      focusSearch: () => window.dispatchEvent(new Event(FOCUS_TREE_SEARCH_EVENT)),
       toggleOutput: () => {
         if (dock !== undefined) {
           toggleOutputPanel(dock);
@@ -736,23 +751,16 @@ export function ShellScreen() {
                 style={{ borderBottom: '1px solid var(--mg-border)', flex: '0 0 auto' }}
               >
                 <Group gap={8} wrap="nowrap">
-                  <IconDatabase size={18} color="var(--mantine-color-blue-5)" aria-hidden="true" />
-                  <Text fw={600} size="sm">
+                  <IconDatabase size={18} color="var(--mg-accent)" aria-hidden="true" />
+                  <Text fw={700} size="sm">
                     Mongo GUI
                   </Text>
-                  <Button
-                    variant="default"
-                    leftSection={<IconServer size={14} />}
-                    onClick={() => setManagerOpen(true)}
-                  >
-                    Connections
-                  </Button>
                   <UpdateBanner />
                 </Group>
                 <Group gap={8} wrap="nowrap">
                   <Menu position="bottom-end" withinPortal>
                     <Menu.Target>
-                      <Button variant="default" leftSection={<IconHelp size={14} />}>
+                      <Button variant="default" size="xs" leftSection={<IconHelp size={14} />}>
                         Help
                       </Button>
                     </Menu.Target>
@@ -767,6 +775,7 @@ export function ShellScreen() {
                   </Menu>
                   <Button
                     variant="default"
+                    size="xs"
                     leftSection={<IconSettings size={14} />}
                     onClick={() => setSettingsOpen(true)}
                   >
@@ -774,6 +783,7 @@ export function ShellScreen() {
                   </Button>
                   <Button
                     variant="default"
+                    size="xs"
                     leftSection={<IconLock size={14} />}
                     onClick={() => void runReported(() => lock())}
                   >

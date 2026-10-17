@@ -27,8 +27,11 @@ describe('IndexesPanel', () => {
     expect(within(row).getByText('createdAt')).toBeInTheDocument();
     expect(within(row).getByLabelText('ascending')).toBeInTheDocument();
     expect(within(row).getByLabelText('descending')).toBeInTheDocument();
-    expect(within(row).getByText('412 ops since 2026-10-01')).toBeInTheDocument();
     expect(within(row).getByText('36.0 KB')).toBeInTheDocument();
+    fireEvent.click(row);
+    const detail = screen.getByRole('region', { name: 'Index details' });
+    expect(within(detail).getByText('Accesses')).toBeInTheDocument();
+    expect(within(detail).getByText('412')).toBeInTheDocument();
   });
 
   it('shows the index build in progress from the poll', async () => {
@@ -43,38 +46,27 @@ describe('IndexesPanel', () => {
     const api = await connectedMockApi();
     renderWithApp(<IndexesPanel {...panel} />, { api });
 
-    const idRow = (await screen.findByText('_id_')).closest('tr');
-    expect(idRow).not.toBeNull();
-    if (idRow !== null) {
-      expect(within(idRow).getByRole('button', { name: 'Drop' })).toBeDisabled();
-      expect(within(idRow).getByRole('button', { name: 'Hide' })).toBeDisabled();
-    }
+    const detail = await selectIndex('_id_');
+    expect(within(detail).getByRole('button', { name: 'Drop' })).toBeDisabled();
+    expect(within(detail).getByRole('button', { name: 'Hide index' })).toBeDisabled();
   });
 
   it('hides an index and shows Unhide once the server confirms', async () => {
     const api = await connectedMockApi();
     renderWithApp(<IndexesPanel {...panel} />, { api });
 
-    const row = (await screen.findByText('status_1_createdAt_-1')).closest('tr');
-    expect(row).not.toBeNull();
-    if (row === null) {
-      return;
-    }
-    fireEvent.click(within(row).getByRole('button', { name: 'Hide' }));
+    const detail = await selectIndex('status_1_createdAt_-1');
+    fireEvent.click(within(detail).getByRole('button', { name: 'Hide index' }));
 
-    expect(await within(row).findByRole('button', { name: 'Unhide' })).toBeInTheDocument();
+    expect(await within(detail).findByRole('button', { name: 'Unhide index' })).toBeInTheDocument();
   });
 
   it('drops an index after the name is typed and removes its row', async () => {
     const api = await connectedMockApi();
     renderWithApp(<IndexesPanel {...panel} />, { api });
 
-    const row = (await screen.findByText('status_1_createdAt_-1')).closest('tr');
-    expect(row).not.toBeNull();
-    if (row === null) {
-      return;
-    }
-    fireEvent.click(within(row).getByRole('button', { name: 'Drop' }));
+    const detail = await selectIndex('status_1_createdAt_-1');
+    fireEvent.click(within(detail).getByRole('button', { name: 'Drop' }));
     const confirm = screen.getByRole('button', { name: 'Drop index' });
     expect(confirm).toBeDisabled();
     fireEvent.change(screen.getByLabelText('Type status_1_createdAt_-1 to confirm'), {
@@ -96,11 +88,17 @@ describe('IndexesPanel', () => {
   });
 });
 
+/** Clicks the row of an index and returns the detail pane. */
+async function selectIndex(name: string): Promise<HTMLElement> {
+  const cell = await screen.findByText(name, { selector: 'td' });
+  fireEvent.click(cell);
+  return screen.getByRole('region', { name: 'Index details' });
+}
+
 const NAME_COLUMN = 0;
 const KEYS_COLUMN = 1;
 const PROPERTIES_COLUMN = 2;
 const SIZE_COLUMN = 3;
-const USAGE_COLUMN = 4;
 
 /** The rows the panel shows for the scenarios. The row is found by its name cell. */
 async function renderScenarios(indexes: readonly IndexInfo[] = indexScenarios) {
@@ -192,19 +190,18 @@ describe('IndexesPanel scenarios: names and keys', () => {
     },
   );
 
-  it('shows the size with a unit and the usage for each scenario that has them', async () => {
+  it('shows the size with a unit and the usage of the selected index', async () => {
     await renderScenarios();
     expect(cellOf(await rowOf('_id_'), SIZE_COLUMN).textContent).toBe('20.0 KB');
     expect(cellOf(await rowOf('status_1_createdAt_-1_customerId_1'), SIZE_COLUMN).textContent).toBe(
       '36.0 KB',
     );
-    expect(cellOf(await rowOf('createdAt_-1'), USAGE_COLUMN).textContent).toBe(
-      '0 ops since 2026-10-01',
-    );
-    expect(
-      cellOf(await rowOf('status_1_createdAt_-1_customerId_1'), USAGE_COLUMN).textContent,
-    ).toBe('412 ops since 2026-10-01');
-    expect(cellOf(await rowOf('status_1'), USAGE_COLUMN).textContent).toBe('No usage data');
+    const unused = await selectIndex('createdAt_-1');
+    expect(within(unused).getByText(/No queries used this index/)).toBeInTheDocument();
+    const used = await selectIndex('status_1_createdAt_-1_customerId_1');
+    expect(within(used).getByText('412')).toBeInTheDocument();
+    const none = await selectIndex('status_1');
+    expect(within(none).queryByText('Accesses')).not.toBeInTheDocument();
   });
 
   it('shows the long name in full and the eight keys in order', async () => {
@@ -220,24 +217,24 @@ describe('IndexesPanel scenarios: names and keys', () => {
 
   it('keeps the _id index without a drop, a hide or an edit action', async () => {
     await renderScenarios();
-    const row = await rowOf('_id_');
-    expect(within(row).getByRole('button', { name: 'Drop' })).toBeDisabled();
-    expect(within(row).getByRole('button', { name: 'Hide' })).toBeDisabled();
-    expect(within(row).getByRole('button', { name: 'Edit' })).toBeDisabled();
+    const detail = await selectIndex('_id_');
+    expect(within(detail).getByRole('button', { name: 'Drop' })).toBeDisabled();
+    expect(within(detail).getByRole('button', { name: 'Hide index' })).toBeDisabled();
+    expect(within(detail).getByRole('button', { name: 'Edit' })).toBeDisabled();
   });
 
   it('offers Drop, Hide and Edit on every other scenario', async () => {
     await renderScenarios();
-    const row = await rowOf('email_1');
-    expect(within(row).getByRole('button', { name: 'Drop' })).toBeEnabled();
-    expect(within(row).getByRole('button', { name: 'Hide' })).toBeEnabled();
-    expect(within(row).getByRole('button', { name: 'Edit' })).toBeEnabled();
+    const detail = await selectIndex('email_1');
+    expect(within(detail).getByRole('button', { name: 'Drop' })).toBeEnabled();
+    expect(within(detail).getByRole('button', { name: 'Hide index' })).toBeEnabled();
+    expect(within(detail).getByRole('button', { name: 'Edit' })).toBeEnabled();
   });
 
   it('labels a hidden index with Unhide', async () => {
     await renderScenarios();
-    const row = await rowOf('legacyRef_1');
-    expect(within(row).getByRole('button', { name: 'Unhide' })).toBeEnabled();
+    const detail = await selectIndex('legacyRef_1');
+    expect(within(detail).getByRole('button', { name: 'Unhide index' })).toBeEnabled();
   });
 });
 
@@ -312,14 +309,17 @@ describe('IndexesPanel scenarios: property badges', () => {
 
 describe('IndexesPanel scenarios: edit dialog pre-fills existing options', () => {
   async function openEdit(name: string): Promise<void> {
-    const row = await rowOf(name);
-    fireEvent.click(within(row).getByRole('button', { name: 'Edit' }));
+    const detail = await selectIndex(name);
+    fireEvent.click(within(detail).getByRole('button', { name: 'Edit' }));
     expect(await screen.findByText(`Edit index ${name}`)).toBeInTheDocument();
   }
 
   function previewOf(): Record<string, unknown> {
     const preview = screen.getByLabelText('createIndexes command preview') as HTMLTextAreaElement;
-    return JSON.parse(preview.value) as Record<string, unknown>;
+    const body = preview.value.replace(/^db\.(\w+)\.createIndex\(/, '').replace(/\)$/, '');
+    const [key, options] = JSON.parse(`[${body}]`) as [Record<string, unknown>, object?];
+    const collection = /^db\.(\w+)\./.exec(preview.value)?.[1];
+    return { createIndexes: collection, indexes: [{ key, ...options }] };
   }
 
   it('pre-fills the TTL seconds and the key of a TTL index', async () => {

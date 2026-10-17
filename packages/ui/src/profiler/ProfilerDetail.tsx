@@ -158,7 +158,7 @@ function EntryDetail({ connectionId, database, entry }: EntryDetailProps) {
             {entry.op}
           </Badge>
           {isCollscan(entry.planSummary) ? (
-            <Badge tt="none" color="red" variant="filled" size="sm">
+            <Badge tt="none" color="red" variant="light" size="sm">
               COLLSCAN
             </Badge>
           ) : null}

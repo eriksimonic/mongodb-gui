@@ -1,4 +1,5 @@
-import { Alert, Anchor, Button, Group, PasswordInput, Stack, Text } from '@mantine/core';
+import { Alert, Anchor, Button, PasswordInput, Stack, Text } from '@mantine/core';
+import { IconAlertCircle } from '@tabler/icons-react';
 import { toAppError } from '@mongo-gui/core';
 import { useState, type FormEvent } from 'react';
 import { useAppStore } from '../state/app-store-context';
@@ -52,18 +53,21 @@ export function UnlockScreen() {
           ) : null}
           {wrongPassword ? <Text size="xs">{WRONG_PASSWORD}</Text> : null}
           {failure === undefined ? null : (
-            <Alert color="red" variant="light">
+            <Alert color="red" variant="light" icon={<IconAlertCircle size={16} />}>
               {failure}
             </Alert>
           )}
-          <Group justify="space-between">
-            <Anchor component="button" type="button" size="sm" onClick={() => setResetOpen(true)}>
+          <Stack gap="sm">
+            <Anchor component="button" type="button" size="sm" c="var(--mg-link)" onClick={() => setResetOpen(true)}>
               Reset store
             </Anchor>
-            <Button type="submit" loading={busy}>
+            <Text size="xs" c="dimmed">
+              No recovery. Resetting erases saved connections.
+            </Text>
+            <Button type="submit" loading={busy} fullWidth>
               Unlock
             </Button>
-          </Group>
+          </Stack>
         </Stack>
       </form>
       <ResetStoreModal opened={resetOpen} onClose={() => setResetOpen(false)} />

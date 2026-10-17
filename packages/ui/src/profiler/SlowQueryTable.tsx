@@ -327,7 +327,7 @@ const SlowQueryRow = memo(function SlowQueryRow({
           <Badge
             tt="none"
             color="red"
-            variant="filled"
+            variant="light"
             size="xs"
             style={{ flexShrink: 0, maxWidth: 'none' }}
           >
@@ -338,7 +338,7 @@ const SlowQueryRow = memo(function SlowQueryRow({
           <Badge
             tt="none"
             color="orange"
-            variant="filled"
+            variant="light"
             size="xs"
             style={{ flexShrink: 0, maxWidth: 'none' }}
           >

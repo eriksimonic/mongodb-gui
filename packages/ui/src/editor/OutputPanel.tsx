@@ -1,6 +1,7 @@
 import { Box, Button, Group, Tabs, Text } from '@mantine/core';
 import { useVirtualizer } from '@tanstack/react-virtual';
-import { useMemo, useRef } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
+import { useUiApi } from '../api/ui-api';
 import { useFontScale } from '../theme/font-scale';
 import { useAppStore, useAppStoreApi } from '../state/app-store-context';
 import type { PrintLine } from '../state/editors';
@@ -16,8 +17,24 @@ const LINE_HEIGHT_PX = 20;
  * the time and the database of each. History, Favourites and Transfers are the other tabs.
  */
 export function OutputPanel() {
+  const { rpc } = useUiApi();
+  const [counts, setCounts] = useState<{ history?: number; favourites?: number }>({});
+  useEffect(() => {
+    let active = true;
+    void rpc.history.list({ limit: 1000 }).then(
+      (rows) => active && setCounts((current) => ({ ...current, history: rows.length })),
+      () => undefined,
+    );
+    void rpc.favourites.list().then(
+      (rows) => active && setCounts((current) => ({ ...current, favourites: rows.length })),
+      () => undefined,
+    );
+    return () => {
+      active = false;
+    };
+  }, [rpc]);
   return (
-    <Tabs
+    <Tabs className="mg-tab-separators"
       defaultValue="output"
       keepMounted={false}
       styles={{
@@ -28,8 +45,12 @@ export function OutputPanel() {
     >
       <Tabs.List px={6}>
         <Tabs.Tab value="output">Output</Tabs.Tab>
-        <Tabs.Tab value="history">History</Tabs.Tab>
-        <Tabs.Tab value="favourites">Favourites</Tabs.Tab>
+        <Tabs.Tab value="history" rightSection={count(counts.history)}>
+          History
+        </Tabs.Tab>
+        <Tabs.Tab value="favourites" rightSection={count(counts.favourites)}>
+          Favourites
+        </Tabs.Tab>
         <Tabs.Tab value="transfers">Transfers</Tabs.Tab>
       </Tabs.List>
       <Tabs.Panel value="output" style={{ display: 'flex', flexDirection: 'column' }}>
@@ -45,6 +66,14 @@ export function OutputPanel() {
         <TransfersPanel />
       </Tabs.Panel>
     </Tabs>
+  );
+}
+
+function count(value: number | undefined) {
+  return value === undefined || value === 0 ? null : (
+    <Text span size="xs" c="dimmed" ff="monospace">
+      {value}
+    </Text>
   );
 }
 

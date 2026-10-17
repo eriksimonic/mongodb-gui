@@ -11,8 +11,32 @@ import { PanelOpenerContext, type OpenPanel } from '../state/panel-opener';
 import { renderWithApp } from '../test-support/render';
 import { openSubmenu } from '../test-support/menu';
 import { ConnectionTree } from './ConnectionTree';
+import { FOCUS_TREE_SEARCH_EVENT } from './search-constants';
 
 describe('ConnectionTree', () => {
+  it('searches without crashing and keeps the typed text', async () => {
+    renderWithApp(<ConnectionTree />, { mock: { preset: 'unlocked' } });
+    const local = await screen.findByRole('treeitem', { name: 'Local dev' });
+    local.focus();
+    fireEvent.keyDown(local, { key: 'ArrowRight' });
+    const shop = await screen.findByRole('treeitem', { name: 'shop' });
+    shop.focus();
+    fireEvent.keyDown(shop, { key: 'ArrowRight' });
+    await screen.findByRole('treeitem', { name: 'orders' });
+    await screen.findByRole('treeitem', { name: 'shop-mongo' });
+    const box = screen.getByLabelText('Search databases and collections');
+    for (const value of ['o', 'or', 'ord', 'zzz', '']) {
+      fireEvent.change(box, { target: { value } });
+      expect(box).toHaveValue(value);
+    }
+    fireEvent.change(box, { target: { value: 'ord' } });
+    expect(box).toHaveValue('ord');
+    expect(await screen.findByText(/matches? in/)).toBeInTheDocument();
+    expect(screen.getByText('In connected servers')).toBeInTheDocument();
+    expect((await screen.findAllByRole('treeitem', { name: 'orders' })).length).toBeGreaterThan(0);
+    expect(screen.queryByRole('treeitem', { name: 'Monitoring' })).not.toBeInTheDocument();
+  });
+
   it('loads databases when a connection is opened with the keyboard', async () => {
     renderWithApp(<ConnectionTree />, { mock: { preset: 'unlocked' } });
     const local = await screen.findByRole('treeitem', { name: 'Local dev' });
@@ -145,26 +169,83 @@ describe('ConnectionTree', () => {
     expect(await screen.findByText('No connections yet.')).toBeInTheDocument();
   });
 
-  it('filters the siblings of the focused database as you type and clears on Escape', async () => {
+  it('focuses and selects the search box on the find event', async () => {
+    renderWithApp(<ConnectionTree />, { mock: { preset: 'unlocked' } });
+    await screen.findByRole('treeitem', { name: 'Local dev' });
+    const box = screen.getByLabelText('Search databases and collections') as HTMLInputElement;
+    fireEvent.change(box, { target: { value: 'ord' } });
+    window.dispatchEvent(new Event(FOCUS_TREE_SEARCH_EVENT));
+    expect(box).toHaveFocus();
+    expect(box.selectionStart).toBe(0);
+    expect(box.selectionEnd).toBe(3);
+  });
+
+  it('finds a collection in a database that was never opened and reveals it on select', async () => {
     renderWithApp(<ConnectionTree />, { mock: { preset: 'unlocked' } });
     const local = await screen.findByRole('treeitem', { name: 'Local dev' });
     local.focus();
     fireEvent.keyDown(local, { key: 'ArrowRight' });
-    const shop = await screen.findByRole('treeitem', { name: 'shop' });
-    shop.focus();
+    await screen.findByRole('treeitem', { name: 'analytics' });
+    expect(screen.queryByRole('treeitem', { name: 'bson_samples' })).not.toBeInTheDocument();
 
-    fireEvent.keyDown(shop, { key: 'l' });
-    fireEvent.keyDown(document.activeElement as HTMLElement, { key: 'o' });
-    expect(screen.getByRole('treeitem', { name: 'logs' })).toBeInTheDocument();
-    expect(screen.queryByRole('treeitem', { name: 'shop' })).not.toBeInTheDocument();
-    expect(screen.queryByRole('treeitem', { name: 'analytics' })).not.toBeInTheDocument();
-    expect(screen.getByRole('treeitem', { name: 'Local dev' })).toBeInTheDocument();
-    expect(screen.getByRole('treeitem', { name: 'Staging' })).toBeInTheDocument();
-    expect(screen.getByRole('treeitem', { name: 'logs' })).toHaveFocus();
+    fireEvent.change(screen.getByLabelText('Search databases and collections'), {
+      target: { value: 'bson_sam' },
+    });
+    fireEvent.click(
+      (await screen.findAllByRole('treeitem', { name: 'bson_samples' }))[0] as HTMLElement,
+    );
 
-    fireEvent.keyDown(screen.getByRole('treeitem', { name: 'logs' }), { key: 'Escape' });
-    expect(screen.getByRole('treeitem', { name: 'shop' })).toBeInTheDocument();
-    expect(screen.getByRole('treeitem', { name: 'analytics' })).toBeInTheDocument();
+    await waitFor(() =>
+      expect(
+        screen
+          .getAllByRole('treeitem', { name: 'bson_samples' })
+          .some((item) => item.getAttribute('aria-selected') === 'true'),
+      ).toBe(true),
+    );
+    expect(screen.getByLabelText('Search databases and collections')).toHaveValue('');
+    expect(screen.getByRole('treeitem', { name: 'analytics' })).toHaveAttribute(
+      'aria-expanded',
+      'true',
+    );
+  });
+});
+
+describe('ConnectionTree name catalog fetching', () => {
+  it('fetches at once the first time, debounces later fetches and refreshes on demand', async () => {
+    vi.useFakeTimers({ shouldAdvanceTime: true });
+    try {
+      const api = createMockUiApi({ preset: 'unlocked' });
+      const listNames = vi.spyOn(api.rpc.catalog, 'listNames');
+      renderWithApp(<ConnectionTree />, { api });
+      await screen.findByRole('treeitem', { name: 'Local dev' });
+      const box = screen.getByLabelText('Search databases and collections');
+
+      fireEvent.change(box, { target: { value: 'o' } });
+      await vi.advanceTimersByTimeAsync(500);
+      const first = listNames.mock.calls.length;
+      expect(first).toBeGreaterThan(0);
+
+      // Typing again inside the age limit never refetches, even after the debounce passes.
+      fireEvent.change(box, { target: { value: 'or' } });
+      await vi.advanceTimersByTimeAsync(4000);
+      expect(listNames.mock.calls.length).toBe(first);
+
+      // Past the age limit, a keystroke starts the debounce and the fetch follows it.
+      fireEvent.change(box, { target: { value: 'ord' } });
+      await vi.advanceTimersByTimeAsync(4900);
+      expect(listNames.mock.calls.length).toBe(first);
+      await vi.advanceTimersByTimeAsync(300);
+      expect(listNames.mock.calls.length).toBeGreaterThan(first);
+
+      // The refresh button fetches at once.
+      const before = listNames.mock.calls.length;
+      await vi.advanceTimersByTimeAsync(100);
+      fireEvent.click(screen.getByRole('button', { name: 'Reload names from the servers' }));
+      await vi.advanceTimersByTimeAsync(10);
+      expect(listNames.mock.calls.length).toBeGreaterThan(before);
+    } finally {
+      vi.useRealTimers();
+    }
   });
 });
 

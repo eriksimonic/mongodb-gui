@@ -3,7 +3,7 @@ import type { SeriesUnit } from '@mongo-gui/core';
 import uPlot from 'uplot';
 import { useComputedColorScheme } from '@mantine/core';
 import { useEffect, useMemo, useRef, useState, type RefObject } from 'react';
-import { CHART_HEIGHT_PX, type ChartMode, type ChartSeries, type ChartWindow } from './chart-types';
+import { type ChartMode, type ChartSeries, type ChartWindow } from './chart-types';
 import { stackedValues } from './chart-series';
 import { formatAxisValue, formatClock, formatValue } from './format';
 import { chartPalette, type ChartPalette } from '../theme/palette';
@@ -79,26 +79,32 @@ function ifDefined<T extends object>(value: boolean, build: () => T): T | Record
 }
 
 /** Writes an element's width to state and keeps it current. Zero until the element is laid out. */
-function useElementWidth(ref: RefObject<HTMLDivElement | null>): number {
-  const [width, setWidth] = useState(0);
+function useElementSize(ref: RefObject<HTMLDivElement | null>): { width: number; height: number } {
+  const [size, setSize] = useState({ width: 0, height: 0 });
   useEffect(() => {
     const element = ref.current;
     if (element === null) {
       return undefined;
     }
-    setWidth(Math.floor(element.getBoundingClientRect().width));
+    const read = (box: { width: number; height: number }) => {
+      const next = { width: Math.floor(box.width), height: Math.floor(box.height) };
+      setSize((current) =>
+        current.width === next.width && current.height === next.height ? current : next,
+      );
+    };
+    read(element.getBoundingClientRect());
     if (typeof ResizeObserver === 'undefined') {
       return undefined;
     }
     const observer = new ResizeObserver((entries) => {
-      setWidth(Math.floor(entries[0]?.contentRect.width ?? 0));
+      read(entries[0]?.contentRect ?? { width: 0, height: 0 });
     });
     observer.observe(element);
     return () => {
       observer.disconnect();
     };
   }, [ref]);
-  return width;
+  return size;
 }
 
 /** Keeps a value inside [low, high]. When the range is inverted, the low bound wins. */
@@ -307,11 +313,15 @@ export function UPlotChart({
   syncKey,
   window,
   mode = 'lines',
-  height = CHART_HEIGHT_PX,
+  height: fixedHeight,
 }: UPlotChartProps) {
   const hostRef = useRef<HTMLDivElement>(null);
   const plotRef = useRef<uPlot | undefined>(undefined);
-  const width = useElementWidth(hostRef);
+  // Without a fixed height the chart fills its parent and follows it as it is resized.
+  const measured = useElementSize(hostRef);
+  const width = measured.width;
+  const height = fixedHeight ?? Math.max(measured.height, 1);
+  const sizeRef = useRef({ width, height });
   // The axis, grid and tooltip ink follow the scheme. A scheme change rebuilds the plot.
   const scheme = useComputedColorScheme('dark');
   const ink = chartPalette(scheme).ink;
@@ -324,20 +334,26 @@ export function UPlotChart({
   const latest = useRef({ series, data, window, mode });
 
   useEffect(() => {
+    sizeRef.current = { width, height };
+    plotRef.current?.setSize({ width, height });
+  }, [width, height]);
+
+  useEffect(() => {
     latest.current = { series, data, window, mode };
   }, [series, data, window, mode]);
 
   useEffect(() => {
     const host = hostRef.current;
     const current = latest.current;
-    if (host === null || width === 0 || current.series.length === 0) {
+    const { width: initialWidth, height: initialHeight } = sizeRef.current;
+    if (host === null || initialWidth === 0 || current.series.length === 0) {
       return undefined;
     }
     const plot = new uPlot(
       buildOptions({
         ink,
-        width,
-        height,
+        width: initialWidth,
+        height: initialHeight,
         series: current.series,
         readSeries: () => latest.current.series,
         yUnit,
@@ -355,7 +371,7 @@ export function UPlotChart({
         plotRef.current = undefined;
       }
     };
-  }, [width, height, shape, yUnit, syncKey, windowKey, mode, ink]);
+  }, [width > 0, shape, yUnit, syncKey, windowKey, mode, ink]);
 
   useEffect(() => {
     plotRef.current?.setData(data);
@@ -367,7 +383,7 @@ export function UPlotChart({
       role="img"
       aria-label={label}
       className="mg-chart"
-      style={{ height }}
+      style={fixedHeight === undefined ? { flex: '1 1 0', minHeight: 0 } : { height: fixedHeight }}
       data-testid="chart-container"
     />
   );

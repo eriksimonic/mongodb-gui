@@ -1,4 +1,5 @@
 import { Alert, Button, Group, PasswordInput, Stack, Text } from '@mantine/core';
+import { IconAlertCircle, IconCheck } from '@tabler/icons-react';
 import { toAppError } from '@mongo-gui/core';
 import { useState, type FormEvent } from 'react';
 import { useAppStore } from '../state/app-store-context';
@@ -54,7 +55,14 @@ export function FirstRunScreen() {
           {shownPassword === undefined ? null : <Text size="xs">{shownPassword}</Text>}
           <PasswordStrengthMeter password={password} />
           <PasswordInput
-            label="Confirm master password"
+            label={
+              <Group gap={6} component="span" wrap="nowrap">
+                Confirm master password
+                {confirmation !== '' && confirmation === password ? (
+                  <IconCheck size={14} color="var(--mg-ok)" aria-label="Passwords match" />
+                ) : null}
+              </Group>
+            }
             value={confirmation}
             onChange={(event) => setConfirmation(event.currentTarget.value)}
             styles={invalidInputStyles(shownConfirmation)}
@@ -62,12 +70,12 @@ export function FirstRunScreen() {
           />
           {shownConfirmation === undefined ? null : <Text size="xs">{shownConfirmation}</Text>}
           {failure === undefined ? null : (
-            <Alert color="red" variant="light">
+            <Alert color="red" variant="light" icon={<IconAlertCircle size={16} />}>
               {failure}
             </Alert>
           )}
-          <Group justify="flex-end">
-            <Button type="submit" loading={busy}>
+          <Group>
+            <Button type="submit" loading={busy} fullWidth>
               Create vault
             </Button>
           </Group>

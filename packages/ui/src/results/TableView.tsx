@@ -40,6 +40,7 @@ import {
   type JsonObject,
 } from './result-model';
 import { typeBucket, typeColor } from '../schema';
+import { valueColor } from './value-color';
 import { exactCopyTextOf } from './tree-rows';
 import { TABLE_FONT } from '../theme/theme';
 
@@ -48,15 +49,15 @@ ModuleRegistry.registerModules([AllCommunityModule]);
 // The dark grid takes its colours from docs/color-palette.md.
 const DARK_THEME = themeQuartz.withPart(colorSchemeDark).withParams({
   fontFamily: TABLE_FONT,
-  backgroundColor: '#0a0a0c',
-  foregroundColor: '#f5f3ee',
-  headerBackgroundColor: '#222226',
-  headerTextColor: '#d0d0cd',
-  borderColor: '#34343a',
-  rowHoverColor: '#222226',
-  selectedRowBackgroundColor: '#3d3317',
-  accentColor: '#ffd60a',
-  chromeBackgroundColor: '#222226',
+  backgroundColor: '#100d0a',
+  foregroundColor: '#f4f2ee',
+  headerBackgroundColor: '#2a2927',
+  headerTextColor: '#d3d0cb',
+  borderColor: '#2e2c29',
+  rowHoverColor: '#2a2927',
+  selectedRowBackgroundColor: '#3a2f14',
+  accentColor: '#f4b223',
+  chromeBackgroundColor: '#2a2927',
 });
 const LIGHT_THEME = themeQuartz.withPart(colorSchemeLight).withParams({ fontFamily: TABLE_FONT });
 const ROW_HEIGHT_PX = 28;
@@ -148,7 +149,16 @@ function TypeHeader(props: CustomHeaderProps & TypeHeaderParams) {
         {props.displayName}
       </Text>
       {(props.types ?? []).map((type) => (
-        <Badge tt="none" key={type} size="xs" variant="light" color="gray" radius="sm">
+        <Badge
+          tt="none"
+          key={type}
+          size="xs"
+          variant="default"
+          radius="xl"
+          ff="var(--mantine-font-family-monospace)"
+          fw={400}
+          c="var(--mg-text-muted)"
+        >
           {BSON_TYPE_LABELS[type]}
         </Badge>
       ))}
@@ -181,9 +191,7 @@ function CellRenderer(props: CustomCellRendererProps<Row, unknown>) {
             ? 'var(--mantine-font-family-monospace)'
             : undefined,
         color:
-          view.type === 'Null'
-            ? 'var(--mantine-color-dimmed)'
-            : typeColor(typeBucket(view.type), scheme),
+          valueColor(view.type) ?? typeColor(typeBucket(view.type), scheme),
       }}
       title={view.title ?? view.text}
       onMouseEnter={

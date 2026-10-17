@@ -29,6 +29,7 @@ import {
   IconPlugConnected,
   IconPlus,
   IconRoute,
+  IconServer,
   IconSettings,
   IconShieldCheck,
   IconSitemap,
@@ -61,6 +62,7 @@ import { CollectionStatsPanel, DatabaseStatsPanel, DiagnosticsPanel } from '../d
 
 export { OutputPanel } from '../editor';
 import { SchemaPanel } from '../schema';
+import { CollectionPanel, type CollectionSection } from './CollectionPanel';
 import { OperationsPanel } from '../monitor';
 import { useAppStore, useAppStoreApi } from '../state/app-store-context';
 import type { EditorTab } from '../state/editors';
@@ -384,9 +386,48 @@ function closeTabs(dock: DockviewApi, ids: readonly string[]): void {
 
 /** Left panel: the connection tree. */
 export function ConnectionsPanel() {
+  const setDialog = useAppStore((state) => state.setDialog);
+  const setManagerOpen = useAppStore((state) => state.setManagerOpen);
   return (
-    <Box p={8} h="100%" style={{ overflow: 'auto' }}>
-      <ConnectionTree />
+    <Box
+      h="100%"
+      style={{ display: 'flex', flexDirection: 'column', background: 'var(--mg-side)' }}
+    >
+      <Group
+        h={36}
+        px={12}
+        justify="space-between"
+        wrap="nowrap"
+        style={{ flex: '0 0 auto', borderBottom: '1px solid var(--mg-border)' }}
+      >
+        <Group gap={6} wrap="nowrap">
+          <IconServer size={14} aria-hidden="true" />
+          <Text fw={600} size="sm">
+            Connections
+          </Text>
+        </Group>
+        <Group gap={4} wrap="nowrap">
+          <ActionIcon
+            variant="subtle"
+            size="sm"
+            aria-label="New connection"
+            onClick={() => setDialog({ kind: 'create' })}
+          >
+            <IconPlus size={14} />
+          </ActionIcon>
+          <ActionIcon
+            variant="subtle"
+            size="sm"
+            aria-label="Manage connections"
+            onClick={() => setManagerOpen(true)}
+          >
+            <IconSettings size={14} />
+          </ActionIcon>
+        </Group>
+      </Group>
+      <Box style={{ flex: 1, minHeight: 0, overflow: 'hidden' }}>
+        <ConnectionTree />
+      </Box>
     </Box>
   );
 }
@@ -582,6 +623,24 @@ function usePanelVisible(api: IDockviewPanelProps['api']): boolean {
     };
   }, [api]);
   return visible;
+}
+
+/** Dock panel: one collection with its section tabs. The section param picks the open tab. */
+export function CollectionDockPanel({
+  api,
+  params,
+}: IDockviewPanelProps<CollectionPanelParams & { readonly section?: CollectionSection }>) {
+  return (
+    <Box h="100%">
+      <CollectionPanel
+        connectionId={params.connectionId}
+        database={params.database}
+        collection={params.collection}
+        section={params.section ?? 'documents'}
+        onSectionChange={(section) => api.updateParameters({ section })}
+      />
+    </Box>
+  );
 }
 
 /** Dock panel: indexes of one collection. */

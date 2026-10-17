@@ -41,14 +41,14 @@ export function CreateDatabaseDialog({ connectionId, onClose }: CreateDatabaseDi
   }
 
   return (
-    <Modal opened onClose={onClose} title="New database" centered size="sm">
+    <Modal opened onClose={onClose} title="New database" centered size={640}>
       <form
         onSubmit={(event) => {
           event.preventDefault();
           void submit();
         }}
       >
-        <Stack gap="sm">
+        <Stack gap="lg">
           <Text size="sm" c="dimmed">
             MongoDB creates a database when it first holds a collection, so the first collection is
             created with it.

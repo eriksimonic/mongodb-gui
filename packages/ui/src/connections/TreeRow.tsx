@@ -27,6 +27,9 @@ export interface TreeRowProps {
   readonly row: TreeRowModel;
   readonly focused: boolean;
   readonly selected: boolean;
+  readonly ancestor?: boolean;
+  /** Text to mark in the label of a database or collection row. */
+  readonly highlight?: string | undefined;
   readonly setRef: (key: string, element: HTMLDivElement | null) => void;
   readonly onFocusRow: (key: string) => void;
   readonly onToggle: () => void;
@@ -40,6 +43,8 @@ export function TreeRow({
   row,
   focused,
   selected,
+  ancestor,
+  highlight,
   setRef,
   onFocusRow,
   onToggle,
@@ -56,6 +61,7 @@ export function TreeRow({
       aria-level={row.depth + 1}
       aria-expanded={row.expandable ? row.expanded : undefined}
       aria-selected={selected}
+      data-ancestor={ancestor === true && !selected ? 'true' : undefined}
       tabIndex={focused ? 0 : -1}
       ref={(element) => setRef(row.key, element)}
       onFocus={() => onFocusRow(row.key)}
@@ -65,6 +71,7 @@ export function TreeRow({
       style={{
         paddingLeft: row.depth * INDENT_PX + 4,
         boxShadow: row.color === undefined ? undefined : `inset 3px 0 0 ${row.color}`,
+        borderRadius: row.kind === 'connection' ? 0 : undefined,
       }}
     >
       <span
@@ -88,11 +95,20 @@ export function TreeRow({
       <span className="mg-tree-icon" aria-hidden="true">
         <RowIcon row={row} />
       </span>
-      <span className="mg-tree-label">{row.label}</span>
+      <span className="mg-tree-label">
+        {highlight !== undefined && (row.kind === 'database' || row.kind === 'collection')
+          ? marked(row.label, highlight)
+          : row.label}
+      </span>
       {row.container === undefined ? null : <DockerContainerMeta container={row.container} />}
       {row.kind === 'connection' && row.status !== undefined ? (
         <ConnectionMeta status={row.status} />
       ) : null}
+      {row.meta === undefined ? null : (
+        <span className="mg-tree-stats" aria-hidden="true">
+          {row.meta}
+        </span>
+      )}
       {row.member === undefined ? null : <MemberMeta member={row.member} />}
     </div>
   );
@@ -172,5 +188,20 @@ export function TreeMessage({ row }: TreeMessageProps) {
     >
       {row.label}
     </div>
+  );
+}
+
+/** The label with the first match of `text`, case insensitive, in a `mark`. */
+function marked(label: string, text: string) {
+  const at = label.toLowerCase().indexOf(text.toLowerCase());
+  if (at < 0) {
+    return label;
+  }
+  return (
+    <>
+      {label.slice(0, at)}
+      <mark className="mg-tree-mark">{label.slice(at, at + text.length)}</mark>
+      {label.slice(at + text.length)}
+    </>
   );
 }

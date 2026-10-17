@@ -1,45 +1,103 @@
 /*
  * Surface and ink tokens for the custom CSS and the dockview theme. Mantine's own colour variables
  * are fixed palettes, so anything that must change with the scheme reads these instead.
- * The dark values come from docs/color-palette.md. The light values are Mantine's light steps.
+ * The values come from the Graphite design language (Mongo GUI design, page 1 of 4).
  * Mantine sets data-mantine-color-scheme on <html>, and the default block covers the first paint.
  */
 
 :root,
 :root[data-mantine-color-scheme='dark'] {
   color-scheme: dark;
-  --mg-bg-sunken: #0a0a0c;
-  --mg-surface-0: #0f0f11;
-  --mg-surface-1: #18181b;
-  --mg-surface-2: #222226;
-  --mg-surface-3: #2a2a2f;
-  --mg-border: #34343a;
-  --mg-hover: #3a3a40;
-  --mg-selected: #3d3317;
-  --mg-text: #d0d0cd;
-  --mg-text-strong: #f5f3ee;
-  --mg-text-muted: #9fa1a2;
+  --mg-bg-sunken: #100d0a;
+  --mg-side: #14110e;
+  --mg-surface-0: #1a1917;
+  --mg-surface-1: #201f1c;
+  --mg-surface-2: #2a2927;
+  --mg-surface-3: #2a2927;
+  --mg-border: #2e2c29;
+  --mg-border-strong: #403d39;
+  --mg-hover: #33312e;
+  --mg-selected: #3a2f14;
+  --mg-text: #d3d0cb;
+  --mg-text-strong: #f4f2ee;
+  --mg-text-muted: #a19d96;
+  --mg-text-faint: #75716a;
   --mg-shadow: 0 4px 12px rgb(0 0 0 / 35%);
-  --mg-accent: #ffd60a;
-  --mg-accent-text: #ffd60a;
-  --mg-selected-text: #f5f3ee;
+  --mg-accent: #f4b223;
+  --mg-accent-hover: #ffc43d;
+  --mg-accent-ink: #1a1406;
+  --mg-accent-text: #f6be48;
+  --mg-selected-text: #f4f2ee;
+  --mg-link: #6aa5ff;
+  --mg-ok: #4cc38a;
+  --mg-warn: #f08a3c;
+  --mg-danger: #f2597f;
+  --mg-series-1: #6aa5ff;
+  --mg-series-2: #f4b223;
+  --mg-series-3: #f2597f;
+  --mg-series-4: #a98bfa;
+  --mg-series-5: #3cc9b5;
+  --mg-series-6: #f08a3c;
+  --mg-code-key: #7fb0ff;
+  --mg-code-keyword: #b79cfa;
+  --mg-code-string: #8ed1a0;
+  --mg-code-number: #f2a15f;
+  --mg-code-function: #f4cf6b;
 }
 
 :root[data-mantine-color-scheme='light'] {
   color-scheme: light;
-  --mg-bg-sunken: var(--mantine-color-white);
-  --mg-surface-0: var(--mantine-color-white);
-  --mg-surface-1: var(--mantine-color-gray-1);
-  --mg-surface-2: var(--mantine-color-gray-2);
-  --mg-surface-3: var(--mantine-color-gray-1);
-  --mg-border: var(--mantine-color-gray-3);
-  --mg-hover: var(--mantine-color-gray-1);
-  --mg-selected: var(--mantine-color-gray-3);
-  --mg-text: var(--mantine-color-gray-7);
-  --mg-text-strong: var(--mantine-color-gray-9);
-  --mg-text-muted: var(--mantine-color-gray-6);
+  --mg-bg-sunken: #fbfaf7;
+  --mg-side: #eceae5;
+  --mg-surface-0: #f6f4f0;
+  --mg-surface-1: #fffefc;
+  --mg-surface-2: #fffefc;
+  --mg-surface-3: #eceae5;
+  --mg-border: #e4e1da;
+  --mg-border-strong: #d0ccc3;
+  --mg-hover: #e8e5df;
+  --mg-selected: #f8e7bd;
+  --mg-text: #3d3a35;
+  --mg-text-strong: #1a1815;
+  --mg-text-muted: #6a665f;
+  --mg-text-faint: #928d85;
   --mg-shadow: 0 4px 12px rgb(0 0 0 / 12%);
-  --mg-accent: var(--mantine-color-blue-6);
-  --mg-accent-text: var(--mantine-color-blue-7);
-  --mg-selected-text: var(--mantine-color-gray-9);
+  --mg-accent: #f4b223;
+  --mg-accent-hover: #e9a511;
+  --mg-accent-ink: #1a1406;
+  --mg-accent-text: #8a5600;
+  --mg-selected-text: #1a1815;
+  --mg-link: #2563d6;
+  --mg-ok: #1e9e63;
+  --mg-warn: #c2570c;
+  --mg-danger: #d4244e;
+  --mg-series-1: #2f6fdb;
+  --mg-series-2: #d99100;
+  --mg-series-3: #d4244e;
+  --mg-series-4: #7b54d9;
+  --mg-series-5: #12958a;
+  --mg-series-6: #d4650e;
+  --mg-code-key: #2f6fdb;
+  --mg-code-keyword: #7b54d9;
+  --mg-code-string: #1e8a50;
+  --mg-code-number: #c2570c;
+  --mg-code-function: #8a5600;
+}
+
+/* Mantine's dimmed text, placeholders and disabled controls use fixed palette greys. These follow the theme instead. */
+:root {
+  --mantine-color-dimmed: var(--mg-text-muted);
+  --mantine-color-placeholder: var(--mg-text-muted);
+}
+
+.mantine-Input-input::placeholder {
+  color: var(--mg-text-muted);
+  opacity: 1;
+}
+
+.mantine-Button-root:disabled,
+.mantine-Button-root[data-disabled] {
+  background: var(--mg-surface-3);
+  border-color: var(--mg-border);
+  color: var(--mg-text-muted);
 }

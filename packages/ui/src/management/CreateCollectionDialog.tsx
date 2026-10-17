@@ -83,14 +83,14 @@ export function CreateCollectionDialog({
   }
 
   return (
-    <Modal opened onClose={onClose} title={`New collection in ${database}`} centered size="lg">
+    <Modal opened onClose={onClose} title={`New collection in ${database}`} centered size={640}>
       <form
         onSubmit={(event) => {
           event.preventDefault();
           void submit();
         }}
       >
-        <Stack gap="sm">
+        <Stack gap="lg">
           <TextInput
             label="Collection name"
             value={draft.name}

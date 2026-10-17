@@ -1,7 +1,8 @@
 /* Explain panel. Colours come from the --mg-* theme tokens, so the panel follows the light and dark themes. */
 
 .mg-explain {
-  min-height: 100%;
+  height: 100%;
+  overflow: hidden;
   font-size: calc(var(--mg-font-scale, 1) * 13px);
 }
 
@@ -40,7 +41,8 @@
   gap: 8px;
   padding: 6px 8px;
   border: 1px solid var(--mg-border);
-  border-radius: var(--mantine-radius-sm);
+  border-radius: var(--mantine-radius-md);
+  background: var(--mg-surface-1);
 }
 
 .mg-explain-summary {
@@ -147,7 +149,7 @@
 }
 
 .mg-explain-row:focus-visible {
-  outline: 2px solid var(--mantine-color-blue-5);
+  outline: 2px solid var(--mg-accent);
   outline-offset: -2px;
 }
 
@@ -342,14 +344,14 @@
 
 .mg-explain-graph-block {
   display: flex;
-  flex: 1 0 360px;
+  flex: 1 1 0;
   flex-direction: column;
   min-width: 0;
 }
 
 .mg-explain-graph-layout {
   display: flex;
-  flex: 1;
+  flex: 1 1 0;
   gap: 8px;
   min-width: 0;
   min-height: 0;
@@ -361,7 +363,9 @@
   overflow: auto;
   border: 1px solid var(--mg-border);
   border-radius: var(--mantine-radius-sm);
-  background: var(--mg-surface-0);
+  background-color: var(--mg-bg-sunken);
+  background-image: radial-gradient(var(--mg-border) 1px, transparent 1px);
+  background-size: 16px 16px;
 }
 
 .mg-explain-graph {
@@ -405,8 +409,8 @@
 }
 
 .mg-explain-node[aria-selected='true'] {
-  border-color: var(--mantine-color-blue-5);
-  box-shadow: 0 0 0 1px var(--mantine-color-blue-5);
+  border-color: var(--mg-accent);
+  box-shadow: 0 0 0 1px var(--mg-accent);
 }
 
 .mg-explain-node-time {
@@ -492,6 +496,7 @@
 .mg-explain-details {
   display: grid;
   flex: 0 0 300px;
+  min-height: 0;
   gap: 8px;
   align-content: start;
   overflow: auto;
@@ -560,7 +565,85 @@
   font-style: italic;
 }
 
-/* Only the graph grows and shrinks. The parts above it keep their height. */
-.mg-explain-plan > * {
+/* Only the graph and the list grow and shrink. The parts above them keep their height. */
+.mg-explain-plan > :not(.mg-explain-graph-block):not(.mg-explain-list-area) {
   flex-shrink: 0;
+}
+
+.mg-explain-list-area {
+  flex: 1 1 0;
+  min-height: 0;
+  overflow: auto;
+}
+
+.mg-explain-command {
+  position: relative;
+  flex: none;
+  overflow: hidden;
+  border: 1px solid var(--mg-border);
+  border-radius: var(--mantine-radius-md);
+  background: var(--mg-bg-sunken);
+}
+
+.mg-explain-graph-scroll {
+  cursor: grab;
+}
+
+.mg-explain-graph-scroll[data-panning='true'] {
+  cursor: grabbing;
+  user-select: none;
+}
+
+.mg-explain-graph-footer {
+  margin: 6px 0 0;
+  color: var(--mg-text-muted);
+  font-size: calc(var(--mg-font-scale, 1) * 12px);
+}
+
+.mg-explain-stage-name {
+  font-family: var(--mantine-font-family-monospace);
+  font-weight: 700;
+}
+
+.mg-explain-summary-item:first-child dd {
+  color: var(--mg-ok);
+}
+
+.mg-explain-index-line {
+  padding: 3px 10px;
+  border: 1px solid var(--mg-border);
+  border-radius: 999px;
+  background: var(--mg-surface-1);
+  font-family: var(--mantine-font-family-monospace);
+}
+
+.mg-explain-details-actions {
+  display: flex;
+  gap: 8px;
+}
+
+/* The controls and tabs read as in the design: amber on the active segment and tab. */
+.mg-explain .mantine-SegmentedControl-label[data-active] {
+  color: var(--mg-accent-text);
+  background: var(--mg-surface-3);
+}
+
+.mg-explain .mantine-Tabs-tab[data-active] {
+  border-bottom-color: var(--mg-accent);
+  color: var(--mg-accent-text);
+}
+
+.mg-explain-why {
+  display: grid;
+  gap: 4px;
+  padding: 8px 10px;
+  border-radius: var(--mantine-radius-md);
+  background: color-mix(in srgb, var(--mg-accent) 14%, transparent);
+}
+
+.mg-explain-command-toggle {
+  position: absolute;
+  top: 4px;
+  right: 4px;
+  z-index: 2;
 }

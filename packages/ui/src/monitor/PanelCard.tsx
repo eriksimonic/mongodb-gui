@@ -1,91 +1,80 @@
 import { ActionIcon, Group, Menu, Paper, Stack, Text } from '@mantine/core';
 import { IconDotsVertical } from '@tabler/icons-react';
-import type { CSSProperties, ReactNode } from 'react';
+import type { ReactNode } from 'react';
 import type { SeriesUnit } from '@mongo-gui/core';
 import {
   CHART_HEIGHT_PX,
-  TALL_CHART_HEIGHT_PX,
   type ChartMode,
   type ChartSeries,
   type ChartWindow,
 } from './chart-types';
 import { formatValue } from './format';
 import { UPlotChart } from './UPlotChart';
+import { trackOffset, trackPointer } from './track-offset';
 
 export interface PanelCardProps {
   readonly id: string;
   readonly title: string;
   readonly caption: string;
-  readonly width: 1 | 2 | 3;
-  readonly tall: boolean;
   readonly dragging: boolean;
+  /** Set while another panel hovers over this one, to show where the drop would land. */
+  readonly dropPlace: 'left' | 'right' | 'above' | 'below' | undefined;
   readonly menu: ReactNode;
-  readonly onDragStart: () => void;
-  readonly onDragEnd: () => void;
-  readonly onDropHere: () => void;
+  /** The header is the move handle. Called with the pointer position on every move and at the end. */
+  readonly onMove: (x: number, y: number, final: boolean) => void;
+  /** The corner grip resizes the width and the row height together. Offsets are from the press. */
+  readonly onGrip: (dx: number, dy: number, final: boolean) => void;
   readonly children: ReactNode;
 }
 
 /**
- * The frame every panel shares: title, unit caption and a menu, with the body below. The header is
- * the drag handle. Dropping a panel on another card moves it to that card's place.
+ * The frame every panel shares: title, unit caption and a menu, with the body below. The header
+ * moves the panel, and the grip in the bottom corner resizes it. The card fills its slot in a row.
  */
 export function PanelCard({
   id,
   title,
   caption,
-  width,
-  tall,
   dragging,
+  dropPlace,
   menu,
-  onDragStart,
-  onDragEnd,
-  onDropHere,
+  onMove,
+  onGrip,
   children,
 }: PanelCardProps) {
   return (
     <Paper
       withBorder
       p="sm"
-      radius="sm"
+      radius="md"
+      bg="var(--mg-surface-1)"
       data-testid="chart-card"
       data-panel-id={id}
       data-dragging={dragging ? 'true' : undefined}
+      data-drop={dropPlace}
       className="mg-panel"
-      style={{ '--panel-w': width, '--panel-h': tall ? 2 : 1 } as CSSProperties}
-      onDragOver={(event) => {
-        event.preventDefault();
-      }}
-      onDrop={(event) => {
-        event.preventDefault();
-        onDropHere();
-      }}
     >
-      <Stack gap={6} h="100%">
+      <Stack gap={6} h="100%" style={{ minHeight: 0 }}>
         <Group
           justify="space-between"
           wrap="nowrap"
           gap="xs"
-          draggable
-          onDragStart={(event) => {
-            // Some hosts give no DataTransfer. The move still works from the component state.
-            const transfer: DataTransfer | undefined = event.dataTransfer;
-            if (transfer !== undefined) {
-              transfer.effectAllowed = 'move';
-              transfer.setData('text/plain', id);
-            }
-            onDragStart();
-          }}
-          onDragEnd={onDragEnd}
           className="mg-panel-header"
           data-testid="panel-header"
           title="Drag to move this panel"
+          onPointerDown={(event) =>
+            trackPointer(
+              event,
+              (next) => onMove(next.clientX, next.clientY, false),
+              (next) => onMove(next.clientX, next.clientY, true),
+            )
+          }
         >
           <Text size="sm" fw={600} truncate="end">
             {title}
           </Text>
           <Group gap={4} wrap="nowrap">
-            <Text size="xs" c="dimmed" ta="right">
+            <Text size="xs" c="dimmed" ta="right" style={{ whiteSpace: 'nowrap' }}>
               {caption}
             </Text>
             {menu}
@@ -93,83 +82,34 @@ export function PanelCard({
         </Group>
         {children}
       </Stack>
+      <div
+        className="mg-panel-grip"
+        role="separator"
+        aria-label={`Resize ${title}`}
+        title="Drag to resize"
+        onPointerDown={(event) => trackOffset(event, onGrip)}
+      />
     </Paper>
   );
 }
 
-/** The menu on each panel header: close, width, height and the description. */
+/** The menu on each panel header: close and the description. */
 export interface PanelMenuProps {
   readonly title: string;
-  readonly width: 1 | 2 | 3;
-  readonly tall: boolean;
   readonly onClose: () => void;
-  readonly onWidth: (width: 1 | 2 | 3) => void;
-  readonly onHeight: (tall: boolean) => void;
   readonly onAbout: () => void;
-  /** Undefined when the panel is already first or last, which disables the item. */
-  readonly onMoveLeft?: (() => void) | undefined;
-  readonly onMoveRight?: (() => void) | undefined;
 }
 
-const WIDTH_OPTIONS = [
-  { value: 1 as const, label: '1 column' },
-  { value: 2 as const, label: '2 columns' },
-  { value: 3 as const, label: '3 columns' },
-];
-
-export function PanelMenu({
-  title,
-  width,
-  tall,
-  onClose,
-  onWidth,
-  onHeight,
-  onAbout,
-  onMoveLeft,
-  onMoveRight,
-}: PanelMenuProps) {
+export function PanelMenu({ title, onClose, onAbout }: PanelMenuProps) {
   return (
-    <Menu position="bottom-end" withinPortal shadow="md" width={200}>
+    <Menu position="bottom-end" withinPortal>
       <Menu.Target>
-        <ActionIcon
-          variant="subtle"
-          color="gray"
-          size="sm"
-          aria-label={`Options for ${title}`}
-          data-testid="panel-menu"
-        >
-          <IconDotsVertical size={16} />
+        <ActionIcon variant="subtle" size="sm" aria-label={`Options for ${title}`}>
+          <IconDotsVertical size={14} aria-hidden="true" />
         </ActionIcon>
       </Menu.Target>
       <Menu.Dropdown>
         <Menu.Item onClick={onAbout}>About this panel</Menu.Item>
-        <Menu.Item onClick={onMoveLeft} disabled={onMoveLeft === undefined}>
-          Move left
-        </Menu.Item>
-        <Menu.Item onClick={onMoveRight} disabled={onMoveRight === undefined}>
-          Move right
-        </Menu.Item>
-        <Menu.Divider />
-        <Menu.Label>Width</Menu.Label>
-        {WIDTH_OPTIONS.map((option) => (
-          <Menu.Item
-            key={option.value}
-            onClick={() => onWidth(option.value)}
-            fw={option.value === width ? 600 : undefined}
-            aria-current={option.value === width ? 'true' : undefined}
-          >
-            {option.label}
-            {option.value === width ? ' (current)' : ''}
-          </Menu.Item>
-        ))}
-        <Menu.Divider />
-        <Menu.Label>Height</Menu.Label>
-        <Menu.Item onClick={() => onHeight(false)} aria-current={tall ? undefined : 'true'}>
-          Standard{tall ? '' : ' (current)'}
-        </Menu.Item>
-        <Menu.Item onClick={() => onHeight(true)} aria-current={tall ? 'true' : undefined}>
-          Tall{tall ? ' (current)' : ''}
-        </Menu.Item>
         <Menu.Divider />
         <Menu.Item color="red" onClick={onClose}>
           Close panel
@@ -231,7 +171,6 @@ export interface ChartBodyProps {
   readonly mode: ChartMode;
   readonly syncKey: string;
   readonly window: ChartWindow | undefined;
-  readonly tall: boolean;
   readonly emptyText: string;
 }
 
@@ -247,11 +186,9 @@ export function ChartBody({
   mode,
   syncKey,
   window,
-  tall,
   emptyText,
 }: ChartBodyProps) {
   const hasData = times.length > 1 && series.length > 0;
-  const height = tall ? TALL_CHART_HEIGHT_PX : CHART_HEIGHT_PX;
   return (
     <>
       <Group className="mg-chip-row" gap="sm" wrap="wrap">
@@ -268,13 +205,12 @@ export function ChartBody({
           mode={mode}
           syncKey={syncKey}
           window={window}
-          height={height}
         />
       ) : (
         <Text
           size="sm"
           c="dimmed"
-          style={{ height: CHART_HEIGHT_PX, display: 'flex', alignItems: 'center' }}
+          style={{ flex: 1, minHeight: CHART_HEIGHT_PX / 2, display: 'flex', alignItems: 'center' }}
         >
           {emptyText}
         </Text>

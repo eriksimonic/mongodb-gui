@@ -1,5 +1,5 @@
-import { Button, Group, Text } from '@mantine/core';
-import { IconArrowUpRight } from '@tabler/icons-react';
+import { Badge, Button, Group, Text } from '@mantine/core';
+import { IconArrowUpRight, IconCopy } from '@tabler/icons-react';
 import { useEffect, useState } from 'react';
 import { ReadOnlyCode } from '../kit/code/ReadOnlyCode';
 import { prepareSqlRun, type SqlSampler } from './sql-run';
@@ -57,19 +57,39 @@ export function SqlPreview({ sql, sampler, onOpenInMongo }: SqlPreviewProps) {
       style={{ display: 'flex', flexDirection: 'column', height: '100%', minHeight: 0 }}
     >
       <Group justify="space-between" wrap="nowrap" pb={4}>
-        <Text size="xs" c="dimmed" fw={600}>
-          Mongo, read only
-        </Text>
-        <Button
-          size="compact-xs"
-          variant="default"
-          leftSection={<IconArrowUpRight size={12} />}
-          disabled={shown.state !== 'ok'}
-          onClick={onOpenInMongo}
-          title="Switch to Mongo with this query. The SQL stays in the tab."
-        >
-          Open in Mongo
-        </Button>
+        <Group gap={8} wrap="nowrap">
+          <Text size="xs" c="dimmed" fw={600}>
+            Mongo, read only
+          </Text>
+          {shown.state === 'ok' ? (
+            <Badge tt="none" size="xs" variant="light" color="green" radius="xl">
+              Translated
+            </Badge>
+          ) : null}
+        </Group>
+        <Group gap={8} wrap="nowrap">
+          {shown.state === 'ok' ? (
+            <Button
+              size="compact-xs"
+              variant="subtle"
+              color="gray"
+              leftSection={<IconCopy size={12} />}
+              onClick={() => void navigator.clipboard.writeText(shown.mongosh)}
+            >
+              Copy
+            </Button>
+          ) : null}
+          <Button
+            size="compact-xs"
+            variant="default"
+            leftSection={<IconArrowUpRight size={12} />}
+            disabled={shown.state !== 'ok'}
+            onClick={onOpenInMongo}
+            title="Switch to Mongo with this query. The SQL stays in the tab."
+          >
+            Open in Mongo
+          </Button>
+        </Group>
       </Group>
       <div style={{ flex: 1, minHeight: 0 }}>
         {shown.state === 'ok' ? (

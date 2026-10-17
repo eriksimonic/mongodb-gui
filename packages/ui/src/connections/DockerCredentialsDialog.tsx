@@ -61,14 +61,20 @@ function DockerCredentialsForm({ request, onClose }: DockerCredentialsFormProps)
       : 'The server needs a user name and password, and the container does not set them.';
 
   return (
-    <Modal opened onClose={onClose} title={`Connect to ${request.containerName}`} centered>
+    <Modal
+      opened
+      onClose={onClose}
+      title={`Connect to ${request.containerName}`}
+      size={440}
+      centered
+    >
       <form
         onSubmit={(event) => {
           event.preventDefault();
           void submit();
         }}
       >
-        <Stack gap="sm">
+        <Stack gap="lg">
           <Text size="sm">{explanation}</Text>
           <TextInput
             label="Username"

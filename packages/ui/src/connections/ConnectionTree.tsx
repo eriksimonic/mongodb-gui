@@ -1,9 +1,19 @@
-import { Alert, Button, CloseButton, Group, Loader, Stack, Text } from '@mantine/core';
-import { IconPlus, IconSearch } from '@tabler/icons-react';
+import {
+  ActionIcon,
+  Alert,
+  Button,
+  CloseButton,
+  Group,
+  Loader,
+  Stack,
+  Text,
+  Tooltip,
+} from '@mantine/core';
+import { IconPlus, IconRefresh, IconSearch } from '@tabler/icons-react';
 import { useEffect, useMemo, useRef, useState, type KeyboardEvent, type MouseEvent } from 'react';
 import type { ConnectionProfileSummary, ConnectionStatus } from '@mongo-gui/core';
 import type { Selection } from '../state/app-store';
-import { useAppStore } from '../state/app-store-context';
+import { useAppStore, useAppStoreApi } from '../state/app-store-context';
 import { usePanelOpener } from '../state/panel-opener';
 import {
   GRIDFS_NODE_PREFIX,
@@ -21,16 +31,24 @@ import { DockerLinkedContextMenu } from './DockerLinkedContextMenu';
 import { DockerNodeContextMenu } from './DockerNodeContextMenu';
 import { MemberContextMenu } from './MemberContextMenu';
 import { CollectionContextMenu, DatabaseContextMenu } from './CatalogContextMenu';
+import {
+  FOCUS_TREE_SEARCH_EVENT,
+  NAME_CATALOG_DEBOUNCE_MS,
+  NAME_CATALOG_MAX_AGE_MS,
+} from './search-constants';
 import { TreeMessage, TreeRow } from './TreeRow';
 import {
   buildTreeRows,
   edgeFocusKey,
   firstChildKey,
-  filterTreeRows,
+  indexTreeRows,
+  SEARCH_RESULT_CAP,
+  searchTreeIndex,
+  searchTreeInput,
+  type TreeInput,
   focusableRows,
   nextFocusKey,
   parentKeyOf,
-  type TreeFilter,
   type TreeRow as TreeRowModel,
 } from './tree-model';
 
@@ -84,6 +102,20 @@ function isSelected(row: TreeRowModel, selection: Selection | undefined): boolea
     return selection.database === row.database && selection.collection === undefined;
   }
   return row.kind === 'collection' && selection.collection === row.collection;
+}
+
+function isAncestor(row: TreeRowModel, selection: Selection | undefined): boolean {
+  if (selection === undefined || selection.connectionId !== row.connectionId) {
+    return false;
+  }
+  if (row.kind === 'connection') {
+    return selection.database !== undefined;
+  }
+  return (
+    row.kind === 'database' &&
+    selection.database === row.database &&
+    selection.collection !== undefined
+  );
 }
 
 function canConnect(status: ConnectionStatus | undefined): boolean {
@@ -172,10 +204,10 @@ export function ConnectionTree() {
   const openPanel = usePanelOpener();
   const profilerOpener = useProfilerOpener();
   const openEditor = useAppStore((state) => state.openEditor);
-  const openCollectionQuery = useAppStore((state) => state.openCollectionQuery);
+  const requestPanel = useAppStore((state) => state.requestPanel);
   const [focusKey, setFocusKey] = useState<string | undefined>(undefined);
   const [menu, setMenu] = useState<MenuAnchor | undefined>(undefined);
-  const [quickFind, setQuickFind] = useState<TreeFilter | undefined>(undefined);
+  const searchInput = useRef<HTMLInputElement>(null);
   const items = useRef(new Map<string, HTMLDivElement>());
   // A double click sends two clicks. This set keeps one connect call per container in flight.
   const connectingContainers = useRef(new Set<string>());
@@ -189,11 +221,14 @@ export function ConnectionTree() {
     };
   }, [loadDocker, watchDocker]);
 
-  const allRows = useMemo(
+  const nameCatalogs = useAppStore((state) => state.nameCatalogs);
+  const loadNameCatalog = useAppStore((state) => state.loadNameCatalog);
+  const storeApi = useAppStoreApi();
+  const baseInput = useMemo<TreeInput | undefined>(
     () =>
       list === undefined
-        ? []
-        : buildTreeRows({
+        ? undefined
+        : {
             connections: list,
             statuses,
             expanded,
@@ -202,13 +237,112 @@ export function ConnectionTree() {
             docker: { status: docker.status, containers: docker.containers },
             gridfs: gridfsBuckets,
             replicaSets,
-          }),
+          },
     [list, statuses, expanded, databases, collections, docker, gridfsBuckets, replicaSets],
   );
-  const rows = useMemo(
-    () => (quickFind === undefined ? allRows : filterTreeRows(allRows, quickFind)),
-    [allRows, quickFind],
+  const allRows = useMemo(
+    () => (baseInput === undefined ? [] : buildTreeRows(baseInput)),
+    [baseInput],
   );
+  const [search, setSearch] = useState('');
+  const [revealKey, setRevealKey] = useState<string | undefined>(undefined);
+  const searching = search.trim() !== '';
+  // Built once per catalog change, not per keystroke. Typing only runs one pass over the names.
+  const searchIndex = useMemo(() => {
+    if (!searching || baseInput === undefined) {
+      return undefined;
+    }
+    const names = Object.fromEntries(
+      Object.entries(nameCatalogs).flatMap(([id, catalog]) =>
+        catalog.data === undefined ? [] : [[id, catalog.data] as const],
+      ),
+    );
+    return indexTreeRows(buildTreeRows(searchTreeInput(baseInput, names)));
+    // `searching` only flips when the first character is typed or the box is emptied.
+  }, [searching, baseInput, nameCatalogs]);
+  const found = useMemo(
+    () => (searchIndex === undefined ? undefined : searchTreeIndex(searchIndex, search)),
+    [searchIndex, search],
+  );
+  const connectedIds = (list ?? [])
+    .filter((connection) => statuses[connection.id]?.state === 'connected')
+    .map((connection) => connection.id);
+  const connectedKey = connectedIds.join(',');
+  const fetching = connectedIds.some((id) => nameCatalogs[id]?.status === 'loading');
+  const catalogsLoading = connectedIds.some((id) => {
+    const catalog = nameCatalogs[id];
+    return catalog === undefined || (catalog.status === 'loading' && catalog.data === undefined);
+  });
+  const [now, setNow] = useState(() => Date.now());
+  useEffect(() => {
+    if (!searching) {
+      return undefined;
+    }
+    const timer = setInterval(() => setNow(Date.now()), 1000);
+    return () => clearInterval(timer);
+  }, [searching]);
+  const updatedAt = connectedIds
+    .map((id) => nameCatalogs[id]?.fetchedAt)
+    .filter((at): at is number => at !== undefined)
+    .reduce<number | undefined>(
+      (oldest, at) => (oldest === undefined ? at : Math.min(oldest, at)),
+      undefined,
+    );
+
+  useEffect(() => {
+    function focusSearch() {
+      searchInput.current?.focus();
+      searchInput.current?.select();
+    }
+    window.addEventListener(FOCUS_TREE_SEARCH_EVENT, focusSearch);
+    return () => window.removeEventListener(FOCUS_TREE_SEARCH_EVENT, focusSearch);
+  }, []);
+
+  useEffect(() => {
+    if (revealKey === undefined) {
+      return;
+    }
+    const element = items.current.get(revealKey);
+    if (element !== undefined) {
+      setFocusKey(revealKey);
+      element.focus();
+      element.scrollIntoView?.({ block: 'nearest' });
+      setRevealKey(undefined);
+    }
+  }, [revealKey, allRows, searching]);
+
+  // A search fetches the names of a connected server the first time at once, and again after a
+  // pause in typing when the cached names are older than the limit. Never two fetches at once.
+  useEffect(() => {
+    if (!searching) {
+      return undefined;
+    }
+    const ids = connectedKey === '' ? [] : connectedKey.split(',');
+    const stale = (id: string): boolean => {
+      const catalog = storeApi.getState().nameCatalogs[id];
+      return (
+        catalog?.status !== 'loading' &&
+        (catalog === undefined ||
+          catalog.fetchedAt === undefined ||
+          Date.now() - catalog.fetchedAt > NAME_CATALOG_MAX_AGE_MS)
+      );
+    };
+    for (const id of ids) {
+      if (storeApi.getState().nameCatalogs[id] === undefined) {
+        void loadNameCatalog(id);
+      }
+    }
+    const timer = setTimeout(() => {
+      for (const id of ids) {
+        if (stale(id)) {
+          void loadNameCatalog(id);
+        }
+      }
+    }, NAME_CATALOG_DEBOUNCE_MS);
+    return () => clearTimeout(timer);
+  }, [searching, search, connectedKey, loadNameCatalog, storeApi]);
+
+  const rows = useMemo(() => (found !== undefined ? found.rows : allRows), [found, allRows]);
 
   // An open connection that reports a set name loads its members once, so the primary shows.
   useEffect(() => {
@@ -307,6 +441,22 @@ export function ConnectionTree() {
     }
   }
 
+  /**
+   * A search result may sit in a database the tree never opened. Opens the connection and the
+   * database, loads its collections with stats, selects the row and leaves the search so the
+   * real row shows. The effect below focuses it once it is rendered.
+   */
+  function revealRow(row: TreeRowModel) {
+    setNodeExpanded(connectionNodeId(row.connectionId), true);
+    if (row.database !== undefined) {
+      setNodeExpanded(databaseNodeId(row.connectionId, row.database), true);
+      void loadCollections(row.connectionId, row.database);
+    }
+    selectRow(row);
+    setSearch('');
+    setRevealKey(row.key);
+  }
+
   function selectRow(row: TreeRowModel) {
     const next = selectionFor(row);
     if (next !== undefined) {
@@ -367,7 +517,8 @@ export function ConnectionTree() {
   /** A collection opens a query tab that lists its documents. */
   function openCollectionRow(row: TreeRowModel) {
     if (row.database !== undefined && row.collection !== undefined) {
-      void openCollectionQuery({
+      requestPanel({
+        panel: 'documents',
         connectionId: row.connectionId,
         database: row.database,
         collection: row.collection,
@@ -438,45 +589,6 @@ export function ConnectionTree() {
     setMenu({ target, x, y });
   }
 
-  /**
-   * Typing filters the siblings of the focused row, so a focused database filters the databases of
-   * its connection. Backspace shortens the text and Escape clears it. True when the key was used.
-   */
-  function handleQuickFindKey(event: KeyboardEvent<HTMLDivElement>, row: TreeRowModel): boolean {
-    if (event.ctrlKey || event.metaKey || event.altKey) {
-      return false;
-    }
-    let next: TreeFilter | undefined;
-    if (event.key.length === 1 && (quickFind !== undefined || event.key !== ' ')) {
-      next = {
-        parentKey: quickFind?.parentKey ?? row.parentKey,
-        text: (quickFind?.text ?? '') + event.key,
-      };
-    } else if (quickFind !== undefined && event.key === 'Backspace') {
-      next =
-        quickFind.text.length > 1 ? { ...quickFind, text: quickFind.text.slice(0, -1) } : undefined;
-    } else if (quickFind !== undefined && event.key === 'Escape') {
-      next = undefined;
-    } else {
-      return false;
-    }
-    event.preventDefault();
-    setQuickFind(next);
-    // Keep focus on a row that stays visible. Otherwise move to the first match.
-    if (next !== undefined) {
-      const visible = filterTreeRows(allRows, next);
-      if (!visible.some((item) => item.key === row.key)) {
-        const first = visible.find(
-          (item) => item.kind !== 'message' && item.parentKey === next.parentKey,
-        );
-        if (first !== undefined) {
-          focusRow(first.key);
-        }
-      }
-    }
-    return true;
-  }
-
   function handleKeyDown(event: KeyboardEvent<HTMLDivElement>) {
     // The key event belongs to the row that has focus, so that row is the one to act on.
     const targetKey =
@@ -485,9 +597,6 @@ export function ConnectionTree() {
         : undefined;
     const row = rows.find((item) => item.key === (targetKey ?? activeKey));
     if (row === undefined) {
-      return;
-    }
-    if (handleQuickFindKey(event, row)) {
       return;
     }
     let target: string | undefined;
@@ -516,6 +625,9 @@ export function ConnectionTree() {
         target = parentKeyOf(rows, row.key);
       }
     } else if (event.key === 'Enter') {
+      if (found !== undefined && (row.kind === 'database' || row.kind === 'collection')) {
+        revealRow(row);
+      }
       openRow(row);
     } else {
       return;
@@ -651,96 +763,186 @@ export function ConnectionTree() {
   const hasConnections = readyConnections.length > 0;
 
   return (
-    <>
-      {hasConnections ? null : (
-        <Stack gap="xs" align="flex-start" mb="xs">
-          <Text size="sm" c="dimmed">
-            No connections yet.
-          </Text>
-          <Button
-            size="xs"
-            variant="light"
-            leftSection={<IconPlus size={14} />}
-            onClick={() => setDialog({ kind: 'create' })}
-          >
-            New connection
-          </Button>
-        </Stack>
-      )}
-      {quickFind === undefined ? null : (
-        <Group gap={6} wrap="nowrap" className="mg-tree-find">
-          <IconSearch size={12} />
-          <Text size="xs" truncate style={{ flex: 1 }}>
-            {quickFind.text}
-          </Text>
-          <Text size="xs" c="dimmed">
-            {
-              rows.filter(
-                (item) => item.parentKey === quickFind.parentKey && item.kind !== 'message',
-              ).length
-            }{' '}
-            matches
-          </Text>
-          <CloseButton
-            size="xs"
-            aria-label="Clear the filter"
-            onClick={() => setQuickFind(undefined)}
-          />
-        </Group>
-      )}
-      <div
-        role="tree"
-        aria-label="Connections"
-        className="mg-tree"
-        data-density={treeDensity}
-        onKeyDown={handleKeyDown}
-      >
-        {rows.map((row) =>
-          row.kind === 'message' ? (
-            <TreeMessage key={row.key} row={row} />
-          ) : (
-            <TreeRow
-              key={row.key}
-              row={row}
-              focused={row.key === activeKey}
-              selected={isSelected(row, selection)}
-              setRef={(key, element) => {
-                if (element === null) {
-                  items.current.delete(key);
-                } else {
-                  items.current.set(key, element);
-                }
-              }}
-              onFocusRow={setFocusKey}
-              onToggle={() => toggleRow(row)}
-              onSelect={() => {
-                if (row.kind === 'container') {
-                  connectRow(row);
-                } else {
-                  selectRow(row);
-                }
-              }}
-              onDoubleClick={() => {
-                if (row.kind === 'profiler') {
-                  openProfiler(row);
-                } else if (row.kind === 'database') {
-                  openDatabaseEditor(row);
-                } else if (row.kind === 'gridfs-bucket') {
-                  openGridFsBucket(row);
-                } else if (row.kind === 'collection') {
-                  openCollectionRow(row);
-                } else if (row.kind !== 'connection') {
-                  openToolRow(row);
-                } else if (canConnect(statuses[row.connectionId])) {
-                  void connect(row.connectionId);
-                }
-              }}
-              onContextMenu={(event) => handleContextMenu(row, event)}
-            />
-          ),
+    <div className="mg-tree-panel">
+      <div className="mg-tree-top">
+        {hasConnections ? null : (
+          <Stack gap="xs" align="flex-start" mb="xs">
+            <Text size="sm" c="dimmed">
+              No connections yet.
+            </Text>
+            <Button
+              size="xs"
+              variant="light"
+              leftSection={<IconPlus size={14} />}
+              onClick={() => setDialog({ kind: 'create' })}
+            >
+              New connection
+            </Button>
+          </Stack>
         )}
-        {menu === undefined ? null : renderMenu(menu)}
+        <div className="mg-tree-search" data-searching={searching ? 'true' : undefined}>
+          <IconSearch size={14} aria-hidden="true" />
+          <input
+            ref={searchInput}
+            type="text"
+            aria-label="Search databases and collections"
+            placeholder="Search databases and collections"
+            value={search}
+            onChange={(event) => setSearch(event.currentTarget.value)}
+            onKeyDown={(event) => {
+              if (event.key === 'Escape') {
+                setSearch('');
+                const first = focusableRows(rows)[0];
+                if (first !== undefined) {
+                  focusRow(activeKey ?? first.key);
+                }
+              } else if (event.key === 'Enter' && found !== undefined) {
+                const first = found.rows.find(
+                  (row) => row.kind === 'database' || row.kind === 'collection',
+                );
+                if (first !== undefined) {
+                  revealRow(first);
+                  openRow(first);
+                }
+              } else if (event.key === 'ArrowDown' || event.key === 'ArrowUp') {
+                const list = focusableRows(rows);
+                const target = event.key === 'ArrowDown' ? list[0] : list[list.length - 1];
+                if (target !== undefined) {
+                  event.preventDefault();
+                  focusRow(target.key);
+                }
+              }
+            }}
+          />
+          {searching ? (
+            <>
+              <Tooltip label="Reload names from the servers" withinPortal>
+                <ActionIcon
+                  size="xs"
+                  variant="subtle"
+                  aria-label="Reload names from the servers"
+                  disabled={fetching || connectedIds.length === 0}
+                  onClick={() => {
+                    for (const id of connectedIds) {
+                      void loadNameCatalog(id);
+                    }
+                  }}
+                >
+                  {fetching ? <Loader size={10} /> : <IconRefresh size={12} />}
+                </ActionIcon>
+              </Tooltip>
+              <CloseButton size="xs" aria-label="Clear the search" onClick={() => setSearch('')} />
+            </>
+          ) : null}
+        </div>
+        {found === undefined ? null : (
+          <Group gap={6} wrap="wrap" className="mg-tree-search-scope">
+            <Text size="xs" c="dimmed">
+              In connected servers
+            </Text>
+            {(list ?? [])
+              .filter((connection) => statuses[connection.id]?.state === 'connected')
+              .map((connection) => (
+                <span key={connection.id} className="mg-tree-chip">
+                  {connection.name}
+                </span>
+              ))}
+          </Group>
+        )}
       </div>
-    </>
+      <div className="mg-tree-scroll">
+        <div
+          role="tree"
+          aria-label="Connections"
+          className="mg-tree"
+          data-density={treeDensity}
+          onKeyDown={handleKeyDown}
+        >
+          {rows.map((row) =>
+            row.kind === 'message' ? (
+              <TreeMessage key={row.key} row={row} />
+            ) : (
+              <TreeRow
+                key={row.key}
+                row={row}
+                focused={row.key === activeKey}
+                selected={isSelected(row, selection)}
+                ancestor={isAncestor(row, selection)}
+                highlight={searching ? search.trim() : undefined}
+                setRef={(key, element) => {
+                  if (element === null) {
+                    items.current.delete(key);
+                  } else {
+                    items.current.set(key, element);
+                  }
+                }}
+                onFocusRow={setFocusKey}
+                onToggle={() => toggleRow(row)}
+                onSelect={() => {
+                  if (row.kind === 'container') {
+                    connectRow(row);
+                  } else if (
+                    found !== undefined &&
+                    (row.kind === 'database' || row.kind === 'collection')
+                  ) {
+                    revealRow(row);
+                  } else {
+                    selectRow(row);
+                  }
+                }}
+                onDoubleClick={() => {
+                  if (row.kind === 'profiler') {
+                    openProfiler(row);
+                  } else if (row.kind === 'database') {
+                    openDatabaseEditor(row);
+                  } else if (row.kind === 'gridfs-bucket') {
+                    openGridFsBucket(row);
+                  } else if (row.kind === 'collection') {
+                    openCollectionRow(row);
+                  } else if (row.kind !== 'connection') {
+                    openToolRow(row);
+                  } else if (canConnect(statuses[row.connectionId])) {
+                    void connect(row.connectionId);
+                  }
+                }}
+                onContextMenu={(event) => handleContextMenu(row, event)}
+              />
+            ),
+          )}
+          {menu === undefined ? null : renderMenu(menu)}
+        </div>
+      </div>
+      {found === undefined ? null : (
+        <div className="mg-tree-footer">
+          {found.matches === 0 ? (
+            <Text size="xs" c="dimmed" className="mg-tree-search-count">
+              {!Object.values(statuses).some((status) => status.state === 'connected')
+                ? 'Connect a server to search'
+                : catalogsLoading
+                  ? 'Searching...'
+                  : 'No matches'}
+            </Text>
+          ) : null}
+          {found === undefined || found.matches === 0 ? null : (
+            <Text size="xs" c="dimmed" className="mg-tree-search-count">
+              {found.matches} {found.matches === 1 ? 'match' : 'matches'} in {found.databases}{' '}
+              {found.databases === 1 ? 'database' : 'databases'}
+            </Text>
+          )}
+          {found !== undefined && found.capped ? (
+            <Text size="xs" c="dimmed" className="mg-tree-search-count">
+              Showing first {SEARCH_RESULT_CAP} of {found.matches}, refine the search
+            </Text>
+          ) : null}
+          {found === undefined || connectedIds.length === 0 ? null : (
+            <Text size="xs" c="dimmed" className="mg-tree-search-count" data-testid="names-updated">
+              {fetching || updatedAt === undefined
+                ? 'Loading...'
+                : `Updated ${Math.max(0, Math.round((now - updatedAt) / 1000))} s ago`}
+            </Text>
+          )}
+        </div>
+      )}
+    </div>
   );
 }

@@ -1,16 +1,17 @@
 import {
   ActionIcon,
-  Accordion,
   Button,
   Checkbox,
-  Fieldset,
+  Box,
   Group,
   Input,
   NumberInput,
   PasswordInput,
   SegmentedControl,
   Select,
+  SimpleGrid,
   Stack,
+  Tabs,
   Switch,
   TextInput,
   Tooltip,
@@ -31,7 +32,7 @@ function asReadPreference(value: string | null): ReadPreference | undefined {
   return READ_PREFERENCES.find((preference) => preference === value);
 }
 
-/** Editable URI fields, grouped as Server, Authentication, Options and a collapsed TLS section. */
+/** Editable URI fields in Server, Authentication, TLS and Advanced tabs. */
 export function ConnectionForm({ form, onChange }: ConnectionFormProps) {
   const tlsInUse =
     form.tls.enabled ||
@@ -40,9 +41,30 @@ export function ConnectionForm({ form, onChange }: ConnectionFormProps) {
     form.tls.allowInvalidCertificates;
 
   return (
-    <Stack gap="sm">
-      <Fieldset legend="Server" radius="sm">
-        <Stack gap="xs">
+    <Tabs defaultValue="server" keepMounted>
+      <Tabs.List mb="lg">
+        <Tabs.Tab value="server">Server</Tabs.Tab>
+        <Tabs.Tab value="auth">Authentication</Tabs.Tab>
+        <Tabs.Tab
+          value="tls"
+          rightSection={
+            tlsInUse ? (
+              <Box
+                w={6}
+                h={6}
+                aria-label="TLS enabled"
+                style={{ borderRadius: '50%', background: 'var(--mg-ok)' }}
+              />
+            ) : null
+          }
+        >
+          TLS
+        </Tabs.Tab>
+        <Tabs.Tab value="advanced">Advanced</Tabs.Tab>
+      </Tabs.List>
+
+      <Tabs.Panel value="server">
+        <Stack gap="lg">
           <SegmentedControl
             aria-label="Scheme"
             value={form.scheme}
@@ -51,7 +73,7 @@ export function ConnectionForm({ form, onChange }: ConnectionFormProps) {
             }
             data={['mongodb', 'mongodb+srv']}
           />
-          <Stack gap={4}>
+          <Stack gap="sm">
             <Input.Label>Hosts</Input.Label>
             {form.hosts.map((host, index) => (
               <Group key={index} gap={4} wrap="nowrap">
@@ -59,12 +81,15 @@ export function ConnectionForm({ form, onChange }: ConnectionFormProps) {
                   flex={1}
                   aria-label={`Host ${index + 1}`}
                   placeholder="localhost:27017"
+                  styles={{ input: { fontFamily: 'var(--mantine-font-family-monospace)' } }}
                   value={host}
                   onChange={(event) =>
                     onChange({ hosts: replaceAt(form.hosts, index, event.currentTarget.value) })
                   }
                 />
                 <ActionIcon
+                  variant="default"
+                  size={36}
                   aria-label={`Remove host ${index + 1}`}
                   disabled={form.hosts.length === 1}
                   onClick={() =>
@@ -85,12 +110,40 @@ export function ConnectionForm({ form, onChange }: ConnectionFormProps) {
               Add host
             </Button>
           </Stack>
+          <SimpleGrid cols={2} spacing="lg">
+            <TextInput
+              label="Replica set name"
+              value={form.replicaSet}
+              onChange={(event) => onChange({ replicaSet: event.currentTarget.value })}
+            />
+            <Select
+              label="Read preference"
+              data={[...READ_PREFERENCES]}
+              value={form.readPreference ?? null}
+              onChange={(value) => onChange({ readPreference: asReadPreference(value) })}
+              clearable
+            />
+            <TextInput
+              label="Default database"
+              value={form.database}
+              onChange={(event) => onChange({ database: event.currentTarget.value })}
+            />
+            <NumberInput
+              label="Connect timeout (ms)"
+              min={1}
+              allowDecimal={false}
+              value={form.connectTimeoutMs ?? ''}
+              onChange={(value) =>
+                onChange({ connectTimeoutMs: typeof value === 'number' ? value : undefined })
+              }
+            />
+          </SimpleGrid>
         </Stack>
-      </Fieldset>
+      </Tabs.Panel>
 
-      <Fieldset legend="Authentication" radius="sm">
-        <Stack gap="xs">
-          <Group grow align="flex-start">
+      <Tabs.Panel value="auth">
+        <Stack gap="lg">
+          <SimpleGrid cols={2} spacing="lg">
             <TextInput
               label="User name"
               value={form.username}
@@ -101,100 +154,64 @@ export function ConnectionForm({ form, onChange }: ConnectionFormProps) {
               value={form.password}
               onChange={(event) => onChange({ password: event.currentTarget.value })}
             />
-          </Group>
-          <Group grow align="flex-start">
-            <TextInput
-              label="Auth database"
-              placeholder="Defaults to the default database"
-              value={form.authSource}
-              onChange={(event) => onChange({ authSource: event.currentTarget.value })}
-            />
-            <TextInput
-              label="Default database"
-              value={form.database}
-              onChange={(event) => onChange({ database: event.currentTarget.value })}
-            />
-          </Group>
-        </Stack>
-      </Fieldset>
-
-      <Fieldset legend="Options" radius="sm">
-        <Group grow align="flex-start">
+          </SimpleGrid>
           <TextInput
-            label="Replica set name"
-            value={form.replicaSet}
-            onChange={(event) => onChange({ replicaSet: event.currentTarget.value })}
+            label="Auth database"
+            placeholder="Defaults to the default database"
+            value={form.authSource}
+            onChange={(event) => onChange({ authSource: event.currentTarget.value })}
           />
-          <Select
-            label="Read preference"
-            data={[...READ_PREFERENCES]}
-            value={form.readPreference ?? null}
-            onChange={(value) => onChange({ readPreference: asReadPreference(value) })}
-            clearable
-          />
-          <NumberInput
-            label="Connect timeout (ms)"
-            min={1}
-            allowDecimal={false}
-            value={form.connectTimeoutMs ?? ''}
-            onChange={(value) =>
-              onChange({ connectTimeoutMs: typeof value === 'number' ? value : undefined })
+        </Stack>
+      </Tabs.Panel>
+
+      <Tabs.Panel value="tls">
+        <Stack gap="lg">
+          <Switch
+            label="Use TLS"
+            checked={form.tls.enabled}
+            onChange={(event) =>
+              onChange({ tls: { ...form.tls, enabled: event.currentTarget.checked } })
             }
           />
-        </Group>
+          <TextInput
+            label="CA file path"
+            value={form.tls.caFile}
+            onChange={(event) =>
+              onChange({ tls: { ...form.tls, caFile: event.currentTarget.value } })
+            }
+          />
+          <TextInput
+            label="Client certificate file path"
+            value={form.tls.certFile}
+            onChange={(event) =>
+              onChange({ tls: { ...form.tls, certFile: event.currentTarget.value } })
+            }
+          />
+          <Checkbox
+            label="Allow invalid certificates"
+            checked={form.tls.allowInvalidCertificates}
+            onChange={(event) =>
+              onChange({
+                tls: { ...form.tls, allowInvalidCertificates: event.currentTarget.checked },
+              })
+            }
+          />
+        </Stack>
+      </Tabs.Panel>
+
+      <Tabs.Panel value="advanced">
         <Tooltip
           multiline
           w={280}
           label="Compress traffic with zlib (compressors=zlib). Saves bandwidth on slow links, costs some CPU. The server must allow it. Snappy and zstd are not bundled."
         >
           <Switch
-            mt="sm"
             label="Compress traffic (zlib)"
             checked={form.zlibCompression}
             onChange={(event) => onChange({ zlibCompression: event.currentTarget.checked })}
           />
         </Tooltip>
-      </Fieldset>
-
-      <Accordion variant="contained" radius="sm" defaultValue={tlsInUse ? 'tls' : null}>
-        <Accordion.Item value="tls">
-          <Accordion.Control>TLS</Accordion.Control>
-          <Accordion.Panel>
-            <Stack gap="xs">
-              <Switch
-                label="Use TLS"
-                checked={form.tls.enabled}
-                onChange={(event) =>
-                  onChange({ tls: { ...form.tls, enabled: event.currentTarget.checked } })
-                }
-              />
-              <TextInput
-                label="CA file path"
-                value={form.tls.caFile}
-                onChange={(event) =>
-                  onChange({ tls: { ...form.tls, caFile: event.currentTarget.value } })
-                }
-              />
-              <TextInput
-                label="Client certificate file path"
-                value={form.tls.certFile}
-                onChange={(event) =>
-                  onChange({ tls: { ...form.tls, certFile: event.currentTarget.value } })
-                }
-              />
-              <Checkbox
-                label="Allow invalid certificates"
-                checked={form.tls.allowInvalidCertificates}
-                onChange={(event) =>
-                  onChange({
-                    tls: { ...form.tls, allowInvalidCertificates: event.currentTarget.checked },
-                  })
-                }
-              />
-            </Stack>
-          </Accordion.Panel>
-        </Accordion.Item>
-      </Accordion>
-    </Stack>
+      </Tabs.Panel>
+    </Tabs>
   );
 }

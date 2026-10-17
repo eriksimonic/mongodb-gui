@@ -57,8 +57,8 @@ export function ActionModal({
   }
 
   return (
-    <Modal opened onClose={onClose} title={title} centered size="md">
-      <Stack gap="sm">
+    <Modal opened onClose={onClose} title={title} centered size={640}>
+      <Stack gap="lg">
         {children}
         {typedConfirmation === undefined ? null : (
           <TextInput

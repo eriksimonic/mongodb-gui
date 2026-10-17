@@ -1,4 +1,4 @@
-import { appError, AppErrorException, rpcContract, toAppError } from '@mongo-gui/core';
+import { appError, AppErrorException, rpcContract, toAppError, type RpcEvent } from '@mongo-gui/core';
 import type { ConnectionManager } from '@mongo-gui/mongo-adapter';
 import type { SettingsRepository, Vault } from '@mongo-gui/storage';
 import type { DockerRuntime } from '../docker/runtime';
@@ -15,6 +15,8 @@ export interface VaultDeps {
   readonly updates: Pick<Updater, 'refreshSchedule'> | undefined;
   readonly repos: () => { readonly settings: Pick<SettingsRepository, 'get'> };
   readonly log: Logger | undefined;
+  /** Pushes events to the window. Optional, so a removal on unlock is silent without it. */
+  readonly emit?: (event: RpcEvent) => void;
   /**
    * Deletes the store file and points the router at a fresh store. Undefined when the store
    * cannot be reopened, so vault.reset fails with INTERNAL.
@@ -67,6 +69,7 @@ export function vaultOperations(deps: VaultDeps): [string, Operation][] {
     entry('vault.unlock', rpcContract.vault.unlock, async (input) => {
       await deps.vault.unlock(input.password);
       applyStoredIdleLock();
+      void deps.docker?.pruneMissing(deps.emit);
       void deps.docker?.autoConnect();
       deps.docker?.resume();
       deps.updates?.refreshSchedule();

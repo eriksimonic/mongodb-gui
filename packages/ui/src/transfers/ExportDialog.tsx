@@ -49,7 +49,7 @@ export interface ExportDialogProps {
 /** Modal that exports a collection, or a query result, to a file. */
 export function ExportDialog(props: ExportDialogProps) {
   return (
-    <Modal opened onClose={props.onClose} title="Export data" size="lg" centered>
+    <Modal opened onClose={props.onClose} title="Export data" size={640} centered>
       <ExportDialogBody {...props} />
     </Modal>
   );
@@ -138,7 +138,7 @@ export function ExportDialogBody({
   if (transferId !== undefined) {
     const progress = view?.progress;
     return (
-      <Stack gap="md">
+      <Stack gap="lg">
         <Title order={5}>
           Exporting {database}.{collection}
         </Title>

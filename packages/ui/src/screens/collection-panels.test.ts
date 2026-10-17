@@ -95,6 +95,17 @@ describe('restoredCollectionRequest', () => {
     });
   });
 
+  it('reads the section of a combined collection panel', () => {
+    expect(
+      restoredCollectionRequest('collection', {
+        connectionId: CONNECTION,
+        database: 'shop',
+        collection: 'orders',
+        section: 'indexes',
+      }),
+    ).toEqual({ panel: 'indexes', connectionId: CONNECTION, database: 'shop', collection: 'orders' });
+  });
+
   it('ignores panels that are not collection panels and params that lack a name', () => {
     const params = { connectionId: CONNECTION, database: 'shop', collection: 'orders' };
     expect(restoredCollectionRequest('monitor', params)).toBeUndefined();

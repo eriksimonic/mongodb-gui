@@ -66,6 +66,7 @@ export function ProfilerHeader({ panelId, panel }: ProfilerHeaderProps) {
   return (
     <Stack gap={8}>
       <Group gap={8} align="center" wrap="wrap">
+        <Text className="mg-profiler-row-label">Capture</Text>
         <SegmentedControl
           size="xs"
           aria-label="Profiling level"
@@ -144,7 +145,7 @@ export function ProfilerHeader({ panelId, panel }: ProfilerHeaderProps) {
             setFilters(panelId, { onlyProblematic: event.currentTarget.checked })
           }
         />
-        <Text size="xs" c="dimmed" ml="auto">
+        <Text size="xs" c="dimmed" ml="auto" className="mg-profiler-status">
           Server level:{' '}
           <Text span inherit c="default">
             {serverLevel}

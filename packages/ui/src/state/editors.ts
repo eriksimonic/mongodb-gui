@@ -8,10 +8,11 @@ import {
   type ShellResultType,
   type ShellRuntimeState,
 } from '@mongo-gui/core';
+import { collectionQueryStatement, collectionSelectStatement } from './collection-query';
 import { z } from 'zod';
 import { collectionOfFind, parseCursorBatch, summariseResult, type JsonObject } from '../results';
 
-export type ResultView = 'table' | 'tree' | 'json';
+export type ResultView = 'table' | 'tree';
 
 export const BATCH_SIZES = [20, 50, 100, 500] as const;
 export type BatchSize = (typeof BATCH_SIZES)[number];
@@ -124,7 +125,8 @@ export const SavedTabSchema = z.object({
   database: z.string().min(1),
   text: z.string().max(200_000),
   batchSize: z.union([z.literal(20), z.literal(50), z.literal(100), z.literal(500)]),
-  view: z.enum(['table', 'tree', 'json']),
+  // Older saves may hold the removed JSON view. It opens as the table.
+  view: z.enum(['table', 'tree', 'json']).transform((view) => (view === 'json' ? 'table' : view)),
   language: EditorLanguageSchema.default('mongosh'),
   otherText: z.string().max(200_000).optional(),
 });
@@ -265,9 +267,28 @@ export function setTabLanguage(
     if (tab.language === language) {
       return tab;
     }
-    const text = tab.otherText ?? '';
+    const other = tab.otherText ?? '';
+    // An untouched default query follows the switch, when the other language has no text of its own.
+    const text = other.trim() === '' ? (translatedDefault(tab.text, language) ?? other) : other;
     return { ...tab, language, text, savedText: text, otherText: tab.text, error: undefined };
   });
+}
+
+const MONGO_DEFAULT =
+  /^db\.(?:([A-Za-z_][A-Za-z0-9_]*)|getCollection\('((?:[^'\\]|\\.)*)'\))\.find\(\{\}\)$/;
+const SQL_DEFAULT = /^SELECT \* FROM (?:([A-Za-z_][A-Za-z0-9_]*)|\[((?:[^\]]|\]\])*)\]);$/;
+
+/** The default query of a collection written in the other language, or undefined for other text. */
+function translatedDefault(text: string, to: EditorLanguage): string | undefined {
+  const trimmed = text.trim();
+  if (to === 'sql') {
+    const match = MONGO_DEFAULT.exec(trimmed);
+    const name = match?.[1] ?? match?.[2]?.replace(/\\(.)/g, '$1');
+    return name === undefined ? undefined : collectionSelectStatement(name);
+  }
+  const match = SQL_DEFAULT.exec(trimmed);
+  const name = match?.[1] ?? match?.[2]?.replaceAll(']]', ']');
+  return name === undefined ? undefined : collectionQueryStatement(name);
 }
 
 /**

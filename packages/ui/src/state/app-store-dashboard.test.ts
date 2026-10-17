@@ -36,7 +36,7 @@ describe('dashboard store', () => {
     const store = await unlockedStore(api);
     await api.rpc.layout.set({
       key: KEY,
-      value: { version: 1, panels: [{ id: 'memory', w: 2, h: 2 }] },
+      value: { version: 2, rows: [{ h: 300, panels: [{ id: 'memory', f: 1 }] }] },
     });
     expect(store.getState().dashboards[localConnectionId]).toBeUndefined();
 
@@ -44,7 +44,7 @@ describe('dashboard store', () => {
 
     const view = store.getState().dashboards[localConnectionId];
     expect(view?.loaded).toBe(true);
-    expect(view?.layout.panels).toEqual([{ id: 'memory', w: 2, h: 2 }]);
+    expect(view?.layout.rows).toEqual([{ h: 300, panels: [{ id: 'memory', f: 1 }] }]);
   });
 
   it('uses the default layout when nothing is stored', async () => {
@@ -62,7 +62,7 @@ describe('dashboard store', () => {
     await store.getState().loadDashboard(localConnectionId);
 
     store.getState().addDashboardPanel(localConnectionId, specOf('memory'));
-    store.getState().resizeDashboardPanel(localConnectionId, 'memory', { w: 2 });
+    store.getState().setDashboardRowHeight(localConnectionId, 0, 400);
     store.getState().removeDashboardPanel(localConnectionId, 'queues');
     expect(set).not.toHaveBeenCalled();
 
@@ -96,7 +96,7 @@ describe('dashboard store', () => {
 
     const view = store.getState().dashboards[localConnectionId];
     expect(view?.error?.message).toBe('disk full');
-    expect(view?.layout.panels.map((item) => item.id)).not.toContain('queues');
+    expect(view?.layout.rows.flatMap((row) => row.panels.map((item) => item.id))).not.toContain('queues');
   });
 
   it('records a failed read and keeps saves off', async () => {
@@ -134,21 +134,20 @@ describe('dashboard store', () => {
     const api = createMockUiApi({ preset: 'unlocked' });
     const store = await unlockedStore(api);
     await store.getState().loadDashboard(localConnectionId);
-    store.getState().moveDashboardPanel(localConnectionId, 'replication-lag', 'operations-by-type');
+    store
+      .getState()
+      .moveDashboardPanel(localConnectionId, 'replication-lag', 'operations-by-type', 'above');
     const ids = store
       .getState()
-      .dashboards[localConnectionId]?.layout.panels.map((item) => item.id);
+      .dashboards[localConnectionId]?.layout.rows.flatMap((row) => row.panels.map((item) => item.id));
     expect(ids?.[0]).toBe('replication-lag');
   });
 
   it('replays an edit made while the saved layout is still loading on top of that layout', async () => {
     const api = createMockUiApi({ preset: 'unlocked' });
     const stored = {
-      version: 1,
-      panels: [
-        { id: 'memory', w: 2, h: 2 },
-        { id: 'queues', w: 1, h: 1 },
-      ],
+      version: 2,
+      rows: [{ h: 300, panels: [{ id: 'memory', f: 0.5 }, { id: 'queues', f: 0.5 }] }],
     } as const;
     let resolveRead: (result: { value: unknown }) => void = () => undefined;
     const pendingRead = new Promise<{ value: unknown }>((resolve) => {
@@ -189,7 +188,7 @@ describe('dashboard store', () => {
     expect(warn).toHaveBeenCalledTimes(1);
     const message = String(warn.mock.calls[0]?.[0]);
     expect(message).toContain(KEY);
-    expect(message).toContain('panels.0.w');
+    expect(message).toContain('version');
     expect(message).not.toContain(secret);
     warn.mockRestore();
   });

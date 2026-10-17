@@ -112,7 +112,7 @@ describe('EditorView run', () => {
 
     const view = await screen.findByRole('textbox', { name: 'Result as JSON' });
     expect(view).toHaveValue('12');
-    expect(screen.getByRole('radio', { name: 'JSON' })).toBeChecked();
+    expect(screen.queryByRole('radio', { name: 'JSON' })).toBeNull();
   });
 
   it('formats the text with Format', async () => {
@@ -131,7 +131,7 @@ describe('EditorView run', () => {
 });
 
 describe('EditorView results', () => {
-  it('switches between the table, tree and JSON views', async () => {
+  it('switches between the table and tree views', async () => {
     await openEditor('db.bson_samples.find()');
     pressRun();
     await screen.findByText('1 to 12 of 12');
@@ -139,9 +139,9 @@ describe('EditorView results', () => {
     fireEvent.click(screen.getByRole('radio', { name: 'Tree' }));
     expect(await screen.findByRole('tree', { name: 'Document tree' })).toBeInTheDocument();
 
-    fireEvent.click(screen.getByRole('radio', { name: 'JSON' }));
-    const json = await screen.findByRole('textbox', { name: 'Result as JSON' });
-    expect((json as HTMLTextAreaElement).value).toContain('ORD-00001');
+    expect(screen.queryByRole('radio', { name: 'JSON' })).toBeNull();
+    fireEvent.click(screen.getByRole('radio', { name: 'Table' }));
+    await screen.findByText('1 to 12 of 12');
   });
 
   it('lists the discovered columns in the column chooser', async () => {
@@ -162,7 +162,7 @@ describe('EditorView results', () => {
     await screen.findByText('1 to 12 of 12');
     fireEvent.click(screen.getByRole('radio', { name: 'Tree' }));
 
-    fireEvent.click(await screen.findByRole('button', { name: 'Expand #1' }));
+    await screen.findByRole('button', { name: 'Collapse #1' });
     fireEvent.click(await screen.findByRole('button', { name: 'Copy path status' }));
 
     expect(navigator.clipboard.writeText).toHaveBeenCalledWith('status');
@@ -176,7 +176,7 @@ describe('EditorView results', () => {
     await screen.findByText('1 to 12 of 12');
     fireEvent.click(screen.getByRole('radio', { name: 'Tree' }));
 
-    fireEvent.click(await screen.findByRole('button', { name: 'Expand #1' }));
+    await screen.findByRole('button', { name: 'Collapse #1' });
     fireEvent.click(await screen.findByRole('button', { name: 'Edit status' }));
     const input = screen.getByRole('textbox', { name: 'New value for status' });
     fireEvent.change(input, { target: { value: 'shipped' } });
@@ -201,7 +201,7 @@ describe('EditorView results', () => {
     await screen.findByText('1 to 12 of 12');
     fireEvent.click(screen.getByRole('radio', { name: 'Tree' }));
 
-    fireEvent.click(await screen.findByRole('button', { name: 'Expand #1' }));
+    await screen.findByRole('button', { name: 'Collapse #1' });
     fireEvent.click(await screen.findByRole('button', { name: 'Edit quantity' }));
     fireEvent.change(screen.getByRole('textbox', { name: 'New value for quantity' }), {
       target: { value: 'many' },
@@ -220,7 +220,7 @@ describe('EditorView results', () => {
     await screen.findByText('1 to 12 of 12');
     fireEvent.click(screen.getByRole('radio', { name: 'Tree' }));
 
-    fireEvent.click(await screen.findByRole('button', { name: 'Expand #1' }));
+    await screen.findByRole('button', { name: 'Collapse #1' });
     expect(screen.queryByRole('button', { name: 'Edit status' })).not.toBeInTheDocument();
     expect(screen.getByText('Read only')).toBeInTheDocument();
   });

@@ -1,4 +1,5 @@
 import type {
+  CatalogNames,
   CollectionInfo,
   ConnectionProfileSummary,
   ConnectionStatus,
@@ -67,6 +68,8 @@ export interface TreeRow {
   /** Tooltip text. Set when the row is shown without its container, for example with Docker down. */
   readonly note: string | undefined;
   readonly tone: 'dimmed' | 'red';
+  /** Muted mono text at the right of a collection row: count and size, or `view`. */
+  readonly meta?: string | undefined;
 }
 
 export interface DockerTreeInput {
@@ -362,6 +365,52 @@ function gridfsBucketRows(
 }
 
 /** The collections of an open database, or the line that says why there are none. */
+/** 48000 as `48k`, 1300000 as `1.3M`. */
+export function formatCount(value: number): string {
+  if (value < 1000) {
+    return String(value);
+  }
+  const units: [number, string][] = [
+    [1e9, 'B'],
+    [1e6, 'M'],
+    [1e3, 'k'],
+  ];
+  for (const [size, suffix] of units) {
+    if (value >= size) {
+      const scaled = value / size;
+      return `${scaled >= 10 ? Math.round(scaled) : Math.round(scaled * 10) / 10}${suffix}`;
+    }
+  }
+  return String(value);
+}
+
+/** 64000000 as `61 MB`, 1.7e9 as `1.6 GB`. Binary units. */
+export function formatSize(bytes: number): string {
+  const units = ['B', 'KB', 'MB', 'GB', 'TB'];
+  let value = bytes;
+  let unit = 0;
+  while (value >= 1024 && unit < units.length - 1) {
+    value /= 1024;
+    unit += 1;
+  }
+  const shown = unit === 0 || value >= 10 ? Math.round(value) : Math.round(value * 10) / 10;
+  return `${shown} ${units[unit]}`;
+}
+
+/** The right-hand text of a collection row, or undefined when the server gave no stats. */
+export function collectionMeta(collection: CollectionInfo): string | undefined {
+  if (collection.type === 'view') {
+    return 'view';
+  }
+  const parts = [
+    collection.type === 'timeseries' || collection.count === undefined
+      ? undefined
+      : formatCount(collection.count),
+    collection.size === undefined ? undefined : formatSize(collection.size),
+  ].filter((part): part is string => part !== undefined);
+  return parts.length === 0 ? undefined : parts.join(' · ');
+}
+
 function collectionRows(
   input: TreeInput,
   connectionId: string,
@@ -381,6 +430,7 @@ function collectionRows(
   }
   return collections.data.map((collection) =>
     makeRow({
+      meta: collectionMeta(collection),
       key: `col:${catalogKey(connectionId, database)}/${collection.name}`,
       kind: 'collection',
       depth,
@@ -611,3 +661,139 @@ export function filterTreeRows(rows: readonly TreeRow[], filter: TreeFilter): Tr
   }
   return kept;
 }
+
+export interface TreeSearchResult {
+  readonly rows: TreeRow[];
+  /** All matches, including those past the cap. */
+  readonly matches: number;
+  readonly databases: number;
+  /** Names of the connection rows that hold a match, in tree order. */
+  readonly servers: string[];
+  /** True when more matches exist than the cap let through. */
+  readonly capped: boolean;
+}
+
+/** Rows plus the lookups a search needs. Built once per catalog change, not per keystroke. */
+export interface TreeSearchIndex {
+  readonly rows: readonly TreeRow[];
+  readonly byKey: ReadonlyMap<string, TreeRow>;
+  readonly collectionsOf: ReadonlyMap<string, readonly TreeRow[]>;
+  readonly searchable: readonly { readonly row: TreeRow; readonly lower: string }[];
+}
+
+export const SEARCH_RESULT_CAP = 500;
+
+export function indexTreeRows(rows: readonly TreeRow[]): TreeSearchIndex {
+  const collectionsOf = new Map<string, TreeRow[]>();
+  const searchable: { row: TreeRow; lower: string }[] = [];
+  for (const row of rows) {
+    if (row.kind === 'collection' && row.parentKey !== undefined) {
+      const list = collectionsOf.get(row.parentKey) ?? [];
+      list.push(row);
+      collectionsOf.set(row.parentKey, list);
+    }
+    if (row.kind === 'database' || row.kind === 'collection') {
+      searchable.push({ row, lower: row.label.toLowerCase() });
+    }
+  }
+  return {
+    rows,
+    byKey: new Map(rows.map((row) => [row.key, row] as const)),
+    collectionsOf,
+    searchable,
+  };
+}
+
+/**
+ * Keeps the databases and collections whose label contains the text, case insensitive, with
+ * every ancestor row so the matches keep their place. A matching database keeps its collections.
+ * Branches with nothing matching are dropped. One pass over the names; at most `cap` matches
+ * are kept, while `matches` counts them all.
+ */
+export function searchTreeIndex(
+  index: TreeSearchIndex,
+  text: string,
+  cap = SEARCH_RESULT_CAP,
+): TreeSearchResult {
+  const needle = text.trim().toLowerCase();
+  const keep = new Set<string>();
+  const databases = new Set<string>();
+  let matches = 0;
+  if (needle !== '') {
+    for (const { row, lower } of index.searchable) {
+      if (!lower.includes(needle)) {
+        continue;
+      }
+      matches += 1;
+      if (matches > cap) {
+        continue;
+      }
+      databases.add(`${row.connectionId}/${row.database ?? ''}`);
+      for (
+        let at: TreeRow | undefined = row;
+        at !== undefined && !keep.has(at.key);
+        at = index.byKey.get(at.parentKey ?? '')
+      ) {
+        keep.add(at.key);
+      }
+      if (row.kind === 'database') {
+        for (const child of index.collectionsOf.get(row.key) ?? []) {
+          keep.add(child.key);
+        }
+      }
+    }
+  }
+  const kept = index.rows.filter((row) => keep.has(row.key));
+  return {
+    rows: kept,
+    matches,
+    databases: databases.size,
+    servers: kept.filter((row) => row.kind === 'connection').map((row) => row.label),
+    capped: matches > cap,
+  };
+}
+
+export function searchTreeRows(rows: readonly TreeRow[], text: string): TreeSearchResult {
+  return searchTreeIndex(indexTreeRows(rows), text);
+}
+
+/**
+ * The tree input for a search. Every connection that has a name catalog shows its names, with the
+ * count and size of any collection the tree already loaded. Every node is open. Connections
+ * without a catalog keep their own loaded databases and collections.
+ */
+export function searchTreeInput(
+  input: TreeInput,
+  nameCatalogs: Readonly<Record<string, NameCatalogData>>,
+): TreeInput {
+  const databases: Record<string, Loadable<readonly DatabaseInfo[]>> = { ...input.databases };
+  const collections: Record<string, Loadable<readonly CollectionInfo[]>> = {
+    ...input.collections,
+  };
+  for (const [connectionId, catalog] of Object.entries(nameCatalogs)) {
+    if (catalog === undefined) {
+      continue;
+    }
+    databases[connectionId] = {
+      state: 'ready',
+      data: catalog.databases.map((db) => ({ name: db.name })),
+    };
+    for (const db of catalog.databases) {
+      const key = catalogKey(connectionId, db.name);
+      const loaded = input.collections[key];
+      const stats = new Map(
+        loaded?.state === 'ready' ? loaded.data.map((item) => [item.name, item] as const) : [],
+      );
+      collections[key] = {
+        state: 'ready',
+        data: db.collections.map((item) => stats.get(item.name) ?? item),
+      };
+    }
+  }
+  return { ...input, databases, collections, expanded: ALL_OPEN };
+}
+
+/** The names of one connection, as the store keeps them. */
+export type NameCatalogData = CatalogNames;
+
+const ALL_OPEN: TreeInput['expanded'] = new Proxy({}, { get: () => true });

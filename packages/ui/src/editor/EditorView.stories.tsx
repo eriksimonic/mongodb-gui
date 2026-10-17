@@ -110,7 +110,7 @@ export const TreeResults: Story = {
 
 /** The same documents as read-only mongosh syntax. */
 export const JsonResults: Story = {
-  decorators: [withEditor({ view: 'json' })],
+  decorators: [withEditor({ view: 'table' })],
 };
 
 /** A tab with no run yet. */

@@ -30,6 +30,7 @@ export const coverageMap: Readonly<Record<string, Coverage>> = {
   'databases.list': { journey: 'connect.spec.ts' },
   'databases.stats': { excluded: 'no journey planned yet' },
 
+  'catalog.listNames': { excluded: 'Covered by unit tests; needs a server with many databases' },
   'collections.list': { journey: 'connect.spec.ts' },
   'collections.stats': { journey: 'indexes.spec.ts' },
   'collections.indexes': { journey: 'indexes.spec.ts' },

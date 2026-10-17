@@ -6,7 +6,6 @@ import {
   Modal,
   Paper,
   SegmentedControl,
-  SimpleGrid,
   Stack,
   Text,
 } from '@mantine/core';
@@ -20,15 +19,23 @@ import {
   type SeriesUnit,
   type ServerCapabilities,
 } from '@mongo-gui/core';
-import { useEffect, useMemo, useState } from 'react';
+import { Fragment, useEffect, useMemo, useRef, useState, type PointerEvent } from 'react';
+import { layoutPanelIds, ROW_MIN_HEIGHT_PX, type DashboardLayout } from '@mongo-gui/core';
 import { runReported } from '../kit/notify-error';
 import { useAppStore } from '../state/app-store-context';
 import { EMPTY_MONITOR_VIEW } from '../state/monitor-state';
-import { EMPTY_DASHBOARD_VIEW, visiblePanels } from '../state/dashboard-state';
+import {
+  EMPTY_DASHBOARD_VIEW,
+  setRowHeight,
+  splitPanels,
+  visibleRows,
+  type DropPlace,
+} from '../state/dashboard-state';
 import { chartSeries } from './chart-series';
 import type { ChartMode, ChartWindow } from './chart-types';
 import { AddPanelPicker } from './AddPanelPicker';
 import { ChartBody, PanelCard, PanelMenu, StatBody } from './PanelCard';
+import { trackOffset } from './track-offset';
 import { formatCompact, formatDuration, formatExact, formatInterval, unitCaption } from './format';
 import {
   headlineOf,
@@ -65,11 +72,11 @@ interface StatTileProps {
 
 function StatTile({ label, value }: StatTileProps) {
   return (
-    <Paper withBorder p="sm" radius="sm">
+    <Paper withBorder p="sm" radius="md" bg="var(--mg-surface-1)">
       <Text size="xs" c="dimmed">
         {label}
       </Text>
-      <Text fz={22} fw={600} lh={1.3}>
+      <Text fz={24} fw={600} lh={1.3} style={{ fontVariantNumeric: 'tabular-nums' }}>
         {value}
       </Text>
     </Paper>
@@ -140,13 +147,22 @@ export function MonitorDashboard({ connectionId }: MonitorDashboardProps) {
   const addDashboardPanel = useAppStore((state) => state.addDashboardPanel);
   const removeDashboardPanel = useAppStore((state) => state.removeDashboardPanel);
   const moveDashboardPanel = useAppStore((state) => state.moveDashboardPanel);
-  const resizeDashboardPanel = useAppStore((state) => state.resizeDashboardPanel);
+  const splitDashboardPanels = useAppStore((state) => state.splitDashboardPanels);
+  const setDashboardRowHeight = useAppStore((state) => state.setDashboardRowHeight);
   const resetDashboard = useAppStore((state) => state.resetDashboard);
   const [range, setRange] = useState<MonitorRange>('5m');
   const [frozen, setFrozen] = useState<readonly MonitorSample[] | undefined>(undefined);
   const [pickerOpen, setPickerOpen] = useState(false);
   const [aboutId, setAboutId] = useState<string | undefined>(undefined);
-  const [dragId, setDragId] = useState<string | undefined>(undefined);
+  // A resize shows through `preview` and commits to the store when the pointer is released.
+  const [preview, setPreview] = useState<((layout: DashboardLayout) => DashboardLayout) | undefined>(
+    undefined,
+  );
+  const [drag, setDrag] = useState<{ id: string; target?: { id: string; place: DropPlace } } | undefined>(
+    undefined,
+  );
+  const canvasRef = useRef<HTMLDivElement>(null);
+  const [areaWidth, setAreaWidth] = useState(0);
 
   const connected = status.state === 'connected';
   const running = view.config !== undefined;
@@ -174,11 +190,22 @@ export function MonitorDashboard({ connectionId }: MonitorDashboardProps) {
   const capabilities = capabilitiesOf(status, view.samples.at(-1));
   const { wiredTiger, replicaSet } = capabilities;
   const layout = dashboard.layout;
-  const panels = useMemo(
-    () => visiblePanels(layout, { wiredTiger, replicaSet }),
-    [layout, wiredTiger, replicaSet],
+  const shownLayout = useMemo(() => (preview === undefined ? layout : preview(layout)), [layout, preview]);
+  const rows = useMemo(
+    () => visibleRows(shownLayout, { wiredTiger, replicaSet }),
+    [shownLayout, wiredTiger, replicaSet],
   );
-  const addedIds = useMemo(() => new Set(layout.panels.map((panel) => panel.id)), [layout]);
+  // Narrow windows show every panel as its own full-width row. The saved layout stays as it is.
+  const narrow = areaWidth > 0 && areaWidth < NARROW_PX;
+  const shownRows = useMemo(
+    () =>
+      narrow
+        ? rows.flatMap((row) => row.panels.map((panel) => ({ index: row.index, h: row.h, panels: [{ ...panel, f: 1 }] })))
+        : rows,
+    [rows, narrow],
+  );
+  const panelCount = rows.length;
+  const addedIds = useMemo(() => new Set(layoutPanelIds(layout)), [layout]);
   const headline = headlineOf(windowed.at(-1));
   const syncKey = `monitor:${connectionId}`;
 
@@ -216,15 +243,87 @@ export function MonitorDashboard({ connectionId }: MonitorDashboardProps) {
   const summary = statusSummary(status);
   const aboutPanel: PanelSpec | undefined = aboutId === undefined ? undefined : findPanel(aboutId);
 
-  function dropOn(targetId: string): void {
-    if (dragId !== undefined && dragId !== targetId) {
-      moveDashboardPanel(connectionId, dragId, targetId);
-    }
-    setDragId(undefined);
+  function cardWidth(id: string): number {
+    return canvasRef.current?.querySelector(`[data-panel-id="${id}"]`)?.getBoundingClientRect().width ?? 0;
   }
 
+  /** Moves the boundary between two neighbours, and the row height when `h` is given. */
+  function resize(leftId: string, rightId: string | undefined, rowIndex: number, startH: number, dx: number, dy: number, final: boolean, startLeft: number, startPair: number): void {
+    const min = Math.min(MIN_PANEL_PX, startPair / 2);
+    const share =
+      rightId === undefined || startPair === 0
+        ? undefined
+        : Math.min(startPair - min, Math.max(min, startLeft + dx)) / startPair;
+    const height = Math.max(ROW_MIN_HEIGHT_PX, startH + dy);
+    const change = (current: DashboardLayout): DashboardLayout => {
+      const split =
+        share === undefined || rightId === undefined ? current : splitPanels(current, leftId, rightId, share);
+      return setRowHeight(split, rowIndex, height);
+    };
+    if (final) {
+      setPreview(undefined);
+      if (share !== undefined && rightId !== undefined) {
+        splitDashboardPanels(connectionId, leftId, rightId, share);
+      }
+      setDashboardRowHeight(connectionId, rowIndex, height);
+    } else {
+      setPreview(() => change);
+    }
+  }
+
+  /** The panel and the side of it under the pointer while a header is dragged. */
+  function dropTargetAt(id: string, x: number, y: number): { id: string; place: DropPlace } | undefined {
+    for (const element of document.elementsFromPoint(x, y)) {
+      const card = element.closest('[data-panel-id]');
+      const targetId = card?.getAttribute('data-panel-id');
+      if (card !== null && card !== undefined && targetId !== null && targetId !== undefined && targetId !== id) {
+        const box = card.getBoundingClientRect();
+        const fx = (x - box.left) / box.width;
+        const fy = (y - box.top) / box.height;
+        const place: DropPlace =
+          fy < 0.25 ? 'above' : fy > 0.75 ? 'below' : fx < 0.5 ? 'left' : 'right';
+        return { id: targetId, place };
+      }
+    }
+    return undefined;
+  }
+
+  function moveHeader(id: string, x: number, y: number, final: boolean): void {
+    const target = dropTargetAt(id, x, y);
+    if (final) {
+      setDrag(undefined);
+      if (target !== undefined) {
+        moveDashboardPanel(connectionId, id, target.id, target.place);
+      }
+    } else {
+      setDrag({ id, ...(target === undefined ? {} : { target }) });
+    }
+  }
+
+  useEffect(() => {
+    const element = canvasRef.current;
+    if (element === null) {
+      return undefined;
+    }
+    setAreaWidth(Math.floor(element.getBoundingClientRect().width));
+    if (typeof ResizeObserver === 'undefined') {
+      return undefined;
+    }
+    const observer = new ResizeObserver((entries) => {
+      setAreaWidth(Math.floor(entries[0]?.contentRect.width ?? 0));
+    });
+    observer.observe(element);
+    return () => observer.disconnect();
+  }, [panelCount === 0, windowed.length === 0]);
+
   return (
-    <Stack gap="sm" p="md" data-testid="monitor-dashboard">
+    <Stack
+      gap="sm"
+      p="md"
+      data-testid="monitor-dashboard"
+      h="100%"
+      style={{ minHeight: 0, overflow: 'auto' }}
+    >
       <Group justify="space-between" align="flex-start" wrap="wrap" gap={8}>
         <Stack gap={0}>
           <Text fw={600} size="md">
@@ -332,13 +431,13 @@ export function MonitorDashboard({ connectionId }: MonitorDashboardProps) {
 
       <div className="mg-dashboard-frame" data-stale={connected ? 'false' : 'true'}>
         <Stack gap="sm">
-          <SimpleGrid cols={{ base: 2, sm: 3, lg: tiles.length }} spacing="xs">
+          <div className="mg-kpi-grid">
             {tiles.map((tile) => (
               <StatTile key={tile.label} label={tile.label} value={tile.value} />
             ))}
-          </SimpleGrid>
+          </div>
 
-          {panels.length === 0 ? (
+          {panelCount === 0 ? (
             <Paper withBorder p="lg" radius="sm" data-testid="dashboard-empty">
               <Stack gap="sm" align="flex-start">
                 <Text size="sm">
@@ -359,72 +458,91 @@ export function MonitorDashboard({ connectionId }: MonitorDashboardProps) {
               Waiting for the first sample. Sampling runs every {formatInterval(intervalMs)}.
             </Text>
           ) : (
-            <div className="mg-panel-grid" data-testid="panel-grid">
-              {panels.map(({ placed, spec }, index) => {
-                const tall = placed.h === 2;
-                const title = spec.title;
-                // Moves go past the panels this server hides, which draw nothing, so the neighbours are the visible ones.
-                const previous = index > 0 ? panels[index - 1] : undefined;
-                const following = panels[index + 1];
-                const menu = (
-                  <PanelMenu
-                    title={title}
-                    width={placed.w}
-                    tall={tall}
-                    onClose={() => removeDashboardPanel(connectionId, placed.id)}
-                    onWidth={(width) => resizeDashboardPanel(connectionId, placed.id, { w: width })}
-                    onHeight={(next) =>
-                      resizeDashboardPanel(connectionId, placed.id, { h: next ? 2 : 1 })
-                    }
-                    onAbout={() => setAboutId(placed.id)}
-                    onMoveLeft={
-                      previous === undefined
-                        ? undefined
-                        : () => moveDashboardPanel(connectionId, placed.id, previous.placed.id)
-                    }
-                    onMoveRight={
-                      following === undefined
-                        ? undefined
-                        : () => moveDashboardPanel(connectionId, placed.id, following.placed.id)
+            <div className="mg-panel-canvas" data-testid="panel-grid" ref={canvasRef}>
+              {shownRows.map((row, rowPosition) => (
+                <div key={`${row.index}-${row.panels[0]?.id ?? ''}`} className="mg-panel-row-wrap">
+                  <div className="mg-panel-row" style={{ height: row.h }}>
+                    {row.panels.map(({ id, spec, f }, position) => {
+                      const next = row.panels[position + 1];
+                      const title = spec.title;
+                      const menu = (
+                        <PanelMenu
+                          title={title}
+                          onClose={() => removeDashboardPanel(connectionId, id)}
+                          onAbout={() => setAboutId(id)}
+                        />
+                      );
+                      const firstUnit = spec.series[0]?.unit;
+                      // A stat panel shows one series. Its value comes from the newest sample.
+                      const statSeries = spec.chart === 'stat' ? spec.series[0] : undefined;
+                      const startResize = (event: PointerEvent<HTMLElement>, withHeight: boolean) => {
+                        const startLeft = cardWidth(id);
+                        const startPair = startLeft + (next === undefined ? 0 : cardWidth(next.id));
+                        trackOffset(event, (dx, dy, final) =>
+                          resize(id, narrow ? undefined : next?.id, row.index, row.h, dx, withHeight ? dy : 0, final, startLeft, startPair),
+                        );
+                      };
+                      return (
+                        <Fragment key={id}>
+                          <div className="mg-panel-slot" style={{ flex: `${f} 1 0` }}>
+                            <PanelCard
+                              id={id}
+                              title={title}
+                              caption={firstUnit === undefined ? '' : unitCaption(firstUnit)}
+                              dragging={drag?.id === id}
+                              dropPlace={drag?.target?.id === id ? drag.target.place : undefined}
+                              menu={menu}
+                              onMove={(x, y, final) => moveHeader(id, x, y, final)}
+                              onGrip={(dx, dy, final) => {
+                                const startLeft = cardWidth(id);
+                                const startPair = startLeft + (next === undefined ? 0 : cardWidth(next.id));
+                                resize(id, narrow ? undefined : next?.id, row.index, row.h, dx, dy, final, startLeft, startPair);
+                              }}
+                            >
+                              {statSeries === undefined ? (
+                                <PanelChartBody
+                                  spec={spec}
+                                  timeline={timeline}
+                                  mode={chartModeOf(spec)}
+                                  syncKey={syncKey}
+                                  chartWindow={chartWindow}
+                                  yUnit={firstUnit ?? 'count'}
+                                />
+                              ) : (
+                                <StatBody
+                                  value={latestSeriesValue(windowed, statSeries)}
+                                  unit={statSeries.unit}
+                                />
+                              )}
+                            </PanelCard>
+                          </div>
+                          {next === undefined || narrow ? null : (
+                            <div
+                              className="mg-divider mg-divider-v"
+                              role="separator"
+                              aria-orientation="vertical"
+                              aria-label={`Resize ${title} and ${next.spec.title}`}
+                              onPointerDown={(event) => startResize(event, false)}
+                            />
+                          )}
+                        </Fragment>
+                      );
+                    })}
+                  </div>
+                  <div
+                    className="mg-divider mg-divider-h"
+                    role="separator"
+                    aria-orientation="horizontal"
+                    aria-label="Resize row height"
+                    data-last={rowPosition === shownRows.length - 1 ? 'true' : undefined}
+                    onPointerDown={(event) =>
+                      trackOffset(event, (_dx, dy, final) =>
+                        resize('', undefined, row.index, row.h, 0, dy, final, 0, 0),
+                      )
                     }
                   />
-                );
-                const firstUnit = spec.series[0]?.unit;
-                // A stat panel shows one series. Its value comes from the newest sample.
-                const statSeries = spec.chart === 'stat' ? spec.series[0] : undefined;
-                return (
-                  <PanelCard
-                    key={placed.id}
-                    id={placed.id}
-                    title={title}
-                    caption={firstUnit === undefined ? '' : unitCaption(firstUnit)}
-                    width={placed.w}
-                    tall={tall}
-                    dragging={dragId === placed.id}
-                    menu={menu}
-                    onDragStart={() => setDragId(placed.id)}
-                    onDragEnd={() => setDragId(undefined)}
-                    onDropHere={() => dropOn(placed.id)}
-                  >
-                    {statSeries === undefined ? (
-                      <PanelChartBody
-                        spec={spec}
-                        timeline={timeline}
-                        mode={chartModeOf(spec)}
-                        syncKey={syncKey}
-                        chartWindow={chartWindow}
-                        tall={tall}
-                        yUnit={firstUnit ?? 'count'}
-                      />
-                    ) : (
-                      <StatBody
-                        value={latestSeriesValue(windowed, statSeries)}
-                        unit={statSeries.unit}
-                      />
-                    )}
-                  </PanelCard>
-                );
-              })}
+                </div>
+              ))}
             </div>
           )}
         </Stack>
@@ -451,6 +569,11 @@ export function MonitorDashboard({ connectionId }: MonitorDashboardProps) {
   );
 }
 
+/** Below this width every panel is its own row, and the dividers go. */
+const NARROW_PX = 720;
+/** The least width a panel keeps when a divider is dragged. */
+const MIN_PANEL_PX = 240;
+
 function chartModeOf(spec: PanelSpec): ChartMode {
   switch (spec.chart) {
     case 'area':
@@ -468,7 +591,6 @@ interface PanelChartBodyProps {
   readonly mode: ChartMode;
   readonly syncKey: string;
   readonly chartWindow: ChartWindow;
-  readonly tall: boolean;
   readonly yUnit: SeriesUnit;
 }
 
@@ -479,7 +601,6 @@ function PanelChartBody({
   mode,
   syncKey,
   chartWindow,
-  tall,
   yUnit,
 }: PanelChartBodyProps) {
   const scheme = useComputedColorScheme('dark');
@@ -496,7 +617,6 @@ function PanelChartBody({
       mode={mode}
       syncKey={syncKey}
       window={chartWindow}
-      tall={tall}
       emptyText="No samples in this range."
     />
   );

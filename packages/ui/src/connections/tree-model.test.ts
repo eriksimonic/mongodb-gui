@@ -18,6 +18,10 @@ import {
 } from '../state/node-ids';
 import {
   buildTreeRows,
+  searchTreeRows,
+  formatCount,
+  formatSize,
+  collectionMeta,
   edgeFocusKey,
   filterTreeRows,
   firstChildKey,
@@ -299,6 +303,70 @@ describe('filterTreeRows', () => {
     expect(labels.filter((label) => label === 'Monitoring')).toHaveLength(1);
     expect(labels.filter((label) => label === 'shop')).toHaveLength(1);
     expect(labels).toContain('Staging');
+  });
+});
+
+describe('collection stats text', () => {
+  it('formats counts, sizes and views', () => {
+    expect(formatCount(48_000)).toBe('48k');
+    expect(formatCount(1_300_000)).toBe('1.3M');
+    expect(formatSize(61 * 1024 * 1024)).toBe('61 MB');
+    expect(formatSize(1.6 * 1024 ** 3)).toBe('1.6 GB');
+    expect(
+      collectionMeta({ name: 'a', type: 'collection', count: 48_000, size: 61 * 1024 ** 2 }),
+    ).toBe('48k · 61 MB');
+    expect(collectionMeta({ name: 'v', type: 'view' })).toBe('view');
+    expect(collectionMeta({ name: 't', type: 'timeseries', count: 5, size: 2048 })).toBe('2 KB');
+    expect(collectionMeta({ name: 'x', type: 'collection' })).toBeUndefined();
+  });
+});
+
+describe('searchTreeRows', () => {
+  it('keeps the collections of a matching database and drops empty branches', () => {
+    const rows = buildTreeRows(
+      input({
+        statuses: { [local.id]: connected },
+        expanded: {
+          [connectionNodeId(local.id)]: true,
+          [databaseNodeId(local.id, 'shop')]: true,
+          [databaseNodeId(local.id, 'perf')]: true,
+        },
+        databases: { [local.id]: { state: 'ready', data: [{ name: 'shop' }, { name: 'perf' }] } },
+        collections: {
+          [catalogKey(local.id, 'shop')]: {
+            state: 'ready',
+            data: [{ name: 'orders', type: 'collection' }],
+          },
+          [catalogKey(local.id, 'perf')]: {
+            state: 'ready',
+            data: [{ name: 'metrics', type: 'collection' }],
+          },
+        },
+      } as Partial<TreeInput>),
+    );
+    const byDb = searchTreeRows(rows, 'shop').rows.map((row) => row.label);
+    expect(byDb).toEqual([local.name, 'shop', 'orders']);
+    const byColl = searchTreeRows(rows, 'metr').rows.map((row) => row.label);
+    expect(byColl).toEqual([local.name, 'perf', 'metrics']);
+    expect(searchTreeRows(rows, 'nothing').rows).toEqual([]);
+  });
+
+  it('keeps matching databases with their ancestors and counts them', () => {
+    const rows = buildTreeRows(
+      input({
+        statuses: { [local.id]: connected, [staging.id]: connected },
+        expanded: { [connectionNodeId(local.id)]: true, [connectionNodeId(staging.id)]: true },
+        databases: {
+          [local.id]: { state: 'ready', data: [{ name: 'shop' }, { name: 'perf' }] },
+          [staging.id]: { state: 'ready', data: [{ name: 'shop' }] },
+        },
+      } as Partial<TreeInput>),
+    );
+    const result = searchTreeRows(rows, 'SHO');
+    expect(result.matches).toBe(2);
+    expect(result.databases).toBe(2);
+    expect(result.servers).toEqual([local.name, staging.name]);
+    expect(result.rows.map((row) => row.label)).not.toContain('perf');
   });
 });
 

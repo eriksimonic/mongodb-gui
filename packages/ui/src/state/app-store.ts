@@ -4,6 +4,7 @@ import {
   ConnectionProfileInputSchema,
   toAppError,
   type AppError,
+  type CatalogNames,
   type CollectionInfo,
   type StartExportInput,
   type StartImportInput,
@@ -26,6 +27,7 @@ import {
   type VaultStatus,
   type ReplicaSetStatus,
 } from '@mongo-gui/core';
+import { notifications } from '@mantine/notifications';
 import { createStore, type StoreApi } from 'zustand/vanilla';
 import type { UiApi } from '../api/ui-api';
 import {
@@ -38,10 +40,10 @@ import {
   movePanel,
   removePanel,
   resetLayout,
-  resizePanel,
-  type DashboardHeight,
+  setRowHeight,
+  splitPanels,
+  type DropPlace,
   type DashboardView,
-  type DashboardWidth,
 } from './dashboard-state';
 import {
   applyError,
@@ -170,7 +172,7 @@ export interface ValidationFieldRequest {
 
 /** A request to show a collection panel. The shell opens or focuses it, then clears the request. */
 export interface PanelRequest {
-  readonly panel: 'indexes' | 'validation' | 'documents' | 'schema';
+  readonly panel: 'indexes' | 'validation' | 'documents' | 'schema' | 'changes' | 'stats';
   readonly connectionId: string;
   readonly database: string;
   readonly collection: string;
@@ -206,6 +208,8 @@ export interface AppData {
   readonly expanded: Readonly<Record<string, boolean>>;
   readonly databases: Readonly<Record<string, Loadable<readonly DatabaseInfo[]>>>;
   readonly collections: Readonly<Record<string, Loadable<readonly CollectionInfo[]>>>;
+  /** Database and collection names per connection for the tree search. No stats. */
+  readonly nameCatalogs: Readonly<Record<string, NameCatalog>>;
   /** Replica set status per connection, for the member rows of the tree. Loaded when the connection opens. */
   readonly replicaSets: Readonly<Record<string, Loadable<ReplicaSetStatus>>>;
   /** Monitor samples and sampler state per connection, fed by monitor events. */
@@ -274,17 +278,23 @@ export interface AppActions extends EditorActions, ExplainActions {
   loadDashboard(connectionId: string): Promise<void>;
   addDashboardPanel(connectionId: string, panel: PanelSpec): void;
   removeDashboardPanel(connectionId: string, id: string): void;
-  moveDashboardPanel(connectionId: string, fromId: string, toId: string): void;
-  resizeDashboardPanel(
+  /** Moves a panel beside another panel, or into a new row above or below it. */
+  moveDashboardPanel(connectionId: string, id: string, targetId: string, place: DropPlace): void;
+  /** Moves the boundary between two neighbours. `leftShare` is the left one's share of both. */
+  splitDashboardPanels(
     connectionId: string,
-    id: string,
-    size: { readonly w?: DashboardWidth; readonly h?: DashboardHeight },
+    leftId: string,
+    rightId: string,
+    leftShare: number,
   ): void;
+  setDashboardRowHeight(connectionId: string, rowIndex: number, height: number): void;
   resetDashboard(connectionId: string): void;
   /** Stops the server sampler and clears the sampler state. Samples are kept for the view. */
   stopMonitor(connectionId: string): Promise<void>;
   loadDatabases(connectionId: string): Promise<void>;
   loadCollections(connectionId: string, database: string): Promise<void>;
+  /** Fetches the name catalog of a connection. Does nothing while a fetch for it is running. */
+  loadNameCatalog(connectionId: string): Promise<void>;
   /** Reads the replica set status once per connection. A reload happens after `refreshConnection`. */
   loadReplicaSet(connectionId: string): Promise<void>;
   /** Creates a profile that connects to one member only, connects it and opens it in the tree. */
@@ -377,6 +387,7 @@ const SESSION_RESET: Pick<
   | 'expanded'
   | 'databases'
   | 'collections'
+  | 'nameCatalogs'
   | 'monitors'
   | 'dashboards'
   | 'selection'
@@ -402,6 +413,7 @@ const SESSION_RESET: Pick<
   databases: {},
   replicaSets: {},
   collections: {},
+  nameCatalogs: {},
   monitors: {},
   dashboards: {},
   selection: undefined,
@@ -467,6 +479,15 @@ function withoutCatalogScope(
     ),
     replicaSets: data.replicaSets,
   };
+}
+
+/** The names of one connection's databases and collections, as the search sees them. */
+export interface NameCatalog {
+  readonly status: 'loading' | 'ready' | 'error';
+  /** The last good answer. Kept while a reload runs or after it fails. */
+  readonly data: CatalogNames | undefined;
+  /** When the last attempt finished, in epoch ms. Undefined before the first one. */
+  readonly fetchedAt: number | undefined;
 }
 
 function withoutConnectionCatalog(
@@ -906,12 +927,16 @@ export function createAppStore(api: UiApi, initial: Partial<AppData> = {}): AppS
         changeDashboard(connectionId, (layout) => removePanel(layout, id));
       },
 
-      moveDashboardPanel(connectionId, fromId, toId) {
-        changeDashboard(connectionId, (layout) => movePanel(layout, fromId, toId));
+      moveDashboardPanel(connectionId, id, targetId, place) {
+        changeDashboard(connectionId, (layout) => movePanel(layout, id, targetId, place));
       },
 
-      resizeDashboardPanel(connectionId, id, size) {
-        changeDashboard(connectionId, (layout) => resizePanel(layout, id, size));
+      splitDashboardPanels(connectionId, leftId, rightId, leftShare) {
+        changeDashboard(connectionId, (layout) => splitPanels(layout, leftId, rightId, leftShare));
+      },
+
+      setDashboardRowHeight(connectionId, rowIndex, height) {
+        changeDashboard(connectionId, (layout) => setRowHeight(layout, rowIndex, height));
       },
 
       resetDashboard(connectionId) {
@@ -1002,6 +1027,37 @@ export function createAppStore(api: UiApi, initial: Partial<AppData> = {}): AppS
             collections: {
               ...state.collections,
               [key]: { state: 'error', error: toAppError(error) },
+            },
+          }));
+        }
+      },
+
+      async loadNameCatalog(connectionId) {
+        const current = get().nameCatalogs[connectionId];
+        if (current?.status === 'loading') {
+          return;
+        }
+        const keep = current?.data;
+        const keepAt = current?.fetchedAt;
+        set((state) => ({
+          nameCatalogs: {
+            ...state.nameCatalogs,
+            [connectionId]: { status: 'loading', data: keep, fetchedAt: keepAt },
+          },
+        }));
+        try {
+          const data = await rpc.catalog.listNames({ connectionId });
+          set((state) => ({
+            nameCatalogs: {
+              ...state.nameCatalogs,
+              [connectionId]: { status: 'ready', data, fetchedAt: Date.now() },
+            },
+          }));
+        } catch {
+          set((state) => ({
+            nameCatalogs: {
+              ...state.nameCatalogs,
+              [connectionId]: { status: 'error', data: keep, fetchedAt: Date.now() },
             },
           }));
         }
@@ -1350,6 +1406,20 @@ export function createAppStore(api: UiApi, initial: Partial<AppData> = {}): AppS
             ...withoutCatalogScope(state, event),
             catalogRevision: state.catalogRevision + 1,
           }));
+          return;
+        }
+        if (event.type === 'connections:changed') {
+          const gone = new Set(event.removed.map((item) => item.id));
+          set((state) => ({
+            statuses: Object.fromEntries(
+              Object.entries(state.statuses).filter(([key]) => !gone.has(key)),
+            ),
+          }));
+          void get().loadConnections();
+          void get().refreshDockerStatus();
+          notifications.show({
+            message: `Removed ${event.removed.length} ${event.removed.length === 1 ? 'connection' : 'connections'} whose Docker container no longer exists: ${event.removed.map((item) => item.name).join(', ')}`,
+          });
           return;
         }
         if (event.type === 'docker:containers') {

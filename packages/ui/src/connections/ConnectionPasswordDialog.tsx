@@ -48,14 +48,20 @@ function ConnectionPasswordForm({ request, onClose }: ConnectionPasswordFormProp
   }
 
   return (
-    <Modal opened onClose={onClose} title={`Connect to ${request.connectionName}`} centered>
+    <Modal
+      opened
+      onClose={onClose}
+      title={`Connect to ${request.connectionName}`}
+      size={440}
+      centered
+    >
       <form
         onSubmit={(event) => {
           event.preventDefault();
           void submit();
         }}
       >
-        <Stack gap="sm">
+        <Stack gap="lg">
           <Text size="sm">
             The server needs a password for this connection. It is saved with the connection once
             the server accepts it.

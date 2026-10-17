@@ -289,7 +289,7 @@ export function EditorView({ tabId }: EditorViewProps) {
         wrap="wrap"
         px="md"
         py={8}
-        style={{ borderBottom: '1px solid var(--mantine-color-dark-4)' }}
+        style={{ borderBottom: '1px solid var(--mg-border)' }}
       >
         <Tooltip label={RUNTIME_LABELS[runtimeState]} withArrow>
           <span
@@ -305,7 +305,7 @@ export function EditorView({ tabId }: EditorViewProps) {
             }}
           />
         </Tooltip>
-        <Text size="sm" fw={600} truncate="end" maw={140}>
+        <Text size="sm" fw={600} c="var(--mg-text-strong)" truncate="end" maw={140}>
           {connectionName ?? 'Connection'}
         </Text>
         <Select
@@ -356,6 +356,7 @@ export function EditorView({ tabId }: EditorViewProps) {
             onClick={() => editorUiEvents.emit({ type: 'editor:command', tabId, command: 'run' })}
             title="Run the selection or the statement under the cursor (F5 or Ctrl+Enter)"
             miw="calc(76px * var(--mg-font-scale, 1))"
+            fw={600}
           >
             Run
           </Button>
@@ -451,14 +452,19 @@ export function EditorView({ tabId }: EditorViewProps) {
           <Badge
             tt="none"
             size="sm"
-            variant="dot"
-            color="yellow"
+            variant="light"
+            color="orange"
+            radius="xl"
             ml="auto"
             aria-label="Unsaved changes"
           >
             Unsaved
           </Badge>
-        ) : null}
+        ) : (
+          <Badge tt="none" size="sm" variant="light" color="green" radius="xl" ml="auto">
+            Saved
+          </Badge>
+        )}
       </Group>
       <div ref={split} style={{ flex: 1, minHeight: 0, display: 'flex', flexDirection: 'column' }}>
         <div style={{ height: `${share * 100}%`, minHeight: 80, padding: '8px 10px 0' }}>
@@ -477,7 +483,14 @@ export function EditorView({ tabId }: EditorViewProps) {
               />
             </div>
             {isSql ? (
-              <div style={{ flex: 1, minWidth: 0 }}>
+              <div
+                style={{
+                  flex: 1,
+                  minWidth: 0,
+                  borderLeft: '1px solid var(--mg-border-strong)',
+                  paddingLeft: 8,
+                }}
+              >
                 <SqlPreview
                   sql={current.text}
                   sampler={source ?? NO_SAMPLER}
@@ -508,7 +521,7 @@ export function EditorView({ tabId }: EditorViewProps) {
           style={{
             height: 8,
             cursor: 'row-resize',
-            background: 'var(--mantine-color-dark-5)',
+            background: 'var(--mg-border-strong)',
             flex: '0 0 auto',
           }}
         />

@@ -103,7 +103,7 @@ export function DocumentEditorDialog({
           void save();
         }}
       >
-        <Stack gap="sm">
+        <Stack gap="lg">
           <Text size="xs" c="dimmed">
             {mode === 'duplicate'
               ? 'The _id is removed, so the server makes a new one.'

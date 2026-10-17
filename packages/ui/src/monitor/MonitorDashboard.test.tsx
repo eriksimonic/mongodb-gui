@@ -147,8 +147,18 @@ describe('MonitorDashboard layout', () => {
           expect(set).toHaveBeenCalledWith({
             key: KEY,
             value: {
-              version: 1,
-              panels: defaultDashboardLayout().panels.filter((panel) => panel.id !== 'queues'),
+              version: 2,
+              rows: [
+                defaultDashboardLayout().rows[0],
+                {
+                  h: defaultDashboardLayout().rows[1]?.h,
+                  panels: [
+                    { id: 'network', f: 0.5 },
+                    { id: 'memory', f: 0.5 },
+                  ],
+                },
+                defaultDashboardLayout().rows[2],
+              ],
             },
           }),
         { timeout: 2000 },
@@ -203,44 +213,23 @@ describe('MonitorDashboard layout', () => {
   );
 
   it(
-    'moves a panel when it is dropped on another card',
+    'tiles the panels in rows that fill the width, with a divider between neighbours',
     async () => {
       const api = await connectedApi();
-      const set = vi.spyOn(api.rpc.layout, 'set');
       renderDashboard(api);
       await waitForGrid();
 
-      const network = document.querySelector(
-        '[data-panel-id="network"] [data-testid="panel-header"]',
-      );
-      const connections = document.querySelector('[data-panel-id="connections"]');
-      expect(network).not.toBeNull();
-      expect(connections).not.toBeNull();
-      if (network === null || connections === null) {
-        return;
+      const rows = [...document.querySelectorAll('.mg-panel-row')];
+      expect(rows).toHaveLength(2);
+      for (const row of rows) {
+        const grows = [...row.querySelectorAll<HTMLElement>('.mg-panel-slot')].map((slot) =>
+          Number(slot.style.flex.split(' ')[0]),
+        );
+        expect(grows.reduce((sum, grow) => sum + grow, 0)).toBeCloseTo(1);
       }
-      fireEvent.dragStart(network);
-      fireEvent.dragOver(connections);
-      fireEvent.drop(connections);
-
-      expect(panelIds().slice(0, 3)).toEqual(['operations-by-type', 'network', 'connections']);
-      await waitFor(() => expect(set).toHaveBeenCalled(), { timeout: 2000 });
-    },
-    LONG_TIMEOUT_MS,
-  );
-
-  it(
-    'changes the width from the panel menu',
-    async () => {
-      const api = await connectedApi();
-      renderDashboard(api);
-      await waitForGrid();
-
-      fireEvent.click(screen.getByRole('button', { name: 'Options for Memory' }));
-      fireEvent.click(await screen.findByRole('menuitem', { name: /3 columns/ }));
-
-      const card = document.querySelector('[data-panel-id="memory"]') as HTMLElement | null;
-      expect(card?.style.getPropertyValue('--panel-w')).toBe('3');
+      expect(document.querySelectorAll('.mg-divider-v')).toHaveLength(3);
+      expect(document.querySelectorAll('.mg-divider-h')).toHaveLength(2);
+      expect(document.querySelectorAll('.mg-panel-grip')).toHaveLength(5);
     },
     LONG_TIMEOUT_MS,
   );
@@ -300,7 +289,10 @@ describe('MonitorDashboard layout', () => {
     'loads the saved layout on open',
     async () => {
       const api = await connectedApi();
-      const saved: DashboardLayout = { version: 1, panels: [{ id: 'asserts', w: 3, h: 1 }] };
+      const saved: DashboardLayout = {
+        version: 2,
+        rows: [{ h: 300, panels: [{ id: 'asserts', f: 1 }] }],
+      };
       await api.rpc.layout.set({ key: KEY, value: saved });
       renderDashboard(api);
       await waitForGrid();

@@ -16,6 +16,7 @@ import {
   findDocumentById,
   getValidation,
   insertDocument,
+  listCatalogNames,
   listCollections,
   listDatabases,
   listIndexBuilds,
@@ -168,8 +169,13 @@ export function managementOperations(deps: ManagementDeps): [string, Operation][
       driverCall(() => databaseStats(deps.getClient(input.connectionId), input.database)),
     ),
 
+    entry('catalog.listNames', rpcContract.catalog.listNames, (input) =>
+      driverCall(() => listCatalogNames(deps.getClient(input.connectionId))),
+    ),
     entry('collections.list', rpcContract.collections.list, (input) =>
-      driverCall(() => listCollections(deps.getClient(input.connectionId), input.database)),
+      driverCall(() =>
+        listCollections(deps.getClient(input.connectionId), input.database, { withStats: true }),
+      ),
     ),
     entry('collections.stats', rpcContract.collections.stats, (input) =>
       driverCall(() =>

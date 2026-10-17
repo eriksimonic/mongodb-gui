@@ -9,8 +9,8 @@
 .mg-dockview,
 .dv-shell {
   --dv-group-view-background-color: var(--mg-surface-0);
-  --dv-tabs-and-actions-container-background-color: var(--mg-surface-1);
-  --dv-tabs-and-actions-container-height: calc(var(--mg-font-scale, 1) * 28px);
+  --dv-tabs-and-actions-container-background-color: var(--mg-bg-sunken);
+  --dv-tabs-and-actions-container-height: calc(var(--mg-font-scale, 1) * 32px);
   --dv-tabs-and-actions-container-font-size: calc(var(--mg-font-scale, 1) * 12px);
   --dv-activegroup-visiblepanel-tab-background-color: var(--mg-surface-0);
   --dv-activegroup-hiddenpanel-tab-background-color: var(--mg-surface-2);
@@ -20,7 +20,7 @@
   --dv-activegroup-hiddenpanel-tab-color: var(--mg-text);
   --dv-inactivegroup-visiblepanel-tab-color: var(--mg-text-muted);
   --dv-inactivegroup-hiddenpanel-tab-color: var(--mg-text-muted);
-  --dv-tab-divider-color: var(--mg-border);
+  --dv-tab-divider-color: var(--mg-border-strong);
   --dv-separator-border: var(--mg-border);
   --dv-paneview-header-border-color: var(--mg-border);
   --dv-icon-hover-background-color: var(--mg-surface-2);
@@ -41,6 +41,10 @@
 
 .mg-editor-toolbar > * {
   flex-shrink: 0;
+}
+
+.mg-editor-toolbar .mantine-SegmentedControl-label[data-active] {
+  color: var(--mg-accent-text);
 }
 
 /* Tabs shrink to fit the strip like Chrome. The overflow list only appears below the minimum width. */
@@ -77,4 +81,22 @@
 .dv-default-tab-action {
   display: flex;
   align-items: center;
+}
+
+/* Active tab: 2px amber top line. */
+.dv-tab.dv-active-tab {
+  box-shadow: inset 0 2px 0 var(--mg-accent);
+}
+
+/* Inactive tabs are separated by a 1px line. The active tab has none and keeps its amber top line. */
+.dv-tab:not(.dv-active-tab) {
+  border-right: 1px solid var(--mg-border-strong);
+}
+
+.dv-tab.dv-active-tab {
+  border-right: 0;
+}
+
+.mg-tab-separators .mantine-Tabs-tab:not([data-active]) {
+  border-right: 1px solid var(--mg-border-strong);
 }

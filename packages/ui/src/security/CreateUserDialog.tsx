@@ -67,7 +67,7 @@ export function CreateUserDialog({ store, database, onClose }: CreateUserDialogP
   }
 
   return (
-    <Modal opened onClose={onClose} title={`New user in ${database}`} centered size="md">
+    <Modal opened onClose={onClose} title={`New user in ${database}`} centered size={640}>
       <form
         onSubmit={(event) => {
           event.preventDefault();
@@ -76,7 +76,7 @@ export function CreateUserDialog({ store, database, onClose }: CreateUserDialogP
           }
         }}
       >
-        <Stack gap="sm">
+        <Stack gap="lg">
           <TextInput
             label="User name"
             value={user}

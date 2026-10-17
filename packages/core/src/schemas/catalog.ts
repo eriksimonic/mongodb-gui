@@ -12,12 +12,31 @@ export const CollectionInfoSchema = z.object({
   name: z.string().min(1),
   type: z.enum(['collection', 'view', 'timeseries']),
   options: documentSchema.optional(),
+  /** Estimated document count. Absent for views and when the server did not answer. */
+  count: z.number().int().nonnegative().optional(),
+  /** Data size in bytes. Absent for views and when the server did not answer. */
+  size: z.number().nonnegative().optional(),
   info: z
     .object({
       readOnly: z.boolean().optional(),
       uuid: z.string().optional(),
     })
     .optional(),
+});
+
+/** Names only, no stats. The navigator search runs over this. */
+export const CatalogNamesSchema = z.object({
+  databases: z.array(
+    z.object({
+      name: z.string().min(1),
+      collections: z.array(
+        z.object({
+          name: z.string().min(1),
+          type: z.enum(['collection', 'view', 'timeseries']),
+        }),
+      ),
+    }),
+  ),
 });
 
 export const CollectionStatsSchema = z.object({

@@ -15,6 +15,12 @@ const target = {
   onClose: () => undefined,
 };
 
+function parsePreview(text: string): Record<string, unknown> {
+  const body = text.replace(/^db\.(\w+)\.createIndex\(/, '').replace(/\)$/, '');
+  const [key, options] = JSON.parse(`[${body}]`) as [Record<string, unknown>, object?];
+  return { createIndexes: /^db\.(\w+)\./.exec(text)?.[1], indexes: [{ key, ...options }] };
+}
+
 describe('CreateIndexDialog', () => {
   it('keeps Create index disabled until a field is named', async () => {
     const api = await connectedMockApi();
@@ -36,7 +42,7 @@ describe('CreateIndexDialog', () => {
     fireEvent.change(screen.getByRole('textbox', { name: 'Field 1' }), {
       target: { value: 'region' },
     });
-    fireEvent.click(screen.getByRole('button', { name: 'Add field' }));
+    fireEvent.click(screen.getByRole('button', { name: 'Add key' }));
     fireEvent.change(screen.getByRole('textbox', { name: 'Field 2' }), {
       target: { value: 'city' },
     });
@@ -44,7 +50,7 @@ describe('CreateIndexDialog', () => {
     const options = screen.getAllByLabelText('Order of field 2')[1] as HTMLElement;
     fireEvent.click(await within(options).findByText('Descending (-1)'));
     fireEvent.click(screen.getByLabelText('Unique'));
-    fireEvent.change(screen.getByLabelText('Index name'), { target: { value: 'region_city' } });
+    fireEvent.change(screen.getByLabelText('Name'), { target: { value: 'region_city' } });
     fireEvent.click(screen.getByRole('button', { name: 'Create index' }));
 
     await waitFor(() => expect(onClose).toHaveBeenCalledTimes(1));
@@ -114,7 +120,7 @@ describe('CreateIndexDialog', () => {
       target: { value: 'email' },
     });
     const preview = screen.getByLabelText('createIndexes command preview') as HTMLTextAreaElement;
-    expect(JSON.parse(preview.value)).toEqual({
+    expect(parsePreview(preview.value)).toEqual({
       createIndexes: 'customers',
       indexes: [{ key: { email: 1 } }],
     });

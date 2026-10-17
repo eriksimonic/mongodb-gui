@@ -1,5 +1,6 @@
 import { BSON, Binary, type MongoClient } from 'mongodb';
 import type {
+  CatalogNames,
   CollectionInfo,
   CollectionStats,
   DatabaseInfo,
@@ -22,6 +23,8 @@ import { stringifyEjson } from './ejson';
 
 export interface ListCollectionsOptions {
   readonly includeSystem?: boolean;
+  /** Adds an estimated count and data size to each collection. A failed lookup leaves them out. */
+  readonly withStats?: boolean;
 }
 
 type IndexUsage = NonNullable<IndexInfo['usage']>;
@@ -39,10 +42,180 @@ export async function listCollections(
   options: ListCollectionsOptions = {},
 ): Promise<CollectionInfo[]> {
   const rows: unknown[] = await client.db(db).listCollections({}, { nameOnly: false }).toArray();
-  return rows
+  const infos = rows
     .flatMap(toCollectionInfo)
     .filter((info) => options.includeSystem === true || !info.name.startsWith(SYSTEM_PREFIX))
     .sort(byName);
+  if (options.withStats !== true) {
+    return infos;
+  }
+  const result: CollectionInfo[] = [];
+  for (let at = 0; at < infos.length; at += STATS_BATCH) {
+    const batch = infos.slice(at, at + STATS_BATCH);
+    result.push(...(await Promise.all(batch.map((info) => withStats(client, db, info)))));
+  }
+  return result;
+}
+
+const STATS_BATCH = 8;
+const NAMES_CONCURRENCY = 8;
+
+/** The pieces `listCatalogNames` needs, so the fallback can be tested without a server. */
+export interface CatalogNameSource {
+  /** One round trip over the whole server. May throw when the stage is unsupported or refused. */
+  readonly catalog: () => Promise<unknown[]>;
+  readonly databaseNames: () => Promise<string[]>;
+  readonly collectionNames: (db: string) => Promise<unknown[]>;
+}
+
+/**
+ * Every database and collection name, without stats. Tries `$listCatalog` first and falls back to
+ * listDatabases plus one nameOnly listCollections per database, eight at a time. A database whose
+ * listing fails is left out.
+ */
+export async function listCatalogNames(client: MongoClient): Promise<CatalogNames> {
+  let memo = catalogStageMemo.get(client);
+  if (memo === undefined) {
+    memo = { unsupported: false };
+    catalogStageMemo.set(client, memo);
+  }
+  return catalogNamesFrom(
+    {
+      catalog: () =>
+        client
+          .db('admin')
+          .aggregate([
+            { $listCatalog: {} },
+            { $project: { db: 1, name: 1, type: 1, 'md.options.timeseries': 1 } },
+          ])
+          .toArray(),
+      databaseNames: async () => {
+        const reply: unknown = await client
+          .db('admin')
+          .command({ listDatabases: 1, nameOnly: true });
+        return readArray(reply, 'databases').flatMap((row) => readString(row, 'name') ?? []);
+      },
+      collectionNames: async (db) => {
+        const reply: unknown = await client
+          .db(db)
+          .command({ listCollections: 1, nameOnly: true, authorizedCollections: true });
+        return readArray(readRecord(reply, 'cursor'), 'firstBatch');
+      },
+    },
+    memo,
+  );
+}
+
+/** Per client: whether `$listCatalog` is known to fail. A reconnect makes a new client. */
+const catalogStageMemo = new WeakMap<MongoClient, CatalogStageMemo>();
+
+export interface CatalogStageMemo {
+  unsupported: boolean;
+}
+
+const UNRECOGNIZED_STAGE = 40324;
+const UNAUTHORIZED = 13;
+
+function isStageRefusal(error: unknown): boolean {
+  const code = readNumber(error, 'code');
+  return code === UNRECOGNIZED_STAGE || code === UNAUTHORIZED;
+}
+
+export async function catalogNamesFrom(
+  source: CatalogNameSource,
+  memo: CatalogStageMemo = { unsupported: false },
+): Promise<CatalogNames> {
+  if (!memo.unsupported) {
+    try {
+      return groupCatalog(await source.catalog());
+    } catch (error) {
+      if (isStageRefusal(error)) {
+        memo.unsupported = true;
+      }
+      // Any other failure also uses the per-database listing for this fetch.
+    }
+  }
+  const names = await source.databaseNames();
+  const databases: CatalogNames['databases'] = [];
+  let next = 0;
+  async function worker(): Promise<void> {
+    while (next < names.length) {
+      const name = names[next++] as string;
+      try {
+        const rows = await source.collectionNames(name);
+        databases.push({ name, collections: rows.flatMap(toNameEntry) });
+      } catch {
+        // A database the user cannot list is skipped.
+      }
+    }
+  }
+  await Promise.all(Array.from({ length: Math.min(NAMES_CONCURRENCY, names.length) }, worker));
+  return sortCatalog(databases);
+}
+
+function toNameEntry(raw: unknown): CatalogNames['databases'][number]['collections'] {
+  const name = readString(raw, 'name');
+  if (name === undefined || name.startsWith(SYSTEM_PREFIX)) {
+    return [];
+  }
+  return [{ name, type: toCollectionType(readString(raw, 'type')) }];
+}
+
+function groupCatalog(rows: unknown[]): CatalogNames {
+  const byDb = new Map<string, CatalogNames['databases'][number]['collections']>();
+  for (const row of rows) {
+    const db = readString(row, 'db');
+    const name = readString(row, 'name');
+    if (db === undefined || name === undefined || name.startsWith(SYSTEM_PREFIX)) {
+      continue;
+    }
+    const type =
+      readString(row, 'type') === 'view'
+        ? 'view'
+        : readRecord(readRecord(readRecord(row, 'md'), 'options'), 'timeseries') !== undefined
+          ? 'timeseries'
+          : 'collection';
+    const list = byDb.get(db) ?? [];
+    list.push({ name, type });
+    byDb.set(db, list);
+  }
+  return sortCatalog([...byDb].map(([name, collections]) => ({ name, collections })));
+}
+
+function sortCatalog(databases: CatalogNames['databases']): CatalogNames {
+  return {
+    databases: databases
+      .map((db) => ({ ...db, collections: [...db.collections].sort(byName) }))
+      .sort(byName),
+  };
+}
+
+/** The collection with its metadata count and size. Never throws: stats are decoration. */
+async function withStats(
+  client: MongoClient,
+  db: string,
+  info: CollectionInfo,
+): Promise<CollectionInfo> {
+  if (info.type === 'view') {
+    return info;
+  }
+  try {
+    const storage = await readStorageStats(client, db, info.name);
+    const count = readNumber(storage, 'count');
+    const size = readNumber(storage, 'size');
+    return {
+      ...info,
+      ...definedEntry('count', count),
+      ...definedEntry('size', size),
+    };
+  } catch {
+    try {
+      const count = await client.db(db).collection(info.name).estimatedDocumentCount();
+      return { ...info, count };
+    } catch {
+      return info;
+    }
+  }
 }
 
 export async function collectionStats(

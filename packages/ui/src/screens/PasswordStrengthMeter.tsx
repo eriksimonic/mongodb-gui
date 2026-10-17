@@ -1,23 +1,28 @@
-import { Progress, Stack, Text } from '@mantine/core';
+import { Group, Stack, Text } from '@mantine/core';
 import { passwordStrength } from './password-rules';
-
-const STRENGTH_COLORS = ['red', 'red', 'orange', 'yellow', 'blue'] as const;
 
 export interface PasswordStrengthMeterProps {
   readonly password: string;
 }
 
-/** The bar and label under a new master password field. Shared by first run and the change dialog. */
+/** Four segments and a label under a new master password field. Shared by first run and the change dialog. */
 export function PasswordStrengthMeter({ password }: PasswordStrengthMeterProps) {
   const strength = passwordStrength(password);
   return (
     <Stack gap={4}>
-      <Progress
-        value={(strength.score / 4) * 100}
-        color={STRENGTH_COLORS[strength.score] ?? 'red'}
-        size="xs"
-        aria-label="Password strength"
-      />
+      <Group gap={4} wrap="nowrap" role="img" aria-label="Password strength">
+        {[1, 2, 3, 4].map((segment) => (
+          <div
+            key={segment}
+            style={{
+              flex: 1,
+              height: 4,
+              borderRadius: 2,
+              background: segment <= strength.score ? 'var(--mg-ok)' : 'var(--mg-surface-3)',
+            }}
+          />
+        ))}
+      </Group>
       <Text size="xs" c="dimmed">
         Strength: {strength.label}. Use 10 or more characters with upper and lower case, digits and
         symbols.

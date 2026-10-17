@@ -8,6 +8,7 @@ import {
   ConnectionTestResultSchema,
 } from '../schemas/connection';
 import {
+  CatalogNamesSchema,
   CollectionInfoSchema,
   CollectionStatsSchema,
   DatabaseInfoSchema,
@@ -352,6 +353,10 @@ export const rpcContract = {
   databases: {
     list: defineCall(connectionParam, z.array(DatabaseInfoSchema)),
     stats: defineCall(databaseParam, DatabaseStatsSchema),
+  },
+  catalog: {
+    /** Every database and collection name of a server in one call, without stats. */
+    listNames: defineCall(connectionParam, CatalogNamesSchema),
   },
   collections: {
     list: defineCall(databaseParam, z.array(CollectionInfoSchema)),

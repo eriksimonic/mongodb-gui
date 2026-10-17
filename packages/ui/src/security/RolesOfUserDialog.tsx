@@ -62,7 +62,7 @@ export function RolesOfUserDialog({ store, user, onClose }: RolesOfUserDialogPro
   }
 
   return (
-    <Modal opened onClose={onClose} title={`Roles of ${user.user}`} centered size="md">
+    <Modal opened onClose={onClose} title={`Roles of ${user.user}`} centered size={640}>
       <form
         onSubmit={(event) => {
           event.preventDefault();
@@ -71,7 +71,7 @@ export function RolesOfUserDialog({ store, user, onClose }: RolesOfUserDialogPro
           }
         }}
       >
-        <Stack gap="sm">
+        <Stack gap="lg">
           <Text size="sm" c="dimmed">
             Holds{' '}
             {user.roles.length === 0

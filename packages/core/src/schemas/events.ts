@@ -63,6 +63,11 @@ export const RpcEventSchema = z.discriminatedUnion('type', [
     type: z.literal('docker:containers'),
     containers: z.array(DockerMongoContainerSummarySchema),
   }),
+  // Saved connections were removed behind the user's back, so lists should reload.
+  z.object({
+    type: z.literal('connections:changed'),
+    removed: z.array(z.object({ id: z.string(), name: z.string() })),
+  }),
   z.object({ type: z.literal('updates:state'), state: UpdateStateSchema }),
   z.object({
     type: z.literal('monitor:sample'),

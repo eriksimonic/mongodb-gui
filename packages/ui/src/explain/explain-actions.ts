@@ -51,8 +51,11 @@ export interface ExplainActions {
    * aggregate or no document reaches the $lookup.
    */
   measureLookup(panelId: string, stage: PlanStage): Promise<string>;
-  /** Runs the panel's request again. A verbosity replaces the last one and the rest stays. */
-  rerunExplain(panelId: string, verbosity?: PlanVerbosity): Promise<void>;
+  /**
+   * Runs the panel's request again. A verbosity replaces the last one and the rest stays. Text
+   * replaces the statement or command, as edited in the panel.
+   */
+  rerunExplain(panelId: string, verbosity?: PlanVerbosity, text?: string): Promise<void>;
   /**
    * Puts back a panel the saved layout restored, from its dock params. It does not run: the
    * explain may execute the query, so it waits for Re-run.
@@ -259,10 +262,38 @@ export function createExplainActions(
       });
     },
 
-    async rerunExplain(panelId, verbosity) {
+    async rerunExplain(panelId, verbosity, text) {
       const panel = get().explainPanels[panelId];
       if (panel === undefined) {
         return;
+      }
+      if (text !== undefined) {
+        const { source } = panel.request;
+        const current = source.kind === 'statement' ? source.code : source.commandEjson;
+        if (text !== current) {
+          if (source.kind === 'statement') {
+            const rewrite = rewriteForExplain(text, verbosity ?? panel.request.verbosity);
+            const collection = rewrite.ok ? rewrite.collection : undefined;
+            patchPanel(panelId, {
+              title: explainTitle(collection),
+              collection,
+              request: { ...panel.request, source: { kind: 'statement', code: text } },
+              outcome: rewrite.ok
+                ? { state: 'loading' }
+                : { state: 'refused', message: rewrite.message },
+            });
+          } else {
+            const collection = commandCollection(text) ?? panel.collection;
+            patchPanel(panelId, {
+              title: explainTitle(collection),
+              collection,
+              request: { ...panel.request, source: { ...source, commandEjson: text } },
+              outcome: { state: 'loading' },
+            });
+          }
+        } else if (panel.outcome.state === 'refused') {
+          patchPanel(panelId, { outcome: { state: 'loading' } });
+        }
       }
       if (verbosity !== undefined && verbosity !== panel.request.verbosity) {
         patchPanel(panelId, { request: { ...panel.request, verbosity } });

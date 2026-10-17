@@ -27,8 +27,14 @@
 }
 
 .mg-tree-item[aria-selected='true'] {
-  background: var(--mg-selected);
-  color: var(--mg-selected-text);
+  background: var(--mg-surface-2);
+  color: var(--mg-text-strong);
+  outline: 1px solid var(--mg-border-strong);
+  outline-offset: -1px;
+}
+
+.mg-tree-item[data-ancestor='true'] {
+  background: color-mix(in srgb, var(--mg-accent) 12%, transparent);
 }
 
 .mg-tree-item:focus-visible {
@@ -139,6 +145,102 @@
   top: 0;
   z-index: 1;
   padding: 4px 8px;
-  background: var(--mantine-color-body);
+  background: var(--mg-side);
   border-bottom: 1px solid var(--mantine-color-default-border);
+}
+
+.mg-tree-search {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  height: 30px;
+  margin-bottom: 6px;
+  padding: 0 8px;
+  color: var(--mg-text-muted);
+  background: var(--mg-surface-2);
+  border: 1px solid var(--mg-border-strong);
+  border-radius: var(--mantine-radius-default);
+}
+
+.mg-tree-search:focus-within {
+  border-color: var(--mg-accent);
+  box-shadow: 0 0 0 1px var(--mg-accent);
+}
+
+.mg-tree-search input {
+  flex: 1;
+  min-width: 0;
+  color: var(--mg-text-strong);
+  font: inherit;
+  font-size: calc(var(--mg-font-scale, 1) * 12.5px);
+  background: none;
+  border: 0;
+  outline: none;
+}
+
+.mg-tree-search-scope {
+  padding: 2px 0 6px;
+}
+
+.mg-tree-chip {
+  padding: 1px 8px;
+  color: var(--mg-text);
+  font-size: calc(var(--mg-font-scale, 1) * 11px);
+  background: var(--mg-surface-2);
+  border: 1px solid var(--mg-border);
+  border-radius: 999px;
+}
+
+.mg-tree-search-count {
+  padding: 6px 0;
+}
+
+.mg-tree-mark {
+  color: var(--mg-accent-text);
+  background: color-mix(in srgb, var(--mg-accent) 22%, transparent);
+  border-radius: 2px;
+}
+
+.mg-tree-stats {
+  flex: none;
+  margin-left: 8px;
+  color: var(--mg-text-muted);
+  font-family: var(--mg-font-mono, var(--mantine-font-family-monospace));
+  font-size: calc(var(--mg-font-scale, 1) * 11px);
+}
+
+/* The panel is a column: search area on top, rows scrolling in the middle, footer pinned below. */
+.mg-tree-panel {
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+  min-height: 0;
+}
+
+.mg-tree-top {
+  flex: none;
+  padding: 8px 8px 0;
+}
+
+.mg-tree-scroll {
+  flex: 1;
+  min-height: 0;
+  padding: 0 8px 8px;
+  overflow: auto;
+}
+
+.mg-tree-footer {
+  flex: none;
+  padding: 4px 12px;
+  background: var(--mg-side);
+  border-top: 1px solid var(--mg-border);
+}
+
+.mg-tree-search-scope {
+  max-height: calc(var(--mg-font-scale, 1) * 72px);
+  overflow: auto;
+}
+
+.mg-tree-footer .mg-tree-search-count {
+  padding: 2px 0;
 }

@@ -25,16 +25,11 @@ const REPLICA_CONNECTED: ConnectionStatus = {
 
 /** WiredTiger and transaction panels, as an operator would compose them for a write-heavy server. */
 const WIREDTIGER_LAYOUT: DashboardLayout = {
-  version: 1,
-  panels: [
-    { id: 'wt-cache', w: 2, h: 1 },
-    { id: 'wt-cache-fill', w: 1, h: 1 },
-    { id: 'tickets', w: 1, h: 1 },
-    { id: 'transactions-open', w: 1, h: 1 },
-    { id: 'transactions-rate', w: 2, h: 1 },
-    { id: 'wt-pages', w: 1, h: 1 },
-    { id: 'block-io', w: 2, h: 1 },
-    { id: 'operations-by-type', w: 2, h: 2 },
+  version: 2,
+  rows: [
+    { h: 300, panels: [{ id: 'wt-cache', f: 0.5 }, { id: 'wt-cache-fill', f: 0.25 }, { id: 'tickets', f: 0.25 }] },
+    { h: 300, panels: [{ id: 'transactions-open', f: 0.25 }, { id: 'transactions-rate', f: 0.5 }, { id: 'wt-pages', f: 0.25 }] },
+    { h: 300, panels: [{ id: 'block-io', f: 0.5 }, { id: 'operations-by-type', f: 0.5 }] },
   ],
 };
 

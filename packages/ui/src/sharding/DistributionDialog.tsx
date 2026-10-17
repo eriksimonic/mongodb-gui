@@ -37,8 +37,8 @@ export function DistributionDialog({ store, namespace, onClose }: DistributionDi
   }, [store, namespace]);
 
   return (
-    <Modal opened onClose={onClose} title={`Distribution of ${namespace}`} centered size="lg">
-      <Stack gap="sm">
+    <Modal opened onClose={onClose} title={`Distribution of ${namespace}`} centered size={640}>
+      <Stack gap="lg">
         {error === undefined ? null : (
           <Alert color="red" variant="light">
             {error}

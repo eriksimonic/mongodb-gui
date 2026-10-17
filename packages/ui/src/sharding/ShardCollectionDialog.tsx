@@ -137,8 +137,8 @@ export function ShardCollectionDialog({
   }
 
   return (
-    <Modal opened onClose={onClose} title="Shard collection" centered size="lg">
-      <Stack gap="sm">
+    <Modal opened onClose={onClose} title="Shard collection" centered size={640}>
+      <Stack gap="lg">
         <Text size="sm">
           Collection <strong>{namespace}</strong>. Shard it on a key the queries filter on.
         </Text>

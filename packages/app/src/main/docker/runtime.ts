@@ -30,6 +30,7 @@ import {
 } from '@mongo-gui/docker';
 import type { ConnectionsRepository, SettingsRepository } from '@mongo-gui/storage';
 import type { Logger } from '../log';
+import { staleDockerProfiles } from './prune';
 
 export const DOCKER_POLL_INTERVAL_MS = 10_000;
 const LOOPBACK = '127.0.0.1';
@@ -73,7 +74,8 @@ export type DockerConnectResult = DockerConnectedResult | DockerCredentialsRequi
 /** The Docker features the router exposes. Created once per app session. */
 export interface DockerRuntime {
   status(): Promise<DockerStatus>;
-  list(): Promise<DockerMongoContainerSummary[]>;
+  /** `emit` receives the event for profiles removed because their container is gone. */
+  list(emit?: (event: RpcEvent) => void): Promise<DockerMongoContainerSummary[]>;
   connect(containerId: string): Promise<DockerConnectResult>;
   /** Tests the user and password first. A failed test throws its AppError and saves nothing. */
   connectWithCredentials(input: DockerConnectWithCredentialsInput): Promise<DockerConnectedResult>;
@@ -81,6 +83,11 @@ export interface DockerRuntime {
   setAutoConnect(enabled: boolean): Settings;
   /** Starts or stops the poll. Each change pushes a `docker:containers` event. */
   watch(enabled: boolean, emit: (event: RpcEvent) => void): void;
+  /**
+   * Removes docker profiles whose container no longer exists, including stopped ones. Does
+   * nothing when Docker cannot be listed. Normally runs on every container listing, this is for unlock.
+   */
+  pruneMissing(emit?: (event: RpcEvent) => void): Promise<void>;
   /** Stops the poll timer while the vault is locked. The watch setting is kept. */
   suspend(): void;
   /** Starts the poll timer again after unlock, when the watch setting is on. */
@@ -118,6 +125,8 @@ export function createDockerRuntime(deps: DockerRuntimeDeps): DockerRuntime {
   const pollIntervalMs = deps.pollIntervalMs ?? DOCKER_POLL_INTERVAL_MS;
   let timer: ReturnType<typeof setInterval> | undefined;
   let emitter: ((event: RpcEvent) => void) | undefined;
+  // Where removals go when the poll is off. Set by the last docker.list call.
+  let listEmitter: ((event: RpcEvent) => void) | undefined;
   let watching = false;
   let lastKey: string | undefined;
   let polling = false;
@@ -159,8 +168,54 @@ export function createDockerRuntime(deps: DockerRuntimeDeps): DockerRuntime {
     }
   }
 
-  const discover = async (): Promise<DockerMongoContainer[]> =>
-    discoverMongoContainers(deps.engine);
+  /** One container listing serves both discovery and the removal of profiles of gone containers. */
+  const discover = async (): Promise<DockerMongoContainer[]> => {
+    const items = await deps.engine.listContainers();
+    await pruneProfiles(new Set(items.map((item) => item.id)));
+    return discoverMongoContainers({ ...deps.engine, listContainers: async () => items });
+  };
+
+  // Removals run one at a time, so two listings that overlap never delete the same profile twice.
+  let pruning: Promise<void> = Promise.resolve();
+
+  function pruneProfiles(
+    containerIds: ReadonlySet<string>,
+    emit: ((event: RpcEvent) => void) | undefined = emitter ?? listEmitter,
+  ): Promise<void> {
+    pruning = pruning.then(() => removeStaleProfiles(containerIds, emit));
+    return pruning;
+  }
+
+  async function removeStaleProfiles(
+    containerIds: ReadonlySet<string>,
+    emit: ((event: RpcEvent) => void) | undefined = emitter,
+  ): Promise<void> {
+    try {
+      if (!deps.isUnlocked()) {
+        return;
+      }
+      const repos = deps.repos();
+      const removed: { id: string; name: string }[] = [];
+      for (const profile of staleDockerProfiles(repos.connections.list(), containerIds)) {
+        // Disconnect and free the forwarder first, then delete the profile as connections.remove does.
+        await deps.connections.disconnect(profile.id);
+        if (profile.dockerContainerId !== undefined) {
+          await releaseForwarder(profile.dockerContainerId);
+        }
+        repos.connections.remove(profile.id);
+        deps.log.info('removed docker connection whose container is gone', {
+          name: profile.name,
+          containerId: profile.dockerContainerId ?? '',
+        });
+        removed.push({ id: profile.id, name: profile.name });
+      }
+      if (removed.length > 0) {
+        emit?.({ type: 'connections:changed', removed });
+      }
+    } catch (error) {
+      deps.log.warn('removing docker connections failed', { error: errorText(error) });
+    }
+  }
 
   const findProfile = (containerId: string): ConnectionProfile | undefined =>
     deps
@@ -343,7 +398,10 @@ export function createDockerRuntime(deps: DockerRuntimeDeps): DockerRuntime {
       return dockerStatus(deps.engine, deps.socketPath);
     },
 
-    async list() {
+    async list(emit) {
+      if (emit !== undefined) {
+        listEmitter = emit;
+      }
       return (await discover()).map(toDockerContainerSummary);
     },
 
@@ -379,6 +437,15 @@ export function createDockerRuntime(deps: DockerRuntimeDeps): DockerRuntime {
 
     resume() {
       startTimer();
+    },
+
+    async pruneMissing(emit) {
+      try {
+        const items = await deps.engine.listContainers();
+        await pruneProfiles(new Set(items.map((item) => item.id)), emit ?? emitter ?? listEmitter);
+      } catch {
+        // Docker is not reachable, so nothing is removed.
+      }
     },
 
     async autoConnect() {

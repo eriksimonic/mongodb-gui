@@ -33,7 +33,7 @@ export function ChangePasswordDialog({ store, user, onClose }: ChangePasswordDia
   }
 
   return (
-    <Modal opened onClose={onClose} title={`Password of ${user.user}`} centered size="sm">
+    <Modal opened onClose={onClose} title={`Password of ${user.user}`} centered size={640}>
       <form
         onSubmit={(event) => {
           event.preventDefault();
@@ -42,7 +42,7 @@ export function ChangePasswordDialog({ store, user, onClose }: ChangePasswordDia
           }
         }}
       >
-        <Stack gap="sm">
+        <Stack gap="lg">
           <PasswordInput
             label="New password"
             value={password}

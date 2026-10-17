@@ -10,6 +10,7 @@ describe('rpcContract', () => {
       [
         'app',
         'backup',
+        'catalog',
         'changes',
         'collections',
         'connections',

@@ -772,3 +772,63 @@ describe('createDockerRuntime forwarder certificates', () => {
     expect(existsSync(certFile ?? '')).toBe(false);
   });
 });
+
+describe('createDockerRuntime pruneMissing', () => {
+  const GONE_ID = 'f'.repeat(64);
+
+  function addProfiles(harness: Harness): { docker: string; stopped: string; gone: string; manual: string } {
+    const make = (name: string, source: 'manual' | 'docker', containerId?: string): string =>
+      harness.repos.connections.create({
+        name,
+        uri: 'mongodb://127.0.0.1:27017',
+        source,
+        ...(containerId === undefined ? {} : { dockerContainerId: containerId }),
+      }).id;
+    return {
+      docker: make('up', 'docker', PUBLISHED_ID),
+      stopped: make('down', 'docker', PLAIN_ID),
+      gone: make('gone', 'docker', GONE_ID),
+      manual: make('manual', 'manual'),
+    };
+  }
+
+  it('removes only the docker profile whose container is gone, and emits the change', async () => {
+    const harness = buildHarness({
+      [PUBLISHED_ID]: inspectOf({ id: PUBLISHED_ID, name: 'up', published: true }),
+      [PLAIN_ID]: inspectOf({ id: PLAIN_ID, name: 'down', status: 'exited' }),
+    });
+    const ids = addProfiles(harness);
+
+    await harness.runtime.pruneMissing((event) => harness.events.push(event));
+
+    const left = harness.repos.connections.list().map((profile) => profile.name).sort();
+    expect(left).toEqual(['down', 'manual', 'up']);
+    expect(harness.connections.disconnected).toContain(ids.gone);
+    expect(harness.events).toEqual([
+      { type: 'connections:changed', removed: [{ id: ids.gone, name: 'gone' }] },
+    ]);
+  });
+
+  it('removes nothing when Docker is unreachable', async () => {
+    const harness = buildHarness({});
+    harness.engine.unreachable = true;
+    addProfiles(harness);
+
+    await harness.runtime.pruneMissing((event) => harness.events.push(event));
+
+    expect(harness.repos.connections.list()).toHaveLength(4);
+    expect(harness.events).toEqual([]);
+  });
+
+  it('prunes during a container listing', async () => {
+    const harness = buildHarness({
+      [PUBLISHED_ID]: inspectOf({ id: PUBLISHED_ID, name: 'up', published: true }),
+    });
+    addProfiles(harness);
+
+    await harness.runtime.list((event) => harness.events.push(event));
+
+    expect(harness.repos.connections.list().map((profile) => profile.name)).not.toContain('gone');
+    expect(harness.events).toHaveLength(1);
+  });
+});

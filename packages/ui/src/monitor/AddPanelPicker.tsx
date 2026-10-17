@@ -97,7 +97,7 @@ function PickerRow({ panel, added, capabilities, onAdd }: PickerRowProps) {
             {panel.description}
           </Text>
           {unmet === undefined ? null : (
-            <Text size="xs" c="yellow.7" id={reasonId}>
+            <Text size="xs" c="var(--mg-accent-text)" id={reasonId}>
               {REQUIREMENT_LABELS[unmet]}
             </Text>
           )}

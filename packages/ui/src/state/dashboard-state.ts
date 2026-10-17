@@ -1,11 +1,15 @@
 import {
   DashboardLayoutSchema,
   defaultDashboardLayout,
+  DEFAULT_ROW_HEIGHT_PX,
   findPanel,
+  layoutPanelIds,
+  normaliseRow,
+  ROW_MIN_HEIGHT_PX,
   unmetRequirement,
   type AppError,
   type DashboardLayout,
-  type DashboardPanel,
+  type DashboardRow,
   type PanelSpec,
   type ServerCapabilities,
 } from '@mongo-gui/core';
@@ -38,61 +42,126 @@ export const EMPTY_DASHBOARD_VIEW: DashboardView = {
 /** A pure change to a layout. The store keeps these until the saved layout is read. */
 export type LayoutChange = (layout: DashboardLayout) => DashboardLayout;
 
-export type DashboardWidth = DashboardPanel['w'];
-export type DashboardHeight = DashboardPanel['h'];
+/** Most panels a row takes when one is added or dropped beside another. */
+export const MAX_PANELS_PER_ROW = 4;
 
-/** Stacked charts take two columns, because their areas read better wide. Everything else takes one. */
-export function defaultWidthFor(panel: PanelSpec): DashboardWidth {
-  return panel.chart === 'stacked' ? 2 : 1;
-}
-
-/** Appends a panel at the end of the layout. A panel already on the dashboard stays where it is. */
-export function addPanel(layout: DashboardLayout, panel: PanelSpec): DashboardLayout {
-  if (layout.panels.some((item) => item.id === panel.id)) {
-    return layout;
-  }
+function withRows(layout: DashboardLayout, rows: readonly DashboardRow[]): DashboardLayout {
   return {
     ...layout,
-    panels: [...layout.panels, { id: panel.id, w: defaultWidthFor(panel), h: 1 }],
+    rows: rows
+      .filter((row) => row.panels.length > 0)
+      .map((row) => ({ ...row, panels: normaliseRow(row.panels) })),
   };
 }
 
+/** Puts a panel into the last row with equal widths when the row has room, else in a new row. */
+export function addPanel(layout: DashboardLayout, panel: PanelSpec): DashboardLayout {
+  if (layoutPanelIds(layout).includes(panel.id)) {
+    return layout;
+  }
+  const last = layout.rows.at(-1);
+  if (last !== undefined && last.panels.length < MAX_PANELS_PER_ROW) {
+    const equal = [...last.panels, { id: panel.id, f: 1 }].map((item) => ({ ...item, f: 1 }));
+    return withRows(layout, [...layout.rows.slice(0, -1), { ...last, panels: equal }]);
+  }
+  return withRows(layout, [
+    ...layout.rows,
+    { h: DEFAULT_ROW_HEIGHT_PX, panels: [{ id: panel.id, f: 1 }] },
+  ]);
+}
+
+/** Removes a panel. Its row shares the width among the rest, and an emptied row goes. */
 export function removePanel(layout: DashboardLayout, id: string): DashboardLayout {
-  return { ...layout, panels: layout.panels.filter((panel) => panel.id !== id) };
-}
-
-/** Moves the panel `fromId` to the position `toId` has. Unknown ids leave the layout unchanged. */
-export function movePanel(layout: DashboardLayout, fromId: string, toId: string): DashboardLayout {
-  const from = layout.panels.findIndex((panel) => panel.id === fromId);
-  const to = layout.panels.findIndex((panel) => panel.id === toId);
-  if (from < 0 || to < 0 || from === to) {
+  if (!layoutPanelIds(layout).includes(id)) {
     return layout;
   }
-  const panels = [...layout.panels];
-  const [moved] = panels.splice(from, 1);
-  if (moved === undefined) {
-    return layout;
-  }
-  panels.splice(to, 0, moved);
-  return { ...layout, panels };
+  return withRows(
+    layout,
+    layout.rows.map((row) => ({ ...row, panels: row.panels.filter((panel) => panel.id !== id) })),
+  );
 }
 
-export function resizePanel(
+/** Where a dragged panel lands relative to another: beside it in its row, or in a new row. */
+export type DropPlace = 'left' | 'right' | 'above' | 'below';
+
+/**
+ * Moves a panel next to another panel, or into a new row above or below the target's row. The row
+ * the panel left shares its width among the rest. A drop on itself does nothing.
+ */
+export function movePanel(
   layout: DashboardLayout,
   id: string,
-  size: { readonly w?: DashboardWidth; readonly h?: DashboardHeight },
+  targetId: string,
+  place: DropPlace,
 ): DashboardLayout {
+  const ids = layoutPanelIds(layout);
+  if (id === targetId || !ids.includes(id) || !ids.includes(targetId)) {
+    return layout;
+  }
+  const sourceRow = layout.rows.find((row) => row.panels.some((panel) => panel.id === id));
+  const height = sourceRow?.h ?? DEFAULT_ROW_HEIGHT_PX;
+  const rows = layout.rows.map((row) => ({
+    ...row,
+    panels: row.panels.filter((panel) => panel.id !== id),
+  }));
+  const targetIndex = rows.findIndex((row) => row.panels.some((panel) => panel.id === targetId));
+  const target = rows[targetIndex];
+  if (target === undefined) {
+    return layout;
+  }
+  const beside = (place === 'left' || place === 'right') && target.panels.length < MAX_PANELS_PER_ROW;
+  if (beside) {
+    const at = target.panels.findIndex((panel) => panel.id === targetId) + (place === 'right' ? 1 : 0);
+    const panels = [...target.panels.map((panel) => ({ ...panel, f: 1 }))];
+    panels.splice(at, 0, { id, f: 1 });
+    rows[targetIndex] = { ...target, panels };
+  } else {
+    const newRow: DashboardRow = { h: height, panels: [{ id, f: 1 }] };
+    rows.splice(place === 'above' || place === 'left' ? targetIndex : targetIndex + 1, 0, newRow);
+  }
+  return withRows(layout, rows);
+}
+
+/**
+ * Moves the boundary between two neighbours of a row. `leftShare` is the left panel's share of the
+ * two panels' combined width, from 0 to 1. The other panels keep their widths.
+ */
+export function splitPanels(
+  layout: DashboardLayout,
+  leftId: string,
+  rightId: string,
+  leftShare: number,
+): DashboardLayout {
+  const share = Math.min(1, Math.max(0, leftShare));
+  return withRows(
+    layout,
+    layout.rows.map((row) => {
+      const left = row.panels.find((panel) => panel.id === leftId);
+      const right = row.panels.find((panel) => panel.id === rightId);
+      if (left === undefined || right === undefined) {
+        return row;
+      }
+      const sum = left.f + right.f;
+      return {
+        ...row,
+        panels: row.panels.map((panel) =>
+          panel.id === leftId
+            ? { ...panel, f: sum * share }
+            : panel.id === rightId
+              ? { ...panel, f: sum * (1 - share) }
+              : panel,
+        ),
+      };
+    }),
+  );
+}
+
+/** Sets the height of a row. Rows below it move with it. */
+export function setRowHeight(layout: DashboardLayout, rowIndex: number, height: number): DashboardLayout {
+  const h = Math.max(ROW_MIN_HEIGHT_PX, Math.round(height));
   return {
     ...layout,
-    panels: layout.panels.map((panel) =>
-      panel.id === id
-        ? {
-            ...panel,
-            ...(size.w === undefined ? {} : { w: size.w }),
-            ...(size.h === undefined ? {} : { h: size.h }),
-          }
-        : panel,
-    ),
+    rows: layout.rows.map((row, index) => (index === rowIndex ? { ...row, h } : row)),
   };
 }
 
@@ -124,22 +193,32 @@ export function readStoredLayout(value: unknown): StoredLayout {
   return { state: 'invalid', summary };
 }
 
-/** A placed panel with its catalogue entry. Panels whose requirement the connection lacks are left out. */
+/** A panel to draw: its place in the saved row, its catalogue entry and its share of the row. */
 export interface VisiblePanel {
-  readonly placed: DashboardPanel;
+  readonly id: string;
   readonly spec: PanelSpec;
+  readonly f: number;
 }
 
-/** The panels to draw, in layout order. Panel ids the catalogue no longer has are skipped. */
-export function visiblePanels(
-  layout: DashboardLayout,
-  capabilities: ServerCapabilities,
-): VisiblePanel[] {
-  return layout.panels.flatMap((placed) => {
-    const spec = findPanel(placed.id);
-    if (spec === undefined || unmetRequirement(spec, capabilities) !== undefined) {
-      return [];
-    }
-    return [{ placed, spec }];
+export interface VisibleRow {
+  /** The index in the saved layout, which the row actions use. */
+  readonly index: number;
+  readonly h: number;
+  readonly panels: readonly VisiblePanel[];
+}
+
+/**
+ * The rows to draw. Panels whose requirement the connection lacks, and ids the catalogue no longer
+ * has, are left out, and the rest share the full row width. A row left empty is skipped.
+ */
+export function visibleRows(layout: DashboardLayout, capabilities: ServerCapabilities): VisibleRow[] {
+  return layout.rows.flatMap((row, index) => {
+    const shown = row.panels.flatMap((placed) => {
+      const spec = findPanel(placed.id);
+      return spec === undefined || unmetRequirement(spec, capabilities) !== undefined
+        ? []
+        : [{ id: placed.id, spec, f: placed.f }];
+    });
+    return shown.length === 0 ? [] : [{ index, h: row.h, panels: normaliseRow(shown) }];
   });
 }

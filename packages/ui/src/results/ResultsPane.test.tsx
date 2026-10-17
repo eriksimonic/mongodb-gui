@@ -126,7 +126,7 @@ describe('ResultsPane previews', () => {
     const writeText = vi.fn().mockResolvedValue(undefined);
     Object.defineProperty(navigator, 'clipboard', { value: { writeText }, configurable: true });
     const readFull = vi.fn().mockResolvedValue(JSON.stringify(FULL));
-    await renderPane({ result: resultOf([previewDoc(5000)], 3000), readFull });
+    await renderPane({ view: 'table', result: resultOf([previewDoc(5000)], 3000), readFull });
 
     fireEvent.click(screen.getByRole('button', { name: 'Copy JSON' }));
 
@@ -138,7 +138,7 @@ describe('ResultsPane previews', () => {
     const writeText = vi.fn().mockResolvedValue(undefined);
     Object.defineProperty(navigator, 'clipboard', { value: { writeText }, configurable: true });
     const readFull = vi.fn();
-    await renderPane({ result: resultOf([previewDoc(9 * 1024 * 1024)]), readFull });
+    await renderPane({ view: 'table', result: resultOf([previewDoc(9 * 1024 * 1024)]), readFull });
 
     fireEvent.click(screen.getByRole('button', { name: 'Copy JSON' }));
 
@@ -154,30 +154,11 @@ describe('ResultsPane previews', () => {
       n,
       pad: 'x'.repeat(10),
     }));
-    await renderPane({ result: resultOf(documents, 10 * 1024 * 1024) });
+    await renderPane({ view: 'table', result: resultOf(documents, 10 * 1024 * 1024) });
 
     fireEvent.click(screen.getByRole('button', { name: 'Copy JSON' }));
 
     await waitFor(() => expect(writeText).toHaveBeenCalledTimes(1));
-  });
-
-  it('windows the JSON view of a large result and says which values are shortened', async () => {
-    const documents: JsonObject[] = Array.from({ length: 5000 }, (_, n) => ({ n }));
-    documents[0] = previewDoc(5000);
-    await renderPane({ view: 'json', result: resultOf(documents, 5000 * 1000) });
-
-    expect(
-      await screen.findByText(/Showing the first 2,097 of 5,000 documents/),
-    ).toBeInTheDocument();
-    expect(screen.getByText('Some values are shortened.')).toBeInTheDocument();
-  });
-
-  it('shows the whole result in the JSON view when it fits the window', async () => {
-    await renderPane({ view: 'json', result: resultOf([{ n: 1 }], 20) });
-
-    await screen.findByLabelText('Result as JSON');
-    expect(screen.queryByText(/Showing the first/)).toBeNull();
-    expect(screen.queryByText('Some values are shortened.')).toBeNull();
   });
 
   it('says the cursor has more once the memory limit is reached', async () => {

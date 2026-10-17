@@ -10,13 +10,13 @@ export interface CenteredScreenProps {
 /** The app mark and a single card in the middle of the window. Used by the first-run and unlock screens. */
 export function CenteredScreen({ title, children }: CenteredScreenProps) {
   return (
-    <Center mih="100vh" p="md">
+    <Center mih="100vh" p="md" bg="var(--mg-bg-sunken)">
       <Stack gap="md" w={420} maw="100%">
         <Group gap={8} justify="center">
-          <IconDatabase size={22} color="var(--mantine-color-blue-5)" aria-hidden="true" />
-          <Text fw={600}>Mongo GUI</Text>
+          <IconDatabase size={22} color="var(--mg-accent)" aria-hidden="true" />
+          <Text fw={600} size="lg">Mongo GUI</Text>
         </Group>
-        <Paper w="100%" p="lg" withBorder>
+        <Paper w="100%" p="xl" withBorder bg="var(--mg-surface-1)" style={{ borderColor: 'var(--mg-border)' }}>
           <Stack gap="md">
             <Title order={4}>{title}</Title>
             {children}

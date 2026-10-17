@@ -1,5 +1,24 @@
-import { Badge, Button, Group, Loader, Progress, Stack, Table, Text, Alert } from '@mantine/core';
-import { IconArrowDown, IconArrowUp, IconPlus } from '@tabler/icons-react';
+import {
+  Badge,
+  Box,
+  Button,
+  Code,
+  Group,
+  Loader,
+  Progress,
+  Stack,
+  Table,
+  Text,
+  Alert,
+} from '@mantine/core';
+import {
+  IconAlertCircle,
+  IconArrowDown,
+  IconArrowUp,
+  IconCopy,
+  IconPlus,
+  IconRefresh,
+} from '@tabler/icons-react';
 import { type IndexBuildProgress, type IndexInfo } from '@mongo-gui/core';
 import { errorText } from '../kit/notify-error';
 import { useEffect, useState } from 'react';
@@ -49,6 +68,7 @@ function KeyBadges({ index }: { readonly index: IndexInfo }) {
           <Badge
             tt="none"
             key={field}
+            ff="monospace"
             variant="outline"
             color="gray"
             leftSection={
@@ -126,11 +146,121 @@ function propertyChips(index: IndexInfo): string[] {
   return chips;
 }
 
-function usageText(index: IndexInfo): string {
-  if (index.usage === undefined) {
-    return 'No usage data';
+/** The index as the server reports it, without the size and usage the panel adds. */
+function definitionText(index: IndexInfo): string {
+  const definition: Record<string, unknown> = { key: index.key, name: index.name };
+  if (index.unique === true) {
+    definition.unique = true;
   }
-  return `${index.usage.ops} ops since ${index.usage.since.slice(0, ISO_DATE_LENGTH)}`;
+  if (index.sparse === true) {
+    definition.sparse = true;
+  }
+  if (index.hidden === true) {
+    definition.hidden = true;
+  }
+  if (index.expireAfterSeconds !== undefined) {
+    definition.expireAfterSeconds = index.expireAfterSeconds;
+  }
+  return JSON.stringify(definition, undefined, 2);
+}
+
+function createIndexText(collection: string, index: IndexInfo): string {
+  const { key, ...rest } = JSON.parse(definitionText(index)) as Record<string, unknown>;
+  return `db.${collection}.createIndex(${JSON.stringify(key)}, ${JSON.stringify(rest)})`;
+}
+
+function DetailRow({ label, value }: { readonly label: string; readonly value: string }) {
+  return (
+    <Group
+      justify="space-between"
+      py={6}
+      style={{ borderBottom: '1px solid var(--mg-border)' }}
+      wrap="nowrap"
+    >
+      <Text size="sm" c="dimmed">
+        {label}
+      </Text>
+      <Text size="sm" ff="monospace">
+        {value}
+      </Text>
+    </Group>
+  );
+}
+
+interface IndexDetailProps {
+  readonly index: IndexInfo;
+  readonly database: string;
+  readonly collection: string;
+  readonly onEdit: () => void;
+  readonly onHide: () => void;
+  readonly onDrop: () => void;
+}
+
+/** The right-hand pane: usage, size, definition and the actions of one index. */
+function IndexDetail({ index, database, collection, onEdit, onHide, onDrop }: IndexDetailProps) {
+  const protectedIndex = index.name === ID_INDEX;
+  const unused = index.usage !== undefined && index.usage.ops === 0;
+  return (
+    <>
+      <Group gap="xs">
+        <Text ff="monospace" fw={600}>
+          {index.name}
+        </Text>
+        {propertyChips(index).map((chip) => (
+          <Badge key={chip} size="xs" radius="xl" variant="light" color="gray">
+            {chip}
+          </Badge>
+        ))}
+      </Group>
+      {unused && index.usage !== undefined ? (
+        <Alert color="orange" variant="light" icon={<IconAlertCircle size={16} />}>
+          No queries used this index since {index.usage.since.slice(0, ISO_DATE_LENGTH)}
+          {index.size === undefined ? '' : `. It costs ${formatBytes(index.size)}`} and slows every
+          write to {database}.{collection}.
+        </Alert>
+      ) : null}
+      <Box>
+        {index.usage === undefined ? null : (
+          <>
+            <DetailRow label="Accesses" value={String(index.usage.ops)} />
+            <DetailRow label="Tracking since" value={index.usage.since.slice(0, ISO_DATE_LENGTH)} />
+          </>
+        )}
+        {index.size === undefined ? null : (
+          <DetailRow label="Size on disk" value={formatBytes(index.size)} />
+        )}
+      </Box>
+      <Text size="xs" c="dimmed">
+        Definition
+      </Text>
+      <Code block style={{ background: 'var(--mg-bg-sunken)' }}>
+        {definitionText(index)}
+      </Code>
+      <Group gap="xs">
+        <Button size="xs" variant="default" disabled={protectedIndex} onClick={onHide}>
+          {index.hidden === true ? 'Unhide index' : 'Hide index'}
+        </Button>
+        <Button
+          size="xs"
+          variant="default"
+          leftSection={<IconCopy size={12} />}
+          onClick={() => void navigator.clipboard.writeText(createIndexText(collection, index))}
+        >
+          Copy createIndex
+        </Button>
+        <Button size="xs" variant="default" disabled={protectedIndex || !canEditIndex(index)} onClick={onEdit}>
+          Edit
+        </Button>
+        <Button size="xs" color="red" variant="outline" disabled={protectedIndex} onClick={onDrop}>
+          Drop
+        </Button>
+      </Group>
+      <Text size="xs" c="dimmed">
+        Hiding keeps the index on disk but stops the planner from using it, so you can check the
+        effect before dropping.
+      </Text>
+    </>
+  );
 }
 
 /** Lists the indexes of one collection, shows builds in progress, and creates, hides and drops indexes. */
@@ -143,6 +273,8 @@ export function IndexesPanel({ connectionId, database, collection }: CollectionP
   const [creating, setCreating] = useState(false);
   const [editing, setEditing] = useState<IndexInfo | undefined>(undefined);
   const [dropping, setDropping] = useState<IndexInfo | undefined>(undefined);
+  const [selected, setSelected] = useState<string | undefined>(undefined);
+  const [reloads, setReloads] = useState(0);
 
   useEffect(() => {
     let active = true;
@@ -162,7 +294,7 @@ export function IndexesPanel({ connectionId, database, collection }: CollectionP
     return () => {
       active = false;
     };
-  }, [rpc, connectionId, database, collection, revision]);
+  }, [rpc, connectionId, database, collection, revision, reloads]);
 
   // A build can start or finish at any time, so the rows are polled while the panel is open.
   useEffect(() => {
@@ -210,19 +342,33 @@ export function IndexesPanel({ connectionId, database, collection }: CollectionP
     return <Loader size="xs" m="md" aria-label="Loading indexes" />;
   }
 
+  const current = indexes.find((index) => index.name === selected);
+  const usageSince = indexes.find((index) => index.usage !== undefined)?.usage?.since;
+
   return (
-    <Stack gap="sm" p="md">
-      <Group justify="space-between">
-        <Text size="sm" c="dimmed">
-          {indexes.length} {indexes.length === 1 ? 'index' : 'indexes'} on {database}.{collection}
+    <Stack gap={0} h="100%">
+      <Group justify="space-between" px="md" py="sm" style={{ borderBottom: '1px solid var(--mg-border)' }}>
+        <Group gap="xs">
+          <Button leftSection={<IconPlus size={14} />} onClick={() => setCreating(true)}>
+            Create index
+          </Button>
+          <Button
+            variant="default"
+            leftSection={<IconRefresh size={14} />}
+            onClick={() => setReloads((count) => count + 1)}
+          >
+            Refresh
+          </Button>
+        </Group>
+        <Text size="xs" c="dimmed">
+          {usageSince === undefined
+            ? 'No usage data'
+            : `Usage from $indexStats since ${usageSince.slice(0, ISO_DATE_LENGTH)}`}
         </Text>
-        <Button leftSection={<IconPlus size={14} />} onClick={() => setCreating(true)}>
-          Create index
-        </Button>
       </Group>
 
       {builds.map((build) => (
-        <Stack key={`${build.indexName}:${String(build.opid)}`} gap={4}>
+        <Stack key={`${build.indexName}:${String(build.opid)}`} gap={4} px="md" py="xs">
           <Text size="xs">
             Building {build.indexName}. {build.phase}
             {build.progressPercent === undefined ? '' : ` ${build.progressPercent}%`}
@@ -236,88 +382,91 @@ export function IndexesPanel({ connectionId, database, collection }: CollectionP
         </Stack>
       ))}
 
-      <Table striped highlightOnHover withTableBorder verticalSpacing="xs" fz="sm">
-        <Table.Thead>
-          <Table.Tr>
-            <Table.Th>Name</Table.Th>
-            <Table.Th>Keys</Table.Th>
-            <Table.Th>Properties</Table.Th>
-            <Table.Th>Size</Table.Th>
-            <Table.Th>Usage</Table.Th>
-            <Table.Th>Actions</Table.Th>
-          </Table.Tr>
-        </Table.Thead>
-        <Table.Tbody>
-          {indexes.map((index) => {
-            const protectedIndex = index.name === ID_INDEX;
-            const chips = propertyChips(index);
-            return (
-              <Table.Tr key={index.name}>
-                <Table.Td>{index.name}</Table.Td>
-                <Table.Td>
-                  <KeyBadges index={index} />
-                </Table.Td>
-                <Table.Td>
-                  {chips.length === 0 ? (
-                    <Text size="xs" c="dimmed">
-                      None
-                    </Text>
-                  ) : (
-                    <Group gap={4}>
-                      {chips.map((chip) => (
-                        <Badge tt="none" key={chip} size="xs" variant="light">
-                          {chip}
-                        </Badge>
-                      ))}
-                    </Group>
-                  )}
-                </Table.Td>
-                <Table.Td>
-                  {index.size === undefined ? (
-                    <Text size="xs" c="dimmed">
-                      unknown
-                    </Text>
-                  ) : (
-                    formatBytes(index.size)
-                  )}
-                </Table.Td>
-                <Table.Td>
-                  <Text size="xs">{usageText(index)}</Text>
-                </Table.Td>
-                <Table.Td>
-                  <Group gap={4} wrap="nowrap">
-                    <Button
-                      size="xs"
-                      variant="default"
-                      disabled={protectedIndex || !canEditIndex(index)}
-                      onClick={() => setEditing(index)}
-                    >
-                      Edit
-                    </Button>
-                    <Button
-                      size="xs"
-                      variant="default"
-                      disabled={protectedIndex}
-                      onClick={() => setHidden(index, index.hidden !== true)}
-                    >
-                      {index.hidden === true ? 'Unhide' : 'Hide'}
-                    </Button>
-                    <Button
-                      size="xs"
-                      color="red"
-                      variant="light"
-                      disabled={protectedIndex}
-                      onClick={() => setDropping(index)}
-                    >
-                      Drop
-                    </Button>
-                  </Group>
-                </Table.Td>
+      <Group align="stretch" gap={0} wrap="nowrap" style={{ flex: 1, minHeight: 0 }}>
+        <Box style={{ flex: 1, minWidth: 0, overflow: 'auto' }}>
+          <Table highlightOnHover verticalSpacing="sm" fz="sm">
+            <Table.Thead>
+              <Table.Tr>
+                <Table.Th c="dimmed">Name</Table.Th>
+                <Table.Th c="dimmed">Keys</Table.Th>
+                <Table.Th c="dimmed">Properties</Table.Th>
+                <Table.Th c="dimmed" ta="right">
+                  Size
+                </Table.Th>
               </Table.Tr>
-            );
-          })}
-        </Table.Tbody>
-      </Table>
+            </Table.Thead>
+            <Table.Tbody>
+              {indexes.map((index) => {
+                const chips = propertyChips(index);
+                return (
+                  <Table.Tr
+                    key={index.name}
+                    onClick={() => setSelected(index.name)}
+                    style={{
+                      cursor: 'pointer',
+                      background:
+                        index.name === selected ? 'var(--mg-surface-2)' : undefined,
+                    }}
+                  >
+                    <Table.Td ff="monospace">{index.name}</Table.Td>
+                    <Table.Td>
+                      <KeyBadges index={index} />
+                    </Table.Td>
+                    <Table.Td>
+                      <Group gap={4}>
+                        {chips.map((chip) => (
+                          <Badge
+                            key={chip}
+                            size="xs"
+                            radius="xl"
+                            variant="light"
+                            color="gray"
+                            styles={{ root: { textTransform: 'uppercase', fontWeight: 500 } }}
+                          >
+                            {chip}
+                          </Badge>
+                        ))}
+                      </Group>
+                    </Table.Td>
+                    <Table.Td ta="right" ff="monospace">
+                      {index.size === undefined ? (
+                        <Text size="xs" c="dimmed">
+                          unknown
+                        </Text>
+                      ) : (
+                        formatBytes(index.size)
+                      )}
+                    </Table.Td>
+                  </Table.Tr>
+                );
+              })}
+            </Table.Tbody>
+          </Table>
+        </Box>
+        <Stack
+          gap="sm"
+          p="md"
+          w={340}
+          aria-label="Index details"
+          role="region"
+          style={{ borderLeft: '1px solid var(--mg-border)', overflow: 'auto', flexShrink: 0 }}
+        >
+          {current === undefined ? (
+            <Text size="sm" c="dimmed">
+              Select an index to see its details.
+            </Text>
+          ) : (
+            <IndexDetail
+              index={current}
+              database={database}
+              collection={collection}
+              onEdit={() => setEditing(current)}
+              onHide={() => setHidden(current, current.hidden !== true)}
+              onDrop={() => setDropping(current)}
+            />
+          )}
+        </Stack>
+      </Group>
 
       {creating ? (
         <CreateIndexDialog

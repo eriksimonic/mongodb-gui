@@ -1,6 +1,5 @@
 import {
   ActionIcon,
-  Accordion,
   Alert,
   Autocomplete,
   Button,
@@ -9,12 +8,13 @@ import {
   Modal,
   NumberInput,
   Select,
+  SimpleGrid,
   Stack,
   Text,
   Textarea,
   TextInput,
 } from '@mantine/core';
-import { IconPlus, IconTrash } from '@tabler/icons-react';
+import { IconCopy, IconPlus, IconTrash } from '@tabler/icons-react';
 import type { IndexInfo } from '@mongo-gui/core';
 import { errorText } from '../kit/notify-error';
 import { useEffect, useState } from 'react';
@@ -68,6 +68,24 @@ const ORDER_LABELS: Readonly<Record<IndexOrder, string>> = {
 
 const ORDER_DATA = INDEX_ORDERS.map((value) => ({ value, label: ORDER_LABELS[value] }));
 const SUGGESTION_SAMPLE = 20;
+const BOX = {
+  border: '1px solid var(--mg-border)',
+  borderRadius: 'var(--mantine-radius-md)',
+  background: 'var(--mg-surface-1)',
+};
+
+/** The shell form of the previewed spec: createIndex(key, options). */
+function createIndexCommand(collection: string, command: Record<string, unknown>): string {
+  const [spec] = command.indexes as [Record<string, unknown>];
+  const { key, ...options } = spec;
+  const lines = [`db.${collection}.createIndex(`, `  ${formatJson(key).trimEnd()}`];
+  if (Object.keys(options).length > 0) {
+    lines[1] += ',';
+    lines.push(`  ${formatJson(options).trimEnd().replace(/\n/g, '\n  ')}`);
+  }
+  lines.push(')');
+  return lines.join('\n');
+}
 
 function isIndexOrder(value: string | null): value is IndexOrder {
   return INDEX_ORDERS.some((order) => order === value);
@@ -91,6 +109,11 @@ export function CreateIndexDialog({
   const [busy, setBusy] = useState(false);
   const [dropped, setDropped] = useState(false);
   const [error, setError] = useState<string | undefined>(undefined);
+  const [ttlOn, setTtlOn] = useState(draft.ttlSeconds.trim() !== '');
+  const [partialOn, setPartialOn] = useState(draft.partialEjson.trim() !== '');
+  const [wildcardOn, setWildcardOn] = useState(
+    draft.wildcardEjson.trim() !== '' || draft.fields.some((item) => item.field.includes('$**')),
+  );
   const request = buildIndexRequest(draft);
   const keyFields = draft.fields.map((item) => item.field.trim()).filter((field) => field !== '');
   const previewName =
@@ -166,7 +189,9 @@ export function CreateIndexDialog({
     }
   }
 
-  const preview = request.ok ? formatJson(previewCommand(collection, request)) : '{}\n';
+  const preview = request.ok
+    ? createIndexCommand(collection, previewCommand(collection, request))
+    : `db.${collection}.createIndex({})`;
 
   return (
     <Modal
@@ -178,7 +203,7 @@ export function CreateIndexDialog({
           : `Edit index ${editing.name}`
       }
       centered
-      size="xl"
+      size={790}
     >
       <form
         onSubmit={(event) => {
@@ -186,7 +211,7 @@ export function CreateIndexDialog({
           void submit();
         }}
       >
-        <Stack gap="sm">
+        <Stack gap="lg">
           {editing === undefined ? null : (
             <Alert color="yellow" variant="light">
               MongoDB cannot change an index in place. Saving drops {editing.name} and creates the
@@ -194,12 +219,17 @@ export function CreateIndexDialog({
               {editing.name} index until you save a definition that works.
             </Alert>
           )}
-          <Text size="sm" fw={500}>
-            Key fields
+          <Stack gap="sm" p="md" style={BOX}>
+          <Text size="sm" fw={500} c="dimmed">
+            Keys
           </Text>
           {draft.fields.map((item, index) => (
-            <Group key={index} gap="xs" wrap="nowrap" align="flex-end">
+            <Group key={index} gap="sm" wrap="nowrap" align="center">
+              <Text size="sm" c="dimmed" w={12}>
+                {index + 1}
+              </Text>
               <Autocomplete
+                ff="monospace"
                 aria-label={`Field ${index + 1}`}
                 placeholder="Field name"
                 data={suggestions}
@@ -233,52 +263,128 @@ export function CreateIndexDialog({
               </ActionIcon>
             </Group>
           ))}
-          <Group>
+          <Group gap="md">
             <Button
-              variant="light"
+              variant="subtle"
               leftSection={<IconPlus size={14} />}
               onClick={() => update({ fields: [...draft.fields, { field: '', order: '1' }] })}
             >
-              Add field
+              Add key
             </Button>
             <Text size="xs" c="dimmed">
-              Name: {keyFields.length === 0 ? '-' : previewName || '-'}
+              Types: ascending, descending, text, 2dsphere, hashed, wildcard
             </Text>
           </Group>
+          </Stack>
 
-          <Group grow align="flex-start">
-            <TextInput
-              label="Index name"
-              placeholder="Generated from the keys when empty"
-              value={draft.name}
-              onChange={(event) => update({ name: event.currentTarget.value })}
-              autoComplete="off"
-            />
-            <NumberInput
-              label="Expire after seconds (TTL)"
-              min={0}
-              allowDecimal={false}
-              value={draft.ttlSeconds}
-              onChange={(value) => update({ ttlSeconds: String(value) })}
-            />
+          <Group grow align="flex-start" gap="md">
+          <TextInput
+            label="Name"
+            description="Generated from the keys when empty. Type to override."
+            placeholder={previewName}
+            value={draft.name}
+            onChange={(event) => update({ name: event.currentTarget.value })}
+            autoComplete="off"
+            styles={{ input: { fontFamily: 'var(--mantine-font-family-monospace)' } }}
+          />
+          <TextInput
+            label="Collation"
+            aria-label="Collation as EJSON"
+            description="Server default when empty"
+            placeholder='{ "locale": "en" }'
+            value={draft.collationEjson}
+            onChange={(event) => update({ collationEjson: event.currentTarget.value })}
+            autoComplete="off"
+            styles={{ input: { fontFamily: 'var(--mantine-font-family-monospace)' } }}
+          />
           </Group>
-          <Group>
-            <Checkbox
-              label="Unique"
-              checked={draft.unique}
-              onChange={(event) => update({ unique: event.currentTarget.checked })}
-            />
-            <Checkbox
-              label="Sparse"
-              checked={draft.sparse}
-              onChange={(event) => update({ sparse: event.currentTarget.checked })}
-            />
-            <Checkbox
-              label="Hidden"
-              checked={draft.hidden}
-              onChange={(event) => update({ hidden: event.currentTarget.checked })}
-            />
-          </Group>
+
+          <Stack gap="md" p="md" style={BOX}>
+            <Text size="sm" fw={500} c="dimmed">
+              Options
+            </Text>
+            <SimpleGrid cols={3} spacing="sm" verticalSpacing="sm">
+              <Checkbox
+                label="Unique"
+                description="Reject documents with a duplicate key"
+                checked={draft.unique}
+                onChange={(event) => update({ unique: event.currentTarget.checked })}
+              />
+              <Checkbox
+                label="Sparse"
+                description="Skip documents without the field"
+                checked={draft.sparse}
+                onChange={(event) => update({ sparse: event.currentTarget.checked })}
+              />
+              <Checkbox
+                label="Hidden"
+                description="Build now, let the planner use it later"
+                checked={draft.hidden}
+                onChange={(event) => update({ hidden: event.currentTarget.checked })}
+              />
+              <Checkbox
+                label="TTL"
+                description="Needs a single date key"
+                checked={ttlOn}
+                onChange={(event) => {
+                  setTtlOn(event.currentTarget.checked);
+                  if (!event.currentTarget.checked) {
+                    update({ ttlSeconds: '' });
+                  }
+                }}
+              />
+              <Checkbox
+                label="Partial filter"
+                description="Index only matching documents"
+                checked={partialOn}
+                onChange={(event) => {
+                  setPartialOn(event.currentTarget.checked);
+                  if (!event.currentTarget.checked) {
+                    update({ partialEjson: '' });
+                  }
+                }}
+              />
+              <Checkbox
+                label="Wildcard projection"
+                description="Only for $** keys"
+                checked={wildcardOn}
+                onChange={(event) => {
+                  setWildcardOn(event.currentTarget.checked);
+                  if (!event.currentTarget.checked) {
+                    update({ wildcardEjson: '' });
+                  }
+                }}
+              />
+            </SimpleGrid>
+            {ttlOn ? (
+              <NumberInput
+                label="Expire after seconds (TTL)"
+                min={0}
+                allowDecimal={false}
+                value={draft.ttlSeconds}
+                onChange={(value) => update({ ttlSeconds: String(value) })}
+              />
+            ) : null}
+            {partialOn ? (
+              <Stack gap={4}>
+                <Text size="sm">Only index documents that match</Text>
+                <JsonEditor
+                  label="Partial filter expression as EJSON"
+                  height={72}
+                  value={draft.partialEjson}
+                  onChange={(value) => update({ partialEjson: value })}
+                />
+              </Stack>
+            ) : null}
+            {wildcardOn ? (
+              <JsonEditor
+                label="Wildcard projection as EJSON"
+                height={72}
+                value={draft.wildcardEjson}
+                onChange={(value) => update({ wildcardEjson: value })}
+              />
+            ) : null}
+          </Stack>
 
           {hasTextKey(draft) ? (
             <Group grow align="flex-start">
@@ -299,46 +405,12 @@ export function CreateIndexDialog({
             </Group>
           ) : null}
 
-          <Accordion variant="contained" multiple>
-            <Accordion.Item value="partial">
-              <Accordion.Control>Partial filter (EJSON)</Accordion.Control>
-              <Accordion.Panel>
-                <JsonEditor
-                  label="Partial filter expression as EJSON"
-                  height={110}
-                  value={draft.partialEjson}
-                  onChange={(value) => update({ partialEjson: value })}
-                />
-              </Accordion.Panel>
-            </Accordion.Item>
-            <Accordion.Item value="collation">
-              <Accordion.Control>Collation (EJSON)</Accordion.Control>
-              <Accordion.Panel>
-                <JsonEditor
-                  label="Collation as EJSON"
-                  height={110}
-                  value={draft.collationEjson}
-                  onChange={(value) => update({ collationEjson: value })}
-                />
-              </Accordion.Panel>
-            </Accordion.Item>
-            <Accordion.Item value="wildcard">
-              <Accordion.Control>Wildcard projection (EJSON)</Accordion.Control>
-              <Accordion.Panel>
-                <JsonEditor
-                  label="Wildcard projection as EJSON"
-                  height={110}
-                  value={draft.wildcardEjson}
-                  onChange={(value) => update({ wildcardEjson: value })}
-                />
-              </Accordion.Panel>
-            </Accordion.Item>
-          </Accordion>
-
-          <Text size="sm" fw={500}>
-            Command preview
-          </Text>
-          <JsonEditor label="createIndexes command preview" readOnly height={200} value={preview} />
+          <Stack gap="sm">
+            <Text size="sm" fw={500} c="dimmed">
+              Command
+            </Text>
+            <JsonEditor label="createIndexes command preview" readOnly height={150} value={preview} />
+          </Stack>
 
           {request.ok || keyFields.length === 0 ? null : (
             <Text size="xs" c="red">
@@ -350,13 +422,25 @@ export function CreateIndexDialog({
               {error}
             </Alert>
           )}
-          <Group justify="flex-end">
+          <Group justify="space-between" wrap="nowrap" align="flex-start">
+            <Text size="xs" c="dimmed" maw={340}>
+              Reads and writes continue during the build. Progress shows in the Indexes panel.
+            </Text>
+            <Group gap="sm" wrap="nowrap">
+            <Button
+              variant="default"
+              leftSection={<IconCopy size={14} />}
+              onClick={() => void navigator.clipboard.writeText(preview)}
+            >
+              Copy command
+            </Button>
             <Button variant="default" onClick={onClose}>
               Cancel
             </Button>
             <Button disabled={!request.ok} loading={busy} type="submit">
               {editing === undefined ? 'Create index' : 'Replace index'}
             </Button>
+            </Group>
           </Group>
         </Stack>
       </form>

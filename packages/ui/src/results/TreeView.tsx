@@ -9,26 +9,29 @@ import {
   TextInput,
   Tooltip,
 } from '@mantine/core';
+import { valueColor } from './value-color';
 import { useVirtualizer } from '@tanstack/react-virtual';
 import {
   IconCheck,
   IconClipboard,
+  IconChevronLeft,
+  IconChevronRight,
   IconCopy,
   IconPencil,
   IconTrash,
   IconX,
 } from '@tabler/icons-react';
 import { previewInfo } from '@mongo-gui/core';
-import { useEffect, useMemo, useRef, useState } from 'react';
+import { useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
 import { ConfirmDialog } from '../kit/ConfirmDialog';
 import { isInsideControl } from '../kit/is-inside-control';
 import { errorText } from '../kit/notify-error';
 import { useFontScale } from '../theme/font-scale';
 import { COPY_MAX_CHARS, fullDocuments } from './full-documents';
 import {
-  BSON_TYPE_LABELS,
   EDIT_TYPES,
   cellView,
+  isPlainObject,
   collectionTitle,
   editTextOf,
   editTypeOf,
@@ -39,6 +42,7 @@ import {
 } from './result-model';
 import {
   COLLAPSED,
+  childrenOf,
   exactCopyTextOf,
   isOpen,
   valueTextOf,
@@ -47,7 +51,12 @@ import {
   type TreeState,
 } from './tree-rows';
 
-const ROW_HEIGHT_PX = 28;
+const ROW_HEIGHT_PX = 33;
+/** Documents per page of the tree. */
+const PAGE_SIZE = 20;
+/** The first document starts open, the others closed. */
+const FIRST_OPEN: TreeState = { expandAll: false, overrides: { '0:': true } };
+const GRID_COLUMNS = 'minmax(160px, 1fr) minmax(160px, 2fr) 90px 150px';
 const INDENT_PX = 16;
 const OVERSCAN_ROWS = 12;
 
@@ -84,8 +93,14 @@ export interface TreeViewProps {
   readonly readFull?: ((ref: string) => Promise<string>) | undefined;
   readonly onSetField: (edit: TreeEdit) => Promise<void>;
   readonly onUnsetField: (documentIndex: number, path: string) => Promise<void>;
-  /** Called when the user scrolls near the last row. */
+  /** Called when the user scrolls near the last row, or pages past the loaded documents. */
   readonly onNearEnd?: (() => void) | undefined;
+  /** The view switch and namespace, shown at the left of the toolbar. */
+  readonly leading?: ReactNode;
+  /** Exports the result as JSON. Without it the Export button is hidden. */
+  readonly onExport?: (() => void) | undefined;
+  /** More documents exist than are loaded. Used for the range text. */
+  readonly hasMore?: boolean | undefined;
 }
 
 interface EditState {
@@ -112,15 +127,28 @@ export function TreeView({
   onSetField,
   onUnsetField,
   onNearEnd,
+  leading,
+  onExport,
+  hasMore = false,
 }: TreeViewProps) {
-  const [state, setState] = useState<TreeState>(COLLAPSED);
+  const [pageStart, setPageStart] = useState(0);
+  const [state, setState] = useState<TreeState>(FIRST_OPEN);
   const [editing, setEditing] = useState<EditState | undefined>(undefined);
   // The field a Remove click asked about. The removal waits for the user to confirm it.
   const [pendingRemoval, setPendingRemoval] = useState<TreeRow | undefined>(undefined);
   const [busy, setBusy] = useState(false);
   const [notice, setNotice] = useState<string | undefined>(undefined);
   const scroller = useRef<HTMLDivElement>(null);
-  const rows = useMemo(() => visibleRows(documents, state), [documents, state]);
+  const start = Math.min(pageStart, Math.max(0, documents.length - 1));
+  const rows = useMemo(
+    () =>
+      visibleRows(documents.slice(start, start + PAGE_SIZE), state).map((row) => ({
+        ...row,
+        documentIndex: row.documentIndex + start,
+      })),
+    [documents, state, start],
+  );
+  const end = Math.min(documents.length, start + PAGE_SIZE);
   const rowHeight = Math.round(ROW_HEIGHT_PX * useFontScale());
   const virtualizer = useVirtualizer({
     count: rows.length,
@@ -203,6 +231,20 @@ export function TreeView({
     }
   }
 
+  /** Copies the documents on this page as formatted JSON, each read in full first. */
+  async function copyPage(): Promise<void> {
+    try {
+      const full = await fullDocuments(
+        documents.slice(start, start + PAGE_SIZE),
+        readFull ?? (() => Promise.reject(new Error('The full document is not available.'))),
+        COPY_MAX_CHARS,
+      );
+      await copy(JSON.stringify(full.length === 1 ? full[0] : full, null, 2));
+    } catch (failure) {
+      setNotice(errorText(failure));
+    }
+  }
+
   /** Copies a value as shown. A previewed document is read in full, and a shortened part is refused. */
   async function copyValue(row: TreeRow): Promise<void> {
     if (row.depth === 0 && previewInfo(row.value) !== undefined) {
@@ -229,23 +271,76 @@ export function TreeView({
   return (
     <Stack gap={6} h="100%">
       <Group gap="xs" justify="space-between" wrap="nowrap">
-        <Group gap="xs">
+        <Group gap="xs" wrap="nowrap">
+          {leading}
           <Button
             size="xs"
-            variant="default"
+            variant="subtle"
+            color="gray"
             onClick={() => setState({ expandAll: true, overrides: {} })}
           >
             Expand all
           </Button>
-          <Button size="xs" variant="default" onClick={() => setState(COLLAPSED)}>
+          <Button size="xs" variant="subtle" color="gray" onClick={() => setState(COLLAPSED)}>
             Collapse all
           </Button>
         </Group>
-        {editable ? null : (
-          <Badge tt="none" size="sm" variant="light" color="gray" aria-label={editabilityNote}>
-            Read only
-          </Badge>
-        )}
+        <Group gap="xs" wrap="nowrap">
+          {editable ? null : (
+            <Badge tt="none" size="sm" variant="light" color="gray" aria-label={editabilityNote}>
+              Read only
+            </Badge>
+          )}
+          <Button
+            size="xs"
+            variant="subtle"
+            color="gray"
+            leftSection={<IconCopy size={13} />}
+            disabled={documents.length === 0}
+            onClick={() => void copyPage()}
+          >
+            Copy document as formatted JSON
+          </Button>
+          {onExport === undefined ? null : (
+            <Button
+              size="xs"
+              variant="subtle"
+              color="gray"
+              disabled={documents.length === 0}
+              onClick={onExport}
+            >
+              Export
+            </Button>
+          )}
+          <Text size="xs" c="var(--mg-text-muted)" ff="var(--mantine-font-family-monospace)">
+            {documents.length === 0 ? '0' : `${start + 1}-${end}`} of {documents.length}
+            {hasMore ? '+' : ''}
+          </Text>
+          <ActionIcon
+            size="input-xs"
+            variant="default"
+            aria-label="Previous page"
+            disabled={start === 0}
+            onClick={() => setPageStart(Math.max(0, start - PAGE_SIZE))}
+          >
+            <IconChevronLeft size={14} />
+          </ActionIcon>
+          <ActionIcon
+            size="input-xs"
+            variant="default"
+            aria-label="Next page"
+            disabled={end >= documents.length && !hasMore}
+            onClick={() => {
+              if (end < documents.length) {
+                setPageStart(start + PAGE_SIZE);
+              } else {
+                onNearEnd?.();
+              }
+            }}
+          >
+            <IconChevronRight size={14} />
+          </ActionIcon>
+        </Group>
       </Group>
       {notice === undefined ? null : (
         <Text size="xs" c="red" role="alert">
@@ -253,12 +348,35 @@ export function TreeView({
         </Text>
       )}
       <div
+        aria-hidden="true"
+        style={{
+          display: 'grid',
+          gridTemplateColumns: GRID_COLUMNS,
+          gap: 8,
+          padding: '6px 0',
+          borderBottom: '1px solid var(--mg-border)',
+          fontSize: 'calc(var(--mg-font-scale, 1) * 12px)',
+          color: 'var(--mg-text-muted)',
+          fontWeight: 500,
+        }}
+      >
+        <span style={{ paddingLeft: 24 }}>Key</span>
+        <span>Value</span>
+        <span>Type</span>
+        <span />
+      </div>
+      <div
         ref={scroller}
         role="tree"
         className="mg-virtual-scroll"
         aria-label="Document tree"
         style={{ flex: 1, minHeight: 0, overflow: 'auto', position: 'relative' }}
       >
+        <style>
+          {
+            '.mg-tree-row:hover{background:var(--mg-surface-2)}.mg-tree-actions{opacity:0}.mg-tree-row:hover .mg-tree-actions,.mg-tree-actions:focus-within{opacity:1}'
+          }
+        </style>
         <div style={{ height: virtualizer.getTotalSize(), position: 'relative', width: '100%' }}>
           {virtualizer.getVirtualItems().map((item) => {
             const row = rows[item.index];
@@ -274,6 +392,7 @@ export function TreeView({
                 aria-expanded={row.hasChildren ? row.expanded : undefined}
                 aria-label={row.key}
                 data-row-id={row.id}
+                className="mg-tree-row"
                 onDoubleClick={(event) => {
                   // Only a document row opens the document. Buttons in a row keep their own action.
                   if (row.depth === 0 && !isInsideControl(event.target)) {
@@ -288,11 +407,11 @@ export function TreeView({
                   height: rowHeight,
                   transform: `translateY(${item.start}px)`,
                   display: 'grid',
-                  gridTemplateColumns: 'minmax(160px, 1fr) minmax(160px, 2fr) 90px 96px',
+                  gridTemplateColumns: GRID_COLUMNS,
                   alignItems: 'center',
                   gap: 8,
                   paddingLeft: row.depth * INDENT_PX,
-                  borderBottom: '1px solid var(--mantine-color-dark-5)',
+                  borderBottom: '1px solid var(--mg-border)',
                   fontSize: 'calc(var(--mg-font-scale, 1) * 13px)',
                 }}
               >
@@ -310,14 +429,20 @@ export function TreeView({
                     <span style={{ width: 20 }} aria-hidden="true" />
                   )}
                   <span
-                    style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}
+                    style={{
+                      overflow: 'hidden',
+                      textOverflow: 'ellipsis',
+                      whiteSpace: 'nowrap',
+                      fontFamily: 'var(--mantine-font-family-monospace)',
+                      color: row.depth === 0 ? 'var(--mg-text-strong)' : 'var(--mg-link)',
+                    }}
                     onDoubleClick={() => {
                       if (editable) {
                         startEdit(row);
                       }
                     }}
                   >
-                    {row.key}
+                    {keyText(row)}
                   </span>
                 </div>
                 <div style={{ minWidth: 0 }}>
@@ -374,27 +499,17 @@ export function TreeView({
                     <ValueText row={row} />
                   )}
                 </div>
-                <Badge
-                  tt="none"
-                  size="xs"
-                  variant="light"
-                  color="gray"
-                  radius="sm"
-                  aria-label="Type"
-                >
-                  {BSON_TYPE_LABELS[row.type]}
-                </Badge>
-                <Group gap={2} wrap="nowrap" justify="flex-end">
-                  <Tooltip label="Copy path" withArrow>
-                    <ActionIcon
-                      aria-label={`Copy path ${row.path}`}
-                      size="sm"
-                      variant="subtle"
-                      onClick={() => void copy(row.path)}
-                    >
-                      <IconCopy size={13} />
-                    </ActionIcon>
-                  </Tooltip>
+                <TypePill row={row} />
+                <Group gap={2} wrap="nowrap" justify="flex-end" className="mg-tree-actions">
+                  <Button
+                    aria-label={`Copy path ${row.path}`}
+                    size="compact-xs"
+                    variant="subtle"
+                    color="gray"
+                    onClick={() => void copy(row.path)}
+                  >
+                    Copy path
+                  </Button>
                   <Tooltip
                     label={isTruncatedValue(row.value) ? 'Shortened' : 'Copy value'}
                     withArrow
@@ -465,6 +580,7 @@ function isEditableField(row: TreeRow): boolean {
 /** The value column. Containers show their summary, and the full text on hover. */
 function ValueText({ row }: { readonly row: TreeRow }) {
   const view = cellView(row.value);
+  const text = row.type === 'Object' || row.type === 'Array' ? valueDisplay(row) : view.text;
   return (
     <span
       title={view.title ?? valueTextOf(row.value)}
@@ -480,15 +596,78 @@ function ValueText({ row }: { readonly row: TreeRow }) {
         overflow: 'hidden',
         textOverflow: 'ellipsis',
         whiteSpace: 'nowrap',
-        textAlign: view.align,
-        fontFamily:
-          view.align === 'right' || view.type === 'ObjectId'
-            ? 'var(--mantine-font-family-monospace)'
-            : undefined,
-        color: view.type === 'Null' ? 'var(--mantine-color-dimmed)' : undefined,
+        textAlign: 'left',
+        fontFamily: 'var(--mantine-font-family-monospace)',
+        color: valueColor(view.type),
       }}
     >
-      {view.text}
+      {text}
     </span>
+  );
+}
+
+const NEUTRAL_TYPES = new Set(['Object', 'Array', 'Binary', 'Undefined', 'Boolean']);
+const SUMMARY_CHARS = 90;
+
+/** The key column text. A document reads "(1) <_id>", an array element "[0]". */
+function keyText(row: TreeRow): string {
+  if (row.depth === 0) {
+    const id = isPlainObject(row.value) ? row.value._id : undefined;
+    const view = id === undefined ? undefined : cellView(id);
+    return `(${row.documentIndex + 1}) ${view === undefined ? '' : (view.title ?? view.text)}`.trim();
+  }
+  return /^\d+$/.test(row.key) ? `[${row.key}]` : row.key;
+}
+
+/** One-line text of a value for the value column: counts for containers, a summary when collapsed. */
+function valueDisplay(row: TreeRow): string {
+  const value = row.value;
+  if (row.type === 'Array' && Array.isArray(value)) {
+    return `[ ${value.length} ${value.length === 1 ? 'element' : 'elements'} ]`;
+  }
+  if (row.type === 'Object' && isPlainObject(value)) {
+    const entries = childrenOf(value);
+    if (row.depth > 0 && !row.expanded && /^\d+$/.test(row.key) && entries.length > 0) {
+      const inner = entries.map(([k, v]) => `${k}: ${summaryOf(v)}`).join(', ');
+      const text = `{ ${inner} }`;
+      return text.length > SUMMARY_CHARS ? `${text.slice(0, SUMMARY_CHARS - 1)}…` : text;
+    }
+    return `{ ${entries.length} ${entries.length === 1 ? 'field' : 'fields'} }`;
+  }
+  return valueTextOf(value);
+}
+
+function summaryOf(value: unknown): string {
+  const view = cellView(value);
+  return view.type === 'String' ? JSON.stringify(view.text) : view.text;
+}
+
+/** The type pill, tinted by type. Containers and the document stay neutral. */
+function TypePill({ row }: { readonly row: TreeRow }) {
+  const label = row.depth === 0 ? 'Document' : row.type;
+  const color = row.depth === 0 || NEUTRAL_TYPES.has(row.type) ? undefined : valueColor(row.type);
+  return (
+    <Badge
+      tt="none"
+      size="xs"
+      variant="default"
+      radius="sm"
+      ff="var(--mantine-font-family-monospace)"
+      fw={400}
+      aria-label="Type"
+      styles={{
+        root: {
+          justifySelf: 'start',
+          borderColor: 'transparent',
+          color: color ?? 'var(--mg-text-muted)',
+          background:
+            color === undefined
+              ? 'var(--mg-surface-3)'
+              : `color-mix(in srgb, ${color} 16%, transparent)`,
+        },
+      }}
+    >
+      {label}
+    </Badge>
   );
 }

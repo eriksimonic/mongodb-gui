@@ -50,7 +50,7 @@ export function ConfirmDialog({
   }
 
   return (
-    <Modal opened onClose={onClose} title={title} centered size="sm">
+    <Modal opened onClose={onClose} title={title} centered size={440}>
       <Stack gap="sm">
         <Text size="sm">{description}</Text>
         {typedConfirmation === undefined ? null : (

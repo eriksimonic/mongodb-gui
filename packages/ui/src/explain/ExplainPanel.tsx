@@ -22,6 +22,7 @@ import { errorText, notifyError } from '../kit/notify-error';
 import { useAppStore } from '../state/app-store-context';
 import { stageIdByName, type ExplainPanelState } from './explain-model';
 import { ExplainIndexSuggestion, ExplainSummaryBar, ExplainWarnings } from './ExplainParts';
+import { CommandEditor } from './CommandEditor';
 import { ExplainRaw } from './ExplainRaw';
 import { PlanGraphView } from './PlanGraphView';
 import { PlanTreeView, type StageSelection } from './PlanTreeView';
@@ -56,7 +57,6 @@ export function ExplainPanel({ panelId }: ExplainPanelProps) {
 
 function ExplainPanelBody({ panel }: { readonly panel: ExplainPanelState }) {
   const rerun = useAppStore((state) => state.rerunExplain);
-  const [statementOpen, setStatementOpen] = useState(false);
   const [tab, setTab] = useState<string | null>('plan');
   const [selection, setSelection] = useState<StageSelection | undefined>(undefined);
   const { outcome, request } = panel;
@@ -64,20 +64,17 @@ function ExplainPanelBody({ panel }: { readonly panel: ExplainPanelState }) {
   const refused = outcome.state === 'refused';
   const statement =
     request.source.kind === 'statement' ? request.source.code : request.source.commandEjson;
+  const [draft, setDraft] = useState(statement);
+  const run = () => void rerun(panel.id, undefined, draft);
 
   return (
     <Stack gap="sm" p="md" className="mg-explain" h="100%" style={{ minHeight: 0 }}>
-      <button
-        type="button"
-        className={
-          statementOpen ? 'mg-explain-statement mg-explain-statement-open' : 'mg-explain-statement'
-        }
-        aria-expanded={statementOpen}
-        title={statement}
-        onClick={() => setStatementOpen((open) => !open)}
-      >
-        <code>{statement}</code>
-      </button>
+      <CommandEditor
+        value={draft}
+        language={request.source.kind === 'statement' ? 'mongosh' : 'json'}
+        onChange={setDraft}
+        onRun={run}
+      />
       {panel.note === undefined ? null : (
         <Text size="xs" c="dimmed">
           {panel.note}
@@ -104,8 +101,8 @@ function ExplainPanelBody({ panel }: { readonly panel: ExplainPanelState }) {
             size="xs"
             variant="default"
             leftSection={<IconRefresh size={14} aria-hidden="true" />}
-            disabled={busy || refused}
-            onClick={() => void rerun(panel.id)}
+            disabled={busy}
+            onClick={run}
           >
             Re-run
           </Button>
@@ -164,7 +161,7 @@ function ExplainPanelBody({ panel }: { readonly panel: ExplainPanelState }) {
             style={{
               flex: 1,
               minHeight: 0,
-              overflow: 'auto',
+              overflow: 'hidden',
               display: 'flex',
               flexDirection: 'column',
             }}
@@ -243,12 +240,14 @@ function PlanView({ panelId, tree, collection, selection, onSelect }: PlanViewPr
           onMeasure={measure}
         />
       ) : (
-        <PlanTreeView
-          root={tree.winning}
-          rejected={tree.rejected}
-          selection={selection}
-          onSelect={onSelect}
-        />
+        <div className="mg-explain-list-area">
+          <PlanTreeView
+            root={tree.winning}
+            rejected={tree.rejected}
+            selection={selection}
+            onSelect={onSelect}
+          />
+        </div>
       )}
     </Stack>
   );

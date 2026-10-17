@@ -33,6 +33,8 @@ const COLLECTION_PANEL_KINDS: readonly PanelRequest['panel'][] = [
   'validation',
   'documents',
   'schema',
+  'changes',
+  'stats',
 ];
 
 function isCollectionPanelKind(component: string): component is PanelRequest['panel'] {
@@ -47,10 +49,20 @@ export function restoredCollectionRequest(
   component: string,
   params: unknown,
 ): PanelRequest | undefined {
-  if (!isCollectionPanelKind(component) || typeof params !== 'object' || params === null) {
+  if (
+    (component !== 'collection' && !isCollectionPanelKind(component)) ||
+    typeof params !== 'object' ||
+    params === null
+  ) {
     return undefined;
   }
-  const { connectionId, database, collection } = params as Record<string, unknown>;
+  const { connectionId, database, collection, section } = params as Record<string, unknown>;
+  const panel =
+    component === 'collection'
+      ? typeof section === 'string' && isCollectionPanelKind(section)
+        ? section
+        : 'documents'
+      : (component as PanelRequest['panel']);
   if (
     typeof connectionId !== 'string' ||
     typeof database !== 'string' ||
@@ -58,7 +70,7 @@ export function restoredCollectionRequest(
   ) {
     return undefined;
   }
-  return { panel: component, connectionId, database, collection };
+  return { panel, connectionId, database, collection };
 }
 
 /** The ids of the open collection panels that show a database or collection that is gone. */

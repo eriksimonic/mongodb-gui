@@ -332,6 +332,7 @@ export function createRouter(deps: RouterDeps): Router {
       updates: deps.updates,
       repos,
       log: deps.log,
+      emit: deps.onEvent,
       resetStore,
     }),
     ...connectionsOperations({

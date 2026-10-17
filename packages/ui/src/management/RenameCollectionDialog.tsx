@@ -50,14 +50,14 @@ export function RenameCollectionDialog({
   }
 
   return (
-    <Modal opened onClose={onClose} title={`Rename ${collection}`} centered size="sm">
+    <Modal opened onClose={onClose} title={`Rename ${collection}`} centered size={640}>
       <form
         onSubmit={(event) => {
           event.preventDefault();
           void submit();
         }}
       >
-        <Stack gap="sm">
+        <Stack gap="lg">
           <TextInput
             label="New name"
             value={newName}

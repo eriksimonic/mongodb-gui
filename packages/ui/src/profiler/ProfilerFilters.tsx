@@ -1,4 +1,4 @@
-import { Autocomplete, Button, Group, NumberInput, Select, TextInput } from '@mantine/core';
+import { Autocomplete, Button, Group, NumberInput, Select, Text, TextInput } from '@mantine/core';
 import { IconSearch } from '@tabler/icons-react';
 import type { ProfilerPanelState } from './profiler-store';
 import { useProfilerStore } from './profiler-store-context';
@@ -43,11 +43,12 @@ export function ProfilerFilterRow({ panelId, panel, namespaces }: ProfilerFilter
   }
 
   return (
-    <Group gap={8} align="flex-end" wrap="wrap">
+    <Group gap={8} align="center" wrap="wrap">
+      <Text className="mg-profiler-row-label">Filter</Text>
       <Autocomplete
         size="xs"
-        label="Namespace"
-        placeholder="All collections"
+        aria-label="Namespace"
+        placeholder="All namespaces"
         data={[...namespaces]}
         value={filters.namespace}
         onChange={(value) => patch({ namespace: value })}
@@ -55,7 +56,7 @@ export function ProfilerFilterRow({ panelId, panel, namespaces }: ProfilerFilter
       />
       <Select
         size="xs"
-        label="Operation"
+        aria-label="Operation"
         data={OP_DATA}
         value={filters.op}
         onChange={(value) => {
@@ -69,7 +70,8 @@ export function ProfilerFilterRow({ panelId, panel, namespaces }: ProfilerFilter
       />
       <NumberInput
         size="xs"
-        label="Min duration (ms)"
+        aria-label="Min duration (ms)"
+        placeholder="Min ms"
         min={0}
         value={filters.minMillis ?? ''}
         onChange={(value) => patch({ minMillis: numberOrUndefined(value) })}
@@ -77,7 +79,7 @@ export function ProfilerFilterRow({ panelId, panel, namespaces }: ProfilerFilter
       />
       <Select
         size="xs"
-        label="Time range"
+        aria-label="Time range"
         data={RANGE_DATA}
         value={filters.range}
         onChange={(value) => {
@@ -92,7 +94,7 @@ export function ProfilerFilterRow({ panelId, panel, namespaces }: ProfilerFilter
       {filters.range === 'custom' ? (
         <TextInput
           size="xs"
-          label="Since"
+          aria-label="Since"
           type="datetime-local"
           value={filters.since}
           onChange={(event) => patch({ since: event.currentTarget.value })}
@@ -102,7 +104,7 @@ export function ProfilerFilterRow({ panelId, panel, namespaces }: ProfilerFilter
       {filters.range === 'custom' ? (
         <TextInput
           size="xs"
-          label="Until"
+          aria-label="Until"
           type="datetime-local"
           value={filters.until}
           onChange={(event) => patch({ until: event.currentTarget.value })}
@@ -111,8 +113,8 @@ export function ProfilerFilterRow({ panelId, panel, namespaces }: ProfilerFilter
       ) : null}
       <TextInput
         size="xs"
-        label="Text search"
-        placeholder="Command, plan or error"
+        aria-label="Text search"
+        placeholder="Search command, plan or error"
         leftSection={<IconSearch size={14} aria-hidden="true" />}
         value={filters.textSearch}
         onChange={(event) => patch({ textSearch: event.currentTarget.value })}
@@ -121,7 +123,7 @@ export function ProfilerFilterRow({ panelId, panel, namespaces }: ProfilerFilter
       />
       <NumberInput
         size="xs"
-        label="Limit"
+        aria-label="Limit"
         min={1}
         max={5000}
         value={filters.limit}

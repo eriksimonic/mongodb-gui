@@ -1097,12 +1097,37 @@ export function createMockUiApi(options: MockUiApiOptions = {}): UiApi {
         return databaseStats(findDatabaseOrFail(connectionId, database));
       }),
     },
+    catalog: {
+      listNames: method(rpcContract.catalog.listNames, latencyMs, ({ connectionId }) => {
+        requireUnlocked();
+        requireConnected(connectionId);
+        return {
+          databases: catalogOf(connectionId).map((database) => ({
+            name: database.name,
+            collections: database.collections.map((item) => ({
+              name: item.info.name,
+              type: item.info.type,
+            })),
+          })),
+        };
+      }),
+    },
     collections: {
       list: method(rpcContract.collections.list, latencyMs, ({ connectionId, database }) => {
         requireUnlocked();
         requireConnected(connectionId);
         const found = findDatabase(catalogOf(connectionId), database);
-        return found?.collections.map((item): CollectionInfo => item.info) ?? [];
+        return (
+          found?.collections.map((item): CollectionInfo =>
+            item.info.type === 'view'
+              ? item.info
+              : {
+                  ...item.info,
+                  count: item.documents.length,
+                  size: item.documents.length * AVERAGE_OBJECT_SIZE,
+                },
+          ) ?? []
+        );
       }),
       stats: method(
         rpcContract.collections.stats,

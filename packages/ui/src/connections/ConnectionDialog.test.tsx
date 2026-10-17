@@ -59,7 +59,9 @@ describe('ConnectionDialog', () => {
     );
     fireEvent.change(screen.getByLabelText('Name'), { target: { value: 'Dev' } });
     fireEvent.click(screen.getByRole('button', { name: 'Test connection' }));
-    expect(await screen.findByText('Connected. Server 8.0.4, standalone.')).toBeInTheDocument();
+    expect(
+      await screen.findByText(/^Connected in \d+ ms\. Server 8\.0\.4, standalone\.$/),
+    ).toBeInTheDocument();
   });
 
   it('shows a saved connection in the tree straight away', async () => {

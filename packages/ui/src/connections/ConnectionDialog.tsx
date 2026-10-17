@@ -1,9 +1,11 @@
 import {
   Alert,
+  Badge,
   Box,
   Button,
   Code,
   ColorInput,
+  ColorSwatch,
   Group,
   Loader,
   Modal,
@@ -13,6 +15,7 @@ import {
   Textarea,
   TextInput,
 } from '@mantine/core';
+import { IconAlertCircle, IconCheck } from '@tabler/icons-react';
 import { notifications } from '@mantine/notifications';
 import { redactUri, toAppError, type ConnectionTestResult } from '@mongo-gui/core';
 import { useEffect, useState } from 'react';
@@ -27,8 +30,18 @@ import {
   type ConnectionDraft,
   type DraftMode,
 } from './connection-draft';
+import { parseMongoUri } from './uri-form';
 
-const SWATCHES = ['#3a86ff', '#ffbe0b', '#fb5607', '#ff006e', '#8338ec', '#9fa1a2'];
+const SWATCHES = [
+  '#6aa5ff',
+  '#f4b223',
+  '#f2597f',
+  '#4cc38a',
+  '#a98bfa',
+  '#3cc9b5',
+  '#f08a3c',
+  '#a19d96',
+];
 
 export interface ConnectionDialogProps {
   /** Undefined creates a new connection. A value loads that connection for editing. */
@@ -103,11 +116,11 @@ export function ConnectionDialog({
     }
   }
 
-  function describeTest(result: ConnectionTestResult): StatusLine {
+  function describeTest(result: ConnectionTestResult, elapsedMs: number): StatusLine {
     if (result.ok) {
       return {
         tone: 'blue',
-        text: `Connected. Server ${result.serverVersion}, ${result.topology}.`,
+        text: `Connected in ${elapsedMs} ms. Server ${result.serverVersion}, ${result.topology}.`,
       };
     }
     const detail = result.error.detail === undefined ? '' : ` (${result.error.detail})`;
@@ -122,10 +135,12 @@ export function ConnectionDialog({
     }
     setTesting(true);
     setStatus(undefined);
+    const started = Date.now();
     try {
-      setStatus(describeTest(await testConnection(draftInput(current))));
+      const result = await testConnection(draftInput(current));
+      setStatus(describeTest(result, Date.now() - started));
     } catch (error) {
-      setStatus(describeTest({ ok: false, error: toAppError(error) }));
+      setStatus(describeTest({ ok: false, error: toAppError(error) }, Date.now() - started));
     } finally {
       setTesting(false);
     }
@@ -168,7 +183,7 @@ export function ConnectionDialog({
       {draft === undefined ? (
         <DialogLoading message={loadError} />
       ) : (
-        <Stack gap="sm">
+        <Stack gap="lg">
           {dockerManaged ? (
             <Alert color="blue" variant="light">
               The host and port of a Docker connection are managed by the app. The URI is rebuilt on
@@ -176,7 +191,7 @@ export function ConnectionDialog({
               stay editable.
             </Alert>
           ) : null}
-          <Group align="flex-end" wrap="nowrap">
+          <Group align="flex-end" wrap="nowrap" gap="lg">
             <TextInput
               label="Name"
               value={draft.name}
@@ -189,12 +204,21 @@ export function ConnectionDialog({
               format="hex"
               w={150}
               swatches={SWATCHES}
+              leftSection={
+                <ColorSwatch color={draft.color === '' ? 'transparent' : draft.color} size={14} />
+              }
               value={draft.color}
               eyeDropperButtonProps={{ 'aria-label': 'Pick colour' }}
               onChange={(value) => updateDraft({ ...draft, color: value })}
             />
           </Group>
           <SegmentedControl
+            fullWidth
+            styles={{
+              root: { height: 30 },
+              control: { height: 28 },
+              label: { padding: '0 12px', lineHeight: '26px' },
+            }}
             aria-label="Connection string mode"
             value={draft.mode}
             onChange={(value) => changeMode(value === 'form' ? 'form' : 'uri')}
@@ -204,18 +228,26 @@ export function ConnectionDialog({
             ]}
           />
           {draft.mode === 'uri' ? (
-            <Stack gap={4}>
+            <Stack gap="sm">
               <Textarea
                 label="Connection URI"
                 autosize
                 minRows={2}
                 value={draft.uri}
+                styles={{ input: { fontFamily: 'var(--mantine-font-family-monospace)' } }}
                 onChange={(event) => updateDraft({ ...draft, uri: event.currentTarget.value })}
               />
               <Text size="xs" c="dimmed">
+                Paste a mongodb:// or mongodb+srv:// string. The password is masked and saved
+                encrypted.
+              </Text>
+              <UriChips uri={draft.uri} />
+              <Text size="xs" c="dimmed">
                 Preview with the password hidden
               </Text>
-              <Code block>{redactUri(draft.uri)}</Code>
+              <Code block bg="var(--mg-bg-sunken)">
+                {redactUri(draft.uri)}
+              </Code>
             </Stack>
           ) : (
             <ConnectionForm
@@ -223,14 +255,31 @@ export function ConnectionDialog({
               onChange={(patch) => updateDraft({ ...draft, form: { ...draft.form, ...patch } })}
             />
           )}
-          <Group justify="space-between" wrap="nowrap" gap="sm">
+          {status?.tone === 'blue' ? (
+            <Group
+              gap="xs"
+              wrap="nowrap"
+              px="sm"
+              py={8}
+              role="status"
+              style={{
+                borderRadius: 6,
+                color: 'var(--mg-ok)',
+                background: 'color-mix(in srgb, var(--mg-ok) 14%, var(--mg-surface-1))',
+              }}
+            >
+              <IconCheck size={16} />
+              <Text size="sm">{status.text}</Text>
+            </Group>
+          ) : null}
+          <Group justify="space-between" wrap="nowrap" gap="sm" align="center" mt="lg">
             <Group gap="sm" wrap="nowrap" style={{ flex: 1, minWidth: 0 }}>
               <Button variant="default" loading={testing} onClick={() => void handleTest(draft)}>
                 Test connection
               </Button>
-              <StatusText status={status} />
+              <StatusText status={status?.tone === 'red' ? status : undefined} />
             </Group>
-            <Group gap="xs" wrap="nowrap">
+            <Group gap="sm" wrap="nowrap">
               <Button variant="default" onClick={onClose}>
                 Cancel
               </Button>
@@ -249,12 +298,7 @@ export function ConnectionDialog({
 function StatusText({ status }: { readonly status: StatusLine | undefined }) {
   return (
     <Box h={18} style={{ flex: 1, minWidth: 0 }}>
-      <Text
-        size="xs"
-        role="status"
-        c={status === undefined ? 'dimmed' : status.tone}
-        truncate="end"
-      >
+      <Text size="xs" role="alert" c="var(--mg-danger)" truncate="end">
         {status?.text ?? ''}
       </Text>
     </Box>
@@ -272,6 +316,52 @@ function DialogLoading({ message }: { readonly message: string | undefined }) {
   return (
     <Group justify="center" py="md">
       <Loader size="sm" aria-label="Loading connection" />
+    </Group>
+  );
+}
+
+/** What the URI parser found, as chips under the textarea. Shows the parse error when the URI is invalid. */
+function UriChips({ uri }: { readonly uri: string }) {
+  const parsed = parseMongoUri(uri);
+  const chips: string[] = [];
+  if (parsed.ok) {
+    const { form } = parsed;
+    chips.push(
+      form.scheme === 'mongodb+srv'
+        ? `SRV \u00b7 ${form.hosts[0] ?? ''}`
+        : `${form.hosts.length} ${form.hosts.length === 1 ? 'host' : 'hosts'}`,
+    );
+    if (form.username !== '') {
+      chips.push(`User ${form.username}`);
+    }
+    if (form.database !== '') {
+      chips.push(`Database ${form.database}`);
+    }
+    if (form.readPreference !== undefined) {
+      chips.push(form.readPreference);
+    }
+    if (form.tls.enabled) {
+      chips.push('TLS on');
+    } else if (form.scheme === 'mongodb+srv') {
+      chips.push('TLS on, implied by SRV');
+    }
+  }
+  return (
+    <Group gap="md">
+      {parsed.ok ? (
+        <Badge variant="outline" color="green" leftSection={<IconCheck size={12} />}>
+          Valid
+        </Badge>
+      ) : (
+        <Badge variant="outline" color="red" leftSection={<IconAlertCircle size={12} />}>
+          {parsed.message}
+        </Badge>
+      )}
+      {chips.map((chip) => (
+        <Badge key={chip} variant="default" tt="none" fw={400}>
+          {chip}
+        </Badge>
+      ))}
     </Group>
   );
 }

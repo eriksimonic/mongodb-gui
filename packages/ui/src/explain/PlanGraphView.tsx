@@ -9,8 +9,10 @@ import {
   Tooltip,
 } from '@mantine/core';
 import { IconMinus, IconPlus, IconZoomReset } from '@tabler/icons-react';
+import { notifications } from '@mantine/notifications';
+import { notifyError } from '../kit/notify-error';
 import { describeStage, type PlanStage } from '@mongo-gui/core';
-import { useEffect, useMemo, useRef, useState, type KeyboardEvent } from 'react';
+import { useEffect, useMemo, useRef, useState, type KeyboardEvent, type PointerEvent } from 'react';
 import {
   ancestorIds,
   GRAPH_GAP_Y,
@@ -194,6 +196,37 @@ export function PlanGraphView({
     event.preventDefault();
   }
 
+  const [panning, setPanning] = useState(false);
+  const pan = useRef<{ x: number; y: number; left: number; top: number } | undefined>(undefined);
+
+  // Dragging empty canvas pans. A press on a card still selects it.
+  function startPan(event: PointerEvent<HTMLDivElement>): void {
+    const box = scroller.current;
+    if (box === null || event.button !== 0 || (event.target as Element).closest('.mg-explain-node')) {
+      return;
+    }
+    pan.current = { x: event.clientX, y: event.clientY, left: box.scrollLeft, top: box.scrollTop };
+    setPanning(true);
+    event.currentTarget.setPointerCapture(event.pointerId);
+  }
+
+  function movePan(event: PointerEvent<HTMLDivElement>): void {
+    const start = pan.current;
+    const box = scroller.current;
+    if (start !== undefined && box !== null) {
+      box.scrollLeft = start.left - (event.clientX - start.x);
+      box.scrollTop = start.top - (event.clientY - start.y);
+    }
+  }
+
+  function endPan(event: PointerEvent<HTMLDivElement>): void {
+    pan.current = undefined;
+    setPanning(false);
+    if (event.currentTarget.hasPointerCapture(event.pointerId)) {
+      event.currentTarget.releasePointerCapture(event.pointerId);
+    }
+  }
+
   function zoomBy(step: number): void {
     setScale((current) =>
       Math.min(ZOOM_MAX, Math.max(ZOOM_MIN, Math.round((current + step) * 10) / 10)),
@@ -264,7 +297,15 @@ export function PlanGraphView({
         </Group>
       </Group>
       <div className="mg-explain-graph-layout">
-        <div className="mg-explain-graph-scroll" ref={scroller}>
+        <div
+          className="mg-explain-graph-scroll"
+          ref={scroller}
+          data-panning={panning ? 'true' : undefined}
+          onPointerDown={startPan}
+          onPointerMove={movePan}
+          onPointerUp={endPan}
+          onPointerCancel={endPan}
+        >
           <div
             style={{
               width: layout.width * scale + CANVAS_PAD * 2,
@@ -340,6 +381,9 @@ export function PlanGraphView({
           <StageDetails stage={selected.stage} onClose={() => onSelect(undefined)} />
         )}
       </div>
+      <p className="mg-explain-graph-footer">
+        Reads bottom to top: inputs feed the stage above them, up to the root.
+      </p>
     </div>
   );
 }
@@ -463,12 +507,12 @@ function StageCard({
       )}
       <div className="mg-explain-node-tags">
         {tags.map((tag) => (
-          <Badge key={tag} tt="none" variant="filled" color="red" size="xs">
+          <Badge key={tag} tt="none" variant="light" color="red" size="xs">
             {tag}
           </Badge>
         ))}
         {scans > 0 ? (
-          <Badge tt="none" variant="filled" color="orange" size="xs">
+          <Badge tt="none" variant="light" color="orange" size="xs">
             {formatCount(scans)} collection {scans === 1 ? 'scan' : 'scans'}
           </Badge>
         ) : null}
@@ -538,6 +582,17 @@ function StageDetails({ stage, onClose }: StageDetailsProps) {
   const ratio = examinedRatio(stage, info);
   const lookup = lookupIndexUse(stage);
   const bounds = stage.indexBounds === undefined ? [] : Object.entries(stage.indexBounds);
+  const [showRaw, setShowRaw] = useState(false);
+
+  async function copyStage(): Promise<void> {
+    try {
+      await navigator.clipboard.writeText(rawWithoutInputs(stage.raw));
+      notifications.show({ title: 'Stage copied', message: stage.name, color: 'blue' });
+    } catch (error) {
+      notifyError(error, 'The stage could not be copied');
+    }
+  }
+
   return (
     <aside className="mg-explain-details" aria-label="Stage details">
       <Group justify="space-between" wrap="nowrap" gap="xs">
@@ -554,9 +609,12 @@ function StageDetails({ stage, onClose }: StageDetailsProps) {
       )}
       <Text size="xs">{info.description}</Text>
       {info.advice === undefined ? null : (
-        <Text size="xs" c="dimmed">
-          {info.advice}
-        </Text>
+        <div className="mg-explain-why">
+          <Text size="xs" fw={600}>
+            Why it matters
+          </Text>
+          <Text size="xs">{info.advice}</Text>
+        </div>
       )}
       {items.length === 0 && ratio === undefined && lookup === undefined ? null : (
         <dl className="mg-explain-details-list">
@@ -606,10 +664,15 @@ function StageDetails({ stage, onClose }: StageDetailsProps) {
       {stage.projection === undefined ? null : (
         <DetailCode title="Projection" text={jsonText(stage.projection)} />
       )}
-      <details className="mg-explain-details-raw">
-        <summary>Raw stage</summary>
-        <pre>{rawWithoutInputs(stage.raw)}</pre>
-      </details>
+      <div className="mg-explain-details-actions">
+        <Button size="xs" variant="default" onClick={() => void copyStage()}>
+          Copy stage
+        </Button>
+        <Button size="xs" variant="subtle" onClick={() => setShowRaw((open) => !open)}>
+          {showRaw ? 'Hide raw' : 'Show raw'}
+        </Button>
+      </div>
+      {showRaw ? <pre className="mg-explain-details-code">{rawWithoutInputs(stage.raw)}</pre> : null}
     </aside>
   );
 }

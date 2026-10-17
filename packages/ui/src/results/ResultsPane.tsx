@@ -18,12 +18,9 @@ import { TreeView, type TreeEdit } from './TreeView';
 const VIEW_LABELS: Readonly<Record<ResultView, string>> = {
   table: 'Table',
   tree: 'Tree',
-  json: 'JSON',
 };
 const TICK_MS = 250;
 const MILLIS_PER_SECOND = 1000;
-/** The JSON view shows about this many characters of documents. Copy and Export still take them all. */
-const JSON_VIEW_CHARS = 2 * 1024 * 1024;
 const BYTES_PER_MB = 1024 * 1024;
 
 /** The document the user opened, as text from the full document and never from a preview. */
@@ -99,33 +96,20 @@ export function ResultsPane({
   const [notice, setNotice] = useState<string | undefined>(undefined);
   const elapsed = useElapsed(running);
   const isCursor = result !== undefined && result.printableEjson === undefined;
-  const effectiveView: ResultView = isCursor ? view : 'json';
+  const effectiveView: ResultView | 'json' = isCursor ? view : 'json';
   const documents = result?.documents;
   const columns = useMemo(() => discoverColumns(documents ?? []), [documents]);
-  // The JSON view writes its text for a window of the documents, so a large result stays small.
-  const windowSize =
-    result === undefined || result.documents.length === 0
-      ? 1
-      : Math.max(
-          1,
-          Math.floor(JSON_VIEW_CHARS / Math.max(1, result.chars / result.documents.length)),
-        );
   const jsonSource = useMemo(() => {
     if (result === undefined) {
       return undefined;
     }
     return result.printableEjson === undefined
-      ? { documents: result.documents.slice(0, windowSize) }
+      ? { documents: result.documents }
       : { printableEjson: result.printableEjson };
-  }, [result, windowSize]);
-  const windowed = isCursor && result !== undefined && windowSize < result.documents.length;
+  }, [result]);
   // Previews whose full text was not stored. They can be neither opened, copied nor exported.
   const unkept = useMemo(
     () => documents?.filter((document) => isUnkeptPreview(document)).length ?? 0,
-    [documents],
-  );
-  const anyShortened = useMemo(
-    () => documents?.some((document) => previewInfo(document) !== undefined) ?? false,
     [documents],
   );
   const editable = isCursor && target !== undefined;
@@ -194,104 +178,110 @@ export function ResultsPane({
     }
   }
 
+  const viewSwitch = (
+    <SegmentedControl
+      size="xs"
+      aria-label="Result view"
+      value={view}
+      disabled={!isCursor}
+      onChange={(value) => onView(value as ResultView)}
+      data={(Object.keys(VIEW_LABELS) as ResultView[]).map((key) => ({
+        value: key,
+        label: VIEW_LABELS[key],
+      }))}
+    />
+  );
+
   return (
     <Stack gap={8} h="100%" style={{ minHeight: 0 }} data-testid="results-pane">
-      <Group justify="space-between" wrap="nowrap" gap={8}>
-        <Group gap={8} wrap="nowrap">
-          <SegmentedControl
-            size="xs"
-            aria-label="Result view"
-            value={effectiveView}
-            disabled={!isCursor}
-            onChange={(value) => onView(value as ResultView)}
-            data={(Object.keys(VIEW_LABELS) as ResultView[]).map((key) => ({
-              value: key,
-              label: VIEW_LABELS[key],
-            }))}
-          />
-          {result === undefined || !isCursor ? null : (
-            <Text size="xs" c="dimmed" aria-live="polite">
-              {formatCount(count, result.hasMore)}
-            </Text>
-          )}
-          {opening ? (
-            <Text size="xs" c="dimmed" aria-live="polite">
-              Opening document…
-            </Text>
-          ) : null}
-          {result?.summary === undefined ? null : (
-            <Badge tt="none" size="sm" variant="light" color="blue" data-testid="result-summary">
-              {result.summary}
-            </Badge>
-          )}
+      {effectiveView === 'tree' ? null : (
+        <Group justify="space-between" wrap="nowrap" gap={8}>
+          <Group gap={8} wrap="nowrap">
+            {viewSwitch}
+            {result === undefined || !isCursor ? null : (
+              <Text size="xs" c="var(--mg-text-muted)" aria-live="polite">
+                {formatCount(count, result.hasMore)}
+              </Text>
+            )}
+            {opening ? (
+              <Text size="xs" c="dimmed" aria-live="polite">
+                Opening document…
+              </Text>
+            ) : null}
+            {result?.summary === undefined ? null : (
+              <Badge tt="none" size="sm" variant="light" color="blue" data-testid="result-summary">
+                {result.summary}
+              </Badge>
+            )}
+          </Group>
+          <Group gap={8} wrap="nowrap">
+            {running !== undefined && elapsed !== undefined ? (
+              <Text size="xs" c="dimmed">
+                Running {seconds(elapsed)}
+              </Text>
+            ) : result === undefined ? null : (
+              <Text size="xs" c="var(--mg-text-muted)" ff="var(--mantine-font-family-monospace)">
+                {seconds(result.elapsedMs)}
+              </Text>
+            )}
+            {result === undefined || !isCursor ? null : (
+              <>
+                <Button
+                  size="xs"
+                  variant="default"
+                  disabled={
+                    !result.hasMore ||
+                    result.capped ||
+                    result.loadingMore ||
+                    result.cursorRequestId === undefined
+                  }
+                  onClick={() =>
+                    modals.openConfirmModal({
+                      title: 'Load documents',
+                      centered: true,
+                      children: (
+                        <Text size="sm">
+                          Load up to {LOAD_ALL_LIMIT.toLocaleString('en-US')} documents into memory?
+                          Large results take a while and use memory.
+                        </Text>
+                      ),
+                      labels: { confirm: 'Load', cancel: 'Cancel' },
+                      onConfirm: onLoadAll,
+                    })
+                  }
+                >
+                  Load all up to {LOAD_ALL_LIMIT.toLocaleString('en-US')}
+                </Button>
+                <Button
+                  size="xs"
+                  variant="default"
+                  leftSection={<IconCopy size={13} />}
+                  disabled={count === 0}
+                  onClick={() => void copyJson()}
+                >
+                  {selected.length === 0 ? 'Copy JSON' : `Copy ${selected.length} as JSON`}
+                </Button>
+                <Button
+                  size="xs"
+                  variant="default"
+                  disabled={count === 0}
+                  onClick={() => onExport('json')}
+                >
+                  Export JSON
+                </Button>
+                <Button
+                  size="xs"
+                  variant="default"
+                  disabled={count === 0}
+                  onClick={() => onExport('csv')}
+                >
+                  Export CSV
+                </Button>
+              </>
+            )}
+          </Group>
         </Group>
-        <Group gap={8} wrap="nowrap">
-          {running !== undefined && elapsed !== undefined ? (
-            <Text size="xs" c="dimmed">
-              Running {seconds(elapsed)}
-            </Text>
-          ) : result === undefined ? null : (
-            <Text size="xs" c="dimmed">
-              {seconds(result.elapsedMs)}
-            </Text>
-          )}
-          {result === undefined || !isCursor ? null : (
-            <>
-              <Button
-                size="xs"
-                variant="default"
-                disabled={
-                  !result.hasMore ||
-                  result.capped ||
-                  result.loadingMore ||
-                  result.cursorRequestId === undefined
-                }
-                onClick={() =>
-                  modals.openConfirmModal({
-                    title: 'Load documents',
-                    centered: true,
-                    children: (
-                      <Text size="sm">
-                        Load up to {LOAD_ALL_LIMIT.toLocaleString('en-US')} documents into memory?
-                        Large results take a while and use memory.
-                      </Text>
-                    ),
-                    labels: { confirm: 'Load', cancel: 'Cancel' },
-                    onConfirm: onLoadAll,
-                  })
-                }
-              >
-                Load all up to {LOAD_ALL_LIMIT.toLocaleString('en-US')}
-              </Button>
-              <Button
-                size="xs"
-                variant="default"
-                leftSection={<IconCopy size={13} />}
-                disabled={count === 0}
-                onClick={() => void copyJson()}
-              >
-                {selected.length === 0 ? 'Copy JSON' : `Copy ${selected.length} as JSON`}
-              </Button>
-              <Button
-                size="xs"
-                variant="default"
-                disabled={count === 0}
-                onClick={() => onExport('json')}
-              >
-                Export JSON
-              </Button>
-              <Button
-                size="xs"
-                variant="default"
-                disabled={count === 0}
-                onClick={() => onExport('csv')}
-              >
-                Export CSV
-              </Button>
-            </>
-          )}
-        </Group>
-      </Group>
+      )}
       {error === undefined ? null : (
         <Alert color="red" variant="light" role="alert" p="xs">
           {errorText(error)}
@@ -352,25 +342,21 @@ export function ResultsPane({
               onSetField={onSetField}
               onUnsetField={onUnsetField}
               onNearEnd={loadMoreOnScroll}
+              hasMore={result.hasMore}
+              onExport={() => onExport('json')}
+              leading={
+                <>
+                  {viewSwitch}
+                  {target === undefined ? null : (
+                    <Text size="xs" ff="var(--mantine-font-family-monospace)">
+                      {target.database}.{target.collection}
+                    </Text>
+                  )}
+                </>
+              }
             />
           ) : (
-            <Stack gap={6} h="100%">
-              {windowed && result !== undefined ? (
-                <Text size="xs" c="dimmed">
-                  Showing the first {windowSize.toLocaleString('en-US')} of{' '}
-                  {result.documents.length.toLocaleString('en-US')} documents. Copy and Export
-                  include all.
-                </Text>
-              ) : null}
-              {isCursor && anyShortened ? (
-                <Text size="xs" c="dimmed">
-                  Some values are shortened.
-                </Text>
-              ) : null}
-              <div style={{ flex: 1, minHeight: 0 }}>
-                <JsonView source={jsonSource} label="Result as JSON" onNearEnd={loadMoreOnScroll} />
-              </div>
-            </Stack>
+            <JsonView source={jsonSource} label="Result as JSON" />
           )}
         </div>
       )}
