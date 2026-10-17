@@ -25,14 +25,14 @@ describe('App', () => {
   it('returns to the unlock screen when the vault locks', async () => {
     renderApp({ mock: { preset: 'unlocked' } });
     fireEvent.click(await screen.findByRole('button', { name: 'Lock' }));
-    expect(await screen.findByRole('heading', { name: 'Unlock Mongo GUI' })).toBeInTheDocument();
+    expect(await screen.findByRole('heading', { name: 'Unlock' })).toBeInTheDocument();
   });
 
   it('shows the unlock screen when the app starts locked', async () => {
     const api = createMockUiApi({ preset: 'unlocked' });
     await api.rpc.vault.lock();
     renderApp({ api });
-    expect(await screen.findByRole('heading', { name: 'Unlock Mongo GUI' })).toBeInTheDocument();
+    expect(await screen.findByRole('heading', { name: 'Unlock' })).toBeInTheDocument();
   });
 
   it('is exported as a component taking an api prop', () => {

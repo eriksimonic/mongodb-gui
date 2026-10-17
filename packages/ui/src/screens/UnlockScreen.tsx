@@ -35,7 +35,7 @@ export function UnlockScreen() {
   }
 
   return (
-    <CenteredScreen title="Unlock Mongo GUI">
+    <CenteredScreen title="Unlock">
       <form onSubmit={(event) => void handleSubmit(event)}>
         <Stack gap="sm">
           <PasswordInput
@@ -57,23 +57,21 @@ export function UnlockScreen() {
               {failure}
             </Alert>
           )}
-          <Stack gap="sm">
-            <Anchor
-              component="button"
-              type="button"
-              size="sm"
-              c="var(--mg-link)"
-              onClick={() => setResetOpen(true)}
-            >
-              Reset store
-            </Anchor>
-            <Text size="xs" c="dimmed">
-              No recovery. Resetting erases saved connections.
-            </Text>
-            <Button type="submit" loading={busy} fullWidth>
-              Unlock
-            </Button>
-          </Stack>
+          <Button type="submit" loading={busy} fullWidth>
+            Unlock
+          </Button>
+          <Anchor
+            component="button"
+            type="button"
+            size="sm"
+            c="var(--mg-link)"
+            onClick={() => setResetOpen(true)}
+          >
+            Reset store
+          </Anchor>
+          <Text size="xs" c="dimmed" ta="center">
+            No recovery. Resetting erases saved connections.
+          </Text>
         </Stack>
       </form>
       <ResetStoreModal opened={resetOpen} onClose={() => setResetOpen(false)} />

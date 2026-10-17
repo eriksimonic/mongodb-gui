@@ -7,6 +7,7 @@ export {
   getDbStats,
   getHostInfo,
   getParameters,
+  setParameter,
   getServerStatusTree,
   getTop,
   serverStatusDocument,

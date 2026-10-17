@@ -60,7 +60,7 @@ test('replica set: member priority, votes, hidden, delay and tags match the conf
     // Defaults match the server: priority 1, votes 1, no delay, no tags, not hidden.
     const tags = Object.entries(member.tags ?? {})
       .map(([key, value]) => `${key}=${value}`)
-      .join(', ');
+      .join('');
     const expected: [string, string][] = [
       ['Priority', String(member.priority ?? 1)],
       ['Votes', String(member.votes ?? 1)],
@@ -168,8 +168,9 @@ test('replica set: freeze a secondary from its direct connection, the log shows 
     await table
       .getByRole('row')
       .filter({ hasText: host })
-      .getByRole('button', { name: 'Freeze', exact: true })
+      .getByRole('button', { name: /^Actions for / })
       .click();
+    await page.getByRole('menuitem', { name: /^Freeze/ }).click();
 
     const dialog = page.getByRole('dialog', { name: 'Freeze member' });
     await dialog.getByLabel('Seconds', { exact: true }).fill('30');

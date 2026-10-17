@@ -29,7 +29,7 @@ import { ConnectionContextMenu } from './ConnectionContextMenu';
 import { DockerContainerContextMenu } from './DockerContainerContextMenu';
 import { DockerLinkedContextMenu } from './DockerLinkedContextMenu';
 import { DockerNodeContextMenu } from './DockerNodeContextMenu';
-import { MemberContextMenu } from './MemberContextMenu';
+import { MemberContextMenu, ReplicaSetContextMenu } from './MemberContextMenu';
 import { CollectionContextMenu, DatabaseContextMenu } from './CatalogContextMenu';
 import {
   FOCUS_TREE_SEARCH_EVENT,
@@ -60,6 +60,7 @@ type MenuTarget =
   | { readonly kind: 'container'; readonly containerId: string }
   | { readonly kind: 'docker' }
   | { readonly kind: 'member'; readonly connectionId: string; readonly host: string }
+  | { readonly kind: 'replicaSet'; readonly connectionId: string }
   | { readonly kind: 'database'; readonly connectionId: string; readonly database: string }
   | { readonly kind: 'gridfs'; readonly connectionId: string; readonly database: string }
   | {
@@ -141,6 +142,8 @@ function menuTargetFor(
         : { kind: 'container', containerId: row.container.id };
     case 'docker':
       return { kind: 'docker' };
+    case 'replica-set':
+      return { kind: 'replicaSet', connectionId: row.connectionId };
     case 'member':
       return row.member === undefined
         ? undefined
@@ -685,6 +688,17 @@ export function ConnectionTree() {
           connection={connection}
           container={container}
           status={statuses[connection.id] ?? DISCONNECTED}
+          position={position}
+          onClose={closeMenu}
+        />
+      );
+    }
+    if (target.kind === 'replicaSet') {
+      const connection = readyConnections.find((item) => item.id === target.connectionId);
+      return (
+        <ReplicaSetContextMenu
+          connectionId={target.connectionId}
+          connectionName={connection?.name ?? ''}
           position={position}
           onClose={closeMenu}
         />

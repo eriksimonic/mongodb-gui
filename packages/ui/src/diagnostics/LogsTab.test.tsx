@@ -39,9 +39,11 @@ describe('LogsTab with a long log', () => {
       { connectionId: localConnectionId },
       clientReturning(() => logLines(10000)),
     );
-    renderWithApp(<LogsTab store={store} kind="global" />, { api });
+    renderWithApp(<LogsTab store={store} connectionId={localConnectionId} kind="global" />, {
+      api,
+    });
 
-    await screen.findByText(/Showing 10000 of 10000 lines/);
+    await screen.findByText(/10,000 lines/);
     // The header row plus the rows that fit the viewport and the overscan, never all 10,000.
     const rows = screen.getAllByRole('row');
     expect(rows.length).toBeGreaterThan(5);

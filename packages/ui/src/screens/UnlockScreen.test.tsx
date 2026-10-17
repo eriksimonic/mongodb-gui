@@ -20,7 +20,7 @@ describe('UnlockScreen', () => {
     fireEvent.click(screen.getByRole('button', { name: 'Unlock' }));
 
     expect(await screen.findByText('Wrong master password. Try again.')).toBeInTheDocument();
-    expect(screen.getByRole('heading', { name: 'Unlock Mongo GUI' })).toBeInTheDocument();
+    expect(screen.getByRole('heading', { name: 'Unlock' })).toBeInTheDocument();
   });
 
   it('reaches the shell with the right password', async () => {

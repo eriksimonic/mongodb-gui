@@ -24,6 +24,7 @@ vi.mock('@mongo-gui/mongo-adapter', async (importOriginal) => {
     getParameters: vi.fn(),
     getServerStatusTree: vi.fn(),
     killSessions: vi.fn(),
+    setParameter: vi.fn(),
   };
 });
 
@@ -292,5 +293,44 @@ describe('diagnostics calls through the router', () => {
 
     expect(failure(result).code).toBe('VALIDATION');
     expect(adapter.killSessions).not.toHaveBeenCalled();
+  });
+
+  it('sets a parameter and returns the value it had', async () => {
+    vi.mocked(adapter.setParameter).mockResolvedValue({ was: 60 });
+
+    const result = await router.handle('diagnostics.setParameter', {
+      connectionId: CONNECTION_ID,
+      name: 'transactionLifetimeLimitSeconds',
+      value: 30,
+    });
+
+    expect(value(result)).toEqual({ was: 60 });
+    expect(adapter.setParameter).toHaveBeenCalledWith(
+      CLIENT,
+      'transactionLifetimeLimitSeconds',
+      30,
+    );
+  });
+
+  it('refuses to change a parameter that holds a secret', async () => {
+    const result = await router.handle('diagnostics.setParameter', {
+      connectionId: CONNECTION_ID,
+      name: 'keyFilePassword',
+      value: 'x',
+    });
+
+    expect(failure(result).code).toBe('VALIDATION');
+    expect(adapter.setParameter).not.toHaveBeenCalled();
+  });
+
+  it('refuses a name that would replace the command itself', async () => {
+    const result = await router.handle('diagnostics.setParameter', {
+      connectionId: CONNECTION_ID,
+      name: 'setParameter',
+      value: 1,
+    });
+
+    expect(failure(result).code).toBe('VALIDATION');
+    expect(adapter.setParameter).not.toHaveBeenCalled();
   });
 });

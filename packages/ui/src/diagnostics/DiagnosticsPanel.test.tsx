@@ -1,6 +1,6 @@
 // @vitest-environment jsdom
 import { fireEvent, screen, waitFor, within } from '@testing-library/react';
-import { describe, expect, it } from 'vitest';
+import { describe, expect, it, vi } from 'vitest';
 import { connectedMockApi } from '../api/connected-mock';
 import { localConnectionId } from '../api/mock-fixtures';
 import { renderWithApp } from '../test-support/render';
@@ -16,7 +16,7 @@ describe('DiagnosticsPanel', () => {
   it('filters the log by text and reports the count of lines shown', async () => {
     const api = await connectedMockApi();
     renderWithApp(<DiagnosticsPanel connectionId={localConnectionId} />, { api });
-    await screen.findByText(/Showing \d+ of \d+ lines/);
+    await screen.findByText(/320 lines · [\d,]+ written/);
 
     fireEvent.change(screen.getByLabelText('Search log'), { target: { value: 'duplicate key' } });
 
@@ -32,7 +32,7 @@ describe('DiagnosticsPanel', () => {
   it('shows the empty message when no line matches the filter', async () => {
     const api = await connectedMockApi();
     renderWithApp(<DiagnosticsPanel connectionId={localConnectionId} />, { api });
-    await screen.findByText(/Showing \d+ of \d+ lines/);
+    await screen.findByText(/320 lines · [\d,]+ written/);
 
     fireEvent.change(screen.getByLabelText('Search log'), {
       target: { value: 'no such text anywhere' },
@@ -57,7 +57,7 @@ describe('DiagnosticsPanel', () => {
     await screen.findByText('logLevel');
 
     fireEvent.change(search, { target: { value: 'logLevel' } });
-    expect(await screen.findByText('Showing 1 of 20 parameters')).toBeInTheDocument();
+    expect(await screen.findByText('Showing 1 of 21 parameters')).toBeInTheDocument();
 
     fireEvent.change(search, { target: { value: 'SCRAM-SHA-256' } });
     expect(await screen.findByText('authenticationMechanisms')).toBeInTheDocument();
@@ -117,5 +117,44 @@ describe('DiagnosticsPanel', () => {
       expect(screen.queryByText('8c3d1f6a0e9b4d2c8a7f5e1b3d6c0a92')).not.toBeInTheDocument(),
     );
     expect(screen.getByText(REPORTER_SESSION)).toBeInTheDocument();
+  });
+
+  it('changes a parameter after a confirmation and shows the new value', async () => {
+    const api = await connectedMockApi();
+    const spy = vi.spyOn(api.rpc.diagnostics, 'setParameter');
+    renderWithApp(<DiagnosticsPanel connectionId={localConnectionId} />, { api });
+    openTab('Parameters');
+
+    fireEvent.click(await screen.findByLabelText('Edit transactionLifetimeLimitSeconds'));
+    fireEvent.change(screen.getByLabelText('Value'), { target: { value: '30' } });
+    fireEvent.click(screen.getByRole('button', { name: 'Review change' }));
+
+    expect(await screen.findByText(/lasts until the server restarts/)).toBeInTheDocument();
+    expect(spy).not.toHaveBeenCalled();
+    fireEvent.click(screen.getByRole('button', { name: 'Set value' }));
+
+    await waitFor(() =>
+      expect(spy).toHaveBeenCalledWith({
+        connectionId: localConnectionId,
+        name: 'transactionLifetimeLimitSeconds',
+        value: 30,
+      }),
+    );
+    await waitFor(() =>
+      expect(screen.queryByRole('button', { name: 'Set value' })).not.toBeInTheDocument(),
+    );
+  });
+
+  it('shows the server refusal of a startup-only parameter inside the dialog', async () => {
+    const api = await connectedMockApi();
+    renderWithApp(<DiagnosticsPanel connectionId={localConnectionId} />, { api });
+    openTab('Parameters');
+
+    fireEvent.click(await screen.findByLabelText('Edit authenticationMechanisms'));
+    fireEvent.change(screen.getByLabelText('Value'), { target: { value: 'SCRAM-SHA-256' } });
+    fireEvent.click(screen.getByRole('button', { name: 'Review change' }));
+    fireEvent.click(await screen.findByRole('button', { name: 'Set value' }));
+
+    expect(await screen.findByText(/only settable at startup time/)).toBeInTheDocument();
   });
 });

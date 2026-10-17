@@ -2,12 +2,13 @@ import {
   Group,
   Select,
   Switch,
+  TextInput,
   Table,
   Text,
   UnstyledButton,
   type MantineStyleProp,
 } from '@mantine/core';
-import { IconArrowDown, IconArrowUp } from '@tabler/icons-react';
+import { IconArrowDown, IconArrowUp, IconSearch } from '@tabler/icons-react';
 import type { TopEntry } from '@mongo-gui/core';
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { useStore } from 'zustand';
@@ -42,8 +43,8 @@ const INTERVALS = [
 const COLUMNS: readonly { key: TopColumn; label: string; time: boolean }[] = [
   { key: 'ns', label: 'Namespace', time: false },
   { key: 'total', label: 'Total time', time: true },
-  { key: 'readLock', label: 'Read lock time', time: true },
-  { key: 'writeLock', label: 'Write lock time', time: true },
+  { key: 'readLock', label: 'Read lock', time: true },
+  { key: 'writeLock', label: 'Write lock', time: true },
   { key: 'reads', label: 'Reads', time: false },
   { key: 'writes', label: 'Writes', time: false },
   { key: 'commands', label: 'Commands', time: false },
@@ -75,12 +76,27 @@ export function TopTab({ store }: TopTabProps) {
   usePolling(pollLoad, intervalMs);
 
   const waitingForDelta = delta && pair.previous === undefined;
-  const entries =
+  const [filter, setFilter] = useState('');
+  const [database, setDatabase] = useState<string | null>(null);
+  const allEntries =
     delta && pair.previous !== undefined && pair.current !== undefined
       ? topDelta(pair.previous, pair.current)
       : waitingForDelta
         ? NO_ENTRIES
         : (state.data ?? NO_ENTRIES);
+  const databases = useMemo(
+    () => [...new Set(allEntries.map((entry) => databaseOf(entry.ns)))].sort(),
+    [allEntries],
+  );
+  const entries = useMemo(
+    () =>
+      allEntries.filter(
+        (entry) =>
+          (database === null || databaseOf(entry.ns) === database) &&
+          entry.ns.toLowerCase().includes(filter.trim().toLowerCase()),
+      ),
+    [allEntries, database, filter],
+  );
   const rows = useMemo(() => sortTop(entries, sort), [entries, sort]);
   const totals = useMemo(() => topTotals(entries), [entries]);
 
@@ -95,7 +111,32 @@ export function TopTab({ store }: TopTabProps) {
   return (
     <ScrollLayout
       toolbar={
-        <Toolbar loading={state.loading} onRefresh={() => void load()}>
+        <Toolbar
+          loading={state.loading}
+          onRefresh={() => void load()}
+          status={`${entries.length} ${entries.length === 1 ? 'namespace' : 'namespaces'}`}
+        >
+          <TextInput
+            size="xs"
+            w={220}
+            aria-label="Filter by collection"
+            placeholder="Filter by collection"
+            leftSection={<IconSearch size={14} />}
+            value={filter}
+            onChange={(event) => setFilter(event.currentTarget.value)}
+          />
+          <Select
+            size="xs"
+            w={150}
+            aria-label="Database"
+            allowDeselect={false}
+            data={[
+              { value: '', label: 'All databases' },
+              ...databases.map((db) => ({ value: db, label: db })),
+            ]}
+            value={database ?? ''}
+            onChange={(value) => setDatabase(value === null || value === '' ? null : value)}
+          />
           <Select
             size="xs"
             w={130}
@@ -217,17 +258,41 @@ function Namespace({ ns }: { readonly ns: string }) {
   );
 }
 
+function databaseOf(ns: string): string {
+  const dot = ns.indexOf('.');
+  return dot < 0 ? ns : ns.slice(0, dot);
+}
+
+const FOOTER_CELL: MantineStyleProp = {
+  position: 'sticky',
+  bottom: 0,
+  background: 'var(--mg-surface-1)',
+  borderTop: '1px solid var(--mg-border)',
+};
+
 function TotalsRow({ entries }: { readonly entries: readonly TopEntry[] }) {
   const totals = topTotals(entries);
   return (
     <Table.Tr fw={600}>
-      <Table.Td>Total</Table.Td>
-      <Table.Td ta="right">{formatMs(totals.total)}</Table.Td>
-      <Table.Td ta="right">{formatMs(totals.readLock)}</Table.Td>
-      <Table.Td ta="right">{formatMs(totals.writeLock)}</Table.Td>
-      <Table.Td ta="right">{formatCount(totals.reads)}</Table.Td>
-      <Table.Td ta="right">{formatCount(totals.writes)}</Table.Td>
-      <Table.Td ta="right">{formatCount(totals.commands)}</Table.Td>
+      <Table.Td style={FOOTER_CELL}>Total</Table.Td>
+      <Table.Td ta="right" style={FOOTER_CELL}>
+        {formatMs(totals.total)}
+      </Table.Td>
+      <Table.Td ta="right" style={FOOTER_CELL}>
+        {formatMs(totals.readLock)}
+      </Table.Td>
+      <Table.Td ta="right" style={FOOTER_CELL}>
+        {formatMs(totals.writeLock)}
+      </Table.Td>
+      <Table.Td ta="right" style={FOOTER_CELL}>
+        {formatCount(totals.reads)}
+      </Table.Td>
+      <Table.Td ta="right" style={FOOTER_CELL}>
+        {formatCount(totals.writes)}
+      </Table.Td>
+      <Table.Td ta="right" style={FOOTER_CELL}>
+        {formatCount(totals.commands)}
+      </Table.Td>
     </Table.Tr>
   );
 }

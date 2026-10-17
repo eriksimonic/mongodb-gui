@@ -26,6 +26,8 @@ export interface ReplicationState {
   readonly loading: boolean;
   /** The last read error. The previous status stays on screen beneath it. */
   readonly error: AppError | undefined;
+  /** When the status was read, in epoch milliseconds. Relative times count from it. */
+  readonly readAt: number;
   readonly autoRefresh: boolean;
   readonly pending: PendingPlan | undefined;
   /** Set when an apply failed because the configuration moved after the plan was made. */
@@ -81,7 +83,7 @@ export function createReplicationStore(api: UiApi, connectionId: string): Replic
         rpc.replication.getStatus({ connectionId }),
         rpc.replication.getConfig({ connectionId }),
       ]);
-      set({ status, config, error: undefined });
+      set({ status, config, error: undefined, readAt: Date.now() });
     }
 
     return {
@@ -90,6 +92,7 @@ export function createReplicationStore(api: UiApi, connectionId: string): Replic
       config: undefined,
       loading: false,
       error: undefined,
+      readAt: Date.now(),
       autoRefresh: false,
       pending: undefined,
       stale: false,

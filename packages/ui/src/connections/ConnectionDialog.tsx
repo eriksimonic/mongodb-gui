@@ -1,7 +1,6 @@
 import {
   Alert,
   Badge,
-  Box,
   Button,
   Code,
   ColorInput,
@@ -272,12 +271,31 @@ export function ConnectionDialog({
               <Text size="sm">{status.text}</Text>
             </Group>
           ) : null}
+          {status?.tone === 'red' ? (
+            <Group
+              gap="xs"
+              wrap="nowrap"
+              align="flex-start"
+              px="sm"
+              py={8}
+              role="alert"
+              style={{
+                borderRadius: 6,
+                color: 'var(--mg-danger)',
+                background: 'color-mix(in srgb, var(--mg-danger) 14%, var(--mg-surface-1))',
+              }}
+            >
+              <IconAlertCircle size={16} style={{ flexShrink: 0, marginTop: 2 }} />
+              <Text size="sm" style={{ overflowWrap: 'anywhere' }}>
+                {status.text}
+              </Text>
+            </Group>
+          ) : null}
           <Group justify="space-between" wrap="nowrap" gap="sm" align="center" mt="lg">
-            <Group gap="sm" wrap="nowrap" style={{ flex: 1, minWidth: 0 }}>
+            <Group gap="sm" wrap="nowrap">
               <Button variant="default" loading={testing} onClick={() => void handleTest(draft)}>
                 Test connection
               </Button>
-              <StatusText status={status?.tone === 'red' ? status : undefined} />
             </Group>
             <Group gap="sm" wrap="nowrap">
               <Button variant="default" onClick={onClose}>
@@ -291,17 +309,6 @@ export function ConnectionDialog({
         </Stack>
       )}
     </Modal>
-  );
-}
-
-/** Fixed-height line beside the buttons, so a result never shifts the layout. */
-function StatusText({ status }: { readonly status: StatusLine | undefined }) {
-  return (
-    <Box h={18} style={{ flex: 1, minWidth: 0 }}>
-      <Text size="xs" role="alert" c="var(--mg-danger)" truncate="end">
-        {status?.text ?? ''}
-      </Text>
-    </Box>
   );
 }
 

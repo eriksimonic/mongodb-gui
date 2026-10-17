@@ -1,5 +1,6 @@
-import { Stack, Tabs } from '@mantine/core';
-import { useState } from 'react';
+import { Badge, Stack, Tabs } from '@mantine/core';
+import { useEffect, useState } from 'react';
+import { useStore } from 'zustand';
 import { useUiApi } from '../api/ui-api';
 import { HostBuildTab } from './HostBuildTab';
 import { LogsTab } from './LogsTab';
@@ -23,6 +24,13 @@ export function DiagnosticsPanel({ connectionId, initialTab = 'logs' }: Diagnost
   const { rpc } = useUiApi();
   const [store] = useState(() => createDiagnosticsStore({ connectionId }, rpc.diagnostics));
   const [tab, setTab] = useState<DiagnosticsTab>(initialTab);
+  const loadLog = useStore(store, (state) => state.loadLog);
+  const warningCount = useStore(store, (state) => state.logs.startupWarnings.data?.total);
+
+  // The tab label shows the count, so the warnings load before the tab opens.
+  useEffect(() => {
+    void loadLog('startupWarnings');
+  }, [loadLog]);
 
   return (
     <Stack gap={0} h="100%">
@@ -36,7 +44,18 @@ export function DiagnosticsPanel({ connectionId, initialTab = 'logs' }: Diagnost
       >
         <Tabs.List px="md" pt="sm">
           <Tabs.Tab value="logs">Logs</Tabs.Tab>
-          <Tabs.Tab value="warnings">Startup warnings</Tabs.Tab>
+          <Tabs.Tab
+            value="warnings"
+            rightSection={
+              warningCount === undefined || warningCount === 0 ? null : (
+                <Badge size="sm" variant="light" color="orange">
+                  {warningCount}
+                </Badge>
+              )
+            }
+          >
+            Startup warnings
+          </Tabs.Tab>
           <Tabs.Tab value="parameters">Parameters</Tabs.Tab>
           <Tabs.Tab value="status">Server status</Tabs.Tab>
           <Tabs.Tab value="host">Host and build</Tabs.Tab>
@@ -45,10 +64,14 @@ export function DiagnosticsPanel({ connectionId, initialTab = 'logs' }: Diagnost
           <Tabs.Tab value="sessions">Sessions</Tabs.Tab>
         </Tabs.List>
         <Tabs.Panel value="logs" style={FILL}>
-          {tab === 'logs' ? <LogsTab store={store} kind="global" /> : null}
+          {tab === 'logs' ? (
+            <LogsTab store={store} connectionId={connectionId} kind="global" />
+          ) : null}
         </Tabs.Panel>
         <Tabs.Panel value="warnings" style={FILL}>
-          {tab === 'warnings' ? <LogsTab store={store} kind="startupWarnings" /> : null}
+          {tab === 'warnings' ? (
+            <LogsTab store={store} connectionId={connectionId} kind="startupWarnings" />
+          ) : null}
         </Tabs.Panel>
         <Tabs.Panel value="parameters" style={FILL}>
           {tab === 'parameters' ? <ParametersTab store={store} /> : null}

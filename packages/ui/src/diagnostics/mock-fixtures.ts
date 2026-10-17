@@ -260,6 +260,7 @@ export function fixtureParameters(): ServerParameter[] {
     ttlMonitorSleepSecs: 60,
     tcmallocReleaseRate: 1,
     traceExceptions: false,
+    transactionLifetimeLimitSeconds: 60,
     wiredTigerConcurrentReadTransactions: 128,
     wiredTigerConcurrentWriteTransactions: 128,
     wiredTigerEngineRuntimeConfig: 'statistics=(fast),statistics_log=(wait=0)',

@@ -53,6 +53,18 @@ export async function getParameters(client: MongoClient): Promise<ServerParamete
     .sort((a, b) => compareText(a.name, b.name));
 }
 
+// Sets one parameter on the connected server. The change lasts until the server restarts. The server
+// refuses a parameter that is unknown or settable only at startup, and its message reaches the
+// caller. Returns the value the parameter had before.
+export async function setParameter(
+  client: MongoClient,
+  name: string,
+  value: string | number | boolean,
+): Promise<{ was: unknown }> {
+  const reply = await runAdminCommand(client, { setParameter: 1, [name]: value });
+  return { was: scalarValue(readField(reply, 'was')) };
+}
+
 export async function getCommandLineOptions(client: MongoClient): Promise<CommandLineOptions> {
   const reply = await runAdminCommand(client, { getCmdLineOpts: 1 });
   const parsed = readField(reply, 'parsed');

@@ -61,15 +61,15 @@ test('replica set: a tag dry run that is cancelled changes nothing', async ({ pa
     await page
       .getByRole('row')
       .filter({ hasText: MEMBER })
-      .getByRole('button', { name: 'Edit', exact: true })
+      .getByRole('button', { name: /^Actions for / })
       .click();
+    await page.getByRole('menuitem', { name: /^Edit member/ }).click();
 
-    const dialog = page.getByRole('dialog', { name: `Edit member ${MEMBER}`, exact: true });
+    const dialog = page.getByRole('dialog', { name: /^Edit member/ });
     await dialog.getByRole('button', { name: 'Add tag', exact: true }).click();
     await dialog.getByLabel('Tag 1 key').fill('e2e');
     await dialog.getByLabel('Tag 1 value').fill('wiring');
-    await dialog.getByRole('button', { name: 'Preview change', exact: true }).click();
-    await expect(dialog.getByLabel('Dry run')).toBeVisible();
+    await expect(dialog.getByLabel('Change preview')).toBeVisible();
 
     await dialog.getByRole('button', { name: 'Cancel', exact: true }).click();
     await expect(dialog).toBeHidden();
@@ -92,15 +92,15 @@ test('replica set: apply a tag change to a member', async ({ page, wiring }) => 
     await page
       .getByRole('row')
       .filter({ hasText: MEMBER })
-      .getByRole('button', { name: 'Edit', exact: true })
+      .getByRole('button', { name: /^Actions for / })
       .click();
+    await page.getByRole('menuitem', { name: /^Edit member/ }).click();
 
-    const dialog = page.getByRole('dialog', { name: `Edit member ${MEMBER}`, exact: true });
+    const dialog = page.getByRole('dialog', { name: /^Edit member/ });
     await dialog.getByRole('button', { name: 'Add tag', exact: true }).click();
     await dialog.getByLabel('Tag 1 key').fill('e2e');
     await dialog.getByLabel('Tag 1 value').fill('wiring');
-    await dialog.getByRole('button', { name: 'Preview change', exact: true }).click();
-    await expect(dialog.getByLabel('Dry run')).toBeVisible();
+    await expect(dialog.getByLabel('Change preview')).toBeVisible();
 
     // Apply stays disabled until the set name is typed. The set name is the config id.
     await dialog.getByLabel(`Type ${before._id} to confirm`).fill(before._id);

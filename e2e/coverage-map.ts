@@ -105,6 +105,7 @@ export const coverageMap: Readonly<Record<string, Coverage>> = {
   'diagnostics.getLog': { journey: 'diagnostics.spec.ts' },
   'diagnostics.cmdLineOpts': { journey: 'diagnostics.spec.ts' },
   'diagnostics.parameters': { journey: 'diagnostics.spec.ts' },
+  'diagnostics.setParameter': { excluded: 'no journey planned yet' },
   'diagnostics.hostInfo': { journey: 'diagnostics.spec.ts' },
   'diagnostics.buildInfo': { journey: 'diagnostics.spec.ts' },
   'diagnostics.serverStatus': { journey: 'diagnostics.spec.ts' },

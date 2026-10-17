@@ -1,7 +1,8 @@
-import { ActionIcon, Badge, Group, Paper, SimpleGrid, Text, TextInput } from '@mantine/core';
+import { ActionIcon, Badge, Group, SimpleGrid, Text, TextInput } from '@mantine/core';
 import { IconChevronDown, IconChevronRight } from '@tabler/icons-react';
 import { useEffect, useMemo, useState } from 'react';
 import { useStore } from 'zustand';
+import { StatCard } from '../kit/StatCard';
 import { CopyIcon, LoadState, ScrollLayout, Toolbar } from './common';
 import type { DiagnosticsStore } from './diagnostics-store';
 import { formatBytes, formatCount, formatDuration, formatTimestamp, unitHint } from './format';
@@ -19,6 +20,9 @@ export interface ServerStatusTabProps {
 }
 
 const INDENT_PX = 16;
+const KEY_COLUMN_PX = 220;
+/** The sections open at first, since they hold the numbers people read most. */
+const OPEN_AT_FIRST = ['connections', 'opcounters'];
 
 /**
  * The serverStatus document as an explorable tree, with a path search and copy of any subtree. The
@@ -28,11 +32,16 @@ export function ServerStatusTab({ store }: ServerStatusTabProps) {
   const state = useStore(store, (current) => current.serverStatus);
   const load = useStore(store, (current) => current.loadServerStatus);
   const [query, setQuery] = useState('');
-  const [open, setOpen] = useState<ReadonlySet<string>>(new Set());
+  const [open, setOpen] = useState<ReadonlySet<string>>(
+    () => new Set(OPEN_AT_FIRST.map((name) => pathKey([name]))),
+  );
+  const hostLoad = useStore(store, (current) => current.loadHostAndBuild);
+  const hostMemMb = useStore(store, (current) => current.hostAndBuild.data?.host.memSizeMb);
 
   useEffect(() => {
     void load();
-  }, [load]);
+    void hostLoad();
+  }, [load, hostLoad]);
 
   const canonical = state.data?.document;
   const relaxed = useMemo(
@@ -62,7 +71,11 @@ export function ServerStatusTab({ store }: ServerStatusTabProps) {
           status={
             state.data === undefined
               ? undefined
-              : `Read at ${formatTimestamp(state.data.at)}. Stripped: ${state.data.stripped.join(', ') || 'none'}`
+              : `Read at ${formatTimestamp(state.data.at)}${
+                  state.data.stripped.length === 0
+                    ? ''
+                    : ` · stripped ${state.data.stripped.join(', ')}`
+                }`
           }
         >
           <TextInput
@@ -80,11 +93,12 @@ export function ServerStatusTab({ store }: ServerStatusTabProps) {
         {() =>
           relaxed === undefined || canonical === undefined ? null : (
             <>
-              <SummaryCards document={relaxed} />
+              <SummaryCards document={relaxed} readAt={state.data?.at} hostMemMb={hostMemMb} />
               <div
                 style={{
                   fontFamily: 'var(--mantine-font-family-monospace)',
                   fontSize: 'calc(var(--mg-font-scale, 1) * 12px)',
+                  margin: '0 calc(var(--mantine-spacing-md) * -1)',
                 }}
               >
                 {childEntries(relaxed).map(([key, child]) => (
@@ -143,12 +157,24 @@ function TreeNode({
   const children = childEntries(value);
   const expandable = children.length > 0;
   const expanded = query.trim() !== '' || open.has(key);
+  const header = depth === 0 && expandable;
   return (
     <>
-      <Group gap={4} wrap="nowrap" style={{ paddingLeft: depth * INDENT_PX, minHeight: 22 }}>
+      <Group
+        gap={4}
+        wrap="nowrap"
+        px="md"
+        style={{
+          paddingLeft: `calc(var(--mantine-spacing-md) + ${depth * INDENT_PX}px)`,
+          minHeight: header ? 30 : 26,
+          background: header ? 'var(--mg-surface-2)' : undefined,
+          borderBottom: header ? '1px solid var(--mg-border)' : undefined,
+        }}
+      >
         {expandable ? (
           <ActionIcon
-            variant="subtle"
+            variant="transparent"
+            color="gray"
             size="xs"
             aria-label={`${expanded ? 'Collapse' : 'Expand'} ${label}`}
             aria-expanded={expanded}
@@ -159,25 +185,36 @@ function TreeNode({
         ) : (
           <span style={{ width: 20, display: 'inline-block' }} />
         )}
-        <Text size="xs" fw={600} style={{ whiteSpace: 'nowrap' }}>
-          {label}
-        </Text>
         {expandable ? (
-          <Badge size="xs" variant="light" color="gray">
-            {children.length}
-          </Badge>
+          <>
+            <Text size="xs" fw={600} style={{ whiteSpace: 'nowrap' }}>
+              {label}
+            </Text>
+            <Badge size="xs" variant="light" color="gray">
+              {children.length}
+            </Badge>
+            <span style={{ marginLeft: 'auto' }}>
+              <CopyIcon
+                text={() => JSON.stringify(valueAtPath(canonical, segments), null, 2) ?? ''}
+                label={`Copy ${segments.join('.')}`}
+              />
+            </span>
+          </>
         ) : (
-          <Text size="xs" c="dimmed" style={{ wordBreak: 'break-all' }}>
-            {previewOf(value)}
-            {hintOf(label, value)}
-          </Text>
+          <>
+            <Text
+              size="xs"
+              c="dimmed"
+              style={{ width: KEY_COLUMN_PX - depth * INDENT_PX, flexShrink: 0 }}
+            >
+              {label}
+            </Text>
+            <Text size="xs" c={valueColour(value)} style={{ wordBreak: 'break-all' }}>
+              {previewOf(value)}
+              {hintOf(label, value)}
+            </Text>
+          </>
         )}
-        {expandable ? (
-          <CopyIcon
-            text={() => JSON.stringify(valueAtPath(canonical, segments), null, 2) ?? ''}
-            label={`Copy ${segments.join('.')}`}
-          />
-        ) : null}
       </Group>
       {expandable && expanded
         ? children.map(([childKey, child]) => (
@@ -197,6 +234,20 @@ function TreeNode({
         : null}
     </>
   );
+}
+
+/** Numbers, strings and booleans get the code colours, so a value stands out from its key. */
+function valueColour(value: unknown): string {
+  if (typeof value === 'number') {
+    return 'var(--mg-code-number)';
+  }
+  if (typeof value === 'string') {
+    return 'var(--mg-code-string)';
+  }
+  if (typeof value === 'boolean') {
+    return 'var(--mg-code-keyword)';
+  }
+  return 'var(--mg-text-muted)';
 }
 
 function previewOf(value: unknown): string {
@@ -230,50 +281,65 @@ function numberAt(document: unknown, ...path: string[]): number | undefined {
   return typeof current === 'number' ? current : undefined;
 }
 
+interface SummaryCardsProps {
+  readonly document: unknown;
+  readonly readAt: string | undefined;
+  readonly hostMemMb: number | undefined;
+}
+
+function stringAt(document: unknown, key: string): string | undefined {
+  const value = (document as Record<string, unknown>)[key];
+  return typeof value === 'string' ? value : undefined;
+}
+
 /** The numbers most people look for first, above the full tree. */
-function SummaryCards({ document }: { readonly document: unknown }) {
+function SummaryCards({ document, readAt, hostMemMb }: SummaryCardsProps) {
   const uptime = numberAt(document, 'uptime');
   const current = numberAt(document, 'connections', 'current');
   const available = numberAt(document, 'connections', 'available');
   const resident = numberAt(document, 'mem', 'resident');
-  const operations = ['insert', 'query', 'update', 'delete', 'getmore', 'command']
+  const counters = ['insert', 'query', 'update', 'delete', 'getmore', 'command']
     .map((name) => numberAt(document, 'opcounters', name))
-    .reduce<number | undefined>(
-      (sum, value) => (value === undefined ? sum : (sum ?? 0) + value),
-      undefined,
-    );
-  const version = (document as { version?: unknown }).version;
-  const cards: { label: string; value: string | undefined }[] = [
-    { label: 'Version', value: typeof version === 'string' ? version : undefined },
-    { label: 'Uptime', value: uptime === undefined ? undefined : formatDuration(uptime) },
-    {
-      label: 'Connections',
-      value:
-        current === undefined
-          ? undefined
-          : `${formatCount(current)}${available === undefined ? '' : ` of ${formatCount(current + available)}`}`,
-    },
-    {
-      label: 'Resident memory',
-      value: resident === undefined ? undefined : formatBytes(resident * 1024 * 1024),
-    },
-    {
-      label: 'Operations since start',
-      value: operations === undefined ? undefined : formatCount(operations),
-    },
-  ];
+    .filter((value): value is number => value !== undefined);
+  const operations = counters.reduce((sum, value) => sum + value, 0);
+  const version = stringAt(document, 'version');
+  const pid = numberAt(document, 'pid');
+  const processName = stringAt(document, 'process');
+  const startedAt =
+    uptime === undefined || readAt === undefined
+      ? undefined
+      : new Date(Date.parse(readAt) - uptime * 1000);
   return (
-    <SimpleGrid cols={{ base: 2, sm: 5 }} spacing="xs" mb="xs">
-      {cards
-        .filter((card) => card.value !== undefined)
-        .map((card) => (
-          <Paper key={card.label} withBorder p="xs">
-            <Text size="xs" c="dimmed">
-              {card.label}
-            </Text>
-            <Text fw={600}>{card.value}</Text>
-          </Paper>
-        ))}
+    <SimpleGrid cols={{ base: 2, sm: 5 }} spacing="sm" mb="xs">
+      {version === undefined ? null : (
+        <StatCard label="Version" value={version}>
+          {processName === undefined
+            ? null
+            : `${processName}${pid === undefined ? '' : ` · pid ${pid}`}`}
+        </StatCard>
+      )}
+      {uptime === undefined ? null : (
+        <StatCard label="Uptime" value={formatDuration(uptime)}>
+          {startedAt === undefined || Number.isNaN(startedAt.getTime())
+            ? null
+            : `since ${startedAt.toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' })}`}
+        </StatCard>
+      )}
+      {current === undefined ? null : (
+        <StatCard label="Connections" value={formatCount(current)}>
+          {available === undefined ? null : `of ${formatCount(current + available)} available`}
+        </StatCard>
+      )}
+      {resident === undefined ? null : (
+        <StatCard label="Resident memory" value={formatBytes(resident * 1024 * 1024)}>
+          {hostMemMb === undefined ? null : `of ${formatBytes(hostMemMb * 1024 * 1024)} host`}
+        </StatCard>
+      )}
+      {counters.length === 0 ? null : (
+        <StatCard label="Operations since start" value={formatCount(operations)}>
+          {`${counters.length} counters`}
+        </StatCard>
+      )}
     </SimpleGrid>
   );
 }

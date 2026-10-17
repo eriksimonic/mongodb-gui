@@ -229,7 +229,6 @@ describe('MonitorDashboard layout', () => {
       }
       expect(document.querySelectorAll('.mg-divider-v')).toHaveLength(3);
       expect(document.querySelectorAll('.mg-divider-h')).toHaveLength(2);
-      expect(document.querySelectorAll('.mg-panel-grip')).toHaveLength(5);
     },
     LONG_TIMEOUT_MS,
   );

@@ -8,6 +8,7 @@ import {
   isNoReplicationError,
   isUninitiatedError,
   memberMeaning,
+  configDiff,
   oplogWindowLabel,
   rowsToTags,
   tagsToRows,
@@ -98,8 +99,8 @@ describe('electionEvents', () => {
       }),
     );
     expect(events).toEqual([
-      { at: '2026-10-09T10:00:00.000Z', summary: 'Last election after stepUpRequest (term 4)' },
-      { at: '2026-10-09T09:00:00.000Z', summary: 'a:1 became primary (term 4)' },
+      { at: '2026-10-09T10:00:00.000Z', summary: 'Election after stepUpRequest', term: 4 },
+      { at: '2026-10-09T09:00:00.000Z', summary: 'a:1 became primary', term: 4 },
     ]);
   });
 
@@ -161,5 +162,48 @@ describe('tag rows', () => {
         codeName: 'NoReplicationEnabled',
       }),
     ).toBe(true);
+  });
+});
+
+describe('configDiff', () => {
+  const member = (id: number, host: string, priority = 1) => ({
+    id,
+    host,
+    priority,
+    votes: 1,
+    hidden: false,
+    arbiterOnly: false,
+    buildIndexes: true,
+    secondaryDelaySecs: 0,
+    tags: {},
+    extraEjson: '{}',
+  });
+  const config = (version: number, members: ReturnType<typeof member>[]) => ({
+    id: 'rs0',
+    version,
+    members,
+    settingsEjson: '{}',
+    extraEjson: '{}',
+  });
+  const text = (lines: { text: string }[][]) =>
+    lines.map((line) => line.map((token) => token.text).join(''));
+
+  it('shows an added member with its non-default fields and the version bump', () => {
+    const before = config(4, [member(0, 'a:1')]);
+    const after = config(5, [member(0, 'a:1'), member(1, 'b:1', 0)]);
+    expect(text(configDiff(before, after))).toEqual([
+      'members[1] + { host: "b:1", priority: 0 }',
+      'version  4 → 5',
+    ]);
+  });
+
+  it('shows a changed field and a removed member', () => {
+    const before = config(4, [member(0, 'a:1'), member(1, 'b:1')]);
+    const after = config(5, [member(0, 'a:1', 3)]);
+    expect(text(configDiff(before, after))).toEqual([
+      'members[0].priority  1 → 3',
+      'members[1] − { host: "b:1" }',
+      'version  4 → 5',
+    ]);
   });
 });

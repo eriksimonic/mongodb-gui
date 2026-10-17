@@ -2,6 +2,7 @@ import {
   app,
   BrowserWindow,
   dialog,
+  ipcMain,
   net,
   screen,
   session,
@@ -252,6 +253,9 @@ function installContentSecurityPolicy(): void {
   });
 }
 
+const WINDOW_CHANNEL = 'mongo-gui:window';
+const MAXIMIZED_CHANNEL = 'mongo-gui:maximized';
+
 function createMainWindow(): void {
   const window = new BrowserWindow({
     width: 1200,
@@ -260,6 +264,8 @@ function createMainWindow(): void {
     show: false,
     // Alt shows the File, Edit, View and Window menu. Its shortcuts work while it is hidden.
     autoHideMenuBar: true,
+    // No OS frame. The app header is the title bar and draws its own window buttons.
+    frame: false,
     webPreferences: {
       preload: preloadPath,
       contextIsolation: true,
@@ -269,6 +275,33 @@ function createMainWindow(): void {
     },
   });
   mainWindow = window;
+  // The header's own buttons drive the window through these two channels.
+  const fromWindow = (event: { senderFrame: unknown }): boolean =>
+    !window.isDestroyed() && event.senderFrame === window.webContents.mainFrame;
+  ipcMain.removeAllListeners(WINDOW_CHANNEL);
+  ipcMain.removeHandler(WINDOW_CHANNEL);
+  ipcMain.on(WINDOW_CHANNEL, (event, action: unknown) => {
+    if (!fromWindow(event)) {
+      return;
+    }
+    if (action === 'minimize') {
+      window.minimize();
+    } else if (action === 'toggle-maximize') {
+      if (window.isMaximized()) {
+        window.unmaximize();
+      } else {
+        window.maximize();
+      }
+    } else if (action === 'close') {
+      window.close();
+    }
+  });
+  ipcMain.handle(WINDOW_CHANNEL, (event) => fromWindow(event) && window.isMaximized());
+  const sendMaximized = (): void => {
+    window.webContents.send(MAXIMIZED_CHANNEL, window.isMaximized());
+  };
+  window.on('maximize', sendMaximized);
+  window.on('unmaximize', sendMaximized);
   if (router !== undefined) {
     registerIpc(router, window);
   }
