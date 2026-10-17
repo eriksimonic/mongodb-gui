@@ -14,6 +14,7 @@ import {
   Tabs,
   Switch,
   TextInput,
+  Text,
   Tooltip,
 } from '@mantine/core';
 import { IconPlus, IconTrash } from '@tabler/icons-react';
@@ -41,8 +42,8 @@ export function ConnectionForm({ form, onChange }: ConnectionFormProps) {
     form.tls.allowInvalidCertificates;
 
   return (
-    <Tabs defaultValue="server" keepMounted>
-      <Tabs.List mb="lg">
+    <Tabs defaultValue="server" keepMounted className="mg-dialog-tabs">
+      <Tabs.List mb="lg" style={{ borderBottom: '1px solid var(--mg-border)' }}>
         <Tabs.Tab value="server">Server</Tabs.Tab>
         <Tabs.Tab value="auth">Authentication</Tabs.Tab>
         <Tabs.Tab
@@ -63,9 +64,10 @@ export function ConnectionForm({ form, onChange }: ConnectionFormProps) {
         <Tabs.Tab value="advanced">Advanced</Tabs.Tab>
       </Tabs.List>
 
-      <Tabs.Panel value="server">
+      <Tabs.Panel value="server" className="mg-dialog-panel">
         <Stack gap="lg">
           <SegmentedControl
+            className="mg-dialog-segments"
             aria-label="Scheme"
             value={form.scheme}
             onChange={(value) =>
@@ -89,7 +91,7 @@ export function ConnectionForm({ form, onChange }: ConnectionFormProps) {
                 />
                 <ActionIcon
                   variant="default"
-                  size={36}
+                  size={30}
                   aria-label={`Remove host ${index + 1}`}
                   disabled={form.hosts.length === 1}
                   onClick={() =>
@@ -138,10 +140,14 @@ export function ConnectionForm({ form, onChange }: ConnectionFormProps) {
               }
             />
           </SimpleGrid>
+          <Text size="xs" c="dimmed">
+            Authentication, TLS and the less common options live in their own tabs, so this dialog
+            keeps one height on small screens.
+          </Text>
         </Stack>
       </Tabs.Panel>
 
-      <Tabs.Panel value="auth">
+      <Tabs.Panel value="auth" className="mg-dialog-panel">
         <Stack gap="lg">
           <SimpleGrid cols={2} spacing="lg">
             <TextInput
@@ -164,7 +170,7 @@ export function ConnectionForm({ form, onChange }: ConnectionFormProps) {
         </Stack>
       </Tabs.Panel>
 
-      <Tabs.Panel value="tls">
+      <Tabs.Panel value="tls" className="mg-dialog-panel">
         <Stack gap="lg">
           <Switch
             label="Use TLS"
@@ -199,7 +205,7 @@ export function ConnectionForm({ form, onChange }: ConnectionFormProps) {
         </Stack>
       </Tabs.Panel>
 
-      <Tabs.Panel value="advanced">
+      <Tabs.Panel value="advanced" className="mg-dialog-panel">
         <Tooltip
           multiline
           w={280}

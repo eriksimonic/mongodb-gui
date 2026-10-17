@@ -29,7 +29,7 @@ test('create a saved connection, see it after reload, and connect to it', async 
 
   const dialog = page.getByRole('dialog', { name: 'New connection', exact: true });
   await dialog.getByRole('textbox', { name: 'Name', exact: true }).fill('Staging');
-  await dialog.getByRole('textbox', { name: 'Connection URI', exact: true }).fill(uri);
+  await dialog.getByRole('textbox', { name: 'Connection string', exact: true }).fill(uri);
   await dialog.getByRole('button', { name: 'Save', exact: true }).click();
   await expect(dialog).toBeHidden();
   await expect(connectionOption(manager, 'Staging')).toBeVisible();

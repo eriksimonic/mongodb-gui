@@ -11,7 +11,7 @@ describe('ConnectionDialog', () => {
     renderWithApp(
       <ConnectionDialog connectionId={undefined} initialMode="uri" onClose={() => undefined} />,
     );
-    fireEvent.change(screen.getByLabelText('Connection URI'), {
+    fireEvent.change(screen.getByLabelText('Connection string'), {
       target: { value: 'mongodb://app:p%40ss@localhost:27017/?authSource=admin' },
     });
 
@@ -24,7 +24,7 @@ describe('ConnectionDialog', () => {
       target: { value: 'db.example.net:27017' },
     });
     fireEvent.click(screen.getByLabelText('URI'));
-    expect(screen.getByLabelText('Connection URI')).toHaveValue(
+    expect(screen.getByLabelText('Connection string')).toHaveValue(
       'mongodb://app:p%40ss@db.example.net:27017/?authSource=admin',
     );
   });
@@ -37,7 +37,7 @@ describe('ConnectionDialog', () => {
     fireEvent.change(screen.getByLabelText('Password'), { target: { value: 'a:b/c' } });
 
     fireEvent.click(screen.getByLabelText('URI'));
-    expect(screen.getByLabelText('Connection URI')).toHaveValue(
+    expect(screen.getByLabelText('Connection string')).toHaveValue(
       'mongodb://ops:a%3Ab%2Fc@localhost:27017/',
     );
   });
@@ -46,7 +46,7 @@ describe('ConnectionDialog', () => {
     renderWithApp(
       <ConnectionDialog connectionId={undefined} initialMode="uri" onClose={() => undefined} />,
     );
-    fireEvent.change(screen.getByLabelText('Connection URI'), {
+    fireEvent.change(screen.getByLabelText('Connection string'), {
       target: { value: 'mongodb://app:secret@localhost:27017/' },
     });
     expect(screen.getByText('mongodb://app:***@localhost:27017/')).toBeInTheDocument();
@@ -83,7 +83,7 @@ describe('ConnectionDialog', () => {
       mock: { preset: 'unlocked' },
     });
     expect(await screen.findByDisplayValue('Local dev')).toBeInTheDocument();
-    expect(screen.getByLabelText('Connection URI')).toHaveValue(
+    expect(screen.getByLabelText('Connection string')).toHaveValue(
       'mongodb://app:secret@localhost:27017/?authSource=admin',
     );
   });

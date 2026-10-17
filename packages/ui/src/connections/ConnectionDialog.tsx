@@ -30,6 +30,7 @@ import {
   type DraftMode,
 } from './connection-draft';
 import { parseMongoUri } from './uri-form';
+import './connection-dialog.css';
 
 const SWATCHES = [
   '#6aa5ff',
@@ -175,7 +176,7 @@ export function ConnectionDialog({
       opened
       onClose={onClose}
       title={title}
-      size={640}
+      size={600}
       centered
       closeButtonProps={{ 'aria-label': 'Close' }}
     >
@@ -207,17 +208,13 @@ export function ConnectionDialog({
                 <ColorSwatch color={draft.color === '' ? 'transparent' : draft.color} size={14} />
               }
               value={draft.color}
-              eyeDropperButtonProps={{ 'aria-label': 'Pick colour' }}
+              withEyeDropper={false}
               onChange={(value) => updateDraft({ ...draft, color: value })}
             />
           </Group>
           <SegmentedControl
             fullWidth
-            styles={{
-              root: { height: 30 },
-              control: { height: 28 },
-              label: { padding: '0 12px', lineHeight: '26px' },
-            }}
+            className="mg-dialog-segments"
             aria-label="Connection string mode"
             value={draft.mode}
             onChange={(value) => changeMode(value === 'form' ? 'form' : 'uri')}
@@ -229,7 +226,7 @@ export function ConnectionDialog({
           {draft.mode === 'uri' ? (
             <Stack gap="sm">
               <Textarea
-                label="Connection URI"
+                label="Connection string"
                 autosize
                 minRows={2}
                 value={draft.uri}
@@ -241,12 +238,16 @@ export function ConnectionDialog({
                 encrypted.
               </Text>
               <UriChips uri={draft.uri} />
-              <Text size="xs" c="dimmed">
-                Preview with the password hidden
-              </Text>
-              <Code block bg="var(--mg-bg-sunken)">
-                {redactUri(draft.uri)}
-              </Code>
+              {redactUri(draft.uri) === draft.uri ? null : (
+                <>
+                  <Text size="xs" c="dimmed">
+                    Preview with the password hidden
+                  </Text>
+                  <Code block bg="var(--mg-bg-sunken)">
+                    {redactUri(draft.uri)}
+                  </Code>
+                </>
+              )}
             </Stack>
           ) : (
             <ConnectionForm
@@ -271,31 +272,38 @@ export function ConnectionDialog({
               <Text size="sm">{status.text}</Text>
             </Group>
           ) : null}
-          {status?.tone === 'red' ? (
-            <Group
-              gap="xs"
-              wrap="nowrap"
-              align="flex-start"
-              px="sm"
-              py={8}
-              role="alert"
-              style={{
-                borderRadius: 6,
-                color: 'var(--mg-danger)',
-                background: 'color-mix(in srgb, var(--mg-danger) 14%, var(--mg-surface-1))',
-              }}
-            >
-              <IconAlertCircle size={16} style={{ flexShrink: 0, marginTop: 2 }} />
-              <Text size="sm" style={{ overflowWrap: 'anywhere' }}>
-                {status.text}
-              </Text>
-            </Group>
-          ) : null}
-          <Group justify="space-between" wrap="nowrap" gap="sm" align="center" mt="lg">
-            <Group gap="sm" wrap="nowrap">
-              <Button variant="default" loading={testing} onClick={() => void handleTest(draft)}>
+          <Group
+            justify="space-between"
+            wrap="nowrap"
+            gap="md"
+            align="center"
+            pt="md"
+            style={{ borderTop: '1px solid var(--mg-border)' }}
+          >
+            <Group gap="md" wrap="nowrap" style={{ flex: 1, minWidth: 0 }}>
+              <Button
+                variant="default"
+                loading={testing}
+                style={{ flexShrink: 0 }}
+                onClick={() => void handleTest(draft)}
+              >
                 Test connection
               </Button>
+              {status?.tone === 'red' ? (
+                <Group
+                  gap={6}
+                  wrap="nowrap"
+                  align="flex-start"
+                  role="alert"
+                  c="var(--mg-danger)"
+                  style={{ minWidth: 0 }}
+                >
+                  <IconAlertCircle size={16} style={{ flexShrink: 0, marginTop: 2 }} />
+                  <Text size="sm" style={{ overflowWrap: 'anywhere' }}>
+                    {status.text}
+                  </Text>
+                </Group>
+              ) : null}
             </Group>
             <Group gap="sm" wrap="nowrap">
               <Button variant="default" onClick={onClose}>
@@ -354,18 +362,18 @@ function UriChips({ uri }: { readonly uri: string }) {
     }
   }
   return (
-    <Group gap="md">
+    <Group gap="xs">
       {parsed.ok ? (
-        <Badge variant="outline" color="green" leftSection={<IconCheck size={12} />}>
+        <Badge variant="outline" color="green" className="mg-dialog-chip" leftSection={<IconCheck size={12} />}>
           Valid
         </Badge>
       ) : (
-        <Badge variant="outline" color="red" leftSection={<IconAlertCircle size={12} />}>
+        <Badge variant="outline" color="red" className="mg-dialog-chip" leftSection={<IconAlertCircle size={12} />}>
           {parsed.message}
         </Badge>
       )}
       {chips.map((chip) => (
-        <Badge key={chip} variant="default" tt="none" fw={400}>
+        <Badge key={chip} variant="default" className="mg-dialog-chip">
           {chip}
         </Badge>
       ))}

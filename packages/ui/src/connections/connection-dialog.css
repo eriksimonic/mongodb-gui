@@ -1,0 +1,50 @@
+/* Segmented controls in the connection dialog show the active option in the accent colour. */
+.mg-dialog-segments {
+  background: var(--mg-surface-2);
+  border: 1px solid var(--mg-border-strong);
+  padding: 0;
+  height: 34px;
+}
+
+.mg-dialog-segments .mantine-SegmentedControl-indicator {
+  background: var(--mg-hover);
+  border: 0;
+  box-shadow: none;
+}
+
+.mg-dialog-segments label {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 0 12px;
+  height: 32px;
+  line-height: 1;
+  font-weight: 500;
+  color: var(--mg-text-muted);
+}
+
+.mg-dialog-segments label[data-active] {
+  font-weight: 600;
+  color: var(--mg-accent);
+}
+
+.mg-dialog-chip {
+  text-transform: none;
+  font-weight: 400;
+  letter-spacing: 0;
+  border-radius: 999px;
+}
+
+/* Server, Authentication, TLS and Advanced panels share one height so the dialog does not jump. */
+.mg-dialog-panel {
+  min-height: 360px;
+}
+
+.mg-dialog-tabs .mantine-Tabs-tab {
+  color: var(--mg-text-muted);
+}
+
+.mg-dialog-tabs .mantine-Tabs-tab[data-active] {
+  color: var(--mg-accent);
+  border-bottom: 2px solid var(--mg-accent);
+}
