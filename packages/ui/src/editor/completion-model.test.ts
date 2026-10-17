@@ -219,10 +219,18 @@ describe('mergeCompletions', () => {
     expect(mergeCompletions('FIN', sources).map((item) => item.label)).toEqual(['find', 'findOne']);
   });
 
-  it('puts the runtime items before fields and operators', () => {
+  it('lists fields first, then operators, then functions', () => {
     const labels = mergeCompletions('', sources).map((item) => item.label);
-    expect(labels.indexOf('find')).toBeLessThan(labels.indexOf('status'));
     expect(labels.indexOf('status')).toBeLessThan(labels.indexOf('$eq'));
+    expect(labels.indexOf('$eq')).toBeLessThan(labels.indexOf('find'));
+  });
+
+  it('sorts the labels inside a group alphabetically, whatever their case', () => {
+    const functions = [
+      { label: 'MaxKey', kind: 'method' as const, rank: 1 },
+      { label: 'abs', kind: 'method' as const, rank: 1 },
+    ];
+    expect(mergeCompletions('', [functions]).map((item) => item.label)).toEqual(['abs', 'MaxKey']);
   });
 
   it('puts operators first when the prefix starts with a dollar sign', () => {

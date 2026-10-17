@@ -237,6 +237,10 @@ export function MongoshMonaco({
         suggestOnTriggerCharacters: true,
         parameterHints: { enabled: true },
         quickSuggestions: { other: true, comments: false, strings: false },
+        // Words from the document, such as db and find, only add noise to the provider's list.
+        wordBasedSuggestions: 'off',
+        // The list opens over the results instead of being cut at the editor's edge.
+        fixedOverflowWidgets: true,
       }}
     />
   );

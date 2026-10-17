@@ -3,6 +3,7 @@ import '../kit/code/monaco-setup';
 import type * as Monaco from 'monaco-editor/editor/editor.api';
 import type { EditorCompletion } from './completion-model';
 import {
+  completionGroup,
   mergeCompletions,
   completionContext,
   operatorsFor,
@@ -31,7 +32,7 @@ export function registerMongoshLanguage(monaco: typeof Monaco): void {
   registeredMonaco.add(monaco);
   registerMongoshTokens(monaco);
   monaco.languages.registerCompletionItemProvider(MONGOSH_LANGUAGE, {
-    triggerCharacters: ['.', '(', '$'],
+    triggerCharacters: ['.', '(', '$', '{', ','],
     provideCompletionItems: (model, position, _context, token) =>
       provideCompletions(monaco, model, position, token),
   });
@@ -141,7 +142,8 @@ export function toSuggestion(
     ...(item.detail === undefined ? {} : { detail: item.detail }),
     ...(item.doc === undefined ? {} : { documentation: item.doc }),
     range,
-    sortText: `${item.rank}-${item.label}`,
+    // Monaco sorts by this text, so the group and the rank are zero padded to compare as numbers.
+    sortText: `${completionGroup(item.kind)}-${String(item.rank).padStart(3, '0')}-${item.label}`,
   };
 }
 

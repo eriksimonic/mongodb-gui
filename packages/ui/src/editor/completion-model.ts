@@ -257,6 +257,23 @@ export function runtimeCompletions(
 }
 
 /**
+ * The list order: names first (fields, collections, databases), then operators, then functions and
+ * everything else. Inside a group a lower rank comes first, then the labels sort alphabetically.
+ */
+export function completionGroup(kind: CompletionKind): number {
+  switch (kind) {
+    case 'property':
+    case 'collection':
+    case 'database':
+      return 0;
+    case 'operator':
+      return 1;
+    default:
+      return 2;
+  }
+}
+
+/**
  * The most completions one request returns. The editor filters the list as the user types, without
  * asking again, so a list cut here hides fields for the rest of the word. The cap stays above the
  * field count of most collections and below what makes the suggest widget slow.
@@ -266,7 +283,7 @@ export const COMPLETION_LIMIT = 1000;
 /**
  * Merges the sources and keeps the ones that match the prefix. A prefix that starts with `$` shows
  * operators first. Labels that appear twice keep their first entry. Matching is case-insensitive
- * and prefix-based. Items with a lower rank come first, then the labels sort alphabetically.
+ * and prefix-based. The group comes first (see `completionGroup`), then a lower rank, then the label.
  */
 export function mergeCompletions(
   prefix: string,
@@ -291,7 +308,11 @@ export function mergeCompletions(
       if (dollar && operatorA !== operatorB) {
         return operatorA - operatorB;
       }
-      return a.rank - b.rank || a.label.localeCompare(b.label);
+      return (
+        completionGroup(a.kind) - completionGroup(b.kind) ||
+        a.rank - b.rank ||
+        a.label.localeCompare(b.label)
+      );
     })
     .slice(0, limit);
 }
