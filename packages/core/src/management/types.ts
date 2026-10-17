@@ -200,10 +200,6 @@ const DocumentTargetSchema = z.object({
   collection: ExistingCollectionNameSchema,
 });
 
-export const InsertDocumentInputSchema = DocumentTargetSchema.extend({
-  documentEjson: z.string(),
-});
-
 export const ReplaceDocumentInputSchema = DocumentTargetSchema.extend({
   idEjson: z.string(),
   documentEjson: z.string(),
@@ -219,23 +215,8 @@ export const UpdateDocumentFieldsInputSchema = DocumentTargetSchema.extend({
   { message: 'Give setEjson, unsetPaths, or both' },
 );
 
-export const DeleteDocumentsInputSchema = DocumentTargetSchema.extend({
-  idsEjson: z.array(z.string()),
-});
-
-export const DeleteByFilterInputSchema = DocumentTargetSchema.extend({
-  filterEjson: z.string(),
-  expectedCount: z.number().int().nonnegative(),
-});
-
 export const FindDocumentByIdInputSchema = DocumentTargetSchema.extend({
   idEjson: z.string(),
-});
-
-// Counts the documents a filter matches. The delete-by-filter flow shows this count before it
-// deletes anything.
-export const CountDocumentsInputSchema = DocumentTargetSchema.extend({
-  filterEjson: z.string(),
 });
 
 export type ValidationLevel = z.infer<typeof ValidationLevelSchema>;
@@ -254,13 +235,9 @@ export type ValidationRules = z.infer<typeof ValidationRulesSchema>;
 export type SetValidationInput = z.infer<typeof SetValidationInputSchema>;
 export type ValidationCheckResult = z.infer<typeof ValidationCheckResultSchema>;
 export type IndexBuildProgress = z.infer<typeof IndexBuildProgressSchema>;
-export type InsertDocumentInput = z.infer<typeof InsertDocumentInputSchema>;
 export type ReplaceDocumentInput = z.infer<typeof ReplaceDocumentInputSchema>;
 export type UpdateDocumentFieldsInput = z.infer<typeof UpdateDocumentFieldsInputSchema>;
-export type DeleteDocumentsInput = z.infer<typeof DeleteDocumentsInputSchema>;
-export type DeleteByFilterInput = z.infer<typeof DeleteByFilterInputSchema>;
 export type FindDocumentByIdInput = z.infer<typeof FindDocumentByIdInputSchema>;
-export type CountDocumentsInput = z.infer<typeof CountDocumentsInputSchema>;
 export type NamespaceTarget = z.infer<typeof NamespaceSchema>;
 
 // Read inputs. Sample sizes match the adapter: validation checks take at most 10,000 documents

@@ -46,7 +46,7 @@ import {
   type MockCollection,
   type MockDatabase,
 } from './mock-catalog';
-import { createManagementCalls } from '../management/mock';
+import { createManagementCalls, seedMockDocuments } from '../management/mock';
 import { createSecurityCalls, fixtureSecurity, type MockSecurity } from '../security/mock';
 import { createDiagnosticsCalls } from '../diagnostics/mock';
 import {
@@ -372,7 +372,17 @@ function databaseStats(database: MockDatabase): DatabaseStats {
  * In-memory backend with the same contract as the real router. Inputs and outputs are checked
  * against the core zod schemas, so the UI sees the same errors it would see from Electron.
  */
-export function createMockUiApi(options: MockUiApiOptions = {}): UiApi {
+/** The mock api, with a way to put documents into its collections. The real api has no such call. */
+export interface MockUiApi extends UiApi {
+  seedDocuments(
+    connectionId: string,
+    database: string,
+    collection: string,
+    documents: readonly Record<string, unknown>[],
+  ): void;
+}
+
+export function createMockUiApi(options: MockUiApiOptions = {}): MockUiApi {
   const latencyMs = options.latencyMs ?? 0;
   const state = initialState(options.preset ?? 'fresh');
   let startupSettings: StartupSettings = { disableGpu: false };
@@ -596,14 +606,15 @@ export function createMockUiApi(options: MockUiApiOptions = {}): UiApi {
     },
   });
 
-  const management = createManagementCalls({
+  const managementContext = {
     latencyMs,
     guard,
     catalogOf,
     buildsOf,
     emit,
     now: () => Date.now(),
-  });
+  };
+  const management = createManagementCalls(managementContext);
 
   // A cluster exists only while the connection reports a sharded topology.
   function clusterOf(connectionId: string): MockCluster | undefined {
@@ -1455,6 +1466,9 @@ export function createMockUiApi(options: MockUiApiOptions = {}): UiApi {
       return () => {
         listeners.delete(listener);
       };
+    },
+    seedDocuments(connectionId, database, collection, documents) {
+      seedMockDocuments(managementContext, connectionId, database, collection, documents);
     },
   };
 }

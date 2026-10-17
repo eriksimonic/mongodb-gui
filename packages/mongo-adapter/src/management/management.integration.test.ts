@@ -23,14 +23,7 @@ import {
   dropDatabase,
   renameCollection,
 } from './collections';
-import {
-  deleteByFilter,
-  deleteDocuments,
-  findDocumentById,
-  insertDocument,
-  replaceDocument,
-  updateDocumentFields,
-} from './documents';
+import { findDocumentById, replaceDocument, updateDocumentFields } from './documents';
 import { createIndex, dropIndex, listIndexBuilds, setIndexHidden } from './indexes';
 import { checkDocumentsAgainstValidator, getValidation, setValidation } from './validation';
 
@@ -686,35 +679,23 @@ describe.each(MONGO_IMAGES)('management on %s', (image) => {
   });
 
   describe('documents', () => {
-    it('inserts a document and returns its _id as EJSON', async () => {
+    it('reads a document by _id as canonical EJSON', async () => {
       const database = uniqueDatabase();
-      const idText = await insertDocument(client, {
-        database,
-        collection: 'orders',
-        documentEjson:
-          '{"_id": {"$oid": "64b000000000000000000001"}, "total": {"$numberLong": "5"}}',
-      });
-      expect(idText).toBe('{"$oid":"64b000000000000000000001"}');
+      const id = BSON.ObjectId.createFromHexString('64b000000000000000000001');
+      await client
+        .db(database)
+        .collection<Fixture>('orders')
+        .insertOne({ _id: id, total: BSON.Long.fromNumber(5) } as never);
       const found = await findDocumentById(client, {
         database,
         collection: 'orders',
-        idEjson: idText,
+        idEjson: '{"$oid":"64b000000000000000000001"}',
       });
       expect(found).not.toBeNull();
       expect(EJSON.parse(found ?? 'null', { relaxed: false })).toEqual({
-        _id: BSON.ObjectId.createFromHexString('64b000000000000000000001'),
+        _id: id,
         total: BSON.Long.fromNumber(5),
       });
-    });
-
-    it('generates an _id when the document has none', async () => {
-      const database = uniqueDatabase();
-      const idText = await insertDocument(client, {
-        database,
-        collection: 'orders',
-        documentEjson: '{"status": "open"}',
-      });
-      expect(idText).toMatch(/^\{"\$oid":"[0-9a-f]{24}"\}$/);
     });
 
     it('returns null for a missing _id', async () => {
@@ -798,117 +779,13 @@ describe.each(MONGO_IMAGES)('management on %s', (image) => {
       expect(empty.code).toBe('VALIDATION');
     });
 
-    it('deletes documents by _id list and returns the count', async () => {
-      const database = uniqueDatabase();
-      const collection = client.db(database).collection<Fixture>('orders');
-      await collection.insertMany([{ _id: 1 }, { _id: 2 }, { _id: 3 }]);
-      expect(
-        await deleteDocuments(client, {
-          database,
-          collection: 'orders',
-          idsEjson: ['1', '{"$numberInt":"2"}'],
-        }),
-      ).toBe(2);
-      expect(await collection.countDocuments()).toBe(1);
-      expect(await deleteDocuments(client, { database, collection: 'orders', idsEjson: [] })).toBe(
-        0,
-      );
-    });
-
-    it('deletes by filter only when the expected count matches', async () => {
-      const database = uniqueDatabase();
-      const collection = client.db(database).collection<Fixture>('orders');
-      await collection.insertMany([
-        { group: 'a' },
-        { group: 'a' },
-        { group: 'a' },
-        { group: 'b' },
-        { group: 'b' },
-      ]);
-
-      const stale = await captureError(() =>
-        deleteByFilter(client, {
-          database,
-          collection: 'orders',
-          filterEjson: '{"group": "a"}',
-          expectedCount: 4,
-        }),
-      );
-      expect(stale.code).toBe('VALIDATION');
-      expect(await collection.countDocuments()).toBe(5);
-
-      const deleted = await deleteByFilter(client, {
-        database,
-        collection: 'orders',
-        filterEjson: '{"group": "a"}',
-        expectedCount: 3,
-      });
-      expect(deleted).toBe(3);
-      expect(await collection.countDocuments()).toBe(2);
-    });
-
-    it('refuses to delete from the admin, local and config databases', async () => {
-      const byIds = await captureError(() =>
-        deleteDocuments(client, {
-          database: 'config',
-          collection: 'chunks',
-          idsEjson: ['1'],
-        }),
-      );
-      expect(byIds.code).toBe('VALIDATION');
-      const byFilter = await captureError(() =>
-        deleteByFilter(client, {
-          database: 'local',
-          collection: 'startup_log',
-          filterEjson: '{}',
-          expectedCount: 0,
-        }),
-      );
-      expect(byFilter.code).toBe('VALIDATION');
-    });
-
-    it('refuses to delete from system collections', async () => {
-      const database = uniqueDatabase();
-      const byIds = await captureError(() =>
-        deleteDocuments(client, {
-          database: 'admin',
-          collection: 'system.version',
-          idsEjson: ['"featureCompatibilityVersion"'],
-        }),
-      );
-      expect(byIds.code).toBe('VALIDATION');
-      const byFilter = await captureError(() =>
-        deleteByFilter(client, {
-          database,
-          collection: 'system.views',
-          filterEjson: '{}',
-          expectedCount: 0,
-        }),
-      );
-      expect(byFilter.code).toBe('VALIDATION');
-    });
-
-    it('deletes everything with an empty filter when the expected count matches', async () => {
-      const database = uniqueDatabase();
-      const collection = client.db(database).collection<Fixture>('orders');
-      await collection.insertMany([{ a: 1 }, { a: 2 }]);
-      expect(
-        await deleteByFilter(client, {
-          database,
-          collection: 'orders',
-          filterEjson: '{}',
-          expectedCount: 2,
-        }),
-      ).toBe(2);
-      expect(await collection.countDocuments()).toBe(0);
-    });
-
     it('rejects invalid EJSON without echoing the document', async () => {
       const database = uniqueDatabase();
       const error = await captureError(() =>
-        insertDocument(client, {
+        replaceDocument(client, {
           database,
           collection: 'orders',
+          idEjson: '1',
           documentEjson: `{"secret": "${SECRET_TEXT}", "broken": x}`,
         }),
       );
@@ -919,9 +796,10 @@ describe.each(MONGO_IMAGES)('management on %s', (image) => {
     it('rejects an EJSON value that is not an object for a document', async () => {
       const database = uniqueDatabase();
       const error = await captureError(() =>
-        insertDocument(client, {
+        replaceDocument(client, {
           database,
           collection: 'orders',
+          idEjson: '1',
           documentEjson: '[1, 2]',
         }),
       );

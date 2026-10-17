@@ -61,12 +61,8 @@ export const coverageMap: Readonly<Record<string, Coverage>> = {
   'management.getValidation': { excluded: 'no journey planned yet' },
   'management.setValidation': { excluded: 'no journey planned yet' },
   'management.checkValidation': { excluded: 'no journey planned yet' },
-  'management.insertDocument': { excluded: 'no UI path since the Documents screen was removed' },
   'management.replaceDocument': { journey: 'results-edit.spec.ts' },
   'management.updateDocumentFields': { journey: 'results-edit.spec.ts' },
-  'management.deleteDocuments': { excluded: 'no UI path since the Documents screen was removed' },
-  'management.deleteByFilter': { excluded: 'no UI path since the Documents screen was removed' },
-  'management.countDocuments': { excluded: 'no UI path since the Documents screen was removed' },
   'management.findDocumentById': { excluded: 'no journey planned yet' },
   'management.sampleDocuments': { journey: 'indexes.spec.ts' },
 

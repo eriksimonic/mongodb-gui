@@ -34,11 +34,8 @@ vi.mock('@mongo-gui/mongo-adapter', async (importOriginal) => {
     getValidation: vi.fn(),
     setValidation: vi.fn(),
     checkDocumentsAgainstValidator: vi.fn(),
-    insertDocument: vi.fn(),
     replaceDocument: vi.fn(),
     updateDocumentFields: vi.fn(),
-    deleteDocuments: vi.fn(),
-    deleteByFilter: vi.fn(),
     findDocumentById: vi.fn(),
     sampleDocuments: vi.fn(),
   };
@@ -243,19 +240,19 @@ describe('management calls through the router', () => {
     expect(adapter.listIndexBuilds).toHaveBeenCalledWith(CLIENT, 'probe');
   });
 
-  it('reports a deleted count for deleteDocuments and a change for the collection', async () => {
-    vi.mocked(adapter.deleteDocuments).mockResolvedValue(2);
+  it('emits a change for the collection after replaceDocument', async () => {
+    vi.mocked(adapter.replaceDocument).mockResolvedValue(undefined);
 
-    const deleted = value(
-      await router.handle('management.deleteDocuments', {
+    value(
+      await router.handle('management.replaceDocument', {
         connectionId: CONNECTION_ID,
         database: 'probe',
         collection: 'items',
-        idsEjson: ['{"$oid":"64b7f0f0e4b0a1b2c3d4e5f6"}'],
+        idEjson: '{"$oid":"64b7f0f0e4b0a1b2c3d4e5f6"}',
+        documentEjson: '{"sku":"A-1"}',
       }),
     );
 
-    expect(deleted).toBe(2);
     expect(events).toEqual([
       {
         type: 'catalog:changed',

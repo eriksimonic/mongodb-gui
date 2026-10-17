@@ -7,11 +7,7 @@ export {
   renameCollection,
 } from './collections';
 export {
-  countDocuments,
-  deleteByFilter,
-  deleteDocuments,
   findDocumentById,
-  insertDocument,
   replaceDocument,
   sampleDocuments,
   updateDocumentFields,

@@ -1,6 +1,7 @@
 import { mkdtempSync, rmSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
+import { MongoClient } from 'mongodb';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import type { RpcEvent, RpcResult } from '@mongo-gui/core';
 import { createRouter, type Router } from './router';
@@ -170,26 +171,12 @@ describe('router against a real MongoDB 8.0 server', () => {
       expect(JSON.parse(rules.validatorEjson)).toEqual(JSON.parse(validator));
       expect(rules.validationAction).toBe('error');
 
-      const inserted = valueOf(
-        await router.handle('management.insertDocument', {
-          ...scoped,
-          documentEjson: '{"sku":"A-1","qty":2}',
-        }),
-      ) as string;
-      expect(inserted).toContain('$oid');
-      const rejected = await router.handle('management.insertDocument', {
-        ...scoped,
-        documentEjson: '{"qty":3}',
-      });
-      expect(rejected.ok).toBe(false);
-
-      const matching = valueOf(
-        await router.handle('management.countDocuments', {
-          ...scoped,
-          filterEjson: '{"sku":"A-1"}',
-        }),
-      );
-      expect(matching).toBe(1);
+      // A second client writes the documents, because no management call inserts any.
+      const driver = new MongoClient(mongo.rootUri);
+      const items = driver.db(database).collection('items');
+      const { insertedId } = await items.insertOne({ sku: 'A-1', qty: 2 });
+      await expect(items.insertOne({ qty: 3 })).rejects.toThrow();
+      const inserted = JSON.stringify({ $oid: insertedId.toHexString() });
 
       const sampled = valueOf(
         await router.handle('management.sampleDocuments', { ...scoped, limit: 20 }),
@@ -209,10 +196,7 @@ describe('router against a real MongoDB 8.0 server', () => {
       ) as string;
       expect(found).toMatch(/"qty":(\{"\$numberInt":"5"\}|5)/);
 
-      const deleted = valueOf(
-        await router.handle('management.deleteDocuments', { ...scoped, idsEjson: [inserted] }),
-      );
-      expect(deleted).toBe(1);
+      await driver.close();
 
       valueOf(await router.handle('management.dropIndex', { ...scoped, name: 'sku_1' }));
       valueOf(
@@ -230,7 +214,7 @@ describe('router against a real MongoDB 8.0 server', () => {
       const changed = events
         .slice(changesBefore)
         .filter((event) => event.type === 'catalog:changed');
-      expect(changed.length).toBeGreaterThanOrEqual(8);
+      expect(changed.length).toBeGreaterThanOrEqual(7);
       expect(changed.every((event) => event.connectionId === connectionId)).toBe(true);
       await router.handle('connections.disconnect', { id: connectionId });
     },

@@ -16,7 +16,6 @@ import {
   findMockCollection,
   idKey,
   isMockDocument,
-  matchesFilter,
   objectIdHex,
   type MockBuild,
   type MockCollection,
@@ -87,6 +86,25 @@ function requireCollection(
     throw fail('COMMAND_FAILED', 'Collection not found', `${database}.${collection}`);
   }
   return found;
+}
+
+/**
+ * Puts documents into a mock collection, for fixtures. A document without an `_id` gets one. It
+ * does not run the validator or emit a change, because no management call inserts documents.
+ */
+export function seedMockDocuments(
+  context: MockManagementContext,
+  connectionId: string,
+  database: string,
+  collection: string,
+  documents: readonly MockDocument[],
+): void {
+  const target = requireCollection(context, connectionId, database, collection);
+  for (const document of documents) {
+    target.documents.push(
+      document._id === undefined ? { _id: newObjectId(), ...document } : document,
+    );
+  }
 }
 
 function requireDocument(collection: MockCollection, idText: string): number {
@@ -424,27 +442,6 @@ export function createManagementCalls(context: MockManagementContext): RpcClient
       };
     }),
 
-    insertDocument: method(calls.insertDocument, latencyMs, (input) => {
-      context.guard(input.connectionId);
-      const collection = requireCollection(
-        context,
-        input.connectionId,
-        input.database,
-        input.collection,
-      );
-      const parsed = parseObject(input.documentEjson, 'The document');
-      const document: MockDocument =
-        parsed._id === undefined ? { _id: newObjectId(), ...parsed } : parsed;
-      const id = idKey(document._id);
-      if (collection.documents.some((item) => idKey(item._id) === id)) {
-        throw fail('COMMAND_FAILED', 'A document with that _id already exists');
-      }
-      assertValid(collection, document);
-      collection.documents.push(document);
-      changed(input.connectionId, { database: input.database, collection: input.collection });
-      return JSON.stringify(document._id);
-    }),
-
     replaceDocument: method(calls.replaceDocument, latencyMs, (input) => {
       context.guard(input.connectionId);
       const collection = requireCollection(
@@ -504,58 +501,6 @@ export function createManagementCalls(context: MockManagementContext): RpcClient
       assertValid(collection, next);
       collection.documents[index] = next;
       changed(input.connectionId, { database: input.database, collection: input.collection });
-    }),
-
-    deleteDocuments: method(calls.deleteDocuments, latencyMs, (input) => {
-      context.guard(input.connectionId);
-      const collection = requireCollection(
-        context,
-        input.connectionId,
-        input.database,
-        input.collection,
-      );
-      const ids = new Set(input.idsEjson.map((text) => idKey(parseText(text, 'The _id'))));
-      const before = collection.documents.length;
-      collection.documents = collection.documents.filter(
-        (document) => !ids.has(idKey(document._id)),
-      );
-      changed(input.connectionId, { database: input.database, collection: input.collection });
-      return before - collection.documents.length;
-    }),
-
-    countDocuments: method(calls.countDocuments, latencyMs, (input) => {
-      context.guard(input.connectionId);
-      const collection = requireCollection(
-        context,
-        input.connectionId,
-        input.database,
-        input.collection,
-      );
-      const filter = parseObject(input.filterEjson, 'The filter');
-      return collection.documents.filter((document) => matchesFilter(document, filter)).length;
-    }),
-
-    deleteByFilter: method(calls.deleteByFilter, latencyMs, (input) => {
-      context.guard(input.connectionId);
-      const collection = requireCollection(
-        context,
-        input.connectionId,
-        input.database,
-        input.collection,
-      );
-      const filter = parseObject(input.filterEjson, 'The filter');
-      const matching = collection.documents.filter((document) => matchesFilter(document, filter));
-      if (matching.length !== input.expectedCount) {
-        throw fail(
-          'VALIDATION',
-          `The filter now matches ${matching.length} documents, not the expected ${input.expectedCount}. Refresh the count and try again.`,
-        );
-      }
-      collection.documents = collection.documents.filter(
-        (document) => !matchesFilter(document, filter),
-      );
-      changed(input.connectionId, { database: input.database, collection: input.collection });
-      return matching.length;
     }),
 
     findDocumentById: method(calls.findDocumentById, latencyMs, (input) => {

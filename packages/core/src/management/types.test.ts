@@ -3,7 +3,6 @@ import {
   CollectionNameSchema,
   CreateCollectionInputSchema,
   CreateIndexInputSchema,
-  DeleteByFilterInputSchema,
   DropDatabaseInputSchema,
   DropIndexInputSchema,
   NamespaceSchema,
@@ -159,16 +158,6 @@ describe('document inputs', () => {
       unsetPaths: ['note'],
     });
     expect(result.success).toBe(true);
-  });
-
-  it('rejects a negative expected count', () => {
-    const result = DeleteByFilterInputSchema.safeParse({
-      database: 'shop',
-      collection: 'orders',
-      filterEjson: '{}',
-      expectedCount: -1,
-    });
-    expect(result.success).toBe(false);
   });
 });
 

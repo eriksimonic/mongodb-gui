@@ -2,19 +2,11 @@ import type { Document, MongoClient } from 'mongodb';
 import {
   AppErrorException,
   appError,
-  CountDocumentsInputSchema,
-  DeleteByFilterInputSchema,
-  DeleteDocumentsInputSchema,
   FindDocumentByIdInputSchema,
-  InsertDocumentInputSchema,
   ReplaceDocumentInputSchema,
   SampleDocumentsInputSchema,
   UpdateDocumentFieldsInputSchema,
-  type CountDocumentsInput,
-  type DeleteByFilterInput,
-  type DeleteDocumentsInput,
   type FindDocumentByIdInput,
-  type InsertDocumentInput,
   type ReplaceDocumentInput,
   type SampleDocumentsInput,
   type UpdateDocumentFieldsInput,
@@ -22,30 +14,10 @@ import {
 } from '@mongo-gui/core';
 import type { PlainObject } from '../documents';
 import { parseEjson, parseEjsonDocument, stringifyEjson } from '../ejson';
-import {
-  parseInput,
-  refuseReservedDatabase,
-  refuseSystemCollection,
-  toAppException,
-} from './errors';
+import { parseInput, toAppException } from './errors';
 
 const ID_LABEL = 'The _id';
 const DOCUMENT_LABEL = 'The document';
-const FILTER_LABEL = 'The filter';
-
-export async function insertDocument(client: MongoClient, input: unknown): Promise<string> {
-  const parsed = parseInput<InsertDocumentInput>(InsertDocumentInputSchema, input);
-  const document = parseEjsonDocument(parsed.documentEjson, DOCUMENT_LABEL);
-  try {
-    const result = await client
-      .db(parsed.database)
-      .collection<PlainObject>(parsed.collection)
-      .insertOne(document);
-    return stringifyEjson(result.insertedId);
-  } catch (error) {
-    throw toAppException(error);
-  }
-}
 
 export async function replaceDocument(client: MongoClient, input: unknown): Promise<void> {
   const parsed = parseInput<ReplaceDocumentInput>(ReplaceDocumentInputSchema, input);
@@ -81,47 +53,6 @@ export async function updateDocumentFields(client: MongoClient, input: unknown):
   }
 }
 
-export async function deleteDocuments(client: MongoClient, input: unknown): Promise<number> {
-  const parsed = parseInput<DeleteDocumentsInput>(DeleteDocumentsInputSchema, input);
-  refuseReservedDatabase(parsed.database, 'delete documents in');
-  refuseSystemCollection(parsed.collection, 'delete documents in');
-  const ids = parsed.idsEjson.map((text) => parseEjson(text, ID_LABEL));
-  if (ids.length === 0) {
-    return 0;
-  }
-  try {
-    const result = await client
-      .db(parsed.database)
-      .collection<PlainObject>(parsed.collection)
-      .deleteMany(byIds(ids));
-    return result.deletedCount;
-  } catch (error) {
-    throw toAppException(error);
-  }
-}
-
-// The count check and the delete are two round trips, so a write between them can make the
-// deleted count differ from expectedCount. The caller gets the real deleted count back.
-export async function deleteByFilter(client: MongoClient, input: unknown): Promise<number> {
-  const parsed = parseInput<DeleteByFilterInput>(DeleteByFilterInputSchema, input);
-  refuseReservedDatabase(parsed.database, 'delete documents in');
-  refuseSystemCollection(parsed.collection, 'delete documents in');
-  const filter = parseEjsonDocument(parsed.filterEjson, FILTER_LABEL);
-  const collection = client.db(parsed.database).collection<PlainObject>(parsed.collection);
-  try {
-    const matching = await collection.countDocuments(filter);
-    if (matching !== parsed.expectedCount) {
-      throw validationError(
-        `The filter now matches ${matching} documents, not the expected ${parsed.expectedCount}. Refresh the count and try again.`,
-      );
-    }
-    const result = await collection.deleteMany(filter);
-    return result.deletedCount;
-  } catch (error) {
-    throw toAppException(error);
-  }
-}
-
 export async function findDocumentById(
   client: MongoClient,
   input: unknown,
@@ -140,22 +71,8 @@ export async function findDocumentById(
   }
 }
 
-// Counts the documents a filter matches. The delete-by-filter flow uses it as a preview.
-export async function countDocuments(client: MongoClient, input: unknown): Promise<number> {
-  const parsed = parseInput<CountDocumentsInput>(CountDocumentsInputSchema, input);
-  const filter = parseEjsonDocument(parsed.filterEjson, FILTER_LABEL);
-  try {
-    return await client
-      .db(parsed.database)
-      .collection<PlainObject>(parsed.collection)
-      .countDocuments(filter);
-  } catch (error) {
-    throw toAppException(error);
-  }
-}
-
-// Returns the first documents in natural order as canonical EJSON. The document panel uses it
-// until the result grid arrives.
+// Returns the first documents in natural order as canonical EJSON. The create index dialog uses
+// them to suggest field names.
 export async function sampleDocuments(client: MongoClient, input: unknown): Promise<string[]> {
   const parsed = parseInput<SampleDocumentsInput>(SampleDocumentsInputSchema, input);
   try {
@@ -196,8 +113,4 @@ function notFound(): AppErrorException {
 // The driver types _id as ObjectId. Document values are untyped, so an arbitrary BSON _id fits.
 function byId(id: unknown): Document {
   return { _id: id };
-}
-
-function byIds(ids: unknown[]): Document {
-  return { _id: { $in: ids } };
 }

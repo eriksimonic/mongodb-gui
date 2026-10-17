@@ -367,7 +367,6 @@ export function ResultsPane({
           connectionId={target.connectionId}
           database={target.database}
           collection={target.collection}
-          mode="edit"
           initialText={opened.initialText}
           idEjson={opened.idEjson}
           onClose={() => setOpened(undefined)}

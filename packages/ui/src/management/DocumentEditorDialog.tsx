@@ -5,43 +5,26 @@ import { useUiApi } from '../api/ui-api';
 import { JsonEditor } from '../kit/code/JsonEditor';
 import { parseJsonObject } from '../kit/input-rules';
 
-export type DocumentEditorMode = 'edit' | 'duplicate' | 'insert';
-
 export interface DocumentEditorDialogProps {
   readonly connectionId: string;
   readonly database: string;
   readonly collection: string;
-  readonly mode: DocumentEditorMode;
-  /** The document as EJSON text, or `{}` for a new document. */
+  /** The document as EJSON text. */
   readonly initialText: string;
-  /** The `_id` as EJSON. Required when editing, because replace needs it. */
-  readonly idEjson?: string | undefined;
+  /** The `_id` as EJSON, because replace needs it. */
+  readonly idEjson: string;
   readonly onClose: () => void;
-  /** Called with the saved EJSON after an edit is written. Other modes do not call it. */
+  /** Called with the saved EJSON after the replace is written. */
   readonly onSaved?: ((documentEjson: string) => void) | undefined;
 }
 
-const TITLES: Readonly<Record<DocumentEditorMode, string>> = {
-  edit: 'Edit document',
-  duplicate: 'Duplicate document',
-  insert: 'Insert document',
-};
-
-const SAVE_LABELS: Readonly<Record<DocumentEditorMode, string>> = {
-  edit: 'Save',
-  duplicate: 'Insert copy',
-  insert: 'Insert',
-};
-
 /**
- * Edits one document as canonical EJSON. Edit replaces the document with the same `_id`. Duplicate
- * and insert add a new document, and the server makes an `_id` when the text has none.
+ * Edits one document as canonical EJSON. Save replaces the document with the same `_id`.
  */
 export function DocumentEditorDialog({
   connectionId,
   database,
   collection,
-  mode,
   initialText,
   idEjson,
   onClose,
@@ -61,26 +44,14 @@ export function DocumentEditorDialog({
     setBusy(true);
     setError(undefined);
     try {
-      if (mode === 'edit') {
-        if (idEjson === undefined) {
-          throw new Error('The document has no _id');
-        }
-        await rpc.management.replaceDocument({
-          connectionId,
-          database,
-          collection,
-          idEjson,
-          documentEjson: text,
-        });
-        onSaved?.(text);
-      } else {
-        await rpc.management.insertDocument({
-          connectionId,
-          database,
-          collection,
-          documentEjson: text,
-        });
-      }
+      await rpc.management.replaceDocument({
+        connectionId,
+        database,
+        collection,
+        idEjson,
+        documentEjson: text,
+      });
+      onSaved?.(text);
       onClose();
     } catch (failure) {
       setError(errorText(failure));
@@ -93,7 +64,7 @@ export function DocumentEditorDialog({
     <Modal
       opened
       onClose={onClose}
-      title={`${TITLES[mode]} in ${collection}`}
+      title={`Edit document in ${collection}`}
       centered
       size="min(1100px, 94vw)"
     >
@@ -105,9 +76,8 @@ export function DocumentEditorDialog({
       >
         <Stack gap="lg">
           <Text size="xs" c="dimmed">
-            {mode === 'duplicate'
-              ? 'The _id is removed, so the server makes a new one.'
-              : 'Numbers and dates are plain. ObjectId, long values and whole doubles keep their wrapper so the type stays.'}
+            Numbers and dates are plain. ObjectId, long values and whole doubles keep their wrapper
+            so the type stays.
           </Text>
           {/* The corner handle drags the editor taller. The editor lays itself out to the new size. */}
           <div
@@ -140,7 +110,7 @@ export function DocumentEditorDialog({
               Cancel
             </Button>
             <Button loading={busy} type="submit">
-              {SAVE_LABELS[mode]}
+              Save
             </Button>
           </Group>
         </Stack>

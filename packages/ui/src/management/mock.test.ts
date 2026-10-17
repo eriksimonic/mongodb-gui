@@ -1,13 +1,12 @@
 import type { RpcEvent } from '@mongo-gui/core';
 import { describe, expect, it } from 'vitest';
 import { localConnectionId } from '../api/mock-fixtures';
-import { createMockUiApi } from '../api/mock-rpc-client';
-import type { UiApi } from '../api/ui-api';
+import { createMockUiApi, type MockUiApi } from '../api/mock-rpc-client';
 
 const SHOP = 'shop';
 const ORDERS = 'orders';
 
-async function connectedApi(): Promise<{ api: UiApi; events: RpcEvent[] }> {
+async function connectedApi(): Promise<{ api: MockUiApi; events: RpcEvent[] }> {
   const api = createMockUiApi({ preset: 'unlocked' });
   const events: RpcEvent[] = [];
   api.onEvent((event) => events.push(event));
@@ -15,7 +14,7 @@ async function connectedApi(): Promise<{ api: UiApi; events: RpcEvent[] }> {
   return { api, events };
 }
 
-async function collectionNames(api: UiApi, database: string): Promise<string[]> {
+async function collectionNames(api: MockUiApi, database: string): Promise<string[]> {
   const list = await api.rpc.collections.list({ connectionId: localConnectionId, database });
   return list.map((item) => item.name);
 }
@@ -218,26 +217,13 @@ describe('mock management calls', () => {
     expect(stored.validatorEjson).not.toContain('missingField');
   });
 
-  it('rejects an insert that fails the stored validator under the error action', async () => {
-    const { api } = await connectedApi();
-    await expect(
-      api.rpc.management.insertDocument({
-        connectionId: localConnectionId,
-        database: SHOP,
-        collection: ORDERS,
-        documentEjson: '{"status":"paid"}',
-      }),
-    ).rejects.toMatchObject({ error: { code: 'COMMAND_FAILED' } });
-  });
-
-  it('inserts, reads, updates, replaces and deletes a document', async () => {
+  it('reads, updates and replaces a document', async () => {
     const { api } = await connectedApi();
     const base = { connectionId: localConnectionId, database: SHOP, collection: 'customers' };
-    const idEjson = await api.rpc.management.insertDocument({
-      ...base,
-      documentEjson: '{"name":"Ada","tier":1}',
-    });
-    expect(idEjson).toContain('$oid');
+    const idEjson = '{"$oid":"64b000000000000000000001"}';
+    api.seedDocuments(localConnectionId, SHOP, 'customers', [
+      { _id: { $oid: '64b000000000000000000001' }, name: 'Ada', tier: 1 },
+    ]);
 
     const found = await api.rpc.management.findDocumentById({ ...base, idEjson });
     expect(found).toContain('"Ada"');
@@ -258,38 +244,6 @@ describe('mock management calls', () => {
     });
     const replaced = await api.rpc.management.findDocumentById({ ...base, idEjson });
     expect(replaced).not.toContain('"tier"');
-
-    const deleted = await api.rpc.management.deleteDocuments({ ...base, idsEjson: [idEjson] });
-    expect(deleted).toBe(1);
-    expect(await api.rpc.management.findDocumentById({ ...base, idEjson })).toBeNull();
-  });
-
-  it('counts a filter, deletes it when the count still matches, and refuses when it moved', async () => {
-    const { api } = await connectedApi();
-    const base = { connectionId: localConnectionId, database: SHOP, collection: ORDERS };
-    const count = await api.rpc.management.countDocuments({
-      ...base,
-      filterEjson: '{"status":"pending"}',
-    });
-    expect(count).toBeGreaterThan(0);
-
-    await expect(
-      api.rpc.management.deleteByFilter({
-        ...base,
-        filterEjson: '{"status":"pending"}',
-        expectedCount: count + 1,
-      }),
-    ).rejects.toMatchObject({ error: { code: 'VALIDATION' } });
-
-    const deleted = await api.rpc.management.deleteByFilter({
-      ...base,
-      filterEjson: '{"status":"pending"}',
-      expectedCount: count,
-    });
-    expect(deleted).toBe(count);
-    expect(
-      await api.rpc.management.countDocuments({ ...base, filterEjson: '{"status":"pending"}' }),
-    ).toBe(0);
   });
 
   it('samples the first documents as JSON text up to the limit', async () => {

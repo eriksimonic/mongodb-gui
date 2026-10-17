@@ -22,7 +22,6 @@ const meta: Meta<typeof DocumentEditorDialog> = {
     connectionId: localConnectionId,
     database: 'shop',
     collection: 'orders',
-    mode: 'edit',
     initialText: EDIT_TEXT,
     idEjson: '{"$oid":"000000000000000000000001"}',
     onClose: fn(),
@@ -42,7 +41,3 @@ export default meta;
 type Story = StoryObj<typeof meta>;
 
 export const Edit: Story = {};
-
-export const Insert: Story = {
-  args: { mode: 'insert', initialText: '{}\n', idEjson: undefined },
-};

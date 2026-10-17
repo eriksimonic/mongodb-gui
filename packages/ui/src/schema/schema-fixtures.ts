@@ -1,6 +1,6 @@
 import { localConnectionId } from '../api/mock-fixtures';
 import { objectIdHex } from '../api/mock-catalog';
-import type { UiApi } from '../api/ui-api';
+import type { MockUiApi } from '../api/mock-rpc-client';
 
 /** A messy collection for stories and tests: optional fields, mixed types, nested documents. */
 export const MESSY_DATABASE = 'analytics';
@@ -51,18 +51,14 @@ function durationOf(index: number): unknown {
 }
 
 /** Creates the messy collection on the local connection and inserts its documents. */
-export async function seedMessyCollection(api: UiApi, count: number = MESSY_COUNT): Promise<void> {
+export async function seedMessyCollection(
+  api: MockUiApi,
+  count: number = MESSY_COUNT,
+): Promise<void> {
   await api.rpc.management.createCollection({
     connectionId: localConnectionId,
     database: MESSY_DATABASE,
     name: MESSY_COLLECTION,
   });
-  for (const document of messyDocuments(count)) {
-    await api.rpc.management.insertDocument({
-      connectionId: localConnectionId,
-      database: MESSY_DATABASE,
-      collection: MESSY_COLLECTION,
-      documentEjson: JSON.stringify(document),
-    });
-  }
+  api.seedDocuments(localConnectionId, MESSY_DATABASE, MESSY_COLLECTION, messyDocuments(count));
 }

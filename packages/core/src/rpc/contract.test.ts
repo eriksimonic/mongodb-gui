@@ -252,9 +252,7 @@ describe('rpcContract', () => {
       );
     });
 
-    it('returns an id string from insert and EJSON strings from reads', () => {
-      const oid = '{"$oid":"64b7f0f0e4b0a1b2c3d4e5f6"}';
-      expect(management.insertDocument.output.safeParse(oid).success).toBe(true);
+    it('returns EJSON strings from reads', () => {
       expect(management.sampleDocuments.output.safeParse(['{"a":1}']).success).toBe(true);
       expect(management.findDocumentById.output.safeParse(null).success).toBe(true);
     });
