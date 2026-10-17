@@ -1,6 +1,7 @@
 import { MongoClient } from 'mongodb';
 import { expect, test } from '../../fixtures';
 import { mongoUriFromEnv } from '../../../support/mongo';
+import { connectionOption, openConnectionManager } from '../../connection-manager';
 
 /** Database names from the server, read through a second client and not the UI. */
 async function serverDatabaseNames(): Promise<string[]> {
@@ -23,8 +24,7 @@ test('create a saved connection, see it after reload, and connect to it', async 
 
   await page.goto(wiring.url);
   // New connections are added from the Connections dialog, which the header button opens.
-  await page.getByRole('button', { name: 'Manage connections', exact: true }).click();
-  const manager = page.getByRole('dialog', { name: 'Connections', exact: true });
+  const manager = await openConnectionManager(page);
   await manager.getByRole('button', { name: 'New connection', exact: true }).click();
 
   const dialog = page.getByRole('dialog', { name: 'New connection', exact: true });
@@ -32,8 +32,8 @@ test('create a saved connection, see it after reload, and connect to it', async 
   await dialog.getByRole('textbox', { name: 'Connection URI', exact: true }).fill(uri);
   await dialog.getByRole('button', { name: 'Save', exact: true }).click();
   await expect(dialog).toBeHidden();
-  await expect(manager.getByRole('cell', { name: 'Staging', exact: true })).toBeVisible();
-  await manager.getByRole('button', { name: 'Cancel', exact: true }).click();
+  await expect(connectionOption(manager, 'Staging')).toBeVisible();
+  await manager.getByRole('button', { name: 'Close', exact: true }).click();
 
   const tree = page.getByRole('treeitem', { name: 'Staging', exact: true });
   await expect(tree).toBeVisible();
@@ -115,13 +115,12 @@ test('connections dialog lists each saved connection with its host', async ({ pa
   }
 
   await page.goto(wiring.url);
-  await page.getByRole('button', { name: 'Manage connections', exact: true }).click();
-  const manager = page.getByRole('dialog', { name: 'Connections', exact: true });
+  const manager = await openConnectionManager(page);
 
   // The Local dev and Secured dev entries both point at the same host.
   for (const name of ['Local dev', 'Secured dev']) {
-    const row = manager.getByRole('row').filter({ hasText: name });
-    await expect(row.getByRole('cell', { name, exact: true })).toBeVisible();
-    await expect(row.getByRole('cell', { name: host, exact: true })).toBeVisible();
+    const option = connectionOption(manager, name);
+    await expect(option).toBeVisible();
+    await expect(option).toContainText(host);
   }
 });

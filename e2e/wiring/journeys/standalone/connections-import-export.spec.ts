@@ -2,6 +2,7 @@ import { existsSync, mkdtempSync, statSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { expect, test } from '../../fixtures';
+import { openConnectionManager } from '../../connection-manager';
 
 const PASSPHRASE = 'wiring-passphrase-1';
 
@@ -10,8 +11,7 @@ test('export connections to a file, preview it, import it as a copy', async ({ p
   const filePath = join(mkdtempSync(join(tmpdir(), 'wiring-conn-')), 'connections.mgconn');
 
   await page.goto(wiring.url);
-  await page.getByRole('button', { name: 'Manage connections', exact: true }).click();
-  const manager = page.getByRole('dialog', { name: 'Connections', exact: true });
+  const manager = await openConnectionManager(page);
 
   // Export. Every saved connection starts selected.
   wiring.setDialogPicks([filePath]);
@@ -44,6 +44,6 @@ test('export connections to a file, preview it, import it as a copy', async ({ p
   await importer.getByRole('button', { name: 'Done', exact: true }).click();
 
   // The tree reloaded, so the copy shows next to the original.
-  await manager.getByRole('button', { name: 'Cancel', exact: true }).click();
+  await manager.getByRole('button', { name: 'Close', exact: true }).click();
   await expect(page.getByRole('treeitem', { name: /^Local dev/ })).toHaveCount(2);
 });

@@ -2,6 +2,7 @@ import { MongoClient } from 'mongodb';
 import type { Page } from '@playwright/test';
 import { expect, test } from '../../fixtures';
 import { mongoUriFromEnv } from '../../../support/mongo';
+import { connectionOption, openConnectionManager } from '../../connection-manager';
 
 // Port 1 has no server behind it, so the connection is refused. The side-channel client reads the 1 s timeout from the URI.
 // The app dialog uses the profile connect timeout (10 s by default), so that test takes about 12 s.
@@ -20,8 +21,8 @@ async function serverVersion(): Promise<string> {
 
 /** Opens the New connection dialog from the Connections manager. The manager stays open behind it. */
 async function openNewConnectionDialog(page: Page) {
-  await page.getByRole('button', { name: 'Manage connections', exact: true }).click();
-  await page.getByRole('button', { name: 'New connection', exact: true }).click();
+  const manager = await openConnectionManager(page);
+  await manager.getByRole('button', { name: 'New connection', exact: true }).click();
   const dialog = page.getByRole('dialog', { name: 'New connection', exact: true });
   // Saving needs a name. Testing needs one too, so the draft always has it.
   await dialog.getByRole('textbox', { name: 'Name', exact: true }).fill('Probe');
@@ -42,7 +43,9 @@ test('test connection in the dialog reports the server version and saves nothing
   await dialog.getByRole('button', { name: 'Test connection', exact: true }).click();
 
   // The status line shows the version the app read from the server.
-  await expect(dialog.getByRole('status')).toHaveText(`Connected. Server ${version}, standalone.`);
+  await expect(dialog.getByRole('status')).toHaveText(
+    new RegExp(`^Connected in \\d+ ms\\. Server ${version.replaceAll('.', '\\.')}, standalone\\.$`),
+  );
 
   // Cancel closes the dialog without saving. The tree keeps Local dev and gets no Probe.
   await dialog.getByRole('button', { name: 'Cancel', exact: true }).click();
@@ -73,7 +76,7 @@ test('test connection in the dialog fails for an unreachable server', async ({ p
   await dialog.getByRole('button', { name: 'Test connection', exact: true }).click();
 
   // The message names the refused port, so the failure is the bad address and not a generic error.
-  await expect(dialog.getByRole('status')).toHaveText(
+  await expect(dialog.getByRole('alert')).toHaveText(
     'Could not connect to the server (connect ECONNREFUSED 127.0.0.1:1)',
   );
 });
@@ -85,9 +88,9 @@ test('test from the connection manager: Local dev answers with its version', asy
   const version = await serverVersion();
 
   await page.goto(wiring.url);
-  await page.getByRole('button', { name: 'Manage connections', exact: true }).click();
-  await page.getByRole('checkbox', { name: 'Select Local dev', exact: true }).check();
-  await page.getByRole('button', { name: 'Test', exact: true }).click();
+  const manager = await openConnectionManager(page);
+  await connectionOption(manager, 'Local dev').click();
+  await manager.getByRole('button', { name: 'Test', exact: true }).click();
 
   // The notification names the connection and the version from the server.
   await expect(page.getByText('Connection works', { exact: true })).toBeVisible();

@@ -102,8 +102,8 @@ test('editor, results, paging, tree edit, print, history and favourites, end to 
     });
 
     await test.step('edit the first document status in the tree and check the server', async () => {
+      // The tree keeps the first document open from the step before.
       await viewSwitch(window, 'tree').click();
-      await window.getByRole('button', { name: 'Expand #1', exact: true }).click();
       await window.getByRole('button', { name: 'Edit status', exact: true }).click();
       const input = window.getByRole('textbox', { name: 'New value for status' });
       await input.fill('shipped');

@@ -45,11 +45,14 @@ test('create, hide, unhide and drop an index, and read the collection stats', as
     expect(created?.hidden).toBeUndefined();
 
     // management.setIndexHidden, both ways
-    await row.getByRole('button', { name: 'Hide', exact: true }).click();
-    await expect(row.getByRole('button', { name: 'Unhide', exact: true })).toBeVisible();
+    // The buttons are in the detail pane of the selected index.
+    await row.click();
+    const detail = page.getByRole('region', { name: 'Index details' });
+    await detail.getByRole('button', { name: 'Hide index', exact: true }).click();
+    await expect(detail.getByRole('button', { name: 'Unhide index', exact: true })).toBeVisible();
     expect((await indexInfo('sku_1'))?.hidden).toBe(true);
-    await row.getByRole('button', { name: 'Unhide', exact: true }).click();
-    await expect(row.getByRole('button', { name: 'Hide', exact: true })).toBeVisible();
+    await detail.getByRole('button', { name: 'Unhide index', exact: true }).click();
+    await expect(detail.getByRole('button', { name: 'Hide index', exact: true })).toBeVisible();
     expect((await indexInfo('sku_1'))?.hidden).not.toBe(true);
 
     // collections.stats through the Clear dialog, which shows the count. Cancel keeps the data.
@@ -65,7 +68,8 @@ test('create, hide, unhide and drop an index, and read the collection stats', as
     await collectionRow.click({ button: 'right' });
     await page.getByRole('menuitem', { name: 'Collection', exact: true }).hover();
     await page.getByRole('menuitem', { name: 'Indexes', exact: true }).click();
-    await row.getByRole('button', { name: 'Drop', exact: true }).click();
+    await row.click();
+    await detail.getByRole('button', { name: 'Drop', exact: true }).click();
     const confirm = page.getByRole('dialog');
     await confirm.getByRole('textbox', { name: 'Type sku_1 to confirm' }).fill('sku_1');
     await confirm.getByRole('button', { name: 'Drop index', exact: true }).click();
