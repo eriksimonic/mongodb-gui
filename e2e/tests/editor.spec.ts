@@ -89,20 +89,12 @@ test('editor, results, paging, tree edit, print, history and favourites, end to 
       await expect(window.getByText(`1 to ${expectedPaid} of ${expectedPaid}`)).toBeVisible();
     });
 
-    await test.step('switch the table, tree and JSON views', async () => {
+    await test.step('switch the table and tree views', async () => {
       await viewSwitch(window, 'tree').click();
       await expect(window.getByRole('tree', { name: 'Document tree' })).toBeVisible();
       await window.getByRole('button', { name: 'Collapse all' }).click();
       await window.getByRole('button', { name: 'Expand #1', exact: true }).click();
       await window.screenshot({ path: `${OUTPUT_DIR}/editor-tree.png`, animations: 'disabled' });
-
-      await viewSwitch(window, 'json').click();
-      // The CI display on macOS is 1024x645, so the JSON editor shows only the first lines of the
-      // first document. Assert on a field from those lines.
-      await expect(window.locator('.monaco-editor').nth(1).locator('.view-lines')).toContainText(
-        '"status": "paid"',
-      );
-      await window.screenshot({ path: `${OUTPUT_DIR}/editor-json.png`, animations: 'disabled' });
 
       await viewSwitch(window, 'table').click();
       await expect(window.getByRole('button', { name: /^Columns / })).toBeVisible();
@@ -174,7 +166,7 @@ test('editor, results, paging, tree edit, print, history and favourites, end to 
 });
 
 /** The view switch labels. Mantine hides the radio inputs, so the label is the click target. */
-function viewSwitch(window: Page, view: 'table' | 'tree' | 'json') {
+function viewSwitch(window: Page, view: 'table' | 'tree') {
   return window.locator(`label[for$="-${view}"]`);
 }
 

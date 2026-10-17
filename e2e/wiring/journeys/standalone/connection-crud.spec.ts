@@ -23,7 +23,7 @@ test('create a saved connection, see it after reload, and connect to it', async 
 
   await page.goto(wiring.url);
   // New connections are added from the Connections dialog, which the header button opens.
-  await page.getByRole('button', { name: 'Connections', exact: true }).click();
+  await page.getByRole('button', { name: 'Manage connections', exact: true }).click();
   const manager = page.getByRole('dialog', { name: 'Connections', exact: true });
   await manager.getByRole('button', { name: 'New connection', exact: true }).click();
 
@@ -115,7 +115,7 @@ test('connections dialog lists each saved connection with its host', async ({ pa
   }
 
   await page.goto(wiring.url);
-  await page.getByRole('button', { name: 'Connections', exact: true }).click();
+  await page.getByRole('button', { name: 'Manage connections', exact: true }).click();
   const manager = page.getByRole('dialog', { name: 'Connections', exact: true });
 
   // The Local dev and Secured dev entries both point at the same host.

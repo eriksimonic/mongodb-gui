@@ -28,8 +28,8 @@ test('create, hide, unhide and drop an index, and read the collection stats', as
     await page.getByRole('menuitem', { name: 'Collection', exact: true }).hover();
     await page.getByRole('menuitem', { name: 'Indexes', exact: true }).click();
 
-    // collections.indexes: only the _id index so far. listIndexBuilds polls on open.
-    await expect(page.getByText(`1 index on ${database}.items`, { exact: true })).toBeVisible();
+    // collections.indexes: only the _id index so far, which the tab counts. listIndexBuilds polls on open.
+    await expect(page.getByRole('tab', { name: 'Indexes 1', exact: true })).toBeVisible();
 
     // management.createIndex
     await page.getByRole('button', { name: 'Create index', exact: true }).click();
@@ -37,7 +37,7 @@ test('create, hide, unhide and drop an index, and read the collection stats', as
     await dialog.getByRole('textbox', { name: 'Field 1', exact: true }).fill('sku');
     await dialog.getByRole('button', { name: 'Create index', exact: true }).click();
     await expect(dialog).toBeHidden();
-    await expect(page.getByText(`2 indexes on ${database}.items`, { exact: true })).toBeVisible();
+    await expect(page.getByRole('tab', { name: 'Indexes 2', exact: true })).toBeVisible();
     const row = page.getByRole('row').filter({ hasText: 'sku_1' });
     await expect(row).toBeVisible();
     const created = await indexInfo('sku_1');
@@ -69,7 +69,7 @@ test('create, hide, unhide and drop an index, and read the collection stats', as
     const confirm = page.getByRole('dialog');
     await confirm.getByRole('textbox', { name: 'Type sku_1 to confirm' }).fill('sku_1');
     await confirm.getByRole('button', { name: 'Drop index', exact: true }).click();
-    await expect(page.getByText(`1 index on ${database}.items`, { exact: true })).toBeVisible();
+    await expect(page.getByRole('tab', { name: 'Indexes 1', exact: true })).toBeVisible();
     expect(await indexInfo('sku_1')).toBeUndefined();
   } finally {
     await client.db(database).dropDatabase();

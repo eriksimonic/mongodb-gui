@@ -16,7 +16,7 @@ const MASTER_PASSWORD = 'correct horse battery staple';
 const WRONG_PASSWORD = 'wrong horse battery staple';
 const CONNECTION_NAME = 'E2E Mongo';
 // The platform job runs against a native mongod whose version differs from the container image.
-const SERVER_VERSION = /Connected\. Server \d+\.\d+\.\d+/;
+const SERVER_VERSION = /Connected in \d+ ms\. Server \d+\.\d+\.\d+/;
 
 test('master password, connection tree and lock, end to end', async () => {
   const userDataDir = await createUserDataDir();

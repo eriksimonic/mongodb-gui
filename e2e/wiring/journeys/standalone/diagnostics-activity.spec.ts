@@ -106,7 +106,7 @@ test('collection stats: document count and data size match the server', async ({
       .getByRole('treeitem', { name: COLLECTION_DATABASE, exact: true })
       .press('ArrowRight');
     await page.getByRole('treeitem', { name: collection, exact: true }).click({ button: 'right' });
-    await page.getByRole('menuitem', { name: 'Monitoring', exact: true }).hover();
+    await page.getByRole('menuitem', { name: 'Collection', exact: true }).hover();
     await page.getByRole('menuitem', { name: 'Collection stats', exact: true }).click();
 
     await expect(statValue(page, 'Documents')).toHaveText(formatCount(count));

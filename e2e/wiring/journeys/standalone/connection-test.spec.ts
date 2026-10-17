@@ -20,7 +20,7 @@ async function serverVersion(): Promise<string> {
 
 /** Opens the New connection dialog from the Connections manager. The manager stays open behind it. */
 async function openNewConnectionDialog(page: Page) {
-  await page.getByRole('button', { name: 'Connections', exact: true }).click();
+  await page.getByRole('button', { name: 'Manage connections', exact: true }).click();
   await page.getByRole('button', { name: 'New connection', exact: true }).click();
   const dialog = page.getByRole('dialog', { name: 'New connection', exact: true });
   // Saving needs a name. Testing needs one too, so the draft always has it.
@@ -85,7 +85,7 @@ test('test from the connection manager: Local dev answers with its version', asy
   const version = await serverVersion();
 
   await page.goto(wiring.url);
-  await page.getByRole('button', { name: 'Connections', exact: true }).click();
+  await page.getByRole('button', { name: 'Manage connections', exact: true }).click();
   await page.getByRole('checkbox', { name: 'Select Local dev', exact: true }).check();
   await page.getByRole('button', { name: 'Test', exact: true }).click();
 

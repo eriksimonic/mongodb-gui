@@ -218,7 +218,10 @@ test('explain raw view shows the winning plan stage', async ({ page, wiring }) =
     // search finds it and scrolls the editor to the match, so the line is then rendered.
     await page.getByRole('textbox', { name: 'Search raw output' }).fill(serverStage);
     await expect(page.getByText(/^1 of \d+$/)).toBeVisible();
-    await expect(page.locator('.monaco-editor .view-lines').first()).toContainText(serverStage);
+    // The command box above the plan is the first editor, so the raw view is read inside its own tab.
+    await expect(
+      page.getByRole('tabpanel', { name: 'Raw' }).locator('.monaco-editor .view-lines'),
+    ).toContainText(serverStage);
   } finally {
     await client.close();
   }

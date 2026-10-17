@@ -10,7 +10,7 @@ test('export connections to a file, preview it, import it as a copy', async ({ p
   const filePath = join(mkdtempSync(join(tmpdir(), 'wiring-conn-')), 'connections.mgconn');
 
   await page.goto(wiring.url);
-  await page.getByRole('button', { name: 'Connections', exact: true }).click();
+  await page.getByRole('button', { name: 'Manage connections', exact: true }).click();
   const manager = page.getByRole('dialog', { name: 'Connections', exact: true });
 
   // Export. Every saved connection starts selected.
