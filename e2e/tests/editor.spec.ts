@@ -48,7 +48,7 @@ test('editor, results, paging, tree edit, print, history and favourites, end to 
       await window.getByRole('button', { name: 'New connection' }).first().click();
       const dialog = window.getByRole('dialog', { name: 'New connection' });
       await dialog.getByLabel('Name', { exact: true }).fill(CONNECTION_NAME);
-      await dialog.getByLabel('Connection string').fill(uri);
+      await dialog.getByLabel('Connection string', { exact: true }).fill(uri);
       await dialog.getByRole('button', { name: 'Save', exact: true }).click();
       await expect(dialog).toBeHidden();
       await treeItem(window, CONNECTION_NAME).dblclick();

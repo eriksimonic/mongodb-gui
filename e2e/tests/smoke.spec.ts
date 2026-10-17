@@ -45,7 +45,7 @@ test('master password, connection tree and lock, end to end', async () => {
       const dialog = window.getByRole('dialog', { name: 'New connection' });
       await expect(dialog).toBeVisible();
       await dialog.getByLabel('Name', { exact: true }).fill(CONNECTION_NAME);
-      await dialog.getByLabel('Connection string').fill(mongoUriFromEnv());
+      await dialog.getByLabel('Connection string', { exact: true }).fill(mongoUriFromEnv());
       await dialog.getByRole('button', { name: 'Test connection' }).click();
       await expect(dialog.getByRole('status')).toContainText(SERVER_VERSION);
       await captureStep(window, SPEC, '03-test-connection-ok');
