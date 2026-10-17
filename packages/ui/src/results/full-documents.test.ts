@@ -1,5 +1,5 @@
 import { describe, expect, it, vi } from 'vitest';
-import { COPY_MAX_CHARS, fullDocuments, fullDocumentText } from './full-documents';
+import { COPY_MAX_CHARS, fullDocuments, fullDocumentText, fullValueText } from './full-documents';
 
 const REF = '11111111-1111-4111-8111-111111111111/22222222-2222-4222-8222-222222222222';
 const preview = (chars: number, withRef = true) => ({
@@ -87,5 +87,23 @@ describe('fullDocuments', () => {
     await fullDocuments([preview(10), preview(10), preview(10)], read, COPY_MAX_CHARS);
     expect(read).toHaveBeenCalledTimes(3);
     expect(peak).toBe(1);
+  });
+});
+
+describe('fullValueText', () => {
+  it('copies a value sent whole, with no read', async () => {
+    const read = vi.fn();
+    expect(await fullValueText({ a: 'x' }, 'a', 'x', read)).toBe('x');
+    expect(read).not.toHaveBeenCalled();
+  });
+
+  it('reads the full document for a shortened value', async () => {
+    const doc = preview(100);
+    const long = 'y'.repeat(1000);
+    const read = vi.fn().mockResolvedValue(JSON.stringify({ _id: 1, big: [{ s: long }] }));
+    expect(await fullValueText(doc, 'big', doc.big, read)).toBe(
+      JSON.stringify([{ s: long }], null, 2),
+    );
+    expect(await fullValueText(doc, 'big.0.s', doc.big, read)).toBe(long);
   });
 });

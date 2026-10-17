@@ -130,8 +130,19 @@ export function exactCopyTextOf(value: unknown): string | undefined {
   return typeof value === 'object' && containsTruncatedMarker(text) ? undefined : text;
 }
 
+/** Whether the grid shows less than the whole value: a long string cut short, or a part the preview shortened. */
+export function isShortenedValue(value: unknown): boolean {
+  if (typeof value === 'string') {
+    return valueTextOf(value) !== value;
+  }
+  return exactCopyTextOf(value) === undefined;
+}
+
 /** The value as mongosh writes it in a statement, in full. The table cell may shorten it. */
 function mongoshFormOf(value: unknown): string {
+  if (typeof value === 'string') {
+    return value;
+  }
   const hex = objectIdHex(value);
   if (hex !== undefined) {
     return `ObjectId("${hex}")`;

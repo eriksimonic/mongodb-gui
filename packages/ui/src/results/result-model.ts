@@ -270,7 +270,6 @@ export function objectIdHex(value: unknown): string | undefined {
   return value.$oid;
 }
 
-const SHORT_OBJECT_ID = 8;
 const TOOLTIP_LIMIT = 600;
 const TOOLTIP_ENTRIES = 20;
 const CELL_TEXT_LIMIT = 120;
@@ -297,7 +296,7 @@ export function cellView(value: unknown): CellView {
   switch (type) {
     case 'ObjectId': {
       const hex = objectIdHex(value) ?? '';
-      return { text: `${hex.slice(0, SHORT_OBJECT_ID)}…`, type, align: 'left', title: hex };
+      return { text: hex, type, align: 'left' };
     }
     case 'Date': {
       const iso = isoDateText(value) ?? '';

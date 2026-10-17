@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { copyTextOf, exactCopyTextOf, visibleRows, COLLAPSED } from './tree-rows';
+import { copyTextOf, exactCopyTextOf, isShortenedValue, visibleRows, COLLAPSED } from './tree-rows';
 
 describe('copyTextOf', () => {
   it('copies an ObjectId in its mongosh form, in full', () => {
@@ -19,6 +19,11 @@ describe('copyTextOf', () => {
 
   it('copies a plain string as it is', () => {
     expect(copyTextOf('paid')).toBe('paid');
+  });
+
+  it('copies a long string in full, not the shortened cell text', () => {
+    const long = 'x'.repeat(500);
+    expect(copyTextOf(long)).toBe(long);
   });
 });
 
@@ -62,5 +67,14 @@ describe('shortened values in rows', () => {
     expect(exactCopyTextOf(preview)).toBeUndefined();
     expect(exactCopyTextOf('ok')).toBe('ok');
     expect(exactCopyTextOf({ a: 1 })).toBe('{\n  "a": 1\n}');
+  });
+});
+
+describe('isShortenedValue', () => {
+  it('is set for a long string and a marker, not for a short value', () => {
+    expect(isShortenedValue('x'.repeat(500))).toBe(true);
+    expect(isShortenedValue({ $mgTruncated: { t: 'string', n: 9 } })).toBe(true);
+    expect(isShortenedValue('ok')).toBe(false);
+    expect(isShortenedValue({ $oid: '65a1b2c3d4e5f60718293a4b' })).toBe(false);
   });
 });

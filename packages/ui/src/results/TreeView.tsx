@@ -17,6 +17,7 @@ import {
   IconChevronLeft,
   IconChevronRight,
   IconCopy,
+  IconEye,
   IconPencil,
   IconTrash,
   IconX,
@@ -27,7 +28,8 @@ import { ConfirmDialog } from '../kit/ConfirmDialog';
 import { isInsideControl } from '../kit/is-inside-control';
 import { errorText } from '../kit/notify-error';
 import { useFontScale } from '../theme/font-scale';
-import { COPY_MAX_CHARS, fullDocuments } from './full-documents';
+import { COPY_MAX_CHARS, fullDocuments, fullValueText } from './full-documents';
+import { ValueModal } from './ValueModal';
 import {
   EDIT_TYPES,
   cellView,
@@ -35,7 +37,6 @@ import {
   collectionTitle,
   editTextOf,
   editTypeOf,
-  isTruncatedValue,
   valueFromEdit,
   type EditType,
   type JsonObject,
@@ -43,8 +44,8 @@ import {
 import {
   COLLAPSED,
   childrenOf,
-  exactCopyTextOf,
   isOpen,
+  isShortenedValue,
   valueTextOf,
   visibleRows,
   type TreeRow,
@@ -138,6 +139,9 @@ export function TreeView({
   const [pendingRemoval, setPendingRemoval] = useState<TreeRow | undefined>(undefined);
   const [busy, setBusy] = useState(false);
   const [notice, setNotice] = useState<string | undefined>(undefined);
+  const [viewing, setViewing] = useState<
+    { readonly path: string; readonly load: () => Promise<string> } | undefined
+  >(undefined);
   const scroller = useRef<HTMLDivElement>(null);
   const start = Math.min(pageStart, Math.max(0, documents.length - 1));
   const rows = useMemo(
@@ -245,7 +249,10 @@ export function TreeView({
     }
   }
 
-  /** Copies a value as shown. A previewed document is read in full, and a shortened part is refused. */
+  const read = readFull ?? (() => Promise.reject(new Error('The full document is not available.')));
+  const documentOf = (row: TreeRow): JsonObject => documents[row.documentIndex] ?? {};
+
+  /** Copies a value in full. A previewed document, or a part the preview shortened, is read in full first. */
   async function copyValue(row: TreeRow): Promise<void> {
     if (row.depth === 0 && previewInfo(row.value) !== undefined) {
       try {
@@ -260,12 +267,11 @@ export function TreeView({
       }
       return;
     }
-    const text = exactCopyTextOf(row.value);
-    if (text === undefined) {
-      setNotice('This value is shortened. Copy the whole document instead.');
-      return;
+    try {
+      await copy(await fullValueText(documentOf(row), row.path, row.value, read));
+    } catch (failure) {
+      setNotice(errorText(failure));
     }
-    await copy(text);
   }
 
   return (
@@ -510,15 +516,28 @@ export function TreeView({
                   >
                     Copy path
                   </Button>
-                  <Tooltip
-                    label={isTruncatedValue(row.value) ? 'Shortened' : 'Copy value'}
-                    withArrow
-                  >
+                  {isShortenedValue(row.value) ? (
+                    <Tooltip label="View value" withArrow>
+                      <ActionIcon
+                        aria-label={`View value of ${row.path}`}
+                        size="sm"
+                        variant="subtle"
+                        onClick={() =>
+                          setViewing({
+                            path: row.path,
+                            load: () => fullValueText(documentOf(row), row.path, row.value, read),
+                          })
+                        }
+                      >
+                        <IconEye size={13} />
+                      </ActionIcon>
+                    </Tooltip>
+                  ) : null}
+                  <Tooltip label="Copy value" withArrow>
                     <ActionIcon
                       aria-label={`Copy value of ${row.path}`}
                       size="sm"
                       variant="subtle"
-                      disabled={isTruncatedValue(row.value)}
                       onClick={() => void copyValue(row)}
                     >
                       <IconClipboard size={13} />
@@ -556,6 +575,9 @@ export function TreeView({
           })}
         </div>
       </div>
+      {viewing === undefined ? null : (
+        <ValueModal path={viewing.path} load={viewing.load} onClose={() => setViewing(undefined)} />
+      )}
       {pendingRemoval === undefined ? null : (
         <ConfirmDialog
           title="Remove field"

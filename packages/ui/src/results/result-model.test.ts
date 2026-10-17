@@ -141,12 +141,11 @@ describe('discoverColumns', () => {
 });
 
 describe('cellView', () => {
-  it('shortens an ObjectId and keeps the full value as the title', () => {
+  it('shows an ObjectId in full', () => {
     expect(cellView(OID)).toEqual({
-      text: '65f0c0ff…',
+      text: '65f0c0ffee0000000000abcd',
       type: 'ObjectId',
       align: 'left',
-      title: '65f0c0ffee0000000000abcd',
     });
   });
 

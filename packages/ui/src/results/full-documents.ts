@@ -1,6 +1,7 @@
 import { AppErrorException, appError, previewInfo } from '@mongo-gui/core';
 import { withValueAtPath, withoutPath } from './document-path';
-import type { JsonObject } from './result-model';
+import { isPlainObject, type JsonObject } from './result-model';
+import { copyTextOf, exactCopyTextOf } from './tree-rows';
 
 /** Copy refuses a selection whose text would be over this many characters. */
 export const COPY_MAX_CHARS = 8 * 1024 * 1024;
@@ -64,4 +65,40 @@ export async function fullDocuments(
     }
   }
   return full;
+}
+
+/** The value at a dotted path, through objects and arrays. The empty path is the document. */
+function fieldAt(doc: JsonObject, path: string): unknown {
+  if (path === '') {
+    return doc;
+  }
+  let current: unknown = doc;
+  for (const key of path.split('.')) {
+    if (!(Array.isArray(current) || isPlainObject(current)) || !Object.hasOwn(current, key)) {
+      return undefined;
+    }
+    current = (current as Record<string, unknown>)[key];
+  }
+  return current;
+}
+
+/**
+ * The copy text of one field. A value the preview shortened is taken from the full document, so the
+ * copy holds all of it.
+ */
+export async function fullValueText(
+  doc: JsonObject,
+  path: string,
+  value: unknown,
+  read: ReadFull,
+): Promise<string> {
+  const exact = exactCopyTextOf(value);
+  if (exact !== undefined) {
+    return exact;
+  }
+  if (previewInfo(doc) === undefined) {
+    throw new AppErrorException(appError('NOT_FOUND', 'The full value is not available.'));
+  }
+  const [full] = await fullDocuments([doc], read, COPY_MAX_CHARS);
+  return copyTextOf(fieldAt(full ?? {}, path));
 }

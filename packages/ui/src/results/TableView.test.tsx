@@ -146,7 +146,7 @@ describe('TableView shortened values', () => {
     expect(screen.queryByText('$mgTruncated')).toBeNull();
   });
 
-  it('disables Copy value on a marker and copies the full document of a preview', async () => {
+  it('copies the full value of a marker from the full document', async () => {
     const writeText = vi.fn().mockResolvedValue(undefined);
     Object.defineProperty(navigator, 'clipboard', { value: { writeText }, configurable: true });
     const readFull = vi.fn().mockResolvedValue(JSON.stringify(FULL));
@@ -154,8 +154,34 @@ describe('TableView shortened values', () => {
     const cell = await screen.findByText('[…] 200000 items');
 
     fireEvent.contextMenu(cell, { clientX: 40, clientY: 50 });
-    const copyValue = await screen.findByRole('menuitem', { name: /Copy value/ });
-    expect(copyValue).toBeDisabled();
+    fireEvent.click(await screen.findByRole('menuitem', { name: /Copy value/ }));
+
+    await waitFor(() =>
+      expect(writeText).toHaveBeenLastCalledWith(JSON.stringify(FULL.big, null, 2)),
+    );
+    expect(readFull).toHaveBeenCalledWith(REF);
+  });
+
+  it('shows the full value of a marker in a modal', async () => {
+    const readFull = vi.fn().mockResolvedValue(JSON.stringify(FULL));
+    renderTable(vi.fn(), true, [PREVIEW], readFull);
+    const cell = await screen.findByText('[…] 200000 items');
+
+    fireEvent.contextMenu(cell, { clientX: 40, clientY: 50 });
+    fireEvent.click(await screen.findByRole('menuitem', { name: 'View value' }));
+
+    expect(await screen.findByRole('dialog')).toBeInTheDocument();
+    expect(readFull).toHaveBeenCalledWith(REF);
+  });
+
+  it('copies the full document of a preview', async () => {
+    const writeText = vi.fn().mockResolvedValue(undefined);
+    Object.defineProperty(navigator, 'clipboard', { value: { writeText }, configurable: true });
+    const readFull = vi.fn().mockResolvedValue(JSON.stringify(FULL));
+    renderTable(vi.fn(), true, [PREVIEW], readFull);
+    const cell = await screen.findByText('[…] 200000 items');
+
+    fireEvent.contextMenu(cell, { clientX: 40, clientY: 50 });
     fireEvent.click(await screen.findByText('Copy document'));
 
     await waitFor(() =>

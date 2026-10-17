@@ -28,7 +28,7 @@ import { TreeMenu, type TreeMenuEntry } from '../kit/TreeMenu';
 import { notifyError } from '../kit/notify-error';
 import { copyText } from '../kit/copy';
 import { compareCells } from './cell-order';
-import { COPY_MAX_CHARS, fullDocuments } from './full-documents';
+import { COPY_MAX_CHARS, fullDocuments, fullValueText } from './full-documents';
 import { jsonTextFor } from './json-text';
 import {
   BSON_TYPE_LABELS,
@@ -41,7 +41,8 @@ import {
 } from './result-model';
 import { typeBucket, typeColor } from '../schema';
 import { valueColor } from './value-color';
-import { exactCopyTextOf } from './tree-rows';
+import { isShortenedValue } from './tree-rows';
+import { ValueModal } from './ValueModal';
 import { TABLE_FONT } from '../theme/theme';
 
 ModuleRegistry.registerModules([AllCommunityModule]);
@@ -105,24 +106,34 @@ async function copyDocument(
   }
 }
 
+/** Copies a cell's value. A value the preview shortened is read in full first. */
+async function copyValue(
+  cell: Omit<CellMenuState, 'position'>,
+  readFull: (ref: string) => Promise<string>,
+): Promise<void> {
+  try {
+    await copyText(await fullValueText(cell.doc, cell.path, cell.value, readFull), 'Value copied');
+  } catch (failure) {
+    notifyError(failure, 'Copy failed');
+  }
+}
+
 /** The entries of a cell's menu. Each copies one piece of the clicked cell. */
 function cellMenuEntries(
   cell: Omit<CellMenuState, 'position'>,
   readFull: (ref: string) => Promise<string>,
+  onView: () => void,
 ): TreeMenuEntry[] {
-  const valueText = cell.value === undefined ? undefined : exactCopyTextOf(cell.value);
   return [
+    ...(cell.value !== undefined && isShortenedValue(cell.value)
+      ? [{ kind: 'item' as const, label: 'View value', onSelect: onView }]
+      : []),
     {
       kind: 'item',
       label: 'Copy value',
-      disabled: valueText === undefined,
-      reason:
-        valueText !== undefined ? undefined : cell.value === undefined ? 'missing' : 'Shortened',
-      onSelect: () => {
-        if (valueText !== undefined) {
-          void copyText(valueText, 'Value copied');
-        }
-      },
+      disabled: cell.value === undefined,
+      reason: cell.value === undefined ? 'missing' : undefined,
+      onSelect: () => void copyValue(cell, readFull),
     },
     {
       kind: 'item',
@@ -223,6 +234,9 @@ export function TableView({
 }: TableViewProps) {
   const [hidden, setHidden] = useState<readonly string[]>([]);
   const [cellMenu, setCellMenu] = useState<CellMenuState | undefined>(undefined);
+  const [viewing, setViewing] = useState<
+    { readonly path: string; readonly load: () => Promise<string> } | undefined
+  >(undefined);
   const scheme = useComputedColorScheme('dark');
   const rows = useMemo<Row[]>(() => documents.map((doc, index) => ({ index, doc })), [documents]);
   const visible = useMemo(
@@ -338,10 +352,18 @@ export function TableView({
       </Box>
       {cellMenu === undefined ? null : (
         <TreeMenu
-          entries={cellMenuEntries(cellMenu, readFull)}
+          entries={cellMenuEntries(cellMenu, readFull, () =>
+            setViewing({
+              path: cellMenu.path,
+              load: () => fullValueText(cellMenu.doc, cellMenu.path, cellMenu.value, readFull),
+            }),
+          )}
           position={cellMenu.position}
           onClose={() => setCellMenu(undefined)}
         />
+      )}
+      {viewing === undefined ? null : (
+        <ValueModal path={viewing.path} load={viewing.load} onClose={() => setViewing(undefined)} />
       )}
     </Stack>
   );

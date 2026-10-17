@@ -116,12 +116,31 @@ describe('TreeView shortened values', () => {
     return readFull;
   }
 
-  it('shows a marker as a leaf with no edit and no copy, and hides the root marker', () => {
+  it('shows a marker as a leaf with no edit, and hides the root marker', () => {
     renderPreview();
     expect(screen.getByText('[…] 200000 items')).toBeInTheDocument();
     expect(screen.queryByRole('treeitem', { name: '$mgTruncated' })).toBeNull();
     expect(screen.queryByRole('button', { name: 'Edit big' })).toBeNull();
-    expect(screen.getByRole('button', { name: 'Copy value of big' })).toBeDisabled();
+  });
+
+  it('shows the full value of a marker in a modal', async () => {
+    const readFull = renderPreview();
+
+    fireEvent.click(screen.getByRole('button', { name: 'View value of big' }));
+
+    expect(await screen.findByRole('dialog', { name: 'big' })).toBeInTheDocument();
+    expect(readFull).toHaveBeenCalledWith(REF);
+  });
+
+  it('copies the full value of a marker from the full document', async () => {
+    const writeText = vi.fn().mockResolvedValue(undefined);
+    Object.defineProperty(navigator, 'clipboard', { value: { writeText }, configurable: true });
+    const readFull = renderPreview();
+
+    fireEvent.click(screen.getByRole('button', { name: 'Copy value of big' }));
+
+    await waitFor(() => expect(writeText).toHaveBeenCalledWith(JSON.stringify([1], null, 2)));
+    expect(readFull).toHaveBeenCalledWith(REF);
   });
 
   it('copies the full document for the document row of a preview', async () => {
