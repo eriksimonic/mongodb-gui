@@ -2,6 +2,8 @@ import { describe, expect, it } from 'vitest';
 import type { PlanStage } from '@mongo-gui/core';
 import {
   ancestorIds,
+  applyLookupMeasures,
+  lookupRuns,
   barPercent,
   commandCollection,
   createIndexLine,
@@ -225,5 +227,56 @@ describe('lookupIndexUse', () => {
       collectionScans: 0,
     });
     expect(lookupIndexUse(stage('FETCH', { raw: {} }))).toBeUndefined();
+  });
+});
+
+describe('measured $lookup', () => {
+  const lookup = stage(
+    '$lookup',
+    { nReturned: 100, raw: { $lookup: { from: 'customers', as: 'c' } } },
+    [
+      stage('COLLSCAN', { nReturned: 100, docsExamined: 100 }),
+      stage('$match', { label: 'inner pipeline of $lookup from customers' }),
+    ],
+  );
+  const root = stage('$project', {}, [lookup]);
+  const inner = stage('FETCH', { docsExamined: 1, nReturned: 1, executionTimeMs: 2 }, [
+    stage('IXSCAN', { keysExamined: 1, nReturned: 1 }),
+  ]);
+
+  it('counts the runs from the documents the input returns', () => {
+    expect(lookupRuns(lookup)).toBe(100);
+    expect(lookupRuns(stage('$lookup', { nReturned: 7 }))).toBe(7);
+    expect(lookupRuns(stage('$lookup'))).toBe(1);
+  });
+
+  it('replaces the spec stages with the measured plan, scaled by the runs', () => {
+    const applied = applyLookupMeasures(root, { '0.0': { state: 'measured', inner, runs: 100 } });
+    const measured = applied.children[0]?.children ?? [];
+    expect(measured.map((child) => child.name)).toEqual(['COLLSCAN', 'FETCH']);
+    const fetch = measured[1];
+    expect(fetch?.docsExamined).toBe(100);
+    expect(fetch?.executionTimeMs).toBe(200);
+    expect(fetch?.children[0]?.keysExamined).toBe(100);
+    expect(fetch?.label).toContain('from customers');
+    expect(fetch?.label).toContain('100 runs (estimate)');
+  });
+
+  it('keeps the spec stages while a measure is running or has failed', () => {
+    const measuring = applyLookupMeasures(root, { '0.0': { state: 'measuring' } });
+    const failed = applyLookupMeasures(root, { '0.0': { state: 'failed', reason: 'nested' } });
+    for (const applied of [measuring, failed]) {
+      expect(applied.children[0]?.children.map((child) => child.name)).toEqual([
+        'COLLSCAN',
+        '$match',
+      ]);
+    }
+  });
+
+  it('leaves the plan and the measure alone when nothing is measured', () => {
+    expect(applyLookupMeasures(root, undefined)).toBe(root);
+    expect(applyLookupMeasures(root, {})).toBe(root);
+    applyLookupMeasures(root, { '0.0': { state: 'measured', inner, runs: 100 } });
+    expect(inner.docsExamined).toBe(1);
   });
 });

@@ -108,9 +108,9 @@ test('explain with executionStats, counts match the server', async ({ page, wiri
     // The first explain already runs with executionStats. Switching to queryPlanner first
     // shows the counts are gone, so the executionStats click is a real rerun.
     const verbosity = page.getByRole('radiogroup', { name: 'Verbosity' });
-    await verbosity.getByText('queryPlanner', { exact: true }).click();
+    await verbosity.getByText('Plan only', { exact: true }).click();
     await expect(summaryValue(page, 'Returned')).toHaveText('-');
-    await verbosity.getByText('executionStats', { exact: true }).click();
+    await verbosity.getByText('With stats', { exact: true }).click();
 
     const explain = (await orders
       .find({ status: 'paid' })

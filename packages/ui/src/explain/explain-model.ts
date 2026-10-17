@@ -35,7 +35,94 @@ export interface ExplainPanelState {
   readonly request: ExplainRequest;
   /** A line above the plan that says what was explained, for a measured $lookup pipeline. */
   readonly note?: string;
+  /** The measure of each $lookup stage, by stage id. A new run of the panel drops them. */
+  readonly lookupMeasures?: Readonly<Record<string, LookupMeasure>> | undefined;
   readonly outcome: ExplainOutcome;
+}
+
+/**
+ * Where the measure of one $lookup stands. A measured one holds the inner pipeline explained for
+ * one sampled document. A failed one holds the reason, so the card can say why it has no numbers.
+ */
+export type LookupMeasure =
+  | { readonly state: 'measuring' }
+  | { readonly state: 'failed'; readonly reason: string }
+  | {
+      readonly state: 'measured';
+      /** The winning plan of the inner pipeline for that one document. */
+      readonly inner: PlanStage;
+      /** How many documents reached the $lookup, so how often it runs. */
+      readonly runs: number;
+    };
+
+const LOOKUP_INNER_LABEL = 'inner pipeline of $lookup';
+
+function isLookupInner(stage: PlanStage): boolean {
+  return stage.label?.startsWith(LOOKUP_INNER_LABEL) === true;
+}
+
+/** How often a $lookup runs: the documents its input returns, or what it returns itself. */
+export function lookupRuns(stage: PlanStage): number {
+  const input = stage.children.find((child) => !isLookupInner(child));
+  return Math.max(1, input?.nReturned ?? stage.nReturned ?? 1);
+}
+
+// The collection a $lookup joins, from the raw explain node.
+function lookupFrom(raw: unknown): string {
+  const spec = (raw as { $lookup?: { from?: unknown } } | null)?.$lookup;
+  return typeof spec?.from === 'string' ? spec.from : 'another collection';
+}
+
+const SCALED_COUNTERS = [
+  'keysExamined',
+  'docsExamined',
+  'nReturned',
+  'executionTimeMs',
+  'works',
+] as const;
+
+// The counters of one run times the number of runs. The result is an estimate, not a measurement.
+function scaledStage(stage: PlanStage, times: number): PlanStage {
+  const scaled: PlanStage = {
+    ...stage,
+    children: stage.children.map((child) => scaledStage(child, times)),
+  };
+  for (const counter of SCALED_COUNTERS) {
+    const value = stage[counter];
+    if (value !== undefined) {
+      scaled[counter] = value * times;
+    }
+  }
+  return scaled;
+}
+
+/**
+ * The plan with each measured $lookup showing its measured inner pipeline, in place of the stages
+ * modelled from the pipeline spec. The counters are those of one document times the runs, and the
+ * label says so. Stage ids of the stages outside the replaced inner pipelines do not change.
+ */
+export function applyLookupMeasures(
+  root: PlanStage,
+  measures: Readonly<Record<string, LookupMeasure>> | undefined,
+  prefix: string = ROOT_STAGE_ID,
+): PlanStage {
+  if (measures === undefined || Object.keys(measures).length === 0) {
+    return root;
+  }
+  const visit = (stage: PlanStage, id: string): PlanStage => {
+    const children = stage.children.map((child, index) => visit(child, `${id}.${index}`));
+    const measure = measures[id];
+    if (measure?.state !== 'measured' || stage.name !== '$lookup') {
+      return { ...stage, children };
+    }
+    const from = lookupFrom(stage.raw);
+    const inner = {
+      ...scaledStage(measure.inner, measure.runs),
+      label: `${LOOKUP_INNER_LABEL} from ${from}, measured on 1 document and multiplied by ${measure.runs} runs (estimate)`,
+    };
+    return { ...stage, children: [...children.filter((child) => !isLookupInner(child)), inner] };
+  };
+  return visit(root, prefix);
 }
 
 /** What a dock panel keeps in its params, so the saved layout can bring the panel back. */

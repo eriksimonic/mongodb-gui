@@ -12,6 +12,9 @@ import type { AppStore } from '../state/app-store';
 import {
   commandCollection,
   explainTitle,
+  lookupRuns,
+  stageEntries,
+  type LookupMeasure,
   type ExplainPanelState,
   type ExplainRestore,
   type ExplainRequest,
@@ -23,7 +26,6 @@ import {
   measuredCommand,
   parseSample,
   sampleCode,
-  sampleNote,
 } from './lookup-measure';
 
 /** The explain actions the app store adds. Each opens or re-runs one explain panel. */
@@ -47,10 +49,12 @@ export interface ExplainActions {
   }): Promise<string>;
   /**
    * Explains the inner pipeline of a $lookup on its own, for one document that reaches the
-   * $lookup, in a new panel. Resolves to the panel id. Rejects when the plan has no echoed
-   * aggregate or no document reaches the $lookup.
+   * $lookup, and keeps the result on the panel. The plan then shows the inner stages with the
+   * counters of one document times the number of runs. Every finished aggregate explain does this
+   * for each of its $lookup stages, so this is for a retry. Rejects when the plan has no echoed
+   * aggregate, the $lookup is nested, or no document reaches it.
    */
-  measureLookup(panelId: string, stage: PlanStage): Promise<string>;
+  measureLookup(panelId: string, stageId: string, stage: PlanStage): Promise<void>;
   /**
    * Runs the panel's request again. A verbosity replaces the last one and the rest stays. Text
    * replaces the statement or command, as edited in the panel.
@@ -107,7 +111,8 @@ export function createExplainActions(
     }
     const generation = (generations.get(id) ?? 0) + 1;
     generations.set(id, generation);
-    patchPanel(id, { outcome: { state: 'loading' } });
+    // A new run gives a new plan, so the measures of the old one no longer fit its stage ids.
+    patchPanel(id, { outcome: { state: 'loading' }, lookupMeasures: undefined });
     const { request } = panel;
     const { connectionId, database, verbosity, source } = request;
     try {
@@ -124,10 +129,124 @@ export function createExplainActions(
             });
       if (generations.get(id) === generation) {
         patchPanel(id, { outcome: { state: 'ready', result } });
+        void measureAll(id);
       }
     } catch (error) {
       if (generations.get(id) === generation) {
         patchPanel(id, { outcome: { state: 'error', error: toAppError(error) } });
+      }
+    }
+  }
+
+  // The measure of one $lookup stage. A result of a run that was replaced meanwhile is dropped, because
+  // the stage ids belong to the plan of the run that started it.
+  function setMeasure(
+    panelId: string,
+    generation: number | undefined,
+    stageId: string,
+    measure: LookupMeasure,
+  ): void {
+    if (generations.get(panelId) !== generation) {
+      return;
+    }
+    const panel = get().explainPanels[panelId];
+    if (panel !== undefined) {
+      patchPanel(panelId, { lookupMeasures: { ...panel.lookupMeasures, [stageId]: measure } });
+    }
+  }
+
+  async function sampleAndExplain(
+    panel: ExplainPanelState,
+    stage: PlanStage,
+  ): Promise<{ inner: PlanStage; runs: number }> {
+    const spec = lookupSpec(stage.raw);
+    if (panel.outcome.state !== 'ready' || spec === undefined) {
+      throw new AppErrorException(appError('VALIDATION', 'This stage is not a $lookup.'));
+    }
+    const echo = echoedAggregate(panel.outcome.result.rawEjson);
+    if (echo === undefined) {
+      throw new AppErrorException(
+        appError(
+          'VALIDATION',
+          'The explain output does not echo the aggregate. Servers from 6.0 on echo it.',
+        ),
+      );
+    }
+    const position = lookupPosition(echo.pipeline, spec);
+    if (position < 0) {
+      throw new AppErrorException(
+        appError(
+          'VALIDATION',
+          'Only a $lookup at the top of the pipeline is measured. This one sits inside another stage, such as $facet or $unionWith.',
+        ),
+      );
+    }
+    const { connectionId, database } = panel.request;
+    const evaluation = await rpc.shell.evaluate({
+      connectionId,
+      database,
+      code: sampleCode(echo.collection, echo.pipeline.slice(0, position), spec),
+    });
+    if (evaluation.error !== undefined) {
+      throw new AppErrorException(evaluation.error);
+    }
+    const sample =
+      evaluation.result === undefined ? undefined : parseSample(evaluation.result.printableEjson);
+    if (sample === undefined) {
+      throw new AppErrorException(
+        appError('NOT_FOUND', 'No document reaches the $lookup, so there is nothing to measure.'),
+      );
+    }
+    const measured = await rpc.explain.runCommand({
+      connectionId,
+      database,
+      commandEjson: measuredCommand(spec, sample),
+      verbosity: 'executionStats',
+    });
+    if (measured.tree.command === 'unknown') {
+      throw new AppErrorException(
+        appError('COMMAND_FAILED', 'The server returned no plan for the inner pipeline.'),
+      );
+    }
+    return { inner: measured.tree.winning, runs: lookupRuns(stage) };
+  }
+
+  /**
+   * Explains the inner pipeline of one $lookup for one sampled document and keeps the result on
+   * the panel. A failure is kept as the reason too, and thrown so a click can tell the user.
+   */
+  async function measureOne(panelId: string, stageId: string, stage: PlanStage): Promise<void> {
+    const generation = generations.get(panelId);
+    const panel = get().explainPanels[panelId];
+    if (panel === undefined) {
+      return;
+    }
+    setMeasure(panelId, generation, stageId, { state: 'measuring' });
+    try {
+      const { inner, runs } = await sampleAndExplain(panel, stage);
+      setMeasure(panelId, generation, stageId, { state: 'measured', inner, runs });
+    } catch (error) {
+      setMeasure(panelId, generation, stageId, {
+        state: 'failed',
+        reason: toAppError(error).message,
+      });
+      throw error;
+    }
+  }
+
+  /** Measures every $lookup of a finished explain, one after the other. Failures stay on the cards. */
+  async function measureAll(panelId: string): Promise<void> {
+    const panel = get().explainPanels[panelId];
+    if (panel === undefined || panel.outcome.state !== 'ready') {
+      return;
+    }
+    const { tree } = panel.outcome.result;
+    if (tree.command !== 'aggregate' || panel.request.verbosity === 'queryPlanner') {
+      return;
+    }
+    for (const { id, stage } of stageEntries(tree.winning)) {
+      if (stage.name === '$lookup') {
+        await measureOne(panelId, id, stage).catch(() => undefined);
       }
     }
   }
@@ -222,45 +341,7 @@ export function createExplainActions(
       return id;
     },
 
-    async measureLookup(panelId, stage) {
-      const panel = get().explainPanels[panelId];
-      const spec = lookupSpec(stage.raw);
-      if (panel === undefined || panel.outcome.state !== 'ready' || spec === undefined) {
-        throw new AppErrorException(appError('VALIDATION', 'This stage is not a $lookup.'));
-      }
-      const echo = echoedAggregate(panel.outcome.result.rawEjson);
-      const position = echo === undefined ? -1 : lookupPosition(echo.pipeline, spec);
-      if (echo === undefined || position < 0) {
-        throw new AppErrorException(
-          appError(
-            'VALIDATION',
-            'The explain output does not echo the aggregate, so the $lookup cannot be measured. Servers from 6.0 on echo it.',
-          ),
-        );
-      }
-      const { connectionId, database } = panel.request;
-      const evaluation = await rpc.shell.evaluate({
-        connectionId,
-        database,
-        code: sampleCode(echo.collection, echo.pipeline.slice(0, position), spec),
-      });
-      if (evaluation.error !== undefined) {
-        throw new AppErrorException(evaluation.error);
-      }
-      const sample =
-        evaluation.result === undefined ? undefined : parseSample(evaluation.result.printableEjson);
-      if (sample === undefined) {
-        throw new AppErrorException(
-          appError('NOT_FOUND', 'No document reaches the $lookup, so there is nothing to measure.'),
-        );
-      }
-      return get().openExplainCommand({
-        connectionId,
-        database,
-        commandEjson: measuredCommand(spec, sample),
-        note: sampleNote(spec, echo.collection, sample),
-      });
-    },
+    measureLookup: measureOne,
 
     async rerunExplain(panelId, verbosity, text) {
       const panel = get().explainPanels[panelId];

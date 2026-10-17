@@ -12,7 +12,15 @@ import { IconMinus, IconPlus, IconZoomReset } from '@tabler/icons-react';
 import { notifications } from '@mantine/notifications';
 import { notifyError } from '../kit/notify-error';
 import { describeStage, type PlanStage } from '@mongo-gui/core';
-import { useEffect, useMemo, useRef, useState, type KeyboardEvent, type PointerEvent } from 'react';
+import {
+  useEffect,
+  useLayoutEffect,
+  useMemo,
+  useRef,
+  useState,
+  type KeyboardEvent,
+  type PointerEvent,
+} from 'react';
 import {
   ancestorIds,
   GRAPH_GAP_Y,
@@ -20,6 +28,7 @@ import {
   GRAPH_NODE_WIDTH,
   isMeasured,
   lookupIndexUse,
+  type LookupMeasure,
   UNMEASURED_TIP,
   planLayout,
   revealKeys,
@@ -47,7 +56,9 @@ export interface PlanGraphViewProps {
   /** Called with the picked stage, or undefined when the details pane is closed. */
   readonly onSelect: (selection: StageSelection | undefined) => void;
   /** Explains the inner pipeline of a measured $lookup on its own. No button when undefined. */
-  readonly onMeasure?: ((stage: PlanStage) => Promise<void>) | undefined;
+  readonly onMeasure?: ((id: string, stage: PlanStage) => Promise<void>) | undefined;
+  /** Where the measure of each $lookup stands, by stage id. */
+  readonly measures?: Readonly<Record<string, LookupMeasure>> | undefined;
 }
 
 const WINNING = 'winning';
@@ -55,6 +66,8 @@ const SHARD_ERROR = 'SHARD_ERROR';
 const ZOOM_STEP = 0.1;
 const ZOOM_MIN = 0.3;
 const ZOOM_MAX = 1.5;
+// One wheel notch of 100 units changes the zoom by about 15 percent.
+const WHEEL_ZOOM_RATE = 0.0015;
 const CANVAS_PAD = 16;
 const EDGE_MIN_PX = 1;
 const EDGE_EXTRA_PX = 3;
@@ -94,6 +107,7 @@ export function PlanGraphView({
   selection,
   onSelect,
   onMeasure,
+  measures,
 }: PlanGraphViewProps) {
   const [planKey, setPlanKey] = useState(WINNING);
   const rejectedIndex = planKey === WINNING ? undefined : Number(planKey);
@@ -147,6 +161,63 @@ export function PlanGraphView({
     // Only a new plan recentres. Zoom and collapse keep the scroll position the user chose.
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [plan]);
+
+  // The wheel zooms the canvas around the pointer. The graph point under the pointer stays under it.
+  const scaleNow = useRef(scale);
+  const layoutWidth = useRef(layout.width);
+  const zoomAnchor = useRef<
+    { graphX: number; graphY: number; viewX: number; viewY: number } | undefined
+  >(undefined);
+  useEffect(() => {
+    const view = scroller.current;
+    if (view === null) {
+      return undefined;
+    }
+    function onWheel(event: WheelEvent): void {
+      if (view === null) {
+        return;
+      }
+      event.preventDefault();
+      const current = scaleNow.current;
+      const next = Math.min(
+        ZOOM_MAX,
+        Math.max(ZOOM_MIN, current * Math.exp(-event.deltaY * WHEEL_ZOOM_RATE)),
+      );
+      if (next === current) {
+        return;
+      }
+      const box = view.getBoundingClientRect();
+      const viewX = event.clientX - box.left;
+      const viewY = event.clientY - box.top;
+      // A canvas narrower than the view is centred by an auto margin, so that offset counts too.
+      const margin = Math.max(
+        0,
+        (view.clientWidth - (layoutWidth.current * current + CANVAS_PAD * 2)) / 2,
+      );
+      zoomAnchor.current = {
+        graphX: (view.scrollLeft + viewX - CANVAS_PAD - margin) / current,
+        graphY: (view.scrollTop + viewY - CANVAS_PAD) / current,
+        viewX,
+        viewY,
+      };
+      setScale(next);
+    }
+    view.addEventListener('wheel', onWheel, { passive: false });
+    return () => view.removeEventListener('wheel', onWheel);
+  }, []);
+  useLayoutEffect(() => {
+    scaleNow.current = scale;
+    layoutWidth.current = layout.width;
+    const view = scroller.current;
+    const anchor = zoomAnchor.current;
+    zoomAnchor.current = undefined;
+    if (view === null || anchor === undefined) {
+      return;
+    }
+    const margin = Math.max(0, (view.clientWidth - (layout.width * scale + CANVAS_PAD * 2)) / 2);
+    view.scrollLeft = anchor.graphX * scale + CANVAS_PAD + margin - anchor.viewX;
+    view.scrollTop = anchor.graphY * scale + CANVAS_PAD - anchor.viewY;
+  }, [scale, layout.width]);
 
   const tabStop = byId.has(focusId ?? '') ? focusId : layout.nodes[0]?.id;
 
@@ -202,7 +273,11 @@ export function PlanGraphView({
   // Dragging empty canvas pans. A press on a card still selects it.
   function startPan(event: PointerEvent<HTMLDivElement>): void {
     const box = scroller.current;
-    if (box === null || event.button !== 0 || (event.target as Element).closest('.mg-explain-node')) {
+    if (
+      box === null ||
+      event.button !== 0 ||
+      (event.target as Element).closest('.mg-explain-node')
+    ) {
       return;
     }
     pan.current = { x: event.clientX, y: event.clientY, left: box.scrollLeft, top: box.scrollTop };
@@ -310,6 +385,8 @@ export function PlanGraphView({
             style={{
               width: layout.width * scale + CANVAS_PAD * 2,
               height: layout.height * scale + CANVAS_PAD * 2,
+              // A plan narrower than the view sits in the middle. A wider one scrolls from its root.
+              marginInline: 'auto',
             }}
           >
             <div
@@ -365,11 +442,12 @@ export function PlanGraphView({
                     onSelect({ id: node.id });
                   }}
                   onToggle={() => toggle(node.id)}
+                  measure={measures?.[node.id]}
                   onMeasure={
                     onMeasure !== undefined &&
                     node.stage.name === '$lookup' &&
                     isMeasured(node.stage)
-                      ? () => onMeasure(node.stage)
+                      ? () => onMeasure(node.id, node.stage)
                       : undefined
                   }
                 />
@@ -432,6 +510,7 @@ interface StageCardProps {
   readonly onClick: () => void;
   readonly onToggle: () => void;
   readonly onMeasure: (() => Promise<void>) | undefined;
+  readonly measure: LookupMeasure | undefined;
 }
 
 function StageCard({
@@ -445,8 +524,8 @@ function StageCard({
   onClick,
   onToggle,
   onMeasure,
+  measure,
 }: StageCardProps) {
-  const [measuring, setMeasuring] = useState(false);
   const { stage } = node;
   const info = describeStage(stage.name);
   const failed = stage.name === SHARD_ERROR;
@@ -516,20 +595,24 @@ function StageCard({
             {formatCount(scans)} collection {scans === 1 ? 'scan' : 'scans'}
           </Badge>
         ) : null}
-        {onMeasure === undefined ? null : (
+        {measure?.state === 'failed' ? (
+          <Text size="xs" c="dimmed" ml="auto" title={measure.reason}>
+            Not measured
+          </Text>
+        ) : null}
+        {onMeasure === undefined || measure?.state === 'measured' ? null : (
           <Button
             size="compact-xs"
             variant="light"
-            ml="auto"
-            loading={measuring}
-            title="Explain the inner pipeline on its own, for one document that reaches this $lookup"
+            ml={measure?.state === 'failed' ? 4 : 'auto'}
+            loading={measure?.state === 'measuring'}
+            title="Explain the inner pipeline for one document that reaches this $lookup. The plan then shows its numbers times the runs, as an estimate."
             onClick={(event) => {
               event.stopPropagation();
-              setMeasuring(true);
-              void onMeasure().finally(() => setMeasuring(false));
+              void onMeasure();
             }}
           >
-            Measure
+            {measure?.state === 'failed' ? 'Retry' : 'Measure'}
           </Button>
         )}
       </div>
@@ -672,7 +755,9 @@ function StageDetails({ stage, onClose }: StageDetailsProps) {
           {showRaw ? 'Hide raw' : 'Show raw'}
         </Button>
       </div>
-      {showRaw ? <pre className="mg-explain-details-code">{rawWithoutInputs(stage.raw)}</pre> : null}
+      {showRaw ? (
+        <pre className="mg-explain-details-code">{rawWithoutInputs(stage.raw)}</pre>
+      ) : null}
     </aside>
   );
 }

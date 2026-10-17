@@ -154,7 +154,7 @@ describe('ExplainPanel verbosity and re-run', () => {
     const api = await connectedApi();
     const run = vi.spyOn(api.rpc.explain, 'run');
     renderPanel(api, panelFor(SORT_FIXTURE));
-    fireEvent.click(screen.getByText('queryPlanner'));
+    fireEvent.click(screen.getByText('Plan only'));
     await waitFor(() => {
       expect(run).toHaveBeenCalledWith({
         connectionId: localConnectionId,

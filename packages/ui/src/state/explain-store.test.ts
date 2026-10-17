@@ -247,3 +247,83 @@ describe('restoreExplain', () => {
     expect(first).not.toBe(second);
   });
 });
+
+describe('automatic $lookup measure', () => {
+  const LOOKUP_CODE = `db.orders.aggregate([{ $lookup: { from: 'customers', localField: 'customerId', foreignField: '_id', as: 'customer' } }])`;
+
+  async function lookupApi(echoed: boolean) {
+    const api = createMockUiApi({ preset: 'unlocked' });
+    await api.rpc.connections.connect({ id: localConnectionId });
+    const plan = await api.rpc.explain.run({
+      connectionId: localConnectionId,
+      database: 'shop',
+      code: LOOKUP_CODE,
+      verbosity: 'executionStats',
+    });
+    // The echoed pipeline holds the $lookup spec the plan shows, as the server echoes it.
+    const command = {
+      aggregate: 'orders',
+      pipeline: [{ $lookup: (plan.tree.winning.raw as { $lookup: unknown }).$lookup }],
+    };
+    vi.spyOn(api.rpc.explain, 'run').mockResolvedValue({
+      ...plan,
+      rawEjson: JSON.stringify(echoed ? { command } : {}),
+    });
+    vi.spyOn(api.rpc.shell, 'evaluate').mockResolvedValue({
+      result: { printableEjson: JSON.stringify(JSON.stringify({ local: [7] })) },
+    } as never);
+    const inner = vi.spyOn(api.rpc.explain, 'runCommand').mockResolvedValue(plan);
+    return { api, inner };
+  }
+
+  it('measures each $lookup of a finished explain without a click', async () => {
+    const { api, inner } = await lookupApi(true);
+    const store = await connectedStore(api);
+    const id = await store.getState().openExplain({
+      connectionId: localConnectionId,
+      database: 'shop',
+      code: LOOKUP_CODE,
+    });
+    await vi.waitFor(() => {
+      expect(Object.values(store.getState().explainPanels[id]?.lookupMeasures ?? {})).toHaveLength(
+        1,
+      );
+      expect(
+        Object.values(store.getState().explainPanels[id]?.lookupMeasures ?? {})[0]?.state,
+      ).toBe('measured');
+    });
+    expect(inner).toHaveBeenCalledTimes(1);
+    expect(Object.keys(store.getState().explainPanels)).toEqual([id]);
+  });
+
+  it('keeps the reason on the card when the output does not echo the aggregate', async () => {
+    const { api } = await lookupApi(false);
+    const store = await connectedStore(api);
+    const id = await store.getState().openExplain({
+      connectionId: localConnectionId,
+      database: 'shop',
+      code: LOOKUP_CODE,
+    });
+    await vi.waitFor(() => {
+      const measures = Object.values(store.getState().explainPanels[id]?.lookupMeasures ?? {});
+      expect(measures[0]?.state).toBe('failed');
+    });
+    const failed = Object.values(store.getState().explainPanels[id]?.lookupMeasures ?? {})[0];
+    expect(failed?.state === 'failed' && failed.reason).toContain('does not echo');
+  });
+
+  it('drops the measures when the panel runs again', async () => {
+    const { api } = await lookupApi(true);
+    const store = await connectedStore(api);
+    const id = await store.getState().openExplain({
+      connectionId: localConnectionId,
+      database: 'shop',
+      code: LOOKUP_CODE,
+    });
+    await vi.waitFor(() => {
+      expect(store.getState().explainPanels[id]?.lookupMeasures).toBeDefined();
+    });
+    await store.getState().rerunExplain(id, 'queryPlanner');
+    expect(store.getState().explainPanels[id]?.lookupMeasures).toBeUndefined();
+  });
+});

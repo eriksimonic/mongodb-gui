@@ -577,7 +577,7 @@
 }
 
 .mg-explain-command {
-  position: relative;
+  display: flex;
   flex: none;
   overflow: hidden;
   border: 1px solid var(--mg-border);
@@ -628,6 +628,23 @@
   background: var(--mg-surface-3);
 }
 
+/* The verbosity control and Re-run share one height, so the row reads as one toolbar. */
+.mg-explain-toolbar .mantine-SegmentedControl-root,
+.mg-explain-toolbar .mantine-Button-root {
+  height: var(--button-height-xs);
+}
+
+.mg-explain-toolbar .mantine-SegmentedControl-root {
+  align-items: stretch;
+}
+
+.mg-explain-toolbar .mantine-SegmentedControl-label {
+  display: flex;
+  align-items: center;
+  height: 100%;
+  padding-block: 0;
+}
+
 .mg-explain .mantine-Tabs-tab[data-active] {
   border-bottom-color: var(--mg-accent);
   color: var(--mg-accent-text);
@@ -641,9 +658,13 @@
   background: color-mix(in srgb, var(--mg-accent) 14%, transparent);
 }
 
+.mg-explain-command-editor {
+  flex: 1 1 auto;
+  min-width: 0;
+}
+
+/* A strip beside the editor, so the toggle never sits on the editor's scrollbar. */
 .mg-explain-command-toggle {
-  position: absolute;
-  top: 4px;
-  right: 4px;
-  z-index: 2;
+  flex: none;
+  margin: 4px;
 }

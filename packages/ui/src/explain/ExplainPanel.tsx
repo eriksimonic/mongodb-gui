@@ -8,6 +8,7 @@ import {
   Stack,
   Tabs,
   Text,
+  Tooltip,
 } from '@mantine/core';
 import { IconRefresh } from '@tabler/icons-react';
 import {
@@ -17,10 +18,15 @@ import {
   type PlanTree,
   type PlanVerbosity,
 } from '@mongo-gui/core';
-import { useState } from 'react';
+import { useMemo, useState } from 'react';
 import { errorText, notifyError } from '../kit/notify-error';
 import { useAppStore } from '../state/app-store-context';
-import { stageIdByName, type ExplainPanelState } from './explain-model';
+import {
+  applyLookupMeasures,
+  stageIdByName,
+  type ExplainPanelState,
+  type LookupMeasure,
+} from './explain-model';
 import { ExplainIndexSuggestion, ExplainSummaryBar, ExplainWarnings } from './ExplainParts';
 import { CommandEditor } from './CommandEditor';
 import { ExplainRaw } from './ExplainRaw';
@@ -35,7 +41,32 @@ export interface ExplainPanelProps {
 
 const VERBOSITIES = PlanVerbositySchema.options;
 
-const VERBOSITY_DATA = VERBOSITIES.map((value) => ({ value, label: value }));
+// The server names stay in the hover text, so a reader can match them to the docs and the raw output.
+const VERBOSITY_TEXT: Readonly<
+  Record<PlanVerbosity, { readonly label: string; readonly hint: string }>
+> = {
+  queryPlanner: {
+    label: 'Plan only',
+    hint: 'queryPlanner: shows the plan the server picks. The query does not run.',
+  },
+  executionStats: {
+    label: 'With stats',
+    hint: 'executionStats: runs the query and shows the counts and timings of each stage.',
+  },
+  allPlansExecution: {
+    label: 'All plans',
+    hint: 'allPlansExecution: runs the query and also shows the plans the server tried and rejected.',
+  },
+};
+
+const VERBOSITY_DATA = VERBOSITIES.map((value) => ({
+  value,
+  label: (
+    <Tooltip label={VERBOSITY_TEXT[value].hint} withArrow openDelay={300} multiline maw={280}>
+      <span>{VERBOSITY_TEXT[value].label}</span>
+    </Tooltip>
+  ),
+}));
 
 const VIEW_DATA = [
   { value: 'graph', label: 'Graph' },
@@ -72,6 +103,8 @@ function ExplainPanelBody({ panel }: { readonly panel: ExplainPanelState }) {
       <CommandEditor
         value={draft}
         language={request.source.kind === 'statement' ? 'mongosh' : 'json'}
+        connectionId={request.connectionId}
+        database={request.database}
         onChange={setDraft}
         onRun={run}
       />
@@ -82,7 +115,7 @@ function ExplainPanelBody({ panel }: { readonly panel: ExplainPanelState }) {
       )}
 
       <Group gap={8} wrap="wrap" justify="space-between">
-        <Group gap={8} wrap="wrap">
+        <Group gap={8} wrap="wrap" align="center" className="mg-explain-toolbar">
           {refused ? null : (
             <SegmentedControl
               size="xs"
@@ -170,6 +203,7 @@ function ExplainPanelBody({ panel }: { readonly panel: ExplainPanelState }) {
               panelId={panel.id}
               tree={outcome.result.tree}
               collection={panel.collection}
+              measures={panel.lookupMeasures}
               selection={selection}
               onSelect={setSelection}
             />
@@ -191,17 +225,24 @@ interface PlanViewProps {
   readonly panelId: string;
   readonly tree: PlanTree;
   readonly collection: string | undefined;
+  readonly measures: Readonly<Record<string, LookupMeasure>> | undefined;
   readonly selection: StageSelection | undefined;
   readonly onSelect: (selection: StageSelection | undefined) => void;
 }
 
-function PlanView({ panelId, tree, collection, selection, onSelect }: PlanViewProps) {
+function PlanView({ panelId, tree, collection, measures, selection, onSelect }: PlanViewProps) {
   const [view, setView] = useState<'graph' | 'list'>('graph');
   const measureLookup = useAppStore((state) => state.measureLookup);
 
-  async function measure(stage: PlanStage): Promise<void> {
+  // The measured inner pipelines replace the spec-modelled stages under their $lookup.
+  const winning = useMemo(
+    () => applyLookupMeasures(tree.winning, measures),
+    [tree.winning, measures],
+  );
+
+  async function measure(id: string, stage: PlanStage): Promise<void> {
     try {
-      await measureLookup(panelId, stage);
+      await measureLookup(panelId, id, stage);
     } catch (error) {
       notifyError(error, 'The $lookup could not be measured');
     }
@@ -216,7 +257,7 @@ function PlanView({ panelId, tree, collection, selection, onSelect }: PlanViewPr
       <ExplainWarnings
         warnings={tree.warnings}
         onSelect={(stageName) => {
-          const id = stageIdByName(tree.winning, stageName);
+          const id = stageIdByName(winning, stageName);
           if (id !== undefined) {
             onSelect({ id });
           }
@@ -233,16 +274,17 @@ function PlanView({ panelId, tree, collection, selection, onSelect }: PlanViewPr
       />
       {view === 'graph' ? (
         <PlanGraphView
-          root={tree.winning}
+          root={winning}
           rejected={tree.rejected}
           selection={selection}
           onSelect={onSelect}
           onMeasure={measure}
+          measures={measures}
         />
       ) : (
         <div className="mg-explain-list-area">
           <PlanTreeView
-            root={tree.winning}
+            root={winning}
             rejected={tree.rejected}
             selection={selection}
             onSelect={onSelect}
