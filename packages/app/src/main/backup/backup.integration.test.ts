@@ -177,6 +177,8 @@ describe.skipIf(!hasTools).each(IMAGES)('backup and restore with the real tools 
     await client?.close();
     await mongo?.stop();
     if (work !== undefined) rmSync(work, { recursive: true, force: true });
+    // beforeAll failed before any events were recorded. Return so its error is the one reported.
+    if (events === undefined) return;
     // Nothing the app emitted or wrote may carry the password.
     expect(JSON.stringify(events)).not.toContain(SECRET);
     for (const text of sidecarTexts) expect(text).not.toContain(SECRET);

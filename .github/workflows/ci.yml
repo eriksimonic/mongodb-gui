@@ -266,7 +266,7 @@ jobs:
           - package: mongo-adapter
             images: mongo:4.4 mongo:6.0 mongo:8.0.17
           - package: app
-            images: mongo:8.0.17
+            images: mongo:4.4 mongo:8.0.17
           - package: shell-runtime
             images: mongo:6.0 mongo:8.0.17
           # The forwarder suite starts FORWARDER_IMAGE from packages/docker/src/forwarder.ts.
