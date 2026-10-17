@@ -25,7 +25,7 @@ const ERROR_LINE =
   /Error|Uncaught|"level":"error"|ERROR:|"message":"rpc (method unknown|input rejected)"/;
 
 /**
- * Known harmless messages from Chromium on Linux runners. Add an entry only with a reason.
+ * Known harmless messages from Chromium on the CI runners and on desktop displays. Add an entry only with a reason.
  * Each pattern must match one exact message type, so a new error still fails the run.
  */
 export const HARMLESS_LOG_PATTERNS: readonly {
@@ -47,6 +47,16 @@ export const HARMLESS_LOG_PATTERNS: readonly {
     pattern: /ERROR:ui\/events\/platform\/wayland\/wayland_event_watcher\.cc:\d+\] libwayland:/,
     reason:
       'libwayland reports tablet proxies still attached when Electron exits on a Wayland display. Harmless.',
+  },
+  {
+    pattern: /ERROR:base\/process\/process_mac\.cc:\d+\] task_policy_set TASK_\w+_POLICY:/,
+    reason:
+      'The macOS CI runners refuse the task policy Chromium asks for at start-up. The app still runs.',
+  },
+  {
+    pattern: /ERROR:components\/viz\/service\/display\/display\.cc:\d+\] Frame latency is negative/,
+    reason:
+      'Chromium compares frame timestamps from two clocks and logs a small negative latency on some displays. Harmless.',
   },
 ];
 
