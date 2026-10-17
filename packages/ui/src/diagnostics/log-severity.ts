@@ -5,7 +5,7 @@ export interface SeverityStyle {
   readonly tint: boolean;
 }
 
-/** The colour of a mongod log severity: F and E red, W orange, I blue, D1 to D5 grey. */
+/** The colour of a mongod log severity: F and E red, W orange, I and D1 to D5 grey, D1 to D5 grey. */
 export function severityStyle(severity: string | undefined): SeverityStyle {
   switch (severity?.charAt(0)) {
     case 'F':
@@ -15,7 +15,7 @@ export function severityStyle(severity: string | undefined): SeverityStyle {
     case 'W':
       return { label: 'Warning', color: 'orange', tint: true };
     case 'I':
-      return { label: 'Info', color: 'blue', tint: false };
+      return { label: 'Info', color: 'gray', tint: false };
     case 'D':
       return { label: 'Debug', color: 'gray', tint: false };
     default:

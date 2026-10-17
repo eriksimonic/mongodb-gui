@@ -16,10 +16,11 @@ import {
   Tooltip,
 } from '@mantine/core';
 import { IconDotsVertical, IconPlus, IconRefresh } from '@tabler/icons-react';
-import { useCallback, useEffect, useState, type ReactNode } from 'react';
+import { useCallback, useEffect, useState } from 'react';
 import { useStore } from 'zustand';
 import type { ReplicaSetMember } from '@mongo-gui/core';
 import { useUiApi } from '../api/ui-api';
+import { StatCard } from '../kit/StatCard';
 import { errorText } from '../kit/notify-error';
 import { usePolling } from '../kit/use-polling';
 import { FreezeDialog, InitiateDialog, StepDownDialog } from './ReplicationDialogs';
@@ -344,33 +345,6 @@ function DialogHost({
     case 'member':
       return <MemberDialog mode={dialog.mode} setName={setName} store={store} onClose={onClose} />;
   }
-}
-
-interface StatCardProps {
-  readonly label: string;
-  readonly value: string;
-  readonly mono?: boolean;
-  readonly children?: ReactNode;
-}
-
-function StatCard({ label, value, mono = false, children }: StatCardProps) {
-  return (
-    <Box
-      p="sm"
-      style={{ border: '1px solid var(--mg-border)', borderRadius: 8 }}
-      data-testid={`stat-${label}`}
-    >
-      <Text size="sm" c="dimmed">
-        {label}
-      </Text>
-      <Text fz={22} fw={600} ff={mono ? 'monospace' : 'text'}>
-        {value}
-      </Text>
-      <Text size="xs" c="dimmed" mih={16}>
-        {children}
-      </Text>
-    </Box>
-  );
 }
 
 interface MemberRowProps {

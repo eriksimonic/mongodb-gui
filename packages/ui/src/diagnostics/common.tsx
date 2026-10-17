@@ -116,6 +116,45 @@ export function KeyValueTable({ rows }: { readonly rows: readonly KeyValueRow[] 
   );
 }
 
+/** A bordered card with a title and label and value rows. Each value has a copy button. */
+export function KeyValueCard({
+  title,
+  rows,
+}: {
+  readonly title: string;
+  readonly rows: readonly KeyValueRow[];
+}) {
+  return (
+    <Box style={{ border: '1px solid var(--mg-border)', borderRadius: 8 }} p="md">
+      <Text fw={600} mb="xs">
+        {title}
+      </Text>
+      {rows.map((row) => {
+        const missing = row.value === undefined || row.value === '';
+        return (
+          <Group
+            key={row.label}
+            wrap="nowrap"
+            gap="sm"
+            py={7}
+            style={{ borderBottom: '1px solid var(--mg-border)' }}
+          >
+            <Text size="sm" c="dimmed" w={150} style={{ flexShrink: 0 }}>
+              {row.label}
+            </Text>
+            <Text size="sm" style={{ flex: 1, minWidth: 0, wordBreak: 'break-all' }}>
+              {missing ? '-' : row.value}
+            </Text>
+            {missing || typeof row.value !== 'string' ? null : (
+              <CopyIcon text={row.value} label={`Copy ${row.label}`} />
+            )}
+          </Group>
+        );
+      })}
+    </Box>
+  );
+}
+
 export interface SectionProps {
   readonly title: string;
   readonly children: ReactNode;

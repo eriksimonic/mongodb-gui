@@ -1,4 +1,6 @@
 import {
+  AppErrorException,
+  appError,
   rpcContract,
   type CollectionStats,
   type DatabaseStats,
@@ -38,6 +40,8 @@ export function createDiagnosticsCalls(context: MockDiagnosticsContext): RpcClie
   const { latencyMs } = context;
   const calls = rpcContract.diagnostics;
   const sessions = new Map<string, MockSession[]>();
+  // Values the user changed, per connection, so the next read shows them.
+  const changed = new Map<string, Map<string, unknown>>();
 
   function sessionsOf(connectionId: string): MockSession[] {
     let rows = sessions.get(connectionId);
@@ -81,7 +85,36 @@ export function createDiagnosticsCalls(context: MockDiagnosticsContext): RpcClie
     }),
     parameters: method(calls.parameters, latencyMs, ({ connectionId }) => {
       context.guard(connectionId);
-      return fixtureParameters();
+      const overrides = changed.get(connectionId);
+      return fixtureParameters().map((parameter) =>
+        overrides?.has(parameter.name) === true
+          ? {
+              name: parameter.name,
+              value: overrides.get(parameter.name),
+              valueEjson: JSON.stringify(overrides.get(parameter.name)),
+            }
+          : parameter,
+      );
+    }),
+    setParameter: method(calls.setParameter, latencyMs, ({ connectionId, name, value }) => {
+      context.guard(connectionId);
+      const current = fixtureParameters().find((parameter) => parameter.name === name);
+      if (current === undefined) {
+        throw new AppErrorException(appError('COMMAND_FAILED', `no such parameter: ${name}`));
+      }
+      if (STARTUP_ONLY.has(name)) {
+        throw new AppErrorException(
+          appError(
+            'COMMAND_FAILED',
+            `Server Parameter: '${name}' is only settable at startup time`,
+          ),
+        );
+      }
+      const overrides = changed.get(connectionId) ?? new Map<string, unknown>();
+      const was = overrides.has(name) ? overrides.get(name) : current.value;
+      overrides.set(name, value);
+      changed.set(connectionId, overrides);
+      return { was };
     }),
     hostInfo: method(calls.hostInfo, latencyMs, ({ connectionId }) => {
       context.guard(connectionId);
@@ -136,6 +169,12 @@ export function createDiagnosticsCalls(context: MockDiagnosticsContext): RpcClie
     ),
   };
 }
+
+/** Parameters the mock refuses to change, the way a real server refuses a startup-only one. */
+const STARTUP_ONLY: ReadonlySet<string> = new Set([
+  'authenticationMechanisms',
+  'featureCompatibilityVersion',
+]);
 
 function matchesUser(info: SessionInfo, user: SessionUserInput): boolean {
   return info.name === user.user && info.db === user.db;

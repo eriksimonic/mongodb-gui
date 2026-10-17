@@ -16,6 +16,7 @@
   --mg-surface-3: #2a2927;
   --mg-border: #2e2c29;
   --mg-border-strong: #403d39;
+  --mg-control-border: #7a756b;
   --mg-hover: #33312e;
   --mg-selected: #3a2f14;
   --mg-text: #d3d0cb;
@@ -56,6 +57,7 @@
   --mg-surface-3: #eceae5;
   --mg-border: #e4e1da;
   --mg-border-strong: #d0ccc3;
+  --mg-control-border: #8a857a;
   --mg-hover: #e8e5df;
   --mg-selected: #f8e7bd;
   --mg-text: #3d3a35;
@@ -95,6 +97,12 @@
 .mantine-Input-input::placeholder {
   color: var(--mg-text-muted);
   opacity: 1;
+}
+
+.mantine-Checkbox-input:not(:checked),
+.mantine-Radio-radio:not(:checked) {
+  /* A box with the soft panel border disappears on light surfaces. */
+  border-color: var(--mg-control-border);
 }
 
 .mantine-Button-root:disabled,

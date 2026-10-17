@@ -1,10 +1,12 @@
-import { Table, TextInput } from '@mantine/core';
+import { ActionIcon, Group, Table, TextInput, Tooltip } from '@mantine/core';
+import { IconPencil } from '@tabler/icons-react';
 import { useEffect, useMemo, useState } from 'react';
 import type { ServerParameter } from '@mongo-gui/core';
 import { useStore } from 'zustand';
 import { CopyIcon, LoadState, ScrollLayout, Toolbar } from './common';
 import type { DiagnosticsStore } from './diagnostics-store';
-import { filterParameters, valueColor, valueText } from './parameter-search';
+import { ParameterEditDialog } from './ParameterEditDialog';
+import { editableValue, filterParameters, valueColor, valueText } from './parameter-search';
 
 const NO_PARAMETERS: readonly ServerParameter[] = [];
 
@@ -16,7 +18,9 @@ export interface ParametersTabProps {
 export function ParametersTab({ store }: ParametersTabProps) {
   const state = useStore(store, (current) => current.parameters);
   const load = useStore(store, (current) => current.loadParameters);
+  const set = useStore(store, (current) => current.setParameter);
   const [query, setQuery] = useState('');
+  const [editing, setEditing] = useState<ServerParameter | undefined>(undefined);
 
   useEffect(() => {
     void load();
@@ -51,7 +55,7 @@ export function ParametersTab({ store }: ParametersTabProps) {
               <Table.Tr>
                 <Table.Th w="40%">Name</Table.Th>
                 <Table.Th>Value</Table.Th>
-                <Table.Th w={40} />
+                <Table.Th w={72} />
               </Table.Tr>
             </Table.Thead>
             <Table.Tbody>
@@ -75,10 +79,27 @@ export function ParametersTab({ store }: ParametersTabProps) {
                     {valueText(parameter)}
                   </Table.Td>
                   <Table.Td>
-                    <CopyIcon
-                      text={`${parameter.name}: ${valueText(parameter)}`}
-                      label={`Copy ${parameter.name}`}
-                    />
+                    <Group gap={2} wrap="nowrap">
+                      <CopyIcon
+                        text={`${parameter.name}: ${valueText(parameter)}`}
+                        label={`Copy ${parameter.name}`}
+                      />
+                      <Tooltip
+                        label="Only a plain value can be changed here"
+                        withArrow
+                        disabled={editableValue(parameter) !== undefined}
+                      >
+                        <ActionIcon
+                          variant="subtle"
+                          size="sm"
+                          aria-label={`Edit ${parameter.name}`}
+                          disabled={editableValue(parameter) === undefined}
+                          onClick={() => setEditing(parameter)}
+                        >
+                          <IconPencil size={14} />
+                        </ActionIcon>
+                      </Tooltip>
+                    </Group>
                   </Table.Td>
                 </Table.Tr>
               ))}
@@ -86,6 +107,14 @@ export function ParametersTab({ store }: ParametersTabProps) {
           </Table>
         )}
       </LoadState>
+      {editing === undefined ? null : (
+        <ParameterEditDialog
+          parameter={editing}
+          current={editableValue(editing) ?? valueText(editing)}
+          onSet={set}
+          onClose={() => setEditing(undefined)}
+        />
+      )}
     </ScrollLayout>
   );
 }

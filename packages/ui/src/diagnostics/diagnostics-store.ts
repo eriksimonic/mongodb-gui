@@ -53,6 +53,8 @@ export interface DiagnosticsState {
   readonly selected: readonly string[];
   loadLog(kind: ServerLogKind): Promise<void>;
   loadParameters(): Promise<void>;
+  /** Sets one parameter on the server, then reads the parameters again. */
+  setParameter(name: string, value: string | number | boolean): Promise<void>;
   loadServerStatus(): Promise<void>;
   loadHostAndBuild(): Promise<void>;
   loadTop(): Promise<void>;
@@ -135,6 +137,11 @@ export function createDiagnosticsStore(
 
       async loadParameters() {
         await read('parameters', () => client.parameters({ connectionId }));
+      },
+
+      async setParameter(name, value) {
+        await client.setParameter({ connectionId, name, value });
+        await get().loadParameters();
       },
 
       async loadServerStatus() {

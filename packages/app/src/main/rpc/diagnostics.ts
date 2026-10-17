@@ -1,4 +1,6 @@
 import {
+  AppErrorException,
+  appError,
   capDiagnosticText,
   isSecretKey,
   redactArgv,
@@ -27,6 +29,7 @@ import {
   killSessions,
   listSessions,
   serverStatusDocument,
+  setParameter,
   toCanonicalEjson,
 } from '@mongo-gui/mongo-adapter';
 import { connectionCalls, type Operation } from './operation';
@@ -61,6 +64,15 @@ export function diagnosticsOperations(deps: DiagnosticsDeps): [string, Operation
     readOnly('diagnostics.parameters', d.parameters, async (client) =>
       (await getParameters(client)).map(redactParameter),
     ),
+    readOnly('diagnostics.setParameter', d.setParameter, (client, input) => {
+      // The panel shows a masked value for these, so a change would be blind.
+      if (isSecretKey(input.name)) {
+        throw new AppErrorException(
+          appError('VALIDATION', `${input.name} holds a secret and cannot be changed here`),
+        );
+      }
+      return setParameter(client, input.name, input.value);
+    }),
     readOnly('diagnostics.hostInfo', d.hostInfo, (client) => getHostInfo(client)),
     readOnly('diagnostics.buildInfo', d.buildInfo, (client) => getBuildInfo(client)),
     readOnly('diagnostics.serverStatus', d.serverStatus, async (client) => {

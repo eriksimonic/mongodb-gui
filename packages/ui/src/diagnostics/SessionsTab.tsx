@@ -1,5 +1,4 @@
 import { Alert, Button, Checkbox, Group, Switch, Table, Text, Tooltip } from '@mantine/core';
-import { IconTrash } from '@tabler/icons-react';
 import type { SessionInfo, SessionUserInput } from '@mongo-gui/core';
 import { useEffect, useState } from 'react';
 import { useStore } from 'zustand';
@@ -45,7 +44,27 @@ export function SessionsTab({ store }: SessionsTabProps) {
   return (
     <ScrollLayout
       toolbar={
-        <Toolbar loading={state.loading} onRefresh={() => void load()}>
+        <Toolbar
+          loading={state.loading}
+          onRefresh={() => void load()}
+          status={
+            <Group gap="sm" wrap="nowrap">
+              <span>
+                {rows.length} {rows.length === 1 ? 'session' : 'sessions'}
+                {selected.length === 0 ? '' : ` · ${selected.length} selected`}
+              </span>
+              <Button
+                size="xs"
+                color="red"
+                variant="outline"
+                disabled={selected.length === 0}
+                onClick={() => setConfirmation({ kind: 'selected' })}
+              >
+                Kill selected ({selected.length})
+              </Button>
+            </Group>
+          }
+        >
           <Switch
             label="All users in the cluster"
             aria-label="All users in the cluster"
@@ -53,16 +72,6 @@ export function SessionsTab({ store }: SessionsTabProps) {
             onChange={(event) => void load(event.currentTarget.checked)}
             size="xs"
           />
-          <Button
-            size="xs"
-            color="red"
-            variant="light"
-            leftSection={<IconTrash size={14} />}
-            disabled={selected.length === 0}
-            onClick={() => setConfirmation({ kind: 'selected' })}
-          >
-            Kill selected ({selected.length})
-          </Button>
         </Toolbar>
       }
     >
@@ -86,7 +95,7 @@ export function SessionsTab({ store }: SessionsTabProps) {
                   {showDatabase ? <Table.Th>Database</Table.Th> : null}
                   <Table.Th>Session id</Table.Th>
                   <Table.Th>Last use</Table.Th>
-                  <Table.Th w={130}>Actions</Table.Th>
+                  <Table.Th w={130} />
                 </Table.Tr>
               </Table.Thead>
               <Table.Tbody>
@@ -165,7 +174,9 @@ function SessionRow({ session, showDatabase, checked, onToggle, onKillUser }: Se
   const canKillUser = user !== undefined && db !== undefined;
   const userText = user ?? session.user ?? session.userId ?? '(no user)';
   return (
-    <Table.Tr>
+    <Table.Tr
+      style={checked ? { background: 'color-mix(in srgb, var(--mg-accent) 14%, transparent)' } : {}}
+    >
       <Table.Td>
         <Checkbox
           size="xs"
@@ -205,7 +216,7 @@ function SessionRow({ session, showDatabase, checked, onToggle, onKillUser }: Se
         >
           <Button
             size="compact-xs"
-            variant="light"
+            variant="subtle"
             color="red"
             disabled={!canKillUser}
             onClick={() => {

@@ -1,4 +1,4 @@
-import type { ServerParameter } from '@mongo-gui/core';
+import { isSecretKey, type ServerParameter } from '@mongo-gui/core';
 
 /** Parameters whose name or value text contains the query, case-insensitive. */
 export function filterParameters(
@@ -39,4 +39,21 @@ export function valueColor(text: string): string | undefined {
     return 'dimmed';
   }
   return text !== '' && Number.isFinite(Number(text)) ? 'orange' : undefined;
+}
+
+/** The value types a parameter can be changed to from the panel. */
+export type ParameterValue = string | number | boolean;
+
+/**
+ * The plain value of a parameter the panel can change, or undefined for an object, an array, a cut
+ * value or a masked secret.
+ */
+export function editableValue(parameter: ServerParameter): ParameterValue | undefined {
+  const { value } = parameter;
+  if (parameter.truncated === true || isSecretKey(parameter.name)) {
+    return undefined;
+  }
+  return typeof value === 'string' || typeof value === 'number' || typeof value === 'boolean'
+    ? value
+    : undefined;
 }
