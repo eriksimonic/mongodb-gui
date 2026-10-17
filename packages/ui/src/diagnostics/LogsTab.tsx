@@ -13,15 +13,7 @@ import {
 import { useVirtualizer } from '@tanstack/react-virtual';
 import { IconChevronDown, IconChevronRight, IconCopy, IconSearch } from '@tabler/icons-react';
 import type { LogLine, ServerLogKind } from '@mongo-gui/core';
-import {
-  memo,
-  useCallback,
-  useEffect,
-  useMemo,
-  useRef,
-  useState,
-  type CSSProperties,
-} from 'react';
+import { memo, useCallback, useEffect, useMemo, useRef, useState, type CSSProperties } from 'react';
 import { useStore } from 'zustand';
 import { copyText } from '../kit/copy';
 import { usePolling } from '../kit/use-polling';

@@ -72,7 +72,9 @@ test('test connection in the dialog fails for an unreachable server', async ({ p
 
   await page.goto(wiring.url);
   const dialog = await openNewConnectionDialog(page);
-  await dialog.getByRole('textbox', { name: 'Connection string', exact: true }).fill(UNREACHABLE_URI);
+  await dialog
+    .getByRole('textbox', { name: 'Connection string', exact: true })
+    .fill(UNREACHABLE_URI);
   await dialog.getByRole('button', { name: 'Test connection', exact: true }).click();
 
   // The message names the refused port, so the failure is the bad address and not a generic error.

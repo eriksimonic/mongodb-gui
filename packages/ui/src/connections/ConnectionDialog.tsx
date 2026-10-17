@@ -364,11 +364,21 @@ function UriChips({ uri }: { readonly uri: string }) {
   return (
     <Group gap="xs">
       {parsed.ok ? (
-        <Badge variant="outline" color="green" className="mg-dialog-chip" leftSection={<IconCheck size={12} />}>
+        <Badge
+          variant="outline"
+          color="green"
+          className="mg-dialog-chip"
+          leftSection={<IconCheck size={12} />}
+        >
           Valid
         </Badge>
       ) : (
-        <Badge variant="outline" color="red" className="mg-dialog-chip" leftSection={<IconAlertCircle size={12} />}>
+        <Badge
+          variant="outline"
+          color="red"
+          className="mg-dialog-chip"
+          leftSection={<IconAlertCircle size={12} />}
+        >
           {parsed.message}
         </Badge>
       )}
