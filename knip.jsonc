@@ -1,0 +1,70 @@
+{
+  "$schema": "https://unpkg.com/knip@6/schema.json",
+  // Production mode: only code reachable from the entry points marked with "!" counts as used.
+  // Tests, stories and test helpers do not keep anything alive.
+  "ignoreExportsUsedInFile": true,
+  // Exports kept on purpose. Tests and the e2e wiring server use them, and the app does not.
+  "ignoreIssues": {
+    "packages/app/src/main/shell/child.ts": ["exports"],
+    "packages/ui/src/kit/code/editor-theme.ts": ["exports"],
+    "packages/ui/src/results/result-export.ts": ["exports"],
+  },
+  "workspaces": {
+    ".": { "entry": [], "project": [] },
+    "packages/app": {
+      "entry": [
+        "src/main/index.ts!",
+        "src/preload/index.ts!",
+        "src/renderer/main.tsx!",
+        "scripts/*.ts",
+      ],
+      "project": ["src/**/*.{ts,tsx}!", "scripts/**/*.ts"],
+    },
+    "packages/ui": {
+      "entry": ["src/browser-main.tsx!", "src/index.ts!"],
+      "project": ["src/**/*.{ts,tsx}!"],
+      // The fonts load through CSS imports, which knip does not read.
+      "ignoreDependencies": [
+        "@fontsource-variable/inter",
+        "@fontsource-variable/manrope",
+        "@fontsource/jetbrains-mono",
+      ],
+    },
+    "packages/core": {
+      "entry": ["src/index.ts!", "src/rpc/channels.ts!"],
+      "project": ["src/**/*.ts!"],
+    },
+    "packages/mongo-adapter": { "entry": ["src/index.ts!"], "project": ["src/**/*.ts!"] },
+    "packages/storage": {
+      "entry": ["src/index.ts!", "src/spill/index.ts!"],
+      "project": ["src/**/*.ts!"],
+    },
+    "packages/docker": { "entry": ["src/index.ts!"], "project": ["src/**/*.ts!"] },
+    "packages/shell-runtime": {
+      // src/main.ts is the entry of the bundle, but knip does not follow its imports. The modules it
+      // starts are listed here instead.
+      "entry": [
+        "src/index.ts!",
+        "src/main.ts!",
+        "src/session.ts!",
+        "src/host.ts!",
+        "src/transport.ts!",
+      ],
+      "project": ["src/**/*.ts!"],
+    },
+  },
+  "ignore": [
+    "**/*.test.{ts,tsx}",
+    "**/test-support/**",
+    "**/*.stories.tsx",
+    "**/test/**",
+    // Dev scripts that capture fixtures, and mock data that only stories and tests read.
+    "packages/core/src/explain/fixtures/capture/**",
+    "packages/storage/src/store/fixtures.ts",
+    "packages/ui/src/api/connected-mock.ts",
+    "packages/ui/src/api/explain-fixture-panels.ts",
+    "packages/ui/src/management/mock-index-scenarios.ts",
+    "packages/ui/src/profiler/mock-scenarios.ts",
+    "packages/ui/src/schema/schema-fixtures.ts",
+  ],
+}
