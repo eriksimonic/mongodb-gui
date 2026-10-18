@@ -163,6 +163,7 @@ function toNameEntry(raw: unknown): CatalogNames['databases'][number]['collectio
 
 function groupCatalog(rows: unknown[]): CatalogNames {
   const byDb = new Map<string, CatalogNames['databases'][number]['collections']>();
+  const seen = new Set<string>();
   for (const row of rows) {
     const db = readString(row, 'db');
     const name = readString(row, 'name');
@@ -175,6 +176,12 @@ function groupCatalog(rows: unknown[]): CatalogNames {
         : readRecord(readRecord(readRecord(row, 'md'), 'options'), 'timeseries') !== undefined
           ? 'timeseries'
           : 'collection';
+    // mongos returns a collection once per shard that holds it.
+    const id = `${db}\0${name}`;
+    if (seen.has(id)) {
+      continue;
+    }
+    seen.add(id);
     const list = byDb.get(db) ?? [];
     list.push({ name, type });
     byDb.set(db, list);

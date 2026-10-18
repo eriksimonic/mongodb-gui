@@ -46,6 +46,24 @@ describe('catalogNamesFrom', () => {
     ]);
   });
 
+  it('lists a collection once when mongos returns it for every shard', async () => {
+    const result = await catalogNamesFrom(
+      source({
+        catalog: () =>
+          Promise.resolve([
+            { db: 'local', name: 'startup_log', type: 'collection' },
+            { db: 'local', name: 'startup_log', type: 'collection' },
+            { db: 'config', name: 'clusterParameters', type: 'collection' },
+            { db: 'config', name: 'clusterParameters', type: 'collection' },
+          ]),
+      }),
+    );
+    expect(result.databases.map((db) => [db.name, db.collections.length])).toEqual([
+      ['config', 1],
+      ['local', 1],
+    ]);
+  });
+
   it('falls back on code 40324, skips failing databases, and remembers the refusal', async () => {
     const memo = { unsupported: false };
     const src = source();
