@@ -54,7 +54,7 @@ hierarchy.
 - The editor runs mongosh statements with completion for collections, fields and operators. It runs multi-statement scripts and prints their output.
 - SQL mode runs a T-SQL subset against collections. The tab shows the translated mongosh beside the editor, read only.
 - Results open as a grid, an expandable tree with inline edits, or read-only JSON.
-- Explain shows the plan of find, aggregate, count, distinct, update and delete as a stage tree, with warnings.
+- Explain shows the plan of find, aggregate, count, distinct, update and delete as a graph of stage cards, with warnings.
 - Generate data inserts made-up documents with unique fields, a preview and cancel.
 
 **Manage**
@@ -76,15 +76,29 @@ hierarchy.
 
 ## Screenshots
 
-The screenshots show version 0.1.0, except the SQL mode and backup screenshots, which show the next release.
-
 ![Query editor with the documents of a find shown as a grid](docs/screenshots/query.png)
 
 Results of a find open as a grid. The tree and JSON views show the same result.
 
 A SQL tab shows the mongosh it runs, beside the editor.
 
+![SQL tab with a join and a GROUP BY, and the translated aggregate beside it](docs/screenshots/sql.png)
+
+The monitoring dashboard charts server metrics as they arrive.
+
+![Monitoring dashboard with the KPI row and the charts for operations, connections, network, memory and queued operations](docs/screenshots/monitoring.png)
+
+Explain shows the plan of an aggregate as a graph of stage cards, with the measured `$lookup` pipeline beside the outer plan.
+
 ![Explain panel with the summary, the warnings and the plan graph](docs/screenshots/explain.png)
+
+The profiler lists slow operations and the top query shapes of a database.
+
+![Profiler of the shop database with the slow queries tab](docs/screenshots/profiler.png)
+
+Diagnostics show the server log with filters for level, component and text.
+
+![Diagnostics with the server log tab](docs/screenshots/diagnostics.png)
 
 ## Development
 

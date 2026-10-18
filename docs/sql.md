@@ -278,6 +278,8 @@ Syntax and input:
 
 ## Examples
 
+![SQL tab with a join, GROUP BY, HAVING and ORDER BY, and the mongosh it translates to](screenshots/sql.png)
+
 ### Filtered find with sort and TOP
 
 ```sql

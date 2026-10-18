@@ -118,7 +118,7 @@ An explain with "Verbosity" set to "With stats" or "All plans" runs the query on
 server. A query that scans a large collection takes as long as the query itself.
 
 1. Set "Verbosity" to "Plan only" (`queryPlanner`) first. The server returns the plan without running the query.
-2. Read the stage tree. A "COLLSCAN" stage means the query scans the collection. Find the field
+2. Read the plan graph. A "COLLSCAN" stage means the query scans the collection. Find the field
    the query filters or sorts on.
 3. Create an index on that field in the "Indexes" panel. Then explain again.
 4. Use "With stats" (`executionStats`) only when you need the counts and the timings.

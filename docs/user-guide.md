@@ -1,6 +1,6 @@
 # User guide
 
-This guide describes the Mongo GUI desktop app as shipped in version 0.1.0. Labels in
+This guide describes the Mongo GUI desktop app as shipped in version 0.4.0. Labels in
 quotes are the text on the buttons, menus and fields.
 
 ## Contents
@@ -519,6 +519,8 @@ Open a document from the results to edit it.
 
 ## Monitoring
 
+![Monitoring dashboard with the KPI row and the charts for operations, connections, network, memory and queued operations](screenshots/monitoring.png)
+
 Open the "Monitor" panel from "Monitoring" in the connection menu, or from the Monitoring node in the tree.
 The dashboard charts server metrics in panels. Each panel shows one group of metrics, such as
 operations per second, connections, memory, the WiredTiger cache or replication lag.
@@ -985,7 +987,7 @@ Cmd+, on macOS. The screen has these sections:
 - About. The version, the project page and the project licence, which is Apache 2.0 with the
   Commons Clause.
 
-The menu bar is hidden. Press Alt to show it. The layout of panels and the window size are saved. The next launch opens where you left off.
+The window has no system title bar. The header holds its own minimise, maximise and close buttons. The layout of panels and the window size are saved. The next launch opens where you left off.
 
 To read the keyboard shortcuts, choose "Keyboard shortcuts" from the "Help" menu in the toolbar,
 or press Shift+?. See [shortcuts.md](shortcuts.md) for the full list.
