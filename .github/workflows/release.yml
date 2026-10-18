@@ -99,18 +99,18 @@ jobs:
         run: |
           release=packages/app/release
           case "$RUNNER_OS" in
-            Windows) exe="$release/win-unpacked/Mongo GUI.exe" ;;
+            Windows) exe="$release/win-unpacked/mongo-gui.exe" ;;
             Linux) exe="$release/linux-unpacked/mongo-gui" ;;
             macOS)
               exe=
               for dir in "$release"/mac-arm64 "$release"/mac; do
-                if [ -d "$dir/Mongo GUI.app" ]; then
-                  exe="$dir/Mongo GUI.app/Contents/MacOS/Mongo GUI"
+                if [ -d "$dir/mongo-gui.app" ]; then
+                  exe="$dir/mongo-gui.app/Contents/MacOS/mongo-gui"
                   break
                 fi
               done
               if [ -z "$exe" ]; then
-                echo "::error::No 'Mongo GUI.app' under $release/mac-arm64 or $release/mac. Found:"
+                echo "::error::No 'mongo-gui.app' under $release/mac-arm64 or $release/mac. Found:"
                 ls "$release"
                 exit 1
               fi
