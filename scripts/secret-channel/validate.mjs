@@ -49,7 +49,10 @@ function runTool(binary, args, { yaml, stdin }) {
       child.stdout.on('data', (chunk) => (output += chunk));
       child.stderr.on('data', (chunk) => (output += chunk));
       child.on('error', fail);
-      const timer = setTimeout(() => child.kill(), 60_000);
+      const timer = setTimeout(() => {
+        console.log(`tool still running after 60s, killing: ${binary} ${args.join(' ')}\n${output}`);
+        child.kill('SIGKILL');
+      }, 60_000);
       if (!isWindows) {
         // Opening a FIFO for writing waits until the tool opens it for reading.
         open(pipePath, 'w')
@@ -106,6 +109,12 @@ function filesContaining(root, text, depth = 3, found = []) {
 }
 
 const tmpBefore = new Set(readdirSync(tmpdir()));
+// A hang must fail the run in minutes, not hold the runner.
+setTimeout(() => {
+  console.log('FAIL watchdog: the validation ran for more than 5 minutes');
+  process.exit(3);
+}, 300_000).unref();
+
 const work = mkdtempSync(join(tmpdir(), 'secret-channel-'));
 const archive = join(work, 'dump.archive');
 const client = new MongoClient(baseUri);
@@ -141,6 +150,7 @@ try {
     { yaml: 'uri: mongodb://127.0.0.1:1/?serverSelectionTimeoutMS=2000&connectTimeoutMS=2000\n' },
   );
   check('a config with an unreachable host fails, so the pipe content is really used', bad.code !== 0, `exit ${bad.code}`);
+  if (bad.code === 0) console.log(bad.output);
 
   // Only entries that appeared during the run, since the temp dir can be huge.
   const leaks = readdirSync(tmpdir())
