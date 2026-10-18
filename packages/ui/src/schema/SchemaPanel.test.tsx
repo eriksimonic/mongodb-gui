@@ -72,7 +72,7 @@ describe('SchemaPanel', () => {
     });
     expect(screen.getByText(/Sampled 240 of 240 documents/)).toBeInTheDocument();
     expect(screen.getByText('Fields')).toBeInTheDocument();
-    expect(pathsShown()).toEqual(['_id', 'customerId', 'name', 'qty', 'status']);
+    expect(pathsShown()).toEqual(['_id', 'customerId', 'name', 'qty', 'status', 'total']);
     const status = rowFor('status');
     expect(within(status).getByRole('img', { name: /Types: String 100%/ })).toBeInTheDocument();
     expect(within(status).getByRole('img', { name: '100% of documents' })).toBeInTheDocument();
@@ -139,14 +139,14 @@ describe('SchemaPanel', () => {
     await analyse();
 
     fireEvent.click(screen.getByRole('button', { name: 'Sort by Path' }));
-    expect(pathsShown()).toEqual(['_id', 'customerId', 'name', 'qty', 'status']);
+    expect(pathsShown()).toEqual(['_id', 'customerId', 'name', 'qty', 'status', 'total']);
     expect(screen.getByRole('columnheader', { name: /Path/ })).toHaveAttribute(
       'aria-sort',
       'ascending',
     );
 
     fireEvent.click(screen.getByRole('button', { name: 'Sort by Path' }));
-    expect(pathsShown()).toEqual(['status', 'qty', 'name', 'customerId', '_id']);
+    expect(pathsShown()).toEqual(['total', 'status', 'qty', 'name', 'customerId', '_id']);
   });
 
   it('sorts by the number of types, most first when chosen', async () => {

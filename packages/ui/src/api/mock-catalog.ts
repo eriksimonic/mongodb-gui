@@ -132,13 +132,18 @@ export function defaultIndexName(keys: Record<string, unknown>): string {
     .join('_');
 }
 
+const COUNTRIES = ['DE', 'FR', 'SI', 'IT', 'AT', 'ES', 'NL', 'PL'];
+
 export function documentsFor(name: string, count: number): MockDocument[] {
   return Array.from({ length: Math.min(count, MOCK_MAX_DOCUMENTS) }, (_, index) => ({
     _id: { $oid: objectIdHex(index + 1) },
     name: `${name}-${index + 1}`,
     status: index % 3 === 0 ? 'pending' : 'paid',
-    customerId: `C-${(index % 40) + 1}`,
+    // Each customer has its own id, so an order joins to one customer.
+    customerId: `C-${name === 'customers' ? index + 1 : (index % 40) + 1}`,
     qty: (index % 7) + 1,
+    ...(name === 'orders' ? { total: ((index * 37) % 190) + 10 } : {}),
+    ...(name === 'customers' ? { country: COUNTRIES[index % COUNTRIES.length] } : {}),
   }));
 }
 

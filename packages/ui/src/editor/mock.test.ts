@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest';
 import type { RpcEvent } from '@mongo-gui/core';
 import { createMockUiApi } from '../api/mock-rpc-client';
 import { localConnectionId } from '../api/mock-fixtures';
+import { parseSample, sampleCode } from '../explain/lookup-measure';
 
 const DATABASE = 'shop';
 const COLLECTION = 'orders';
@@ -18,6 +19,57 @@ function batchOf(printable: string): { cursorHasMore: boolean; documents: unknow
 }
 
 describe('mock shell', () => {
+  it('runs a join with a group, a having match and a sort', async () => {
+    const { api } = connectedApi();
+    await api.rpc.connections.connect({ id: localConnectionId });
+    const evaluation = await api.rpc.shell.evaluate({
+      connectionId: localConnectionId,
+      database: DATABASE,
+      code: `db.orders.aggregate([
+        { $match: { status: 'paid' } },
+        { $lookup: { from: 'customers', localField: 'customerId', foreignField: 'customerId', as: 'c' } },
+        { $unwind: '$c' },
+        { $group: { _id: '$c.country', orders: { $sum: 1 }, revenue: { $sum: '$total' } } },
+        { $match: { revenue: { $gt: 100 } } },
+        { $project: { _id: 0, country: '$_id', orders: 1, revenue: 1 } },
+        { $sort: { revenue: -1 } }
+      ])`,
+    });
+    const rows = batchOf(evaluation.result?.printableEjson ?? '').documents as {
+      country: string;
+      revenue: { $numberInt: string };
+    }[];
+    expect(rows.map((row) => row.country).sort()).toEqual([
+      'AT',
+      'DE',
+      'ES',
+      'FR',
+      'IT',
+      'NL',
+      'PL',
+      'SI',
+    ]);
+    const revenues = rows.map((row) => Number(row.revenue.$numberInt));
+    expect(revenues).toEqual([...revenues].sort((a, b) => b - a));
+  });
+
+  it('answers the $lookup sampling code with a sample parseSample reads', async () => {
+    const { api } = connectedApi();
+    await api.rpc.connections.connect({ id: localConnectionId });
+    const code = sampleCode('orders', [], {
+      from: 'customers',
+      as: 'customer',
+      localField: 'customerId',
+      foreignField: '_id',
+    });
+    const evaluation = await api.rpc.shell.evaluate({
+      connectionId: localConnectionId,
+      database: DATABASE,
+      code,
+    });
+    expect(parseSample(evaluation.result?.printableEjson ?? '')).toEqual({ vars: {}, local: 1 });
+  });
+
   it('refuses evaluate for a connection that is not open', async () => {
     const { api } = connectedApi();
     await expect(

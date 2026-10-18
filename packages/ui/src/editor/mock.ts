@@ -9,6 +9,7 @@ import {
   type ShellResult,
 } from '@mongo-gui/core';
 import type { MockCollection, MockDatabase } from '../api/mock-catalog';
+import { parsePipeline, runPipeline } from './mock-aggregate';
 
 export type MockShellEmit = (event: RpcEvent) => void;
 
@@ -26,7 +27,8 @@ interface EvaluationInput {
   readonly batchSize: number;
 }
 
-// What a statement of the fake evaluator does. Anything else echoes the code as a string.
+// What a statement of the fake evaluator does. The $lookup sampling code of the explain panel gets a
+// fixed sample document. Anything else echoes the code as a string.
 type Statement =
   | { readonly kind: 'print'; readonly args: readonly string[] }
   | { readonly kind: 'sleep'; readonly ms: number }
@@ -35,9 +37,12 @@ type Statement =
       readonly collection: string;
       readonly aggregate: boolean;
       readonly limit: number | undefined;
+      /** The text of an aggregate's pipeline, in mongosh notation. */
+      readonly pipelineText?: string;
     }
   | { readonly kind: 'count'; readonly collection: string }
   | { readonly kind: 'getName' }
+  | { readonly kind: 'lookupSample' }
   | { readonly kind: 'echo' }
   | { readonly kind: 'syntax'; readonly message: string };
 
@@ -97,6 +102,14 @@ export function createMockShell(
         return Promise.resolve(
           value({ type: 'string', printableEjson: JSON.stringify(input.code), hasMore: false }),
         );
+      case 'lookupSample':
+        return Promise.resolve(
+          value({
+            type: 'string',
+            printableEjson: JSON.stringify(JSON.stringify({ vars: {}, local: [1] })),
+            hasMore: false,
+          }),
+        );
       case 'getName':
         return Promise.resolve(
           value({ type: 'string', printableEjson: JSON.stringify(input.database), hasMore: false }),
@@ -127,7 +140,7 @@ export function createMockShell(
             : failure('CANCELLED', 'The operation was cancelled'),
         );
       case 'documents': {
-        const all = collectionDocuments(input.connectionId, input.database, statement.collection);
+        const all = documentsOf(input, statement);
         const documents = statement.limit === undefined ? all : all.slice(0, statement.limit);
         const batch = documents.slice(0, input.batchSize);
         const hasMore = batch.length < documents.length;
@@ -148,6 +161,25 @@ export function createMockShell(
         );
       }
     }
+  }
+
+  // The documents a find or aggregate reads. An aggregate runs its pipeline when every stage is one
+  // the mock understands, and otherwise reads the whole collection.
+  function documentsOf(
+    input: EvaluationInput,
+    statement: Extract<Statement, { kind: 'documents' }>,
+  ): readonly unknown[] {
+    const pipeline =
+      statement.pipelineText === undefined ? undefined : parsePipeline(statement.pipelineText);
+    if (pipeline !== undefined) {
+      const raw = (name: string): readonly Record<string, unknown>[] =>
+        collectionOf(input.connectionId, input.database, name)?.documents ?? [];
+      const result = runPipeline(pipeline, raw(statement.collection), raw);
+      if (result !== undefined) {
+        return result.map(toCanonical);
+      }
+    }
+    return collectionDocuments(input.connectionId, input.database, statement.collection);
   }
 
   // Resolves true when the sleep ends and false when cancel ends it first.
@@ -295,21 +327,49 @@ export function parseStatement(code: string): Statement {
   const query = new RegExp(`^db\\.(${IDENTIFIER})\\.(find|aggregate)\\(`).exec(text);
   if (query !== null) {
     const limit = /\.limit\((\d+)\)/.exec(text);
+    const pipelineText =
+      query[2] === 'aggregate' ? argumentOf(text, query[0].length - 1) : undefined;
     return {
       kind: 'documents',
       collection: query[1] ?? '',
       aggregate: query[2] === 'aggregate',
       limit: limit === null ? undefined : Number(limit[1]),
+      ...(pipelineText === undefined ? {} : { pipelineText }),
     };
   }
   const count = new RegExp(`^db\\.(${IDENTIFIER})\\.countDocuments\\(`).exec(text);
   if (count !== null) {
     return { kind: 'count', collection: count[1] ?? '' };
   }
+  if (text.startsWith('(() => {') && text.includes('EJSON.parse(')) {
+    return { kind: 'lookupSample' };
+  }
   if (text === 'db.getName()') {
     return { kind: 'getName' };
   }
   return { kind: 'echo' };
+}
+
+/** The text between the parenthesis at `open` and its closing one, skipping quoted text. */
+function argumentOf(text: string, open: number): string | undefined {
+  let depth = 0;
+  let quote: string | undefined;
+  for (let index = open; index < text.length; index += 1) {
+    const char = text.charAt(index);
+    if (quote !== undefined) {
+      quote = char === quote ? undefined : quote;
+    } else if (char === '"' || char === "'") {
+      quote = char;
+    } else if (char === '(') {
+      depth += 1;
+    } else if (char === ')') {
+      depth -= 1;
+      if (depth === 0) {
+        return text.slice(open + 1, index);
+      }
+    }
+  }
+  return undefined;
 }
 
 // Numbers are written the way canonical EJSON writes them: int32 values with $numberInt, the rest
