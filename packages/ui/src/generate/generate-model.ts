@@ -96,10 +96,6 @@ export function starterFields(): FieldDraft[] {
   ];
 }
 
-/** The reason the job cannot start, or the job input in the shape the router takes. */
-export type DraftResult<T> =
-  { readonly ok: true; readonly value: T } | { readonly ok: false; readonly message: string };
-
 function fieldsOf(fields: readonly FieldDraft[]): GenerateField[] {
   return fields.map((field) => ({
     name: field.name,

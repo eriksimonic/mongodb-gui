@@ -9,7 +9,6 @@ import {
   isUninitiatedError,
   memberMeaning,
   configDiff,
-  oplogWindowLabel,
   rowsToTags,
   tagsToRows,
 } from './replication-model';
@@ -50,21 +49,6 @@ describe('formatLag', () => {
     expect(formatLag(184)).toBe('3 min 4 s');
     expect(formatLag(3720)).toBe('1 h 2 min');
     expect(formatDuration(59)).toBe('59 s');
-  });
-});
-
-describe('oplogWindowLabel', () => {
-  it('shows the window and the configured size', () => {
-    const status = statusWith({
-      oplog: {
-        firstTs: '2026-10-09T09:00:00.000Z',
-        lastTs: '2026-10-09T10:00:00.000Z',
-        windowSeconds: 3600,
-        sizeMb: 512,
-      },
-    });
-    expect(oplogWindowLabel(status)).toBe('1 h 0 min of 512 MB');
-    expect(oplogWindowLabel(statusWith())).toBe('Unknown');
   });
 });
 

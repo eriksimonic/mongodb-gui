@@ -87,16 +87,6 @@ export function formatDuration(totalSeconds: number): string {
   return `${seconds} s`;
 }
 
-/** The oplog window in the header, with the configured size when the status reports it. */
-export function oplogWindowLabel(status: ReplicaSetStatus): string {
-  const oplog = status.oplog;
-  if (oplog === undefined) {
-    return 'Unknown';
-  }
-  const window = formatDuration(Math.round(oplog.windowSeconds));
-  return oplog.sizeMb === undefined ? window : `${window} of ${oplog.sizeMb} MB`;
-}
-
 /** An instant as "now", "N s ago", "N min ago" or "N h ago" relative to `nowMs`. */
 export function formatAgo(iso: string, nowMs: number): string {
   const seconds = Math.max(0, Math.round((nowMs - Date.parse(iso)) / 1000));
@@ -122,13 +112,6 @@ export function memberCounts(status: ReplicaSetStatus): { healthy: number; major
     healthy: status.members.filter((member) => member.health === 1).length,
     majority: status.majorityVoteCount ?? Math.floor(voting / 2) + 1,
   };
-}
-
-/** The oplog window without the size. The size is the card's second line. */
-export function oplogWindowText(status: ReplicaSetStatus): string {
-  return status.oplog === undefined
-    ? 'Unknown'
-    : formatDuration(Math.round(status.oplog.windowSeconds));
 }
 
 /** The secondaries that can take over from the primary: healthy, voting and above priority 0. */

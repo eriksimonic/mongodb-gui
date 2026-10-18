@@ -7,12 +7,9 @@ import {
   newPrivilegeDraft,
   privilegeFromDraft,
   privilegesFromDrafts,
-  privilegeSummary,
-  resourceLabel,
   roleGroups,
   roleRefFromValue,
   roleValue,
-  toggleAction,
   type PrivilegeDraft,
 } from './privilege-model';
 
@@ -196,28 +193,6 @@ describe('privilegesFromDrafts', () => {
   });
 });
 
-describe('resource text', () => {
-  it('reads each resource as the editor names it', () => {
-    expect(resourceLabel({ cluster: true })).toBe('Cluster');
-    expect(resourceLabel({ anyResource: true })).toBe('Any resource');
-    expect(resourceLabel({ db: '', collection: '' })).toBe('Any database');
-    expect(resourceLabel({ db: 'shop', collection: '' })).toBe('Database shop');
-    expect(resourceLabel({ db: 'shop', collection: 'orders' })).toBe('shop.orders');
-    expect(resourceLabel({ db: 'shop', system_buckets: 'events' })).toBe(
-      'Time series buckets of shop.events',
-    );
-  });
-
-  it('summarises a privilege as its actions and its resource', () => {
-    expect(
-      privilegeSummary({
-        resource: { db: 'shop', collection: 'orders' },
-        actions: ['find', 'insert'],
-      }),
-    ).toBe('find, insert on shop.orders');
-  });
-});
-
 describe('actionGroups', () => {
   it('lists the categories in order and drops the empty ones', () => {
     const groups = actionGroups(CATALOG);
@@ -236,15 +211,6 @@ describe('actionGroups', () => {
       'listIndexes',
     ]);
     expect(actionGroups(CATALOG, 'nothing like this')).toEqual([]);
-  });
-});
-
-describe('toggleAction', () => {
-  it('adds an absent action and removes a present one, without touching the input', () => {
-    const actions = ['find'];
-    expect(toggleAction(actions, 'insert')).toEqual(['find', 'insert']);
-    expect(toggleAction(actions, 'find')).toEqual([]);
-    expect(actions).toEqual(['find']);
   });
 });
 

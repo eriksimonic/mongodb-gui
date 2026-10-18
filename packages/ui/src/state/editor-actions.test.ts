@@ -5,7 +5,8 @@ import { localConnectionId } from '../api/mock-fixtures';
 const UNLISTED_CONNECTION = '99999999-9999-4999-8999-999999999999';
 import { connectedMockApi } from '../api/connected-mock';
 import type { UiApi } from '../api/ui-api';
-import { editorUiEvents, type EditorUiEvent } from '../editor';
+import { editorUiEvents } from '../editor';
+import type { EditorUiEvent } from '../editor/editor-events';
 import { createAppStore, type AppStore } from './app-store';
 import { EMPTY_EDITORS, layoutKeyFor, savedTabsOf } from './editors';
 

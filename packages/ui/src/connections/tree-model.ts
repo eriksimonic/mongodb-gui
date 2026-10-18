@@ -630,38 +630,6 @@ export function parentKeyOf(rows: readonly TreeRow[], key: string): string | und
   return rows.find((row) => row.key === key)?.parentKey;
 }
 
-/** The scope and text of a quick find. It filters the children of one parent. */
-export interface TreeFilter {
-  readonly parentKey: string | undefined;
-  readonly text: string;
-}
-
-/**
- * Hides the children of `filter.parentKey` whose label does not contain the text, case
- * insensitive, together with their descendants. Rows outside that parent stay.
- */
-export function filterTreeRows(rows: readonly TreeRow[], filter: TreeFilter): TreeRow[] {
-  const needle = filter.text.toLowerCase();
-  const kept: TreeRow[] = [];
-  let hiddenDepth: number | undefined;
-  for (const row of rows) {
-    if (hiddenDepth !== undefined && row.depth > hiddenDepth) {
-      continue;
-    }
-    hiddenDepth = undefined;
-    if (
-      row.kind !== 'message' &&
-      row.parentKey === filter.parentKey &&
-      !row.label.toLowerCase().includes(needle)
-    ) {
-      hiddenDepth = row.depth;
-      continue;
-    }
-    kept.push(row);
-  }
-  return kept;
-}
-
 export interface TreeSearchResult {
   readonly rows: TreeRow[];
   /** All matches, including those past the cap. */
@@ -751,10 +719,6 @@ export function searchTreeIndex(
     servers: kept.filter((row) => row.kind === 'connection').map((row) => row.label),
     capped: matches > cap,
   };
-}
-
-export function searchTreeRows(rows: readonly TreeRow[], text: string): TreeSearchResult {
-  return searchTreeIndex(indexTreeRows(rows), text);
 }
 
 /**

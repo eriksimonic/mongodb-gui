@@ -2,8 +2,6 @@
 // so the app takes one document that reaches the $lookup, binds its `let` values into the inner
 // pipeline, and explains that pipeline on its own against the joined collection.
 
-import { compactJson } from './explain-model';
-
 type Json = Record<string, unknown>;
 
 function asObject(value: unknown): Json | undefined {
@@ -183,16 +181,4 @@ export function measuredCommand(spec: LookupSpec, sample: LookupSample): string 
   }
   stages.push(...(spec.pipeline ?? []).map((stage) => bindVariables(stage, sample.vars)));
   return JSON.stringify({ aggregate: spec.from, pipeline: stages, cursor: {} });
-}
-
-/** A short line that says which document the measured plan is for. */
-export function sampleNote(spec: LookupSpec, collection: string, sample: LookupSample): string {
-  const values = Object.entries(sample.vars).map(
-    ([name, value]) => `$$${name} = ${compactJson(value)}`,
-  );
-  if (spec.localField !== undefined) {
-    values.push(`${spec.localField} = ${compactJson(sample.local ?? null)}`);
-  }
-  const bound = values.length === 0 ? '' : ` with ${values.join(', ')}`;
-  return `Inner pipeline of $lookup from ${spec.from}, measured for one document of ${collection}${bound}. The $lookup runs it once per document, so other documents can give other numbers.`;
 }

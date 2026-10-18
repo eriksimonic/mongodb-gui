@@ -191,31 +191,6 @@ export function privilegesFromDrafts(
   return { privileges };
 }
 
-/** A text the resource of a privilege reads as, for the table and the editor. */
-export function resourceLabel(resource: PrivilegeResource): string {
-  if ('cluster' in resource) {
-    return 'Cluster';
-  }
-  if ('anyResource' in resource) {
-    return 'Any resource';
-  }
-  if ('system_buckets' in resource) {
-    return `Time series buckets of ${resource.db}.${resource.system_buckets}`;
-  }
-  if (resource.db === '' && resource.collection === '') {
-    return 'Any database';
-  }
-  if (resource.collection === '') {
-    return `Database ${resource.db}`;
-  }
-  return `${resource.db}.${resource.collection}`;
-}
-
-/** One line for a privilege: its actions, then the resource. */
-export function privilegeSummary(privilege: Privilege): string {
-  return `${privilege.actions.join(', ')} on ${resourceLabel(privilege.resource)}`;
-}
-
 /**
  * The action picker's groups, in catalog order. A query keeps the actions whose name contains it,
  * ignoring case, and drops the groups that end up empty.
@@ -232,13 +207,6 @@ export function actionGroups(catalog: PrivilegeActionCatalog, query = ''): Actio
     }
   }
   return groups;
-}
-
-/** Adds the action when it is absent and removes it when it is present. */
-export function toggleAction(actions: readonly string[], action: string): string[] {
-  return actions.includes(action)
-    ? actions.filter((item) => item !== action)
-    : [...actions, action];
 }
 
 /** A role reference as one picker value. The database comes first, and database names have no slash. */

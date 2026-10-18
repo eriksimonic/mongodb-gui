@@ -20,5 +20,3 @@ export interface ChartWindow {
 
 /** Plot height including the axes, so the x-axis labels always fit inside the card. */
 export const CHART_HEIGHT_PX = 176;
-/** A chart panel 2 rows tall. Two plot heights and the gap between them. */
-export const TALL_CHART_HEIGHT_PX = CHART_HEIGHT_PX * 2 + 24;

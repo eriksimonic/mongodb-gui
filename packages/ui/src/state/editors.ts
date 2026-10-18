@@ -136,7 +136,6 @@ export const SavedTabsSchema = z.object({
   activeId: z.string().optional(),
 });
 
-export type SavedTab = z.infer<typeof SavedTabSchema>;
 export type SavedTabs = z.infer<typeof SavedTabsSchema>;
 
 export function layoutKeyFor(connectionId: string): string {

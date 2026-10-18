@@ -7,7 +7,6 @@ import {
   measuredCommand,
   parseSample,
   sampleCode,
-  sampleNote,
 } from './lookup-measure';
 
 const INNER = [{ $match: { $expr: { $eq: ['$productId', '$$p'] } } }, { $limit: 3 }];
@@ -74,8 +73,5 @@ describe('lookup-measure', () => {
     expect(JSON.parse(measuredCommand(joined, { vars: {}, local: [3, 4] })).pipeline).toEqual([
       { $match: { _id: { $in: [3, 4] } } },
     ]);
-    expect(sampleNote(spec, 'products', { vars: { p: { $numberInt: '64' } } })).toContain(
-      '$$p = 64',
-    );
   });
 });
