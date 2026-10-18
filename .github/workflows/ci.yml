@@ -3,8 +3,17 @@ name: CI
 on:
   push:
     branches: [main, architecture-redesign]
+    paths-ignore: &docs_only
+      - '**.md'
+      - 'docs/screenshots/**'
+      - '**.png'
+      - '**.jpg'
+      - '**.jpeg'
+      - '**.gif'
+      - '**.svg'
   pull_request:
     branches: [main]
+    paths-ignore: *docs_only
 
 jobs:
   check:
