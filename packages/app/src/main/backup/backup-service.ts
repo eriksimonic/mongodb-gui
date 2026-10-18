@@ -48,7 +48,7 @@ import type { ToolsEndpoint } from './endpoint';
 import { hashDirectory, hashFile, listFiles } from './file-hash';
 import { createProgressTracker, type ProgressTracker } from './progress-tracker';
 import { buildSidecar, writeSidecar } from './sidecar-writer';
-import { writeTempConfig, type TempConfig } from './temp-config';
+import { openConfigPipe, type ConfigPipe } from './temp-config';
 import { runTool } from './tool-process';
 
 /** Progress events per job, at most this often. Phase changes and the final event are not throttled. */
@@ -364,14 +364,14 @@ export function createBackupService<Client>(deps: BackupServiceDeps<Client>): Ba
     const signal = job.abort.signal;
     const archive = options.output === 'archive';
     const partialPath = `${plan.outputPath}.partial`;
-    let config: TempConfig | undefined;
+    let config: ConfigPipe | undefined;
     let error: AppError | undefined;
     let result: BackupResult | undefined;
     // Set once the dump is complete on disk. A later failure keeps the files.
     let dumpComplete = false;
     send.now();
     try {
-      config = await writeTempConfig(deps.tmpRoot, toolsConfigYaml(endpoint.uri));
+      config = await openConfigPipe(deps.tmpRoot, toolsConfigYaml(endpoint.uri));
       if (signal.aborted)
         throw new AppErrorException(appError('CANCELLED', 'The backup was cancelled.'));
       const runs = dumpRunScopes(input.scope);
@@ -579,7 +579,7 @@ export function createBackupService<Client>(deps: BackupServiceDeps<Client>): Ba
     const send = sender(job, tracker);
     const signal = job.abort.signal;
     const archive = inspection.kind === 'archive';
-    let config: TempConfig | undefined;
+    let config: ConfigPipe | undefined;
     let error: AppError | undefined;
     let result: BackupResult | undefined;
     let spawned = false;
@@ -601,7 +601,7 @@ export function createBackupService<Client>(deps: BackupServiceDeps<Client>): Ba
           throw invalid('The archive does not match the checksum in its backup description.');
         }
       }
-      config = await writeTempConfig(deps.tmpRoot, toolsConfigYaml(endpoint.uri));
+      config = await openConfigPipe(deps.tmpRoot, toolsConfigYaml(endpoint.uri));
       if (signal.aborted)
         throw new AppErrorException(appError('CANCELLED', 'The restore was cancelled.'));
       const args = restoreArgs({

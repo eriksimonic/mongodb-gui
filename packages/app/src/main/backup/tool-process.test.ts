@@ -199,6 +199,29 @@ describe('runTool', () => {
     expect(child().kill).toHaveBeenCalledTimes(1);
   });
 
+  it('kills a tool that prints nothing within the startup time and says so', async () => {
+    vi.useFakeTimers({ toFake: ['setTimeout', 'clearTimeout'] });
+    const { run, child } = setup({ startupTimeoutMs: 30_000 });
+    vi.advanceTimersByTime(29_999);
+    expect(child().kill).not.toHaveBeenCalled();
+    vi.advanceTimersByTime(1);
+    expect(child().kill).toHaveBeenCalledWith('SIGKILL');
+    child().exit(null, 'SIGKILL');
+    const error = await rejection(run);
+    expect(error.error.code).toBe('COMMAND_FAILED');
+    expect(error.error.message).toBe('mongodump printed nothing for 30 seconds and was stopped.');
+  });
+
+  it('keeps a tool that printed a line, however long it runs', async () => {
+    vi.useFakeTimers({ toFake: ['setTimeout', 'clearTimeout'] });
+    const { run, child } = setup({ startupTimeoutMs: 30_000 });
+    child().stderr.write('2026-10-18T10:00:00.000+0000\twriting shop.orders\n');
+    await vi.advanceTimersByTimeAsync(600_000);
+    expect(child().kill).not.toHaveBeenCalled();
+    child().exit(0);
+    await run;
+  });
+
   it('calls kill() without a signal on Windows', async () => {
     const controller = new AbortController();
     const { run, child } = setup({ signal: controller.signal, platform: 'win32' });

@@ -10,7 +10,7 @@ import {
   realpathSync,
   writeFileSync,
 } from 'node:fs';
-import { rm } from 'node:fs/promises';
+import { readFile, rm } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { PassThrough } from 'node:stream';
@@ -363,12 +363,15 @@ describe('backup service dump', () => {
     t.assertNoSecrets();
   });
 
-  it('passes the config file and never the URI on the command line', async () => {
+  it('passes the config through a pipe and never the URI on the command line', async () => {
     let config = '';
     const t = setup((child) => {
       const path = argValue(child.args, '--config') ?? '';
-      config = readFileSync(path, 'utf8');
-      archiveDump(child);
+      // The config is a pipe. A blocking read here would starve the writer, so read async.
+      void readFile(path, 'utf8').then((text) => {
+        config = text;
+        archiveDump(child);
+      });
     });
     await t.service.startDump(dumpInput());
     await t.finalEvent();

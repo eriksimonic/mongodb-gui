@@ -1,16 +1,9 @@
-import {
-  existsSync,
-  mkdirSync,
-  mkdtempSync,
-  readFileSync,
-  rmSync,
-  statSync,
-  writeFileSync,
-} from 'node:fs';
+import { existsSync, mkdirSync, mkdtempSync, rmSync, statSync, writeFileSync } from 'node:fs';
+import { readFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { basename, dirname, join } from 'node:path';
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
-import { sweepTempConfigs, writeTempConfig } from './temp-config';
+import { openConfigPipe, sweepTempConfigs } from './temp-config';
 
 const posix = process.platform !== 'win32';
 let root: string;
@@ -23,40 +16,44 @@ afterEach(() => {
   rmSync(root, { recursive: true, force: true });
 });
 
-describe('writeTempConfig', () => {
-  it('writes config.yaml into a fresh tools-<uuid> folder', async () => {
+describe('openConfigPipe', () => {
+  it('serves the config through a pipe in a fresh tools-<uuid> folder', async () => {
     const tmpRoot = join(root, 'tmp');
-    const config = await writeTempConfig(tmpRoot, 'uri: "mongodb://u:p@h/"\n');
+    const config = await openConfigPipe(tmpRoot, 'uri: "mongodb://u:p@h/"\n');
     expect(dirname(config.dir)).toBe(tmpRoot);
     expect(basename(config.dir)).toMatch(/^tools-[0-9a-f-]{36}$/);
-    expect(config.path).toBe(join(config.dir, 'config.yaml'));
-    expect(readFileSync(config.path, 'utf8')).toBe('uri: "mongodb://u:p@h/"\n');
+    expect(await readFile(config.path, 'utf8')).toBe('uri: "mongodb://u:p@h/"\n');
     await config.dispose();
   });
 
-  it.runIf(posix)('makes the folder 0700 and the file 0600', async () => {
-    const config = await writeTempConfig(root, 'uri: "x"\n');
+  it.runIf(posix)('uses a FIFO, so the config text is never in a file', async () => {
+    const config = await openConfigPipe(root, 'uri: "mongodb://u:s3cret@h/"\n');
+    expect(statSync(config.path).isFIFO()).toBe(true);
     expect(statSync(config.dir).mode & 0o777).toBe(0o700);
     expect(statSync(config.path).mode & 0o777).toBe(0o600);
+    expect(await readFile(config.path, 'utf8')).toContain('s3cret');
     await config.dispose();
   });
 
-  it('gives every call its own folder', async () => {
-    const a = await writeTempConfig(root, 'a');
-    const b = await writeTempConfig(root, 'b');
+  it('gives every call its own folder and its own pipe', async () => {
+    const a = await openConfigPipe(root, 'a');
+    const b = await openConfigPipe(root, 'b');
     expect(a.dir).not.toBe(b.dir);
+    expect(a.path).not.toBe(b.path);
+    expect(await readFile(a.path, 'utf8')).toBe('a');
+    expect(await readFile(b.path, 'utf8')).toBe('b');
     await Promise.all([a.dispose(), b.dispose()]);
   });
 
-  it('removes the folder on dispose and does not throw on a second call', async () => {
-    const config = await writeTempConfig(root, 'uri: "x"\n');
+  it('removes the folder on dispose when no tool read the pipe, and a second call is safe', async () => {
+    const config = await openConfigPipe(root, 'uri: "x"\n');
     await config.dispose();
     expect(existsSync(config.dir)).toBe(false);
     await expect(config.dispose()).resolves.toBeUndefined();
   });
 
   it('does not throw when the folder is already gone', async () => {
-    const config = await writeTempConfig(root, 'uri: "x"\n');
+    const config = await openConfigPipe(root, 'uri: "x"\n');
     rmSync(config.dir, { recursive: true, force: true });
     await expect(config.dispose()).resolves.toBeUndefined();
   });

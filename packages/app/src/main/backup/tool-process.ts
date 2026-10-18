@@ -30,6 +30,9 @@ export interface RunToolOptions {
   platform?: NodeJS.Platform;
   // Time between SIGINT and SIGKILL on cancel.
   killGraceMs?: number;
+  // A tool that prints nothing for this long after it starts is killed. A tool that cannot reach
+  // the server ignores SIGINT and waits for ever, and it prints its first line only once it connects.
+  startupTimeoutMs?: number;
 }
 
 export interface ToolRunResult {
@@ -44,6 +47,7 @@ export interface ToolRunResult {
 const LINE_CAP = 2000;
 const TAIL_LINES = 5;
 const KILL_GRACE_MS = 5000;
+const STARTUP_TIMEOUT_MS = 120_000;
 // Write errors on the child's stdin once it has exited. The exit code explains the failure.
 const CLOSED_PIPE_CODES = new Set([
   'EPIPE',
@@ -94,6 +98,18 @@ export function runTool(options: RunToolOptions): Promise<ToolRunResult> {
     let settled = false;
     let killTimer: ReturnType<typeof setTimeout> | undefined;
     const pending: Promise<void>[] = [];
+    let stalled = false;
+    const startupTimeoutMs = options.startupTimeoutMs ?? STARTUP_TIMEOUT_MS;
+    let startupTimer: ReturnType<typeof setTimeout> | undefined = setTimeout(() => {
+      startupTimer = undefined;
+      stalled = true;
+      destroyPipes();
+      child.kill('SIGKILL');
+    }, startupTimeoutMs);
+    const clearStartupTimer = (): void => {
+      clearTimeout(startupTimer);
+      startupTimer = undefined;
+    };
 
     const emitLine = (raw: string): void => {
       const line = raw.endsWith('\r') ? raw.slice(0, -1) : raw;
@@ -121,6 +137,7 @@ export function runTool(options: RunToolOptions): Promise<ToolRunResult> {
       partial = '';
     };
     child.stderr?.on('data', (chunk: Buffer | string) => {
+      clearStartupTimer();
       take(typeof chunk === 'string' ? chunk : decoder.write(chunk));
     });
 
@@ -166,6 +183,7 @@ export function runTool(options: RunToolOptions): Promise<ToolRunResult> {
       if (settled) return;
       settled = true;
       clearTimeout(killTimer);
+      clearStartupTimer();
       options.signal?.removeEventListener('abort', onAbort);
       if ('result' in outcome) resolve(outcome.result);
       else reject(new AppErrorException(outcome.error));
@@ -190,6 +208,8 @@ export function runTool(options: RunToolOptions): Promise<ToolRunResult> {
         };
         if (aborted) {
           settle({ error: cancelledError(tool).error });
+        } else if (stalled) {
+          settle({ error: stalledError(tool, startupTimeoutMs) });
         } else if (streamError !== undefined && code === 0) {
           settle({ error: streamFailure(streamError, tool, mask) });
         } else if (code === 0 && lastFailed === undefined) {
@@ -204,6 +224,14 @@ export function runTool(options: RunToolOptions): Promise<ToolRunResult> {
 
 function cancelledError(tool: string): AppErrorException {
   return new AppErrorException(appError('CANCELLED', `The ${tool} run was cancelled.`));
+}
+
+function stalledError(tool: string, timeoutMs: number): AppError {
+  return appError(
+    'COMMAND_FAILED',
+    `${tool} printed nothing for ${Math.round(timeoutMs / 1000)} seconds and was stopped.`,
+    'It probably could not reach the server. Check the host, the port and the network.',
+  );
 }
 
 function commandFailure(tool: string, result: ToolRunResult): AppError {

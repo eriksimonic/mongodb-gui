@@ -1,35 +1,46 @@
+import { execFile } from 'node:child_process';
 import { randomUUID } from 'node:crypto';
+import { closeSync, constants, openSync } from 'node:fs';
 import { mkdir, open, readdir, rm } from 'node:fs/promises';
+import net from 'node:net';
 import { join } from 'node:path';
+import { promisify } from 'node:util';
 
 const PREFIX = 'tools-';
-const FILE_NAME = 'config.yaml';
+const FIFO_NAME = 'config';
+const run = promisify(execFile);
 
-export interface TempConfig {
-  // The config file to pass as --config.
+export interface ConfigPipe {
+  // The value for --config. A named pipe, so the connection URI is never in a file.
   path: string;
-  // The private folder that holds it.
+  // A private scratch folder: working directory and restore link. Holds no secret.
   dir: string;
-  // Removes the folder. Never rejects, and a second call does nothing.
+  // Closes the pipe and removes the folder. Never rejects, and a second call does nothing.
   dispose: () => Promise<void>;
 }
 
 /**
- * Writes the tools config (it holds the full connection URI) into a fresh private folder:
- * `<tmpRoot>/tools-<uuid>/config.yaml`, folder mode 0700, file mode 0600. The file is created
- * with 'wx', so an existing file or link at that path makes the call fail instead of being reused.
+ * Serves the tools config (it holds the full connection URI) through a named pipe, so the secret
+ * never reaches the disk. The pipe lives in a fresh private folder `<tmpRoot>/tools-<uuid>/`,
+ * mode 0700. Linux and macOS use a FIFO from mkfifo, mode 0600. A FIFO holds no data, only a
+ * name. Windows serves a `\\.\pipe\` name once and then stops listening. The tool reads the
+ * config once. A Node stdio pipe cannot do this job, because it is a socket and a tool cannot
+ * reopen a socket by path.
  */
-export async function writeTempConfig(tmpRoot: string, yaml: string): Promise<TempConfig> {
+export async function openConfigPipe(tmpRoot: string, yaml: string): Promise<ConfigPipe> {
   await mkdir(tmpRoot, { recursive: true, mode: 0o700 });
   const dir = join(tmpRoot, `${PREFIX}${randomUUID()}`);
   await mkdir(dir, { mode: 0o700 });
-  const path = join(dir, FILE_NAME);
+  let stop: () => void;
+  let path: string;
   try {
-    const handle = await open(path, 'wx', 0o600);
-    try {
-      await handle.writeFile(yaml, 'utf8');
-    } finally {
-      await handle.close();
+    if (process.platform === 'win32') {
+      path = `\\\\.\\pipe\\mongo-gui-${randomUUID()}`;
+      stop = await servePipeOnce(path, yaml);
+    } else {
+      path = join(dir, FIFO_NAME);
+      await run('mkfifo', ['-m', '600', path]);
+      stop = feedFifo(path, yaml);
     }
   } catch (error) {
     await removeQuietly(dir);
@@ -39,12 +50,44 @@ export async function writeTempConfig(tmpRoot: string, yaml: string): Promise<Te
   return {
     path,
     dir,
-    dispose: () => (disposed ??= removeQuietly(dir)),
+    dispose: () =>
+      (disposed ??= (async () => {
+        stop();
+        await removeQuietly(dir);
+      })()),
   };
 }
 
+/** Opening a FIFO for writing waits for a reader. Returns a function that frees a stuck writer. */
+function feedFifo(path: string, yaml: string): () => void {
+  void open(path, 'w')
+    .then((handle) => handle.writeFile(yaml, 'utf8').finally(() => handle.close()))
+    .catch(() => undefined);
+  return () => {
+    try {
+      // A reader that opens and closes lets a writer that never found one finish.
+      closeSync(openSync(path, constants.O_RDONLY | constants.O_NONBLOCK));
+    } catch {
+      // The FIFO is gone or nobody waits on it.
+    }
+  };
+}
+
+/** Gives the config to the first client of a named pipe, then closes the listener. */
+function servePipeOnce(path: string, yaml: string): Promise<() => void> {
+  return new Promise((resolve, reject) => {
+    const server = net.createServer((socket) => {
+      server.close();
+      socket.on('error', () => undefined);
+      socket.end(yaml);
+    });
+    server.once('error', reject);
+    server.listen(path, () => resolve(() => server.close()));
+  });
+}
+
 /**
- * Deletes `tools-*` folders a crashed or killed run left behind. Runs at startup, before any job
+ * Deletes `tools-*` folders a crashed or killed run left behind, including config files that older versions wrote. Runs at startup, before any job
  * exists, so every match is stale. Returns how many folders were removed. Never rejects.
  */
 export async function sweepTempConfigs(tmpRoot: string): Promise<number> {
