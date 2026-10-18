@@ -16,7 +16,7 @@ Decisions from the diagnostics, connections and profiler work. Follow them for n
 - The profiler filter row ends with Refresh. This was asked for by the owner and differs from Diagnostics. Decide on one order if the two views are ever merged.
 - Controls in a toolbar share one size (`xs`) and one height, including a segmented control next to a button. Search boxes are 320 px wide.
 - Button labels are short enough to fit on one line: Explain, Open in editor, Copy.
-- Remove a button that duplicates another path. New connection lives in the Connections dialog and in the empty connection tree, not in the top bar.
+- Remove a button that duplicates another path. New connection lives in the Connections dialog and as the + in the Connections panel header, not in the top bar or the empty connection tree.
 - A control that belongs with another sits next to it. "Only problematic" is next to Tail and Apply.
 - The native menu bar is hidden. Alt shows it.
 
