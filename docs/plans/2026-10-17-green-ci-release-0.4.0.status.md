@@ -1,0 +1,9 @@
+- T0: done, CPD baseline saved to docs/plans/2026-10-17-green.ci.cpd-baseline.md (93 clusters, 20 source, 73 test)
+- T1: done, prettier on LogsTab, ConnectionDialog and connection-test spec (three files, not one), validated, commit ad1900c range
+- T2: done, UnlockScreen test cleanup, validated, not reproduced locally
+- T3: done, backup afterAll guard and mongo:4.4 pre-pull, validated
+- T4: done, pushed ad1900c, then fix round 1 (selectors and diagnostics specs) pushed as b96b102
+- T5: done, CI run 39071096599 success on b96b102
+- T6: done, two reruns of run 39071096599 both success
+- T7: blocked, tag v0.4.0 pushed on b96b102, Release run 39074432112 failed, windows and macos "Run the packaged app smoke test" (no Mongo GUI.app under packages/app/release/mac-arm64 or mac), release still draft
+- T8: not started, waits for T7
