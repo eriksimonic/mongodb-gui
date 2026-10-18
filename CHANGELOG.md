@@ -35,6 +35,12 @@ All notable changes to Mongo GUI are listed here, newest first.
 - The completion list is no longer cut off at the edge of the editor.
 - Replica set member rules and the shard drain dry run live in `core`, so the UI mocks and the
   adapter cannot drift apart.
+- The connection search lists each collection once on a sharded cluster. `mongos` returned a
+  collection once per shard, and the duplicates left search results in the tree after the search
+  was cleared.
+- Backup and restore no longer write the connection URI, password included, to a file. The tools
+  read their config through a named pipe. A tool that prints nothing for 120 seconds is killed and
+  the job fails with a message.
 
 ## 0.3.0 - 2026-10-12
 
