@@ -2,6 +2,23 @@
 
 All notable changes to Mongo GUI are listed here, newest first.
 
+## 0.4.2 - 2026-10-19
+
+### Added
+
+- A read-only Storage panel per connection, opened from the connection menu or the context menu of a
+  database. Tables list databases, collections and indexes with a size bar. A segmented bar splits
+  one collection into data, free space and indexes. Insight cards list the biggest collections and
+  indexes, unused indexes, indexes larger than their data and reclaimable space.
+- The tree icons are colored by node type.
+- The GridFS file table is styled like the profiler grid.
+
+### Changed
+
+- The GridFS upload chunk size defaults to 12 MiB.
+- The editor refreshes its field and collection-name suggestions after each run and once a minute.
+  The "Refresh databases" and "Refresh field names" toolbar buttons are gone.
+
 ## 0.4.1 - 2026-10-19
 
 ### Added
