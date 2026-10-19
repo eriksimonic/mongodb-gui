@@ -18,7 +18,10 @@ import {
   ModuleRegistry,
   themeQuartz,
   type CellContextMenuEvent,
+  type CellDoubleClickedEvent,
   type ColDef,
+  type EditableCallbackParams,
+  type SuppressKeyboardEventParams,
   type ValueGetterParams,
 } from 'ag-grid-community';
 import { IconColumns } from '@tabler/icons-react';
@@ -27,6 +30,7 @@ import { useMemo, useState } from 'react';
 import { TreeMenu, type TreeMenuEntry } from '../kit/TreeMenu';
 import { notifyError } from '../kit/notify-error';
 import { copyText } from '../kit/copy';
+import { CellEditor, type CellEditorParams, type Row } from './CellEditor';
 import { compareCells } from './cell-order';
 import { COPY_MAX_CHARS, fullDocuments, fullValueText } from './full-documents';
 import { jsonTextFor } from './json-text';
@@ -34,6 +38,7 @@ import {
   BSON_TYPE_LABELS,
   cellView,
   collectionTitle,
+  editTypeOf,
   valueAtPath,
   type BsonType,
   type ColumnDef,
@@ -63,11 +68,6 @@ const DARK_THEME = themeQuartz.withPart(colorSchemeDark).withParams({
 const LIGHT_THEME = themeQuartz.withPart(colorSchemeLight).withParams({ fontFamily: TABLE_FONT });
 const ROW_HEIGHT_PX = 28;
 
-interface Row {
-  readonly index: number;
-  readonly doc: JsonObject;
-}
-
 /** Scrolling within this many rows of the last one asks for more. */
 const NEAR_END_ROWS = 10;
 
@@ -78,6 +78,8 @@ export interface TableViewProps {
   readonly editable: boolean;
   readonly editabilityNote: string;
   readonly onOpenDocument: (documentIndex: number) => void;
+  /** Writes one edited cell. Rejects with the reason when the write fails. */
+  readonly onSetField: CellEditorParams['onSetField'];
   /** Reads the full text of a previewed document. */
   readonly readFull: (ref: string) => Promise<string>;
   readonly onSelectionChange: (documentIndexes: readonly number[]) => void;
@@ -91,6 +93,16 @@ interface CellMenuState {
   readonly path: string;
   readonly value: unknown;
   readonly doc: JsonObject;
+}
+
+/** A cell is edited in place when the result is editable and it holds a scalar. `_id` is fixed. */
+function cellEditable(editable: boolean, path: string, doc: JsonObject | undefined): boolean {
+  return (
+    editable &&
+    path !== '_id' &&
+    doc !== undefined &&
+    editTypeOf(valueAtPath(doc, path)) !== undefined
+  );
 }
 
 /** Copies the whole document. A previewed one is read in full first. */
@@ -219,7 +231,8 @@ function CellRenderer(props: CustomCellRendererProps<Row, unknown>) {
 
 /**
  * The documents as a grid. Each field path is a column, discovered from the loaded pages. The
- * column chooser hides and shows columns. Double-clicking a row opens the whole document. A
+ * column chooser hides and shows columns. Double-clicking, F2 or Enter edits a scalar cell in place
+ * when the result is editable. Double-clicking any other cell opens the whole document. A
  * right-click on a cell offers to copy its value, its key or its document.
  */
 export function TableView({
@@ -228,6 +241,7 @@ export function TableView({
   editable,
   editabilityNote,
   onOpenDocument,
+  onSetField,
   readFull,
   onSelectionChange,
   onNearEnd,
@@ -254,13 +268,20 @@ export function TableView({
         valueGetter: (params: ValueGetterParams<Row>) =>
           params.data === undefined ? undefined : valueAtPath(params.data.doc, column.path),
         cellRenderer: CellRenderer,
+        editable: (params: EditableCallbackParams<Row>) =>
+          cellEditable(editable, column.path, params.data?.doc),
+        cellEditor: CellEditor,
+        cellEditorParams: { onSetField },
+        // The editor handles Enter and Escape itself, so the grid does not end the edit first.
+        suppressKeyboardEvent: (params: SuppressKeyboardEventParams<Row>) =>
+          params.editing && (params.event.key === 'Enter' || params.event.key === 'Escape'),
         comparator: compareCells,
         minWidth: 120,
         flex: 1,
         sortable: true,
         resizable: true,
       })),
-    [visible],
+    [visible, editable, onSetField],
   );
 
   return (
@@ -336,8 +357,11 @@ export function TableView({
               doc: event.data.doc,
             });
           }}
-          onRowDoubleClicked={(event) => {
-            if (event.data !== undefined) {
+          onCellDoubleClicked={(event: CellDoubleClickedEvent<Row>) => {
+            if (
+              event.data !== undefined &&
+              !cellEditable(editable, event.column.getColId(), event.data.doc)
+            ) {
               onOpenDocument(event.data.index);
             }
           }}

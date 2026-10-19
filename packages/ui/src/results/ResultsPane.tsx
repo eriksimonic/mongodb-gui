@@ -328,6 +328,7 @@ export function ResultsPane({
               editable={editable}
               editabilityNote={editabilityNote}
               onOpenDocument={(index) => void openDocument(index)}
+              onSetField={onSetField}
               readFull={readFull}
               onSelectionChange={setSelected}
               onNearEnd={loadMoreOnScroll}

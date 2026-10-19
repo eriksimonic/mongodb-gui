@@ -60,7 +60,14 @@ export function createCompletionSource(options: CompletionSourceOptions): Comple
         collection,
         size: FIELD_SAMPLE_SIZE,
       })
-      .then((sample) => sample.fields)
+      .then((sample) => {
+        // An empty sample is not cached either. A collection that was missing or empty gets its
+        // documents from an INSERT in the same editor, and it must complete after that.
+        if (sample.fields.length === 0) {
+          samples.delete(key);
+        }
+        return sample.fields;
+      })
       .catch((): SchemaField[] => {
         // A failed sample is not cached, so the next completion tries again.
         samples.delete(key);

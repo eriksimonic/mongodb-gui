@@ -16,6 +16,11 @@ function renderTable(
   editable = true,
   documents: JsonObject[] = DOCUMENTS,
   readFull: (ref: string) => Promise<string> = () => Promise.reject(new Error('no read')),
+  onSetField: (edit: {
+    documentIndex: number;
+    path: string;
+    value: unknown;
+  }) => Promise<void> = () => Promise.resolve(),
 ) {
   return render(
     <AppProviders>
@@ -26,6 +31,7 @@ function renderTable(
           editable={editable}
           editabilityNote="Only a plain find can be edited."
           onOpenDocument={onOpenDocument}
+          onSetField={onSetField}
           readFull={readFull}
           onSelectionChange={() => undefined}
         />
@@ -34,14 +40,20 @@ function renderTable(
   );
 }
 
-/** The grid row that shows the second customer. */
-async function customerRow(): Promise<HTMLElement> {
-  const cell = (await screen.findAllByText('Customer 2'))[0] as HTMLElement;
-  const row = cell.closest<HTMLElement>('[role="row"]');
-  if (row === null) {
-    throw new Error('The customer cell is not inside a grid row');
+/** Starts editing the cell with F2. jsdom does not give the grid the native double-click it waits for. */
+function startEditing(content: HTMLElement): void {
+  const cell = content.closest<HTMLElement>('[role="gridcell"]');
+  if (cell === null) {
+    throw new Error('The content is not inside a grid cell');
   }
-  return row;
+  fireEvent.mouseDown(cell);
+  fireEvent.click(cell);
+  fireEvent.keyDown(cell, { key: 'F2' });
+}
+
+/** The cell that shows the second customer's name. */
+async function customerCell(): Promise<HTMLElement> {
+  return (await screen.findAllByText('Customer 2'))[0] as HTMLElement;
 }
 
 describe('TableView', () => {
@@ -111,21 +123,72 @@ describe('TableView', () => {
       (document) => (document.customer as { name: string }).name === 'Customer 2',
     );
 
-    fireEvent.doubleClick(await customerRow());
+    fireEvent.doubleClick(await customerCell());
 
-    // The grid reports row double-clicks on a timer, so the check waits for the call.
+    // The grid reports double-clicks on a timer, so the check waits for the call.
     expect(index).toBeGreaterThanOrEqual(0);
     await waitFor(() => expect(onOpen).toHaveBeenCalledWith(index));
     expect(screen.getByText('Read only')).toBeInTheDocument();
   });
 
-  it('opens the double-clicked document when the result can be edited', async () => {
+  it('edits a scalar cell in place and writes the typed value', async () => {
+    const onOpen = vi.fn();
+    const onSetField = vi.fn().mockResolvedValue(undefined);
+    renderTable(onOpen, true, DOCUMENTS, undefined, onSetField);
+    const index = DOCUMENTS.findIndex(
+      (document) => (document.customer as { name: string }).name === 'Customer 2',
+    );
+
+    startEditing(await customerCell());
+    const input = await screen.findByRole('textbox', { name: 'Edit customer.name' });
+    fireEvent.change(input, { target: { value: 'Renamed' } });
+    fireEvent.keyDown(input, { key: 'Enter' });
+
+    await waitFor(() =>
+      expect(onSetField).toHaveBeenCalledWith({
+        documentIndex: index,
+        path: 'customer.name',
+        value: 'Renamed',
+      }),
+    );
+    expect(onOpen).not.toHaveBeenCalled();
+  });
+
+  it('keeps the editor open with the reason when the text does not fit the type', async () => {
+    const onSetField = vi.fn().mockResolvedValue(undefined);
+    renderTable(vi.fn(), true, [{ _id: 1, qty: { $numberInt: '3' } }], undefined, onSetField);
+
+    startEditing(await screen.findByText('3'));
+    const input = await screen.findByRole('textbox', { name: 'Edit qty' });
+    fireEvent.change(input, { target: { value: 'abc' } });
+    fireEvent.keyDown(input, { key: 'Enter' });
+
+    expect(await screen.findByText(/Enter a whole number/)).toBeInTheDocument();
+    expect(onSetField).not.toHaveBeenCalled();
+  });
+
+  it('cancels with Escape without writing', async () => {
+    const onSetField = vi.fn().mockResolvedValue(undefined);
+    renderTable(vi.fn(), true, DOCUMENTS, undefined, onSetField);
+
+    startEditing(await customerCell());
+    const input = await screen.findByRole('textbox', { name: 'Edit customer.name' });
+    fireEvent.change(input, { target: { value: 'Renamed' } });
+    fireEvent.keyDown(input, { key: 'Escape' });
+
+    await waitFor(() => expect(screen.queryByRole('textbox')).toBeNull());
+    expect(onSetField).not.toHaveBeenCalled();
+  });
+
+  it('opens the document when the double-clicked cell is the _id', async () => {
     const onOpen = vi.fn();
     renderTable(onOpen, true);
+    const id = (DOCUMENTS[0]?._id as { $oid: string }).$oid;
 
-    fireEvent.doubleClick(await customerRow());
+    fireEvent.doubleClick(await screen.findByText(id));
 
-    await waitFor(() => expect(onOpen).toHaveBeenCalledTimes(1));
+    await waitFor(() => expect(onOpen).toHaveBeenCalledWith(0));
+    expect(screen.queryByRole('textbox')).toBeNull();
   });
 });
 

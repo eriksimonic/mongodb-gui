@@ -291,9 +291,15 @@ The results pane shows the documents of the last run. Switch between three views
 ![Editor with a find result in table view](screenshots/query.png)
 
 - Table view shows one column for each field. The "Columns" menu chooses which columns show.
-  Nested fields appear as dotted paths. Double-click a row to open its whole document. The
-  document opens in the editor when the result is a plain find on one collection. Otherwise it
-  opens read-only, with a "Copy" button. Right-click a cell for "Copy value", "Copy key" and
+  Nested fields appear as dotted paths. In a plain find on one collection, double-click a cell
+  that holds a string, number, boolean, date, ObjectId or null, or select it and press F2 or
+  Enter, to edit the value in place. Type a new value and press Enter, or click another cell,
+  to write it with `$set`. Escape cancels. The value keeps its type, so an int32 stays an int32,
+  and a text that does not fit the type stays open with the reason. The `_id` column and cells
+  that hold an object, an array or a shortened value are not editable in the grid. Double-click
+  one of those cells to open its whole document. The document opens in the editor when the
+  result is a plain find on one collection. Otherwise it opens read-only, with a "Copy" button.
+  Right-click a cell for "Copy value", "Copy key" and
   "Copy document". The value copies in mongosh form, the key is the dotted field path, and the
   document copies as canonical JSON.
 

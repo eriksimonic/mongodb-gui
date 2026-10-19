@@ -50,7 +50,8 @@ test('edit a field in the tree view and the whole document in the dialog', async
 
     // management.replaceDocument: the table row opens the document, and Save replaces it.
     await page.locator('label[for$="-table"]').click();
-    await page.getByRole('gridcell', { name: 'A-1', exact: true }).dblclick();
+    // A scalar cell edits in place, so the _id cell, which cannot be edited, opens the document.
+    await page.getByRole('gridcell', { name: insertedId.toHexString(), exact: true }).dblclick();
     const dialog = page.getByRole('dialog', { name: 'Edit document in items', exact: true });
     await dialog.locator('.monaco-editor .view-lines').click();
     await page.keyboard.press('ControlOrMeta+A');

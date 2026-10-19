@@ -163,6 +163,21 @@ describe('createCompletionSource fieldsOf', () => {
     expect(sample).toHaveBeenCalledTimes(2);
   });
 
+  it('samples again when the collection had no documents the first time', async () => {
+    const api = await connectedMockApi();
+    const sample = vi.spyOn(api.rpc.shell, 'sampleSchema');
+    sample.mockResolvedValueOnce({ fields: [] } as never);
+    const source = createCompletionSource({
+      rpc: api.rpc,
+      connectionId: localConnectionId,
+      database: () => 'analytics',
+      isBusy: () => false,
+    });
+    expect(await source.fieldsOf('bson_samples')).toEqual([]);
+    expect((await source.fieldsOf('bson_samples')).length).toBeGreaterThan(0);
+    expect(sample).toHaveBeenCalledTimes(2);
+  });
+
   it('reads the database on each call', async () => {
     const api = await connectedMockApi();
     const sample = vi.spyOn(api.rpc.shell, 'sampleSchema');

@@ -2,6 +2,14 @@
 
 All notable changes to Mongo GUI are listed here, newest first.
 
+## Unreleased
+
+### Added
+
+- The result table edits a scalar cell in place. Double-click it, or press F2 or Enter. Enter saves
+  the value with its type, and Escape cancels. Double-clicking a cell that cannot be edited still
+  opens the whole document.
+
 ## 0.4.0 - 2026-10-17
 
 ### Added

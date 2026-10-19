@@ -34,10 +34,13 @@ it.
 
 ## Tables
 
-| Shortcut  | Action                                   |
-| --------- | ---------------------------------------- |
-| Up, Down  | Move between rows in a profiler table    |
-| Home, End | Jump to the first or last row in a table |
+| Shortcut         | Action                                   |
+| ---------------- | ---------------------------------------- |
+| Up, Down         | Move between rows in a profiler table    |
+| Home, End        | Jump to the first or last row in a table |
+| F2, Enter        | Edit the selected cell of a result table |
+| Enter in a cell  | Save the edited value                    |
+| Escape in a cell | Cancel the edit                          |
 
 ## Dialogs
 
