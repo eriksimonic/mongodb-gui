@@ -1,0 +1,62 @@
+/* GridFS file table. Same grid look as the profiler: 32px rows, xs text, muted sticky header. */
+
+.mg-gridfs-table {
+  display: flex;
+  flex-direction: column;
+  flex: 1;
+  min-height: 0;
+  font-size: var(--mantine-font-size-xs);
+}
+
+.mg-gridfs-head,
+.mg-gridfs-row {
+  display: grid;
+  align-items: center;
+  column-gap: 6px;
+  height: 32px;
+  box-sizing: border-box;
+  padding: 0 8px;
+  white-space: nowrap;
+}
+
+.mg-gridfs-head {
+  background: var(--mantine-color-body);
+  border-bottom: 1px solid var(--mg-border);
+  color: var(--mg-text-muted);
+}
+
+.mg-gridfs-scroll {
+  flex: 1;
+  min-height: 0;
+  overflow: auto;
+}
+
+.mg-gridfs-row {
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  border-bottom: 1px solid var(--mg-surface-1);
+}
+
+.mg-gridfs-row:hover {
+  background: var(--mg-surface-1);
+}
+
+.mg-gridfs-row[aria-selected='true'] {
+  background: color-mix(in srgb, var(--mg-accent) 14%, transparent);
+}
+
+/* Every cell is one line and cuts off with an ellipsis. */
+.mg-gridfs-cell {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-variant-numeric: tabular-nums;
+}
+
+.mg-gridfs-actions {
+  display: flex;
+  gap: 4px;
+}
