@@ -92,7 +92,7 @@ export function TreeRow({
           )
         ) : null}
       </span>
-      <span className="mg-tree-icon" aria-hidden="true">
+      <span className="mg-tree-icon" aria-hidden="true" data-tone={iconTone(row)}>
         <RowIcon row={row} />
       </span>
       <span className="mg-tree-label">
@@ -137,6 +137,16 @@ function ConnectionMeta({ status }: { readonly status: ConnectionStatus }) {
       <span className="mg-tree-image">{text}</span>
     </span>
   );
+}
+
+/** Names the icon colour in tree.css. Connection rows keep the status icon's own colours. */
+function iconTone(row: TreeRowModel): string | undefined {
+  if (row.kind === 'collection') {
+    return row.collectionType === undefined || row.collectionType === 'collection'
+      ? 'collection'
+      : row.collectionType;
+  }
+  return row.kind === 'connection' || row.kind === 'message' ? undefined : row.kind;
 }
 
 function RowIcon({ row }: { readonly row: TreeRowModel }) {
