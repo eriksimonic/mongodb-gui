@@ -150,12 +150,16 @@ function handleDockReady({ api }: { readonly api: DockviewApi }) {
   });
   // The initial sizes are set on the groups, because the panel options do not size the first split.
   api.getPanel('connections')?.group.api.setSize({ width: SIDEBAR_WIDTH_PX });
-  // The panel has its own header, so the tab strip above it would repeat the title.
+  hideConnectionsTab(api);
+  api.getPanel('output')?.group.api.setSize({ height: Math.round(height * OUTPUT_SHARE) });
+}
+
+/** The panel has its own header, so the tab strip above it would repeat the title. */
+function hideConnectionsTab(api: DockviewApi): void {
   const connectionsGroup = api.getPanel('connections')?.group;
   if (connectionsGroup) {
     connectionsGroup.header.hidden = true;
   }
-  api.getPanel('output')?.group.api.setSize({ height: Math.round(height * OUTPUT_SHARE) });
 }
 
 /**
@@ -186,7 +190,10 @@ async function initialiseLayout(
   if (!isCurrent()) {
     return;
   }
-  if (!restoreDockLayout(event.api, saved)) {
+  if (restoreDockLayout(event.api, saved)) {
+    // The hidden header is not part of the saved layout.
+    hideConnectionsTab(event.api);
+  } else {
     handleDockReady(event);
   }
   registerRestoredPanels(event.api, open);
