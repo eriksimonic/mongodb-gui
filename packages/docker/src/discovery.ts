@@ -11,16 +11,6 @@ export const MONGO_PORT = 27017;
 export const MONGO_PORT_KEY = '27017/tcp';
 export const FORWARDER_LABEL = 'mongo-gui.forwarder';
 
-const DIGEST_SEPARATOR = '@';
-const LIBRARY_PREFIX = 'library/';
-const REGISTRY_PREFIXES: readonly string[] = ['docker.io/', 'index.docker.io/'];
-const EXACT_IMAGES: readonly string[] = [
-  'mongo',
-  'bitnami/mongodb',
-  'percona/percona-server-mongodb',
-];
-const IMAGE_PREFIXES: readonly string[] = ['mongodb/'];
-const SHA_IMAGE_PREFIX = 'sha256:';
 /** Loopback first, then the wildcard bindings. Any other host IP comes last. */
 const HOST_IP_PREFERENCE: readonly string[] = ['127.0.0.1', '0.0.0.0', '::'];
 const WILDCARD_HOST_IPS: readonly string[] = ['0.0.0.0', '::'];
@@ -35,7 +25,6 @@ const InspectSchema = z.object({
     Image: z.string(),
     Env: z.array(z.string()).nullish(),
     Labels: z.record(z.string(), z.string()).nullish(),
-    ExposedPorts: z.record(z.string(), z.unknown()).nullish(),
   }),
   State: z.object({ Status: z.string() }),
   NetworkSettings: z.object({
@@ -51,29 +40,6 @@ const NetworkAddressSchema = z.object({
 });
 
 type Inspect = z.infer<typeof InspectSchema>;
-
-/** Strips a digest and a tag, drops the default registry, and reports the repository path. */
-function repositoryOf(reference: string): string {
-  const withoutDigest = reference.split(DIGEST_SEPARATOR)[0] ?? reference;
-  const slash = withoutDigest.lastIndexOf('/');
-  const colon = withoutDigest.lastIndexOf(':');
-  let name = colon > slash ? withoutDigest.slice(0, colon) : withoutDigest;
-  for (const prefix of REGISTRY_PREFIXES) {
-    if (name.startsWith(prefix)) {
-      name = name.slice(prefix.length);
-    }
-  }
-  return name.startsWith(LIBRARY_PREFIX) ? name.slice(LIBRARY_PREFIX.length) : name;
-}
-
-/** True for the MongoDB images the plan lists: `mongo`, `mongodb/*`, bitnami and percona. */
-export function isMongoImage(reference: string): boolean {
-  const repository = repositoryOf(reference);
-  return (
-    EXACT_IMAGES.includes(repository) ||
-    IMAGE_PREFIXES.some((prefix) => repository.startsWith(prefix))
-  );
-}
 
 function hostPortOf(binding: z.infer<typeof BindingSchema>): number | undefined {
   if (!/^\d+$/.test(binding.HostPort)) {
@@ -97,6 +63,31 @@ function pickPublishedPort(
   };
   const sorted = [...usable].sort((a, b) => rank(a.hostIp) - rank(b.hostIp));
   return sorted[0];
+}
+
+/** The port from a `--port N` or `--port=N` argument, or undefined when there is none. */
+function portArgument(args: readonly string[]): number | undefined {
+  for (const [index, arg] of args.entries()) {
+    const value = arg === '--port' ? args[index + 1] : /^--port=(.*)$/.exec(arg)?.[1];
+    if (value !== undefined && /^\d+$/.test(value) && Number(value) > 0) {
+      return Number(value);
+    }
+  }
+  return undefined;
+}
+
+const MONGO_PROCESS_NAMES: readonly string[] = ['mongod', 'mongos'];
+
+/** The port of the first mongod or mongos command line in a process list, or undefined if none. */
+function mongoProcessPort(commands: readonly string[]): number | undefined {
+  for (const command of commands) {
+    const [executable = '', ...args] = command.trim().split(/\s+/);
+    const name = executable.split('/').pop() ?? '';
+    if (MONGO_PROCESS_NAMES.includes(name)) {
+      return portArgument(args) ?? MONGO_PORT;
+    }
+  }
+  return undefined;
 }
 
 function envMap(entries: readonly string[] | null | undefined): Map<string, string> {
@@ -137,10 +128,14 @@ function stateOf(status: string): DockerContainerState {
 }
 
 /**
- * Maps `docker inspect` JSON to a MongoDB container. Returns undefined when the container is not
- * a MongoDB container or when it is a forwarder this app started. Pure: no I/O.
+ * Maps `docker inspect` JSON to a MongoDB container. Returns undefined when no process of the
+ * container is a mongod or mongos, or when it is a forwarder this app started. The mongod command
+ * line gives the port, so any image name works. Pure: no I/O.
  */
-export function toMongoContainer(inspectJson: unknown): DockerMongoContainer | undefined {
+export function toMongoContainer(
+  inspectJson: unknown,
+  processCommands: readonly string[],
+): DockerMongoContainer | undefined {
   const parsed = InspectSchema.safeParse(inspectJson);
   if (!parsed.success) {
     return undefined;
@@ -149,18 +144,17 @@ export function toMongoContainer(inspectJson: unknown): DockerMongoContainer | u
   if (inspect.Config.Labels?.[FORWARDER_LABEL] !== undefined) {
     return undefined;
   }
-  const exposes27017 =
-    inspect.Config.ExposedPorts?.[MONGO_PORT_KEY] !== undefined ||
-    inspect.NetworkSettings.Ports?.[MONGO_PORT_KEY] !== undefined;
-  if (!isMongoImage(inspect.Config.Image) && !exposes27017) {
+  const internalPort = mongoProcessPort(processCommands);
+  if (internalPort === undefined) {
     return undefined;
   }
+  const portKey = `${internalPort}/tcp`;
 
   const env = envMap(inspect.Config.Env);
   const username = firstValue(env, ['MONGO_INITDB_ROOT_USERNAME', 'MONGODB_ROOT_USER']);
   const password = firstValue(env, ['MONGO_INITDB_ROOT_PASSWORD', 'MONGODB_ROOT_PASSWORD']);
   const database = firstValue(env, ['MONGO_INITDB_DATABASE']);
-  const publishedPort = pickPublishedPort(inspect.NetworkSettings.Ports?.[MONGO_PORT_KEY]);
+  const publishedPort = pickPublishedPort(inspect.NetworkSettings.Ports?.[portKey]);
 
   return {
     id: inspect.Id,
@@ -168,7 +162,7 @@ export function toMongoContainer(inspectJson: unknown): DockerMongoContainer | u
     image: inspect.Config.Image,
     state: stateOf(inspect.State.Status),
     ...(publishedPort === undefined ? {} : { publishedPort }),
-    internalPort: MONGO_PORT,
+    internalPort,
     networks: Object.keys(inspect.NetworkSettings.Networks ?? {}).sort(),
     env: {
       ...(username === undefined ? {} : { username }),
@@ -195,23 +189,22 @@ export function dialHost(publishedPort: DockerPublishedPort): string {
 }
 
 /**
- * Lists the MongoDB containers on the engine, all states. The list call narrows the candidates,
- * then each candidate is inspected for its env, networks and bindings.
+ * Lists the running MongoDB containers on the engine. Each running container is asked for its
+ * process list, and one with a mongod or mongos is inspected for its env, networks and bindings.
+ * Stopped containers are not listed. This costs one call per container, which suits a developer
+ * machine.
  */
 export async function discoverMongoContainers(
   client: DockerEngineClient,
 ): Promise<DockerMongoContainer[]> {
   const items = await client.listContainers();
-  const candidates = items.filter(
-    (item) =>
-      item.labels[FORWARDER_LABEL] === undefined &&
-      (isMongoImage(item.image) ||
-        item.image.startsWith(SHA_IMAGE_PREFIX) ||
-        item.ports.includes(MONGO_PORT)),
-  );
   const found: DockerMongoContainer[] = [];
-  for (const candidate of candidates) {
-    const container = await inspectOrSkip(client, candidate.id);
+  for (const item of items) {
+    if (item.state !== 'running' || item.labels[FORWARDER_LABEL] !== undefined) {
+      continue;
+    }
+    const commands = await processesOrEmpty(client, item.id);
+    const container = await inspectOrSkip(client, item.id, commands);
     if (container !== undefined) {
       found.push(container);
     }
@@ -219,12 +212,25 @@ export async function discoverMongoContainers(
   return found.sort((a, b) => a.name.localeCompare(b.name));
 }
 
+/** A container that cannot list its processes (removed, no ps available) has none to show. */
+async function processesOrEmpty(client: DockerEngineClient, id: string): Promise<string[]> {
+  try {
+    return await client.processCommands(id);
+  } catch (error) {
+    if (error instanceof DockerEngineError) {
+      return [];
+    }
+    throw error;
+  }
+}
+
 async function inspectOrSkip(
   client: DockerEngineClient,
   id: string,
+  processCommands: readonly string[],
 ): Promise<DockerMongoContainer | undefined> {
   try {
-    return toMongoContainer(await client.inspectContainer(id));
+    return toMongoContainer(await client.inspectContainer(id), processCommands);
   } catch (error) {
     // The container was removed between the list and the inspect. It is no longer a candidate.
     if (error instanceof DockerEngineError && error.statusCode === 404) {

@@ -95,6 +95,7 @@ function fakeEngine(listenPort: () => number, targetInspect: unknown = {}): Fake
         },
       };
     },
+    processCommands: unexpected,
     async createContainer(spec) {
       counter += 1;
       const id = `fwd-${counter}`;

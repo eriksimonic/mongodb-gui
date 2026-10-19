@@ -17,7 +17,6 @@ export {
   dialHost,
   discoverMongoContainers,
   dockerStatus,
-  isMongoImage,
   networkAddress,
   toMongoContainer,
 } from './discovery';
