@@ -20,7 +20,6 @@ import {
 } from '@mongo-gui/core';
 import {
   FORWARDER_LABEL,
-  MONGO_PORT,
   dialHost,
   discoverMongoContainers,
   dockerStatus,
@@ -248,7 +247,7 @@ export function createDockerRuntime(deps: DockerRuntimeDeps): DockerRuntime {
     }
     // Host networking puts MongoDB on the host's own port, so no forwarder is needed.
     if (container.networks.includes('host')) {
-      return { host: LOOPBACK, port: MONGO_PORT, forwarded: false };
+      return { host: LOOPBACK, port: container.internalPort, forwarded: false };
     }
     const handle = await deps.forwarders.ensure(container);
     return {

@@ -154,6 +154,21 @@ describe('DockerEngineClient against a fake engine', () => {
     expect(recorded[0]?.url).toBe('/containers/abc/json');
   });
 
+  it('lists process command lines from the last column of the top reply', async () => {
+    await startServer((_request, response) => {
+      json(response, 200, {
+        Titles: ['COMMAND'],
+        Processes: [['tini -- run.sh'], ['mongod --port 27018']],
+      });
+    });
+
+    expect(await clientWith().processCommands('abc')).toEqual([
+      'tini -- run.sh',
+      'mongod --port 27018',
+    ]);
+    expect(recorded[0]?.url).toBe('/containers/abc/top?ps_args=-eo%20args');
+  });
+
   it('encodes the container id in the path', async () => {
     await startServer((_request, response) => {
       json(response, 200, {});

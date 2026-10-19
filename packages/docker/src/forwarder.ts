@@ -119,7 +119,7 @@ export function createForwarderManager(options: ForwarderManagerOptions): Forwar
       env: [`FORWARDER_CERT=${material.serverCert}`, `FORWARDER_KEY=${material.serverKey}`],
       cmd: [
         `openssl-listen:${MONGO_PORT},fork,reuseaddr,cert=${CERT_DIR}/server.pem,key=${CERT_DIR}/server.key,cafile=${CERT_DIR}/server.pem,verify=1`,
-        `tcp-connect:${address}:${MONGO_PORT}`,
+        `tcp-connect:${address}:${target.internalPort}`,
       ],
       labels: { [FORWARDER_LABEL]: target.id, [FORWARDER_SCOPE_LABEL]: scope },
       exposedPorts: [MONGO_PORT_KEY],

@@ -5,7 +5,6 @@ import {
   dialHost,
   discoverMongoContainers,
   dockerStatus,
-  isMongoImage,
   networkAddress,
   toMongoContainer,
 } from './discovery';
@@ -26,36 +25,11 @@ function inspectWith(base: unknown, patch: (json: Record<string, unknown>) => vo
   return copy;
 }
 
-describe('isMongoImage', () => {
-  it('accepts the MongoDB images the plan lists, with or without a tag or digest', () => {
-    for (const image of [
-      'mongo',
-      'mongo:7',
-      'docker.io/library/mongo:8.0.17',
-      'mongo@sha256:abc',
-      'mongodb/mongodb-community-server:7.0-ubi9',
-      'bitnami/mongodb:6.0',
-      'percona/percona-server-mongodb:5.0.15',
-    ]) {
-      expect(isMongoImage(image), image).toBe(true);
-    }
-  });
-
-  it('rejects look-alike images', () => {
-    for (const image of [
-      'mongo-express:1.0',
-      'ghcr.io/acme/mongo:7',
-      'nginx:latest',
-      'bitnami/redis',
-    ]) {
-      expect(isMongoImage(image), image).toBe(false);
-    }
-  });
-});
+const MONGOD = ['mongod --bind_ip_all'];
 
 describe('toMongoContainer', () => {
   it('maps a container with a published 27017 port and no credentials', () => {
-    const container = toMongoContainer(fixture('inspect-mongo7-published.json'));
+    const container = toMongoContainer(fixture('inspect-mongo7-published.json'), MONGOD);
 
     expect(container).toMatchObject({
       name: 'flowbase-flow-editor-mongo1-1',
@@ -70,7 +44,7 @@ describe('toMongoContainer', () => {
   });
 
   it('maps a container that exposes 27017 without a published port', () => {
-    const container = toMongoContainer(fixture('inspect-testcontainers-mongo-8.0.17.json'));
+    const container = toMongoContainer(fixture('inspect-testcontainers-mongo-8.0.17.json'), MONGOD);
 
     expect(container).toMatchObject({
       image: 'mongo:8.0.17',
@@ -79,6 +53,24 @@ describe('toMongoContainer', () => {
       networks: ['bridge'],
     });
     expect(container?.publishedPort).toBeUndefined();
+  });
+
+  it('reads the listening port and its published binding from a --port argument', () => {
+    const json = inspectWith(fixture('inspect-mongo7-published.json'), (copy) => {
+      const settings = copy['NetworkSettings'] as { Ports: Record<string, unknown> };
+      settings.Ports = { '27018/tcp': [{ HostIp: '0.0.0.0', HostPort: '40000' }] };
+    });
+
+    expect(toMongoContainer(json, ['mongod --port 27018'])).toMatchObject({
+      internalPort: 27018,
+      publishedPort: { hostIp: '0.0.0.0', hostPort: 40000 },
+    });
+  });
+
+  it('reads the --port=N form from the process list', () => {
+    const json = fixture('inspect-mongo7-published.json');
+
+    expect(toMongoContainer(json, ['/usr/bin/mongod --port=27019'])?.internalPort).toBe(27019);
   });
 
   it('reads root credentials and the initial database from the MongoDB image variables', () => {
@@ -91,7 +83,7 @@ describe('toMongoContainer', () => {
         'MONGO_INITDB_DATABASE=shop',
       ];
     });
-    const container = toMongoContainer(json);
+    const container = toMongoContainer(json, MONGOD);
 
     expect(container?.env).toEqual({ username: 'root', password: 'pa=ss', database: 'shop' });
     const summary = container === undefined ? undefined : toDockerContainerSummary(container);
@@ -112,7 +104,7 @@ describe('toMongoContainer', () => {
       ];
     });
 
-    expect(toMongoContainer(json)?.env).toEqual({ username: 'admin', password: 'bitnami-secret' });
+    expect(toMongoContainer(json, MONGOD)?.env).toEqual({ username: 'admin', password: 'bitnami-secret' });
   });
 
   it('prefers loopback over wildcard bindings', () => {
@@ -126,24 +118,25 @@ describe('toMongoContainer', () => {
       };
     });
 
-    expect(toMongoContainer(json)?.publishedPort).toEqual({ hostIp: '127.0.0.1', hostPort: 27019 });
+    expect(toMongoContainer(json, MONGOD)?.publishedPort).toEqual({ hostIp: '127.0.0.1', hostPort: 27019 });
   });
 
-  it('treats a non-mongo image that exposes 27017 as a candidate', () => {
+  it('accepts any image name when a mongod runs', () => {
     const json = inspectWith(fixture('inspect-testcontainers-mongo-8.0.17.json'), (copy) => {
       copy['Config'] = { ...(copy['Config'] as object), Image: 'acme/custom-db:1' };
     });
 
-    expect(toMongoContainer(json)?.image).toBe('acme/custom-db:1');
+    expect(toMongoContainer(json, MONGOD)?.image).toBe('acme/custom-db:1');
   });
 
-  it('skips a container with no MongoDB image and no 27017 port', () => {
+  it('skips a container with no mongod or mongos process', () => {
     const json = inspectWith(fixture('inspect-testcontainers-mongo-8.0.17.json'), (copy) => {
-      copy['Config'] = { ...(copy['Config'] as object), Image: 'nginx:1', ExposedPorts: {} };
-      copy['NetworkSettings'] = { Ports: {}, Networks: {} };
+      copy['Config'] = { ...(copy['Config'] as object), Image: 'nginx:1' };
     });
 
-    expect(toMongoContainer(json)).toBeUndefined();
+    expect(
+      toMongoContainer(json, ['nginx: master process', 'mongod-exporter --port 9216']),
+    ).toBeUndefined();
   });
 
   it('skips forwarders this app started', () => {
@@ -154,12 +147,12 @@ describe('toMongoContainer', () => {
       };
     });
 
-    expect(toMongoContainer(json)).toBeUndefined();
+    expect(toMongoContainer(json, MONGOD)).toBeUndefined();
   });
 
   it('returns undefined for input that is not inspect JSON', () => {
-    expect(toMongoContainer({ Id: 1 })).toBeUndefined();
-    expect(toMongoContainer(null)).toBeUndefined();
+    expect(toMongoContainer({ Id: 1 }, MONGOD)).toBeUndefined();
+    expect(toMongoContainer(null, MONGOD)).toBeUndefined();
   });
 
   it('maps unknown engine states to other', () => {
@@ -167,7 +160,7 @@ describe('toMongoContainer', () => {
       copy['State'] = { Status: 'created' };
     });
 
-    expect(toMongoContainer(json)?.state).toBe('other');
+    expect(toMongoContainer(json, MONGOD)?.state).toBe('other');
   });
 });
 
@@ -205,6 +198,8 @@ function listItem(overrides: Partial<ContainerListItem>): ContainerListItem {
 function fakeClient(options: {
   list: ContainerListItem[];
   inspect: Record<string, unknown>;
+  /** Process command lines by container id. A container missing here fails like a stopped one. */
+  processes?: Record<string, string[]>;
   version?: () => Promise<{ version: string; apiVersion: string }>;
 }): DockerEngineClient {
   const unexpected = (): never => {
@@ -221,6 +216,13 @@ function fakeClient(options: {
         throw new DockerEngineError('Docker returned HTTP 404.', undefined, 404);
       }
       return json;
+    },
+    processCommands: async (id) => {
+      const commands = options.processes?.[id];
+      if (commands === undefined) {
+        throw new DockerEngineError('Docker returned HTTP 409.', undefined, 409);
+      }
+      return commands;
     },
     createContainer: unexpected,
     startContainer: unexpected,
@@ -247,6 +249,7 @@ describe('discoverMongoContainers', () => {
         }),
       ],
       inspect: { [mongo7.Id]: mongo7, [testcontainers.Id]: testcontainers },
+      processes: { [mongo7.Id]: MONGOD, [testcontainers.Id]: MONGOD, web: ['nginx'] },
     });
 
     const found = await discoverMongoContainers(client);
@@ -257,10 +260,54 @@ describe('discoverMongoContainers', () => {
     ]);
   });
 
+  it('finds a mongod under any image name and takes its port from the process list', async () => {
+    const base = fixture('inspect-testcontainers-mongo-8.0.17.json') as { Id: string };
+    const custom = inspectWith(base, (copy) => {
+      copy['Config'] = { Image: 'acme/custom-db:1', Env: [], ExposedPorts: {} };
+      copy['NetworkSettings'] = { Ports: {}, Networks: { bridge: { IPAddress: '10.0.0.5' } } };
+    });
+    const client = fakeClient({
+      list: [listItem({ id: base.Id, image: 'acme/custom-db:1' })],
+      inspect: { [base.Id]: custom },
+      processes: { [base.Id]: ['tini -- run.sh', '/usr/bin/mongod --port 27018 --bind_ip_all'] },
+    });
+
+    expect(await discoverMongoContainers(client)).toMatchObject([
+      { image: 'acme/custom-db:1', internalPort: 27018 },
+    ]);
+  });
+
+  it('skips a running container whose processes show no mongod', async () => {
+    const base = fixture('inspect-testcontainers-mongo-8.0.17.json') as { Id: string };
+    const web = inspectWith(base, (copy) => {
+      copy['Config'] = { Image: 'nginx:1', Env: [], ExposedPorts: {} };
+      copy['NetworkSettings'] = { Ports: {}, Networks: {} };
+    });
+    const client = fakeClient({
+      list: [listItem({ id: base.Id, image: 'nginx:1' })],
+      inspect: { [base.Id]: web },
+      processes: { [base.Id]: ['nginx: master process', 'mongod-exporter --port 9216'] },
+    });
+
+    expect(await discoverMongoContainers(client)).toEqual([]);
+  });
+
+  it('does not list a stopped container', async () => {
+    const mongo7 = fixture('inspect-mongo7-published.json') as { Id: string };
+    const client = fakeClient({
+      list: [listItem({ id: mongo7.Id, image: 'mongo:7', state: 'exited' })],
+      inspect: { [mongo7.Id]: mongo7 },
+      processes: { [mongo7.Id]: MONGOD },
+    });
+
+    expect(await discoverMongoContainers(client)).toEqual([]);
+  });
+
   it('skips a container that disappears between list and inspect', async () => {
     const client = fakeClient({
       list: [listItem({ id: 'gone', image: 'mongo:7' })],
       inspect: {},
+      processes: { gone: MONGOD },
     });
 
     expect(await discoverMongoContainers(client)).toEqual([]);

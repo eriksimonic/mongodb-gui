@@ -125,6 +125,10 @@ function fakeEngine(containers: Record<string, Record<string, unknown>>): FakeEn
         }
         return json;
       },
+      processCommands: async (id) => {
+        const config = inspects.get(id)?.['Config'] as { Image: string } | undefined;
+        return config?.Image === 'nginx:1' ? ['nginx: master process'] : ['mongod --bind_ip_all'];
+      },
       createContainer: UNUSED,
       startContainer: UNUSED,
       removeContainer: UNUSED,
@@ -351,13 +355,13 @@ describe('createDockerRuntime connect', () => {
     expect(harness.forwarders.released).toEqual([PLAIN_ID]);
   });
 
-  it('refuses a container that is not running', async () => {
+  it('does not find a stopped container', async () => {
     const harness = buildHarness({
       [PLAIN_ID]: inspectOf({ id: PLAIN_ID, status: 'exited' }),
     });
 
     await expect(harness.runtime.connect(PLAIN_ID)).rejects.toMatchObject({
-      error: { code: 'COMMAND_FAILED' },
+      error: { code: 'VALIDATION' },
     });
     expect(harness.forwarders.ensured).toEqual([]);
   });
@@ -542,7 +546,7 @@ describe('createDockerRuntime connectWithCredentials', () => {
     expect(harness.forwarders.released).toEqual([PLAIN_ID]);
   });
 
-  it('refuses a container that is not running', async () => {
+  it('does not find a stopped container', async () => {
     const harness = buildHarness({
       [PLAIN_ID]: inspectOf({ id: PLAIN_ID, status: 'exited' }),
     });
@@ -554,7 +558,7 @@ describe('createDockerRuntime connectWithCredentials', () => {
         password: 'admin',
         authSource: 'admin',
       }),
-    ).rejects.toMatchObject({ error: { code: 'COMMAND_FAILED' } });
+    ).rejects.toMatchObject({ error: { code: 'VALIDATION' } });
     expect(harness.connections.tested).toEqual([]);
   });
 });

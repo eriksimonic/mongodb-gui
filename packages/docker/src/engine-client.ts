@@ -91,6 +91,8 @@ export interface DockerEngineClient {
   listContainersByLabel(label: string): Promise<ContainerListItem[]>;
   /** Returns the raw `docker inspect` JSON. Callers validate it before use. */
   inspectContainer(id: string): Promise<unknown>;
+  /** The full command line of each process in a running container. Fails for a stopped one. */
+  processCommands(id: string): Promise<string[]>;
   createContainer(spec: ContainerCreateSpec): Promise<string>;
   startContainer(id: string): Promise<void>;
   /** Removes a container. A container that is already gone, or being removed, counts as removed. */
@@ -118,7 +120,8 @@ const ContainerListSchema = z.array(
   }),
 );
 
-const CreateSchema = z.object({ Id: z.string().min(1) });
+const TopSchema = z.object({ Processes: z.array(z.array(z.string())).nullish() });
+const CreateSchema =z.object({ Id: z.string().min(1) });
 const PullLineSchema = z.object({ error: z.string().optional() });
 const ErrorBodySchema = z.object({ message: z.string().optional() });
 
@@ -189,6 +192,16 @@ export function createDockerEngineClient(options: DockerEngineClientOptions): Do
     async inspectContainer(id) {
       const { text } = await send('GET', `/containers/${encodeURIComponent(id)}/json`);
       return parseUnknown(text, 'container inspect');
+    },
+
+    async processCommands(id) {
+      // `-eo args` makes the engine print one column, the command line, for every process.
+      const { text } = await send(
+        'GET',
+        `/containers/${encodeURIComponent(id)}/top?ps_args=${encodeURIComponent('-eo args')}`,
+      );
+      const { Processes } = parse(TopSchema, text, 'container top');
+      return (Processes ?? []).map((row) => row[row.length - 1] ?? '');
     },
 
     async createContainer(spec) {
