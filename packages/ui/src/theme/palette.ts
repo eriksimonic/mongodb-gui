@@ -22,13 +22,13 @@ const DARK: ChartPalette = {
   // shade, because the grid prints type colours as text and solid violet is too dark for that.
   colors: ['#6aa5ff', '#f4b223', '#f2597f', '#a98bfa', '#f08a3c', '#3cc9b5', '#4cc38a', '#f6be48'],
   // The page colour. Cards and the dockview group share this surface.
-  surface: '#1a1917',
+  surface: '#1e1f22',
   ink: {
-    primary: '#f4f2ee',
-    secondary: '#d3d0cb',
-    muted: '#a19d96',
-    gridline: '#2a2927',
-    baseline: '#2e2c29',
+    primary: '#f2f3f5',
+    secondary: '#dfe1e5',
+    muted: '#9da0a8',
+    gridline: '#2b2d30',
+    baseline: '#393b40',
   },
 };
 

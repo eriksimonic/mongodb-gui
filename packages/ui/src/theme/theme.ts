@@ -115,16 +115,16 @@ const teal: MantineColorsTuple = [
  * track.
  */
 const dark: MantineColorsTuple = [
-  '#f4f2ee',
-  '#d3d0cb',
-  '#a19d96',
-  '#75716a',
-  '#2e2c29',
-  '#33312e',
-  '#2a2927',
-  '#1a1917',
-  '#201f1c',
-  '#100d0a',
+  '#f2f3f5',
+  '#dfe1e5',
+  '#9da0a8',
+  '#7a7e85',
+  '#393b40',
+  '#34363b',
+  '#2b2d30',
+  '#1e1f22',
+  '#25272a',
+  '#18191b',
 ];
 
 /** Popups sit one surface step above the page. A border and a deep shadow keep them apart from the rows behind. */
@@ -145,7 +145,7 @@ export const appTheme = createTheme({
   // Mantine's default of 0.3 puts white text on the pink, orange and blue solids, where dark text
   // reads better. At 0.2 only violet keeps white text.
   luminanceThreshold: 0.2,
-  black: '#1a1917',
+  black: '#1e1f22',
   defaultRadius: 'md',
   radius: { xs: '2px', sm: '4px', md: '6px', lg: '10px', xl: '999px' },
   fontFamily: UI_FONT,
@@ -196,7 +196,7 @@ export const appTheme = createTheme({
       defaultProps: {
         radius: 'lg',
         padding: 'xl',
-        overlayProps: { backgroundOpacity: 0.7, color: '#100d0a' },
+        overlayProps: { backgroundOpacity: 0.7, color: '#18191b' },
       },
       styles: {
         content: { background: 'var(--mg-surface-1)', border: '1px solid var(--mg-border-strong)' },

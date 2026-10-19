@@ -50,15 +50,15 @@ ModuleRegistry.registerModules([AllCommunityModule]);
 // The dark grid takes its colours from docs/color-palette.md.
 const DARK_THEME = themeQuartz.withPart(colorSchemeDark).withParams({
   fontFamily: TABLE_FONT,
-  backgroundColor: '#100d0a',
-  foregroundColor: '#f4f2ee',
-  headerBackgroundColor: '#2a2927',
-  headerTextColor: '#d3d0cb',
-  borderColor: '#2e2c29',
-  rowHoverColor: '#2a2927',
-  selectedRowBackgroundColor: '#3a2f14',
+  backgroundColor: '#18191b',
+  foregroundColor: '#f2f3f5',
+  headerBackgroundColor: '#2b2d30',
+  headerTextColor: '#dfe1e5',
+  borderColor: '#393b40',
+  rowHoverColor: '#2b2d30',
+  selectedRowBackgroundColor: '#2e436e',
   accentColor: '#f4b223',
-  chromeBackgroundColor: '#2a2927',
+  chromeBackgroundColor: '#2b2d30',
 });
 const LIGHT_THEME = themeQuartz.withPart(colorSchemeLight).withParams({ fontFamily: TABLE_FONT });
 const ROW_HEIGHT_PX = 28;
