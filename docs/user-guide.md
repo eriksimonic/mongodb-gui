@@ -261,8 +261,6 @@ Other toolbar controls:
 - "Batch size" sets how many documents each page holds. The choices are 20, 50, 100 and 500.
 - "Format" reformats the text. In SQL mode it formats the SQL.
 - "Save as favourite" saves the statement with a name and a folder.
-- "Refresh databases" reloads the database list. "Refresh field names" reloads the fields that
-  completion uses. The app samples documents to find the fields.
 
 Completion offers collection names after `db.`, collection methods, the fields of the
 collection the statement names (also after a dotted parent such as `customer.`, and inside a
@@ -451,8 +449,8 @@ Completion works in SQL mode too:
 - Without a qualifier, completion lists the columns of the tables in the statement, the aliases,
   and the SQL keywords once you type two letters.
 
-Field names come from the sample that the app takes of the collection. Use "Refresh field names"
-after the documents change.
+Field names come from the sample that the app takes of the collection. The app samples again after
+each run and once a minute.
 
 The translator maps a table to a collection and a column to a field. A `dbo.` prefix is dropped.
 A join becomes a `$lookup`, and GROUP BY becomes a `$group`. A LIKE pattern ignores case. A find

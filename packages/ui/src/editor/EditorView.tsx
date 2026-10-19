@@ -11,14 +11,7 @@ import {
 } from '@mantine/core';
 import { modals } from '@mantine/modals';
 import { notifications } from '@mantine/notifications';
-import {
-  IconBookmark,
-  IconChecklist,
-  IconPlayerPlay,
-  IconPlayerStop,
-  IconRefresh,
-  IconWand,
-} from '@tabler/icons-react';
+import { IconBookmark, IconPlayerPlay, IconPlayerStop, IconWand } from '@tabler/icons-react';
 import { appError, type EditorLanguage, type ShellRuntimeState } from '@mongo-gui/core';
 import { useEffect, useMemo, useRef, useState, type KeyboardEvent, type PointerEvent } from 'react';
 import { useUiApi } from '../api/ui-api';
@@ -149,6 +142,16 @@ export function EditorView({ tabId }: EditorViewProps) {
           }),
     [rpc, store, tabId, connectionId],
   );
+
+  // A run can create collections or add fields, so the next completion samples again.
+  const running = tab?.running;
+  const wasRunning = useRef(false);
+  useEffect(() => {
+    if (wasRunning.current && running === undefined) {
+      source?.refreshFields();
+    }
+    wasRunning.current = running !== undefined;
+  }, [running, source]);
 
   if (tab === undefined) {
     return (
@@ -422,30 +425,6 @@ export function EditorView({ tabId }: EditorViewProps) {
             onClick={() => setSaveOpen(true)}
           >
             <IconBookmark size={14} />
-          </ActionIcon>
-        </Tooltip>
-        <Tooltip label="Reload the collection names of this connection" withArrow>
-          <ActionIcon
-            size="input-xs"
-            variant="default"
-            aria-label="Refresh databases"
-            onClick={() => {
-              void api
-                .loadDatabases(current.connectionId)
-                .catch((failure: unknown) => notifyError(failure));
-            }}
-          >
-            <IconRefresh size={14} />
-          </ActionIcon>
-        </Tooltip>
-        <Tooltip label="Refresh field names from the sample" withArrow>
-          <ActionIcon
-            size="input-xs"
-            variant="default"
-            aria-label="Refresh field names"
-            onClick={() => source?.refreshFields()}
-          >
-            <IconChecklist size={14} />
           </ActionIcon>
         </Tooltip>
         {unsaved ? (

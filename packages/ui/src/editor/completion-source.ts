@@ -9,6 +9,9 @@ import {
 /** Documents sampled per collection for field names. */
 export const FIELD_SAMPLE_SIZE = 100;
 
+/** Age after which the cached samples and collection names are asked for again. */
+export const CACHE_TTL_MS = 60_000;
+
 /** What the editor asks for on each completion. */
 export interface CompletionSource {
   /**
@@ -26,7 +29,10 @@ export interface CompletionSource {
    * the listing fails, and lists again on the next call.
    */
   collections(): Promise<string[]>;
-  /** Drops the cached field samples and collection names. The next completion asks again. */
+  /**
+   * Drops the cached field samples and collection names. The next completion asks again. The
+   * cache also drops itself after `CACHE_TTL_MS`.
+   */
   refreshFields(): void;
 }
 
@@ -46,8 +52,23 @@ export interface CompletionSourceOptions {
 /** Builds the completion source of one editor. The field samples are cached per collection. */
 export function createCompletionSource(options: CompletionSourceOptions): CompletionSource {
   const samples = new Map<string, Promise<SchemaField[]>>();
+  const collectionNames = new Map<string, Promise<string[]>>();
+  let startedAt = Date.now();
+
+  function clear(): void {
+    samples.clear();
+    collectionNames.clear();
+    startedAt = Date.now();
+  }
+
+  function clearWhenStale(): void {
+    if (Date.now() - startedAt > CACHE_TTL_MS) {
+      clear();
+    }
+  }
 
   function sampleOf(database: string, collection: string): Promise<SchemaField[]> {
+    clearWhenStale();
     const key = `${database}/${collection}`;
     const cached = samples.get(key);
     if (cached !== undefined) {
@@ -77,9 +98,8 @@ export function createCompletionSource(options: CompletionSourceOptions): Comple
     return pending;
   }
 
-  const collectionNames = new Map<string, Promise<string[]>>();
-
   function collectionsOf(database: string): Promise<string[]> {
+    clearWhenStale();
     const cached = collectionNames.get(database);
     if (cached !== undefined) {
       return cached;
@@ -136,9 +156,6 @@ export function createCompletionSource(options: CompletionSourceOptions): Comple
       return signal.aborted ? [] : [...runtime, ...fields];
     },
 
-    refreshFields() {
-      samples.clear();
-      collectionNames.clear();
-    },
+    refreshFields: clear,
   };
 }

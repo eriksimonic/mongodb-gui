@@ -1,7 +1,7 @@
 import { describe, expect, it, vi } from 'vitest';
 import { localConnectionId } from '../api/mock-fixtures';
 import { connectedMockApi } from '../api/connected-mock';
-import { createCompletionSource } from './completion-source';
+import { CACHE_TTL_MS, createCompletionSource } from './completion-source';
 import { mergeCompletions, operatorCompletions } from './completion-model';
 
 function signal(aborted = false): AbortSignal {
@@ -64,6 +64,30 @@ describe('createCompletionSource', () => {
     source.refreshFields();
     await source.complete(code, code.length, signal());
     expect(sample).toHaveBeenCalledTimes(2);
+  });
+
+  it('samples again once the cache is older than the TTL', async () => {
+    const api = await connectedMockApi();
+    const sample = vi.spyOn(api.rpc.shell, 'sampleSchema');
+    const now = vi.spyOn(Date, 'now');
+    now.mockReturnValue(0);
+    const source = createCompletionSource({
+      rpc: api.rpc,
+      connectionId: localConnectionId,
+      database: () => 'analytics',
+      isBusy: () => false,
+    });
+    const code = 'db.bson_samples.find({ ';
+
+    await source.complete(code, code.length, signal());
+    now.mockReturnValue(CACHE_TTL_MS);
+    await source.complete(code, code.length, signal());
+    expect(sample).toHaveBeenCalledTimes(1);
+
+    now.mockReturnValue(CACHE_TTL_MS + 1);
+    await source.complete(code, code.length, signal());
+    expect(sample).toHaveBeenCalledTimes(2);
+    now.mockRestore();
   });
 
   it('asks the runtime nothing while it is busy', async () => {
