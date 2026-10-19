@@ -26,7 +26,7 @@ describe('GridFsPanel', () => {
       return;
     }
     expect(within(row).getByText('82.5 KiB')).toBeInTheDocument();
-    expect(within(row).getByText('255.0 KiB')).toBeInTheDocument();
+    expect(within(row).getByText('12.0 MiB')).toBeInTheDocument();
     expect(within(row).getByText('application/pdf')).toBeInTheDocument();
     // The badge counts the top-level metadata fields, and the content type is one of them.
     expect(within(row).getByText('3 fields')).toBeInTheDocument();

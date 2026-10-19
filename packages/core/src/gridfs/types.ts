@@ -7,7 +7,7 @@ export const GRIDFS_MAX_LIST_LIMIT = 5000;
 export const GRIDFS_MAX_BATCH_IDS = 5000;
 export const GRIDFS_MIN_CHUNK_SIZE_BYTES = 1024;
 export const GRIDFS_MAX_CHUNK_SIZE_BYTES = 15 * 1024 * 1024;
-export const GRIDFS_DEFAULT_CHUNK_SIZE_BYTES = 255 * 1024;
+export const GRIDFS_DEFAULT_CHUNK_SIZE_BYTES = 12 * 1024 * 1024;
 export const GRIDFS_MAX_FILENAME_CHARS = 1024;
 
 // A collection name must stay within 255 bytes after the ".files" or ".chunks" suffix is added.

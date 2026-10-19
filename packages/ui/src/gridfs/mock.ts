@@ -53,7 +53,7 @@ interface SeedFile {
   readonly metadata?: Record<string, unknown>;
 }
 
-const MOCK_CHUNK_SIZE_BYTES = 261_120;
+const MOCK_CHUNK_SIZE_BYTES = 12 * 1024 * 1024;
 const DAY_MS = 86_400_000;
 const SEED_NOW_MS = Date.parse('2026-09-01T09:00:00Z');
 const FIRST_SEED_ID = 0x300000;
