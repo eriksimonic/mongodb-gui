@@ -2,13 +2,18 @@
 
 All notable changes to Mongo GUI are listed here, newest first.
 
-## Unreleased
+## 0.4.1 - 2026-10-19
 
 ### Added
 
 - The result table edits a scalar cell in place. Double-click it, or press F2 or Enter. Enter saves
   the value with its type, and Escape cancels. Double-clicking a cell that cannot be edited still
   opens the whole document.
+
+### Fixed
+
+- SQL completion offers columns after an INSERT creates the collection. An empty field sample was
+  cached, so WHERE had nothing to offer until "Refresh field names".
 
 ## 0.4.0 - 2026-10-17
 
