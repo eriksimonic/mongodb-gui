@@ -27,6 +27,7 @@ import { EJSON, stringifyEjson } from '../ejson';
 import { runAdminCommand } from './command';
 
 export { collectionStats as getCollStats, databaseStats as getDbStats } from '../catalog';
+export { getStorageCollections, getStorageDatabases } from './storage';
 
 // Fields that every command reply carries. They are not server parameters.
 const REPLY_FIELDS: ReadonlySet<string> = new Set(['ok', 'operationTime']);

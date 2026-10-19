@@ -33,6 +33,7 @@ import {
   IconSettings,
   IconShieldCheck,
   IconSitemap,
+  IconChartTreemap,
   IconStethoscope,
   IconTable,
   IconTerminal2,
@@ -89,6 +90,9 @@ const ProfilerPanel = lazy(() =>
 );
 const MonitorDashboard = lazy(() =>
   import('../monitor/MonitorDashboard').then((module) => ({ default: module.MonitorDashboard })),
+);
+const StoragePanel = lazy(() =>
+  import('../storage/StoragePanel').then((module) => ({ default: module.StoragePanel })),
 );
 const GridFsPanel = lazy(() =>
   import('../gridfs/GridFsPanel').then((module) => ({ default: module.GridFsPanel })),
@@ -229,6 +233,7 @@ const TAB_ICONS: Record<string, Icon> = {
   monitor: IconActivity,
   operations: IconListDetails,
   diagnostics: IconStethoscope,
+  storage: IconChartTreemap,
   sharding: IconSitemap,
   replication: IconBinaryTree2,
   indexes: IconKey,
@@ -685,6 +690,23 @@ export interface DiagnosticsPanelParams {
 /** Dock panel: server logs, parameters, status, host, top, pools and sessions. */
 export function DiagnosticsDockPanel({ params }: IDockviewPanelProps<DiagnosticsPanelParams>) {
   return <DiagnosticsPanel connectionId={params.connectionId} />;
+}
+
+/** Params of the storage usage panel of a connection. */
+export interface StoragePanelParams {
+  readonly connectionId: string;
+  readonly database?: string | undefined;
+}
+
+/** Dock panel: disk usage per database, collection and index. */
+export function StorageDockPanel({ params }: IDockviewPanelProps<StoragePanelParams>) {
+  return (
+    <Box h="100%" style={{ overflow: 'auto' }}>
+      <Suspense fallback={null}>
+        <StoragePanel connectionId={params.connectionId} focusDatabase={params.database} />
+      </Suspense>
+    </Box>
+  );
 }
 
 /** Params of a database statistics panel. */

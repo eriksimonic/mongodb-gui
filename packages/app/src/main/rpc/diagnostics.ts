@@ -24,6 +24,8 @@ import {
   getParameters,
   getServerLog,
   getServerStatusTree,
+  getStorageCollections,
+  getStorageDatabases,
   getTop,
   killAllSessionsByUser,
   killSessions,
@@ -89,6 +91,12 @@ export function diagnosticsOperations(deps: DiagnosticsDeps): [string, Operation
     ),
     readOnly('diagnostics.collStats', d.collStats, (client, input) =>
       getCollStats(client, input.database, input.collection),
+    ),
+    readOnly('diagnostics.storageDatabases', d.storageDatabases, (client) =>
+      getStorageDatabases(client),
+    ),
+    readOnly('diagnostics.storageCollections', d.storageCollections, (client, input) =>
+      getStorageCollections(client, input.database),
     ),
     readOnly('diagnostics.connPoolStats', d.connPoolStats, (client) => getConnPoolStats(client)),
     readOnly('diagnostics.listSessions', d.listSessions, (client, input) =>

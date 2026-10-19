@@ -38,6 +38,7 @@ export {
   uploadFile,
 } from './gridfs/files';
 export { importFile, previewImport } from './transfer/import';
+export { getStorageCollections, getStorageDatabases } from './diagnostics/server';
 export { readServerInfo, type ServerInfo } from './server-info';
 export { readArchivePrelude, type ArchivePrelude, type PreludeNamespace } from './backup/prelude';
 export { readBackupServerInfo } from './backup/source-info';

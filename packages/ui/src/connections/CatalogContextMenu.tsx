@@ -33,6 +33,13 @@ export function DatabaseContextMenu({
   const changesOpener = useChangesOpener();
   const openEditor = useAppStore((state) => state.openEditor);
   const openPanel = usePanelOpener();
+  const connectionName = useAppStore(
+    (state) =>
+      (state.connections.state === 'ready'
+        ? state.connections.data.find((item) => item.id === connectionId)?.name
+        : undefined) ?? '',
+  );
+  const connected = useAppStore((state) => state.statuses[connectionId]?.state === 'connected');
   const entries: TreeMenuEntry[] = [
     {
       kind: 'item',
@@ -58,6 +65,12 @@ export function DatabaseContextMenu({
           kind: 'item',
           label: 'Database stats',
           onSelect: () => openPanel({ kind: 'databaseStats', connectionId, database }),
+        },
+        {
+          kind: 'item',
+          label: 'Storage usage',
+          disabled: !connected,
+          onSelect: () => openPanel({ kind: 'storage', connectionId, connectionName, database }),
         },
         {
           kind: 'item',

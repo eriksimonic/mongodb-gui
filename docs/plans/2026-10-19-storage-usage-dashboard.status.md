@@ -1,0 +1,16 @@
+- T0 (baseline): done, lint and typecheck pass, 7 symlink EPERM unit failures, Docker not installed so integration has no baseline
+- T1 (core schemas): done after 1 rework round, V1 pass
+- T2 (UI helpers): done after 1 rework round, V1 pass, format.ts dropped
+- V1 (validate T1,T2): pass
+- T3 (adapter): done after 1 rework round, V2 pass; integration test written but never run, Docker missing
+- T4 (app wiring): done, files present from an unknown writer, V2 pass
+- T5 (mock client): done
+- T6 (panel components): done after 2 rework rounds
+- V2 (validate T3,T4): pass
+- T7 (registration, menus): done, extended to CatalogContextMenu.tsx; open gap: an open panel ignores a new database focus
+- T8 (component test): done, 6 tests pass
+- T9 (docs): done after 2 rework rounds
+- V3 (browser validation): pass in round 3 after 2 failed rounds
+- T10 (e2e smoke): written, typecheck and lint pass, wiring test never run, Docker missing
+- V4 (full check): pass, no new failures versus baseline, minor unslop nits left
+- T11 (restart app): app listens on 5173, log e2e/output/electron-restart.log has no "shell state changed" line, only two vault.unlock bad password warnings

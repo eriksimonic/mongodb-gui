@@ -22,6 +22,7 @@ quotes are the text on the buttons, menus and fields.
 - [Replica set](#replica-set)
 - [Sharding](#sharding)
 - [Diagnostics](#diagnostics)
+- [Storage usage](#storage-usage)
 - [GridFS](#gridfs)
 - [Change streams](#change-streams)
 - [Backup and restore](#backup-and-restore)
@@ -764,6 +765,45 @@ warnings", "Parameters", "Server status", "Host and build", "Top", "Connection p
 To read the statistics of one collection, choose "Monitoring" > "Collection stats" from the collection menu.
 The panel lists the document count, data size, average document size, storage size, index count
 and index size.
+
+## Storage usage
+
+Open "Storage" from the "Monitoring" submenu of the connection menu. To start at one database,
+right-click it and choose "Monitoring" > "Storage usage". Both entries need a connected
+connection.
+
+The top bar holds a breadcrumb, a toggle for "Storage size", "Data size" or "Index size", a
+"Filter names" field, a "Refresh" button and the time of the last load ("Loaded at").
+The toggle sets the size that the bar column shows and that the table sorts by. The other size columns stay.
+
+- The disk strip shows the used and free disk of the server, with the total size of the
+  databases inside it. It appears only when the server reports the disk size.
+- The treemap shows the databases. Click a database to see its collections, and click a
+  collection to see its data, its free space ("Free (reclaimable)") and each index. Use the
+  breadcrumb to go up.
+- The table below the treemap lists the same level and sorts by any column. Click a row to
+  drill down. Collection rows show the document count, sizes, index share and compression
+  ratio. Index rows show the size, the operations and the date the count starts from.
+
+Above the treemap, cards summarize the collections the panel has loaded:
+
+- "Biggest collections" and "Biggest indexes" list the five largest of each.
+- "Unused indexes" lists the indexes with zero operations and their total size. The count
+  starts when the server started, so a recently restarted server shows few operations. Read
+  the card as a list of candidates to drop, not as a verdict. When the card lists indexes, it
+  shows the date the count started.
+- "Index larger than data" lists the collections whose indexes take more space than their
+  data.
+- "Reclaimable space" adds up the free space that the server reports. It appears only when the
+  server reports it.
+
+The panel reads the database list when it opens. It reads a database's collections when you
+open that database or click its tile. The panel keeps the results until you choose "Refresh".
+Nothing refreshes on a timer.
+
+The panel sends only read commands. It never writes, compacts or changes a collection. It reads
+two collections at a time, and each read stops after 5 seconds. A collection that fails shows
+greyed out with its error, and the rest of the database still loads.
 
 ## GridFS
 

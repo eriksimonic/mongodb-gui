@@ -59,6 +59,11 @@ export function diagnosticsPanelId(connectionId: string): string {
   return `diagnostics:${connectionId}`;
 }
 
+/** The dock id of a connection's storage usage panel. One panel per connection. */
+export function storagePanelId(connectionId: string): string {
+  return `storage:${connectionId}`;
+}
+
 /** The dock id of a database's storage statistics panel. */
 export function databaseStatsPanelId(connectionId: string, database: string): string {
   return `dbstats:${catalogKey(connectionId, database)}`;

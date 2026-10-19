@@ -239,6 +239,7 @@ import {
   SessionListSchema,
   TopEntrySchema,
 } from '../diagnostics/types';
+import { StorageCollectionsSchema, StorageDatabasesSchema } from '../diagnostics/storage';
 import {
   GenerateCancelInputSchema,
   GenerateStartInputSchema,
@@ -477,6 +478,11 @@ export const rpcContract = {
     top: defineCall(connectionParam, z.array(TopEntrySchema)),
     dbStats: defineCall(connectionParam.and(DatabaseTargetSchema), DatabaseStatsSchema),
     collStats: defineCall(connectionParam.and(CollectionTargetSchema), CollectionStatsSchema),
+    storageDatabases: defineCall(connectionParam, StorageDatabasesSchema),
+    storageCollections: defineCall(
+      connectionParam.and(DatabaseTargetSchema),
+      StorageCollectionsSchema,
+    ),
     connPoolStats: defineCall(connectionParam, ConnPoolStatsSchema),
     listSessions: defineCall(onConnection(SessionListInputSchema), SessionListSchema),
     killSessions: defineCall(onConnection(KillSessionsInputSchema), z.void()),

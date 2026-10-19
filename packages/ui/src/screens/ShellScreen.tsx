@@ -42,6 +42,7 @@ import {
   type DatabaseStatsRequest,
   type DiagnosticsPanelRequest,
   type OpenPanel,
+  type StoragePanelRequest,
   type UsersPanelRequest,
 } from '../state/panel-opener';
 import {
@@ -51,6 +52,7 @@ import {
   diagnosticsPanelId,
   gridfsPanelId,
   profilerPanelId,
+  storagePanelId,
   usersPanelId,
 } from '../state/node-ids';
 import { explainRestoreOf, type ExplainPanelState } from '../explain';
@@ -80,6 +82,7 @@ import {
   ShardingDockPanel,
   UsersDockPanel,
   DiagnosticsDockPanel,
+  StorageDockPanel,
   DatabaseStatsDockPanel,
   CollectionStatsDockPanel,
   ValidationDockPanel,
@@ -105,6 +108,7 @@ const PANEL_COMPONENTS = {
   gridfs: GridFsDockPanel,
   changes: ChangesDockPanel,
   diagnostics: DiagnosticsDockPanel,
+  storage: StorageDockPanel,
   dbStats: DatabaseStatsDockPanel,
   collStats: CollectionStatsDockPanel,
 };
@@ -306,6 +310,29 @@ function openDiagnosticsPanel(api: DockviewApi, request: DiagnosticsPanelRequest
     component: 'diagnostics',
     title: `${request.connectionName} diagnostics`,
     params: { connectionId: request.connectionId },
+    ...(centre === undefined
+      ? {}
+      : { position: { referencePanel: centre, direction: 'within' as const } }),
+  });
+}
+
+/**
+ * Opens a connection's storage usage panel, or focuses it when it is open. One panel per
+ * connection, titled "<connection> storage".
+ */
+function openStoragePanel(api: DockviewApi, request: StoragePanelRequest): void {
+  const id = storagePanelId(request.connectionId);
+  const existing = api.getPanel(id);
+  if (existing !== undefined) {
+    existing.api.setActive();
+    return;
+  }
+  const centre = api.getPanel('welcome') === undefined ? undefined : 'welcome';
+  api.addPanel({
+    id,
+    component: 'storage',
+    title: `${request.connectionName} storage`,
+    params: { connectionId: request.connectionId, database: request.database },
     ...(centre === undefined
       ? {}
       : { position: { referencePanel: centre, direction: 'within' as const } }),
@@ -543,6 +570,9 @@ export function ShellScreen() {
         return;
       case 'diagnostics':
         openDiagnosticsPanel(dockApi.current, request);
+        return;
+      case 'storage':
+        openStoragePanel(dockApi.current, request);
         return;
       case 'databaseStats':
         openStatsPanel(dockApi.current, request);

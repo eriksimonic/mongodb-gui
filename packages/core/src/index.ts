@@ -31,6 +31,7 @@ export * from './domain/settings';
 export * from './diagnostics/calls';
 export * from './diagnostics/redact';
 export * from './diagnostics/types';
+export * from './diagnostics/storage';
 export * from './domain/vault';
 export * from './ejson/canonical';
 export * from './ejson/format';

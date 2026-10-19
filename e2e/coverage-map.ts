@@ -112,6 +112,8 @@ export const coverageMap: Readonly<Record<string, Coverage>> = {
   'diagnostics.top': { journey: 'diagnostics-activity.spec.ts' },
   'diagnostics.dbStats': { journey: 'diagnostics-activity.spec.ts' },
   'diagnostics.collStats': { journey: 'diagnostics-activity.spec.ts' },
+  'diagnostics.storageDatabases': { journey: 'storage.spec.ts' },
+  'diagnostics.storageCollections': { journey: 'storage.spec.ts' },
   'diagnostics.connPoolStats': { journey: 'diagnostics-activity.spec.ts' },
   'diagnostics.listSessions': { journey: 'diagnostics-activity.spec.ts' },
   'diagnostics.killSessions': { journey: 'diagnostics-activity.spec.ts' },

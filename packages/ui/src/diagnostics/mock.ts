@@ -8,7 +8,8 @@ import {
   type SessionInfo,
   type SessionUserInput,
 } from '@mongo-gui/core';
-import { method } from '../api/mock-support';
+import { fail, method } from '../api/mock-support';
+import { mockStorageCollections, mockStorageDatabases } from '../storage/mock';
 import {
   fixtureBuildInfo,
   fixtureConnPool,
@@ -143,6 +144,18 @@ export function createDiagnosticsCalls(context: MockDiagnosticsContext): RpcClie
     collStats: method(calls.collStats, latencyMs, ({ connectionId, database, collection }) => {
       context.guard(connectionId);
       return context.collStats(connectionId, database, collection);
+    }),
+    storageDatabases: method(calls.storageDatabases, latencyMs, ({ connectionId }) => {
+      context.guard(connectionId);
+      return mockStorageDatabases();
+    }),
+    storageCollections: method(calls.storageCollections, latencyMs, ({ connectionId, database }) => {
+      context.guard(connectionId);
+      const found = mockStorageCollections(database);
+      if (found === undefined) {
+        throw fail('COMMAND_FAILED', 'Database not found', database);
+      }
+      return found;
     }),
     connPoolStats: method(calls.connPoolStats, latencyMs, ({ connectionId }) => {
       context.guard(connectionId);

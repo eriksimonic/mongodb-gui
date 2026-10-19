@@ -150,6 +150,19 @@ export function ConnectionContextMenu({
               disabled={status.state !== 'connected'}
               onClick={() => {
                 onClose();
+                openPanel({
+                  kind: 'storage',
+                  connectionId: connection.id,
+                  connectionName: connection.name,
+                });
+              }}
+            >
+              Storage
+            </Menu.Item>
+            <Menu.Item
+              disabled={status.state !== 'connected'}
+              onClick={() => {
+                onClose();
                 changesOpener?.open(connection.id, { kind: 'deployment' });
               }}
             >

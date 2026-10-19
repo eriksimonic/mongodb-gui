@@ -23,6 +23,14 @@ export interface DiagnosticsPanelRequest {
   readonly connectionName: string;
 }
 
+/** The storage usage panel of a connection. Opens focused on `database` when it is set. */
+export interface StoragePanelRequest {
+  readonly kind: 'storage';
+  readonly connectionId: string;
+  readonly connectionName: string;
+  readonly database?: string | undefined;
+}
+
 /** The storage statistics panel of one database. */
 export interface DatabaseStatsRequest {
   readonly kind: 'databaseStats';
@@ -42,6 +50,7 @@ export type PanelRequest =
   | ConnectionPanelRequest
   | UsersPanelRequest
   | DiagnosticsPanelRequest
+  | StoragePanelRequest
   | DatabaseStatsRequest
   | CollectionStatsRequest;
 
