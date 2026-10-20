@@ -98,6 +98,20 @@ describe('TableView', () => {
     await waitFor(() => expect(writeText).toHaveBeenCalledWith('customer.name'));
   });
 
+  it('opens the document for editing from the right-click menu', async () => {
+    const onOpen = vi.fn();
+    renderTable(onOpen);
+    const index = DOCUMENTS.findIndex(
+      (document) => (document.customer as { name: string }).name === 'Customer 2',
+    );
+    const cell = (await screen.findAllByText('Customer 2'))[0] as HTMLElement;
+
+    fireEvent.contextMenu(cell, { clientX: 40, clientY: 50 });
+    fireEvent.click(await screen.findByText('Edit document'));
+
+    expect(onOpen).toHaveBeenCalledWith(index);
+  });
+
   it('copies the value in mongosh form and the whole document as JSON', async () => {
     const writeText = vi.fn().mockResolvedValue(undefined);
     Object.defineProperty(navigator, 'clipboard', { value: { writeText }, configurable: true });

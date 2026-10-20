@@ -93,6 +93,7 @@ interface CellMenuState {
   readonly path: string;
   readonly value: unknown;
   readonly doc: JsonObject;
+  readonly index: number;
 }
 
 /** A cell is edited in place when the result is editable and it holds a scalar. `_id` is fixed. */
@@ -130,13 +131,16 @@ async function copyValue(
   }
 }
 
-/** The entries of a cell's menu. Each copies one piece of the clicked cell. */
+/** The entries of a cell's menu. It opens the document or copies one piece of the clicked cell. */
 function cellMenuEntries(
   cell: Omit<CellMenuState, 'position'>,
+  editable: boolean,
   readFull: (ref: string) => Promise<string>,
   onView: () => void,
+  onOpen: () => void,
 ): TreeMenuEntry[] {
   return [
+    { kind: 'item', label: editable ? 'Edit document' : 'View document', onSelect: onOpen },
     ...(cell.value !== undefined && isShortenedValue(cell.value)
       ? [{ kind: 'item' as const, label: 'View value', onSelect: onView }]
       : []),
@@ -233,7 +237,7 @@ function CellRenderer(props: CustomCellRendererProps<Row, unknown>) {
  * The documents as a grid. Each field path is a column, discovered from the loaded pages. The
  * column chooser hides and shows columns. Double-clicking, F2 or Enter edits a scalar cell in place
  * when the result is editable. Double-clicking any other cell opens the whole document. A
- * right-click on a cell offers to copy its value, its key or its document.
+ * right-click on a cell offers to edit the document, or to copy its value, its key or its document.
  */
 export function TableView({
   documents,
@@ -355,6 +359,7 @@ export function TableView({
               path: event.column.getColId(),
               value: event.value,
               doc: event.data.doc,
+              index: event.data.index,
             });
           }}
           onCellDoubleClicked={(event: CellDoubleClickedEvent<Row>) => {
@@ -376,11 +381,16 @@ export function TableView({
       </Box>
       {cellMenu === undefined ? null : (
         <TreeMenu
-          entries={cellMenuEntries(cellMenu, readFull, () =>
-            setViewing({
-              path: cellMenu.path,
-              load: () => fullValueText(cellMenu.doc, cellMenu.path, cellMenu.value, readFull),
-            }),
+          entries={cellMenuEntries(
+            cellMenu,
+            editable,
+            readFull,
+            () =>
+              setViewing({
+                path: cellMenu.path,
+                load: () => fullValueText(cellMenu.doc, cellMenu.path, cellMenu.value, readFull),
+              }),
+            () => onOpenDocument(cellMenu.index),
           )}
           position={cellMenu.position}
           onClose={() => setCellMenu(undefined)}
