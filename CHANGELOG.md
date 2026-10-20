@@ -2,6 +2,14 @@
 
 All notable changes to Mongo GUI are listed here, newest first.
 
+## 0.4.3 - 2026-10-20
+
+### Fixed
+
+- Docker discovery finds MongoDB containers again on Docker Engine 29, which rejected the process
+  list request, so the Docker node showed no containers. When the container list fails, the Docker
+  node now shows the engine's reason.
+
 ## 0.4.2 - 2026-10-19
 
 ### Added
