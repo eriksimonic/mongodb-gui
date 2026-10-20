@@ -112,7 +112,7 @@ async function startNode(
     .withNetworkAliases(spec.alias)
     .withCommand([...spec.command])
     .withExposedPorts(spec.port)
-    .withWaitStrategy(Wait.forAll([Wait.forListeningPorts(), Wait.forLogMessage(LOG_READY)]))
+    .withWaitStrategy(Wait.forLogMessage(LOG_READY))
     .withStartupTimeout(CONTAINER_STARTUP_TIMEOUT_MS)
     .start();
   return {
@@ -130,7 +130,7 @@ async function startMongos(
     .withNetwork(network)
     .withCommand(['mongos', '--configdb', configDb, '--port', String(MONGOS_PORT), '--bind_ip_all'])
     .withExposedPorts(MONGOS_PORT)
-    .withWaitStrategy(Wait.forAll([Wait.forListeningPorts(), Wait.forLogMessage(LOG_READY)]))
+    .withWaitStrategy(Wait.forLogMessage(LOG_READY))
     .withStartupTimeout(CONTAINER_STARTUP_TIMEOUT_MS)
     .start();
   const uri = directUri(container, MONGOS_PORT);

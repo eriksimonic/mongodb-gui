@@ -352,9 +352,7 @@ async function main(): Promise<void> {
   console.log(`starting ${image}`);
   const container = await new GenericContainer(image)
     .withExposedPorts(MONGO_PORT)
-    .withWaitStrategy(
-      Wait.forAll([Wait.forListeningPorts(), Wait.forLogMessage(/Waiting for connections/, 1)]),
-    )
+    .withWaitStrategy(Wait.forLogMessage(/Waiting for connections/, 1))
     .withStartupTimeout(300_000)
     .start();
   const uri = `mongodb://${container.getHost()}:${container.getMappedPort(MONGO_PORT)}/`;

@@ -289,7 +289,7 @@ describe('replica set sampling on mongo:8.0.17', () => {
     container = await new GenericContainer(image)
       .withCommand(['--replSet', 'rs0', '--bind_ip_all'])
       .withExposedPorts(REPLICA_SET_PORT)
-      .withWaitStrategy(Wait.forListeningPorts())
+      .withWaitStrategy(Wait.forLogMessage(/Waiting for connections/))
       .withStartupTimeout(CONTAINER_STARTUP_TIMEOUT_MS)
       .start();
     const uri = `mongodb://${container.getHost()}:${container.getMappedPort(REPLICA_SET_PORT)}/?directConnection=true`;

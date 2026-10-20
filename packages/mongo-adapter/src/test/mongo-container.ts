@@ -42,10 +42,9 @@ export async function startMongo(
     .withExposedPorts(MONGO_PORT)
     // The init phase starts a temporary mongod that listens on the port before the real server
     // does, and the official image logs "Waiting for connections" once per server. Waiting for
-    // the second message means the real server is accepting connections.
-    .withWaitStrategy(
-      Wait.forAll([Wait.forListeningPorts(), Wait.forLogMessage(/Waiting for connections/, 2)]),
-    )
+    // the second message means the real server is accepting connections. Wait.forListeningPorts is
+    // not used: its in-container port check never returns on a Podman engine.
+    .withWaitStrategy(Wait.forLogMessage(/Waiting for connections/, 2))
     .withStartupTimeout(CONTAINER_STARTUP_TIMEOUT_MS);
   const configured = options.testCommands === true ? builder.withCommand(TEST_COMMANDS) : builder;
   const container: StartedTestContainer = await configured.start();

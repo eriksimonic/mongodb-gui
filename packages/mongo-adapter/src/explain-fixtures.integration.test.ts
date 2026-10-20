@@ -194,7 +194,7 @@ async function startWithArgs(image: string, args: readonly string[]): Promise<St
     })
     .withCommand([...args])
     .withExposedPorts(MONGO_PORT)
-    .withWaitStrategy(Wait.forListeningPorts())
+    .withWaitStrategy(Wait.forLogMessage(/Waiting for connections/, 2))
     .withStartupTimeout(CONTAINER_STARTUP_TIMEOUT_MS)
     .start();
   const hostPort = `${container.getHost()}:${container.getMappedPort(MONGO_PORT)}`;
