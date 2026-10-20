@@ -632,6 +632,36 @@ describe('createDockerRuntime disconnect, status and list', () => {
     expect(summary).toMatchObject({ hasCredentials: true, env: { username: 'app' } });
     expect(JSON.stringify(summary)).not.toContain('hunter2');
   });
+
+  it('logs a failed list with the engine detail and rethrows it', async () => {
+    const harness = buildHarness({});
+    const warn = vi.fn();
+    const failure = new DockerEngineError(
+      'Docker returned HTTP 500.',
+      "Couldn't find PID field in ps output",
+      500,
+    );
+    const runtime = createDockerRuntime({
+      engine: {
+        ...harness.engine.client,
+        listContainers: async () => {
+          throw failure;
+        },
+      },
+      socketPath: SOCKET,
+      forwarders: harness.forwarders,
+      connections: harness.connections,
+      repos: () => harness.repos,
+      isUnlocked: () => true,
+      log: { ...SILENT_LOG, warn },
+    });
+
+    await expect(runtime.list()).rejects.toBe(failure);
+    expect(warn).toHaveBeenCalledWith('docker container list failed', {
+      error: 'Docker returned HTTP 500.',
+      detail: "Couldn't find PID field in ps output",
+    });
+  });
 });
 
 describe('createDockerRuntime auto connect and setting', () => {

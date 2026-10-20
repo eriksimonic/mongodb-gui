@@ -104,7 +104,10 @@ describe('toMongoContainer', () => {
       ];
     });
 
-    expect(toMongoContainer(json, MONGOD)?.env).toEqual({ username: 'admin', password: 'bitnami-secret' });
+    expect(toMongoContainer(json, MONGOD)?.env).toEqual({
+      username: 'admin',
+      password: 'bitnami-secret',
+    });
   });
 
   it('prefers loopback over wildcard bindings', () => {
@@ -118,7 +121,10 @@ describe('toMongoContainer', () => {
       };
     });
 
-    expect(toMongoContainer(json, MONGOD)?.publishedPort).toEqual({ hostIp: '127.0.0.1', hostPort: 27019 });
+    expect(toMongoContainer(json, MONGOD)?.publishedPort).toEqual({
+      hostIp: '127.0.0.1',
+      hostPort: 27019,
+    });
   });
 
   it('accepts any image name when a mongod runs', () => {
@@ -322,6 +328,37 @@ describe('discoverMongoContainers', () => {
     };
 
     await expect(discoverMongoContainers(client)).rejects.toBeInstanceOf(AppErrorException);
+  });
+
+  it('skips a container that stops before its processes are listed', async () => {
+    const mongo7 = fixture('inspect-mongo7-published.json') as { Id: string };
+    const client = fakeClient({
+      list: [listItem({ id: mongo7.Id, image: 'mongo:7' })],
+      inspect: { [mongo7.Id]: mongo7 },
+    });
+
+    expect(await discoverMongoContainers(client)).toEqual([]);
+  });
+
+  it('rethrows a process list failure so the reason reaches the user', async () => {
+    const mongo7 = fixture('inspect-mongo7-published.json') as { Id: string };
+    const client: DockerEngineClient = {
+      ...fakeClient({
+        list: [listItem({ id: mongo7.Id, image: 'mongo:7' })],
+        inspect: { [mongo7.Id]: mongo7 },
+      }),
+      processCommands: async () => {
+        throw new DockerEngineError(
+          'Docker returned HTTP 500.',
+          "Couldn't find PID field in ps output",
+          500,
+        );
+      },
+    };
+
+    await expect(discoverMongoContainers(client)).rejects.toMatchObject({
+      error: { detail: "Couldn't find PID field in ps output" },
+    });
   });
 });
 

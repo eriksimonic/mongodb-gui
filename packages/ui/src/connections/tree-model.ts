@@ -540,7 +540,9 @@ function dockerChildren(input: TreeInput, parentKey: string): TreeRow[] {
   } else if (containers?.state === 'loading') {
     rows.push(messageRow(parentKey, '', depth, 'Looking for containers'));
   } else if (containers?.state === 'error') {
-    rows.push(messageRow(parentKey, '', depth, containers.error.message, 'red'));
+    const { message, detail } = containers.error;
+    const text = detail === undefined ? message : `${message} (${detail})`;
+    rows.push(messageRow(parentKey, '', depth, text, 'red'));
   } else if (containers?.state === 'ready') {
     listed = containers.data;
   }

@@ -121,7 +121,7 @@ const ContainerListSchema = z.array(
 );
 
 const TopSchema = z.object({ Processes: z.array(z.array(z.string())).nullish() });
-const CreateSchema =z.object({ Id: z.string().min(1) });
+const CreateSchema = z.object({ Id: z.string().min(1) });
 const PullLineSchema = z.object({ error: z.string().optional() });
 const ErrorBodySchema = z.object({ message: z.string().optional() });
 
@@ -195,10 +195,12 @@ export function createDockerEngineClient(options: DockerEngineClientOptions): Do
     },
 
     async processCommands(id) {
-      // `-eo args` makes the engine print one column, the command line, for every process.
+      // The engine needs the PID column to pick the container's processes from the host's ps,
+      // and rejects ps_args without it. `args` stays last, because the engine puts the rest of
+      // each line, the full command line, into the last column.
       const { text } = await send(
         'GET',
-        `/containers/${encodeURIComponent(id)}/top?ps_args=${encodeURIComponent('-eo args')}`,
+        `/containers/${encodeURIComponent(id)}/top?ps_args=${encodeURIComponent('-eo pid,args')}`,
       );
       const { Processes } = parse(TopSchema, text, 'container top');
       return (Processes ?? []).map((row) => row[row.length - 1] ?? '');

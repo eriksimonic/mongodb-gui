@@ -401,7 +401,17 @@ export function createDockerRuntime(deps: DockerRuntimeDeps): DockerRuntime {
       if (emit !== undefined) {
         listEmitter = emit;
       }
-      return (await discover()).map(toDockerContainerSummary);
+      try {
+        return (await discover()).map(toDockerContainerSummary);
+      } catch (error) {
+        deps.log.warn('docker container list failed', {
+          error: errorText(error),
+          ...(error instanceof AppErrorException && error.error.detail !== undefined
+            ? { detail: error.error.detail }
+            : {}),
+        });
+        throw error;
+      }
     },
 
     connect,

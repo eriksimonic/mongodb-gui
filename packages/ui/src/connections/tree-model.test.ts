@@ -526,6 +526,30 @@ describe('buildTreeRows for the Docker node', () => {
       tone: 'red',
     });
   });
+
+  it('shows the engine detail next to the list error', () => {
+    const rows = buildTreeRows(
+      dockerInput({
+        docker: {
+          status: { available: true },
+          containers: {
+            state: 'error',
+            error: {
+              code: 'INTERNAL',
+              message: 'Docker returned HTTP 500.',
+              detail: "Couldn't find PID field in ps output",
+            },
+          },
+        },
+      }),
+    );
+
+    expect(
+      rows.find(
+        (row) => row.label === "Docker returned HTTP 500. (Couldn't find PID field in ps output)",
+      ),
+    ).toMatchObject({ kind: 'message', tone: 'red' });
+  });
 });
 
 const connection: ConnectionProfileSummary = {

@@ -15,6 +15,8 @@ export const FORWARDER_LABEL = 'mongo-gui.forwarder';
 const HOST_IP_PREFERENCE: readonly string[] = ['127.0.0.1', '0.0.0.0', '::'];
 const WILDCARD_HOST_IPS: readonly string[] = ['0.0.0.0', '::'];
 const LOOPBACK = '127.0.0.1';
+/** Engine statuses for a container that was removed (404) or is not running (409). */
+const GONE_STATUSES: readonly number[] = [404, 409];
 
 const BindingSchema = z.object({ HostIp: z.string(), HostPort: z.string() });
 
@@ -212,12 +214,19 @@ export async function discoverMongoContainers(
   return found.sort((a, b) => a.name.localeCompare(b.name));
 }
 
-/** A container that cannot list its processes (removed, no ps available) has none to show. */
+/**
+ * A container that was removed (404) or stopped (409) after the list has no processes to show.
+ * Any other failure is thrown, so the user sees why discovery failed instead of an empty list.
+ */
 async function processesOrEmpty(client: DockerEngineClient, id: string): Promise<string[]> {
   try {
     return await client.processCommands(id);
   } catch (error) {
-    if (error instanceof DockerEngineError) {
+    if (
+      error instanceof DockerEngineError &&
+      error.statusCode !== undefined &&
+      GONE_STATUSES.includes(error.statusCode)
+    ) {
       return [];
     }
     throw error;
