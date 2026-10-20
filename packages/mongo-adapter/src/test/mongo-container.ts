@@ -4,13 +4,13 @@ import { GenericContainer, Wait, type StartedTestContainer } from 'testcontainer
 
 // The floating mongo:8.0 tag refuses to start on Linux kernels 6.19 and newer (SERVER-121912).
 export const MONGO_IMAGES = ['mongo:4.4', 'mongo:6.0', 'mongo:8.0.17'] as const;
-export const CONTAINER_STARTUP_TIMEOUT_MS = 180_000;
+export const CONTAINER_STARTUP_TIMEOUT_MS = 90_000;
 export const SEED_DB = 'shop';
 
 const MONGO_PORT = 27017;
 const ROOT_USER = 'root';
 const ROOT_PASSWORD = 'integration-secret';
-const READY_TIMEOUT_MS = 120_000;
+const READY_TIMEOUT_MS = 30_000;
 const READY_RETRY_DELAY_MS = 500;
 const ORDER_COUNT = 50;
 const EVENT_COUNT = 10;

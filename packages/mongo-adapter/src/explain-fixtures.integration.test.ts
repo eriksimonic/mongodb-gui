@@ -183,7 +183,7 @@ const RAW_OPTIONS = { promoteValues: false, promoteLongs: false };
 const ROOT_USER = 'root';
 const ROOT_PASSWORD = 'integration-secret';
 const MONGO_PORT = 27017;
-const SERVER_READY_TIMEOUT_MS = 120_000;
+const SERVER_READY_TIMEOUT_MS = 30_000;
 
 // Same contract as startMongo in ./test/mongo-container, plus extra mongod flags.
 async function startWithArgs(image: string, args: readonly string[]): Promise<StartedMongo> {
