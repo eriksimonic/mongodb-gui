@@ -67,7 +67,8 @@ describe('parseKeyringFile', () => {
   });
 
   it('rejects a device keyring without a mode', () => {
-    const { mode: _mode, ...keyring } = validDeviceKeyring() as Record<string, unknown>;
+    const keyring: Record<string, unknown> = { ...validDeviceKeyring() };
+    delete keyring.mode;
     expect(caughtInternal(() => parseKeyringFile(keyring))).toBe(true);
   });
 

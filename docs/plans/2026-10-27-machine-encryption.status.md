@@ -7,3 +7,4 @@
 - T2, T6a, T6b: passed first round. Validator nits left for later: 31-byte test does not assert zeroing, unavailable initialiseDevice test lacks VALIDATION code check, device unlock runs twice under StrictMode in dev. Next: phase 4 (T4a, T7a).
 - T4a, T7a: passed first round. Plan amended: T7b onDone must not show a second notification. Next: phase 5 (T4b, T7b).
 - T4b, T7b: passed first round. Validator found App.test.tsx:14 failing since cd5e5f4 (first run opens on the choice screen); fix assigned as an extra task T6c before VF.
+- VF: first run failed on one lint error (keyring.test.ts unused var) and format of the two plan files; fixed. Rerun: lint 0 errors/12 warnings, tests 6967 passed, typecheck clean. format:check still lists 12 files not changed on this branch (exist on main). Next: T9.

@@ -135,6 +135,7 @@ All messages are exact.
   5. It sets `#mode = 'password'` and calls `touch()` so the idle timer arms.
 
   It must not `fill(0)` the live `#dek`. This is the one place where copying `changePassword` would be wrong.
+
 - `async removePassword(current: string): Promise<void>` switches password to device.
   1. A version 2 keyring throws the `unlock` device-mode message.
   2. When availability is not available, it throws `VALIDATION` "Machine encryption is not available on this system."
@@ -177,10 +178,14 @@ In `e2e/coverage-map.ts`, add one line per new call after line 11, each with `{ 
 ### S4. App provider (`packages/app/src/main/device-key.ts`, new)
 
 ```ts
-type SafeStorageLike = Pick<Electron.SafeStorage,
-  'isEncryptionAvailable' | 'getSelectedStorageBackend' | 'encryptString' | 'decryptString'>;
+type SafeStorageLike = Pick<
+  Electron.SafeStorage,
+  'isEncryptionAvailable' | 'getSelectedStorageBackend' | 'encryptString' | 'decryptString'
+>;
 export function createSafeStorageDeviceKey(
-  safeStorage: SafeStorageLike, platform: NodeJS.Platform): DeviceKeyProvider;
+  safeStorage: SafeStorageLike,
+  platform: NodeJS.Platform,
+): DeviceKeyProvider;
 ```
 
 `availability()` works as follows:
@@ -226,10 +231,10 @@ removePassword(current: string): Promise<void>;
 deviceKeyAvailability(): Promise<DeviceKeyAvailability>;
 ```
 
-  - `initialiseDevice` and `unlockDevice` call the RPC and then `afterOpen('device')`.
-  - `setPassword` calls the RPC and sets `vaultMode: 'password'`.
-  - `removePassword` calls the RPC and sets `vaultMode: 'device'`.
-  - `deviceKeyAvailability` returns the RPC result and stores nothing.
+- `initialiseDevice` and `unlockDevice` call the RPC and then `afterOpen('device')`.
+- `setPassword` calls the RPC and sets `vaultMode: 'password'`.
+- `removePassword` calls the RPC and sets `vaultMode: 'device'`.
+- `deviceKeyAvailability` returns the RPC result and stores nothing.
 - `reset` leaves `vaultMode` to `refreshVault`.
 
 #### Mock (`packages/ui/src/api/mock-rpc-client.ts`)
@@ -252,7 +257,7 @@ deviceKeyAvailability(): Promise<DeviceKeyAvailability>;
 
 #### Link constant (`packages/ui/src/settings/links.ts`)
 
-`export const KEYRING_HELP_URL = \`${PROJECT_URL}/blob/main/docs/keyring-setup.md\`;` is a placeholder until the wiki URL is decided. `app.openExternal` only accepts project pages on github.com (`isProjectLink`, `packages/core/src/rpc/contract.ts:284`), so the final URL must also be on `github.com/eriksimonic/mongodb-gui`, for example `/wiki/Keyring-setup`.
+`export const KEYRING_HELP_URL = \`${PROJECT_URL}/blob/main/docs/keyring-setup.md\`;`is a placeholder until the wiki URL is decided.`app.openExternal` only accepts project pages on github.com (`isProjectLink`, `packages/core/src/rpc/contract.ts:284`), so the final URL must also be on `github.com/eriksimonic/mongodb-gui`, for example `/wiki/Keyring-setup`.
 
 ### S7. UI copy and behaviour
 
@@ -260,11 +265,11 @@ deviceKeyAvailability(): Promise<DeviceKeyAvailability>;
 
 The component takes `{ availability: DeviceKeyAvailability; onCheckAgain: () => void; checking: boolean; checkedOnce: boolean }`. The first-run screen and the remove-password modal both use it. It renders the reason text, an anchor "How to set up a keyring" that calls `rpc.app.openExternal({ url: KEYRING_HELP_URL })` through `runReported` (as in `SettingsModal.tsx:556`), and a button "Check again".
 
-| Reason | Text |
-| --- | --- |
-| `basic-text` | No keyring is running, so Linux would keep the key in plain text. Set up GNOME Keyring or KWallet, then restart the app. |
-| `unknown-backend` | The app could not tell which keyring this Linux desktop uses. Set up GNOME Keyring or KWallet, then restart the app. |
-| `no-encryption` | This system offers no key storage for your user account. On Linux, set up GNOME Keyring or KWallet, then restart the app. |
+| Reason            | Text                                                                                                                      |
+| ----------------- | ------------------------------------------------------------------------------------------------------------------------- |
+| `basic-text`      | No keyring is running, so Linux would keep the key in plain text. Set up GNOME Keyring or KWallet, then restart the app.  |
+| `unknown-backend` | The app could not tell which keyring this Linux desktop uses. Set up GNOME Keyring or KWallet, then restart the app.      |
+| `no-encryption`   | This system offers no key storage for your user account. On Linux, set up GNOME Keyring or KWallet, then restart the app. |
 
 After a check that still reports unavailable (`checkedOnce`), the notice adds: "Still not available. Linux picks the keyring when the app starts, so restart the app after you set one up."
 
@@ -333,6 +338,7 @@ When `vaultMode === 'device'`, the Lock `ActionIcon` (lines ~832-842) is not ren
 ## Tasks
 
 T0. Baseline CPD.
+
 - Model: Haiku.
 - Edits: `docs/plans/2026-10-27-machine-encryption.cpd-baseline.md` (new).
 - Reads: `.claude/skills/` cpd-duplication skill instructions.
@@ -341,6 +347,7 @@ T0. Baseline CPD.
 - Waits for: nothing. It runs before any other task.
 
 T3. Core schemas, contract and coverage map.
+
 - Spec: S3.
 - Model: Haiku.
 - Edits: `packages/core/src/schemas/vault.ts`, `packages/core/src/domain/vault.ts`, `packages/core/src/rpc/contract.ts`, `packages/core/src/schemas/vault.test.ts`, `e2e/coverage-map.ts`.
@@ -350,6 +357,7 @@ T3. Core schemas, contract and coverage map.
 - Waits for: T0.
 
 T8a. Security and design docs.
+
 - Model: Haiku.
 - Edits: `docs/security.md`, `docs/PLAN.md`, `docs/architecture.md`, `docs/troubleshooting.md`.
 - Reads: `docs/security.md:25-70` and `:180-200`, `docs/PLAN.md:110-160`, `docs/architecture.md:105-120`, `docs/troubleshooting.md:80-95`, and spec S1, S2 and S7.
@@ -361,6 +369,7 @@ T8a. Security and design docs.
 - Waits for: T0.
 
 T8b. User docs, keyring page and changelog.
+
 - Model: Haiku.
 - Edits: `docs/keyring-setup.md` (new), `docs/user-guide.md`, `README.md`, `CHANGELOG.md`.
 - Reads: `docs/user-guide.md:30-70` and `:1005-1012`, `README.md:20-40` and `:150-158`, `CHANGELOG.md:1-20`, and spec S7.
@@ -372,6 +381,7 @@ T8b. User docs, keyring page and changelog.
 - Waits for: T0.
 
 T1. Keyring version 2.
+
 - Spec: S1.
 - Model: Haiku.
 - Edits: `packages/storage/src/vault/keyring.ts`, `packages/storage/src/vault/keyring.test.ts`.
@@ -388,6 +398,7 @@ T1. Keyring version 2.
 - Waits for: T3.
 
 T5. UI store, mock client and link constant.
+
 - Spec: S6.
 - Model: Haiku.
 - Edits: `packages/ui/src/state/app-store.ts`, `packages/ui/src/api/mock-rpc-client.ts`, `packages/ui/src/api/mock-rpc-client.test.ts`, `packages/ui/src/browser-main.tsx`, `packages/ui/src/settings/links.ts`.
@@ -403,6 +414,7 @@ T5. UI store, mock client and link constant.
 - Waits for: T3.
 
 T2. Vault device mode.
+
 - Spec: S2.
 - Model: Haiku.
 - Edits: `packages/storage/src/vault/vault.ts`, `packages/storage/src/vault/vault.test.ts`, `packages/storage/src/index.ts`.
@@ -425,6 +437,7 @@ T2. Vault device mode.
 - Waits for: T1, T3.
 
 T6a. First-run choice screen and device key notice.
+
 - Spec: S7, the first-run screen and the notice.
 - Model: Haiku.
 - Edits: `packages/ui/src/screens/FirstRunScreen.tsx`, `packages/ui/src/screens/FirstRunScreen.test.tsx`, `packages/ui/src/screens/FirstRunScreen.stories.tsx`, `packages/ui/src/screens/DeviceKeyNotice.tsx` (new).
@@ -440,6 +453,7 @@ T6a. First-run choice screen and device key notice.
 - Waits for: T5.
 
 T6b. Device unlock screen.
+
 - Spec: S7, the device unlock screen.
 - Model: Haiku.
 - Edits: `packages/ui/src/screens/DeviceUnlockScreen.tsx` (new), `packages/ui/src/screens/DeviceUnlockScreen.test.tsx` (new), `packages/ui/src/App.tsx`.
@@ -452,6 +466,7 @@ T6b. Device unlock screen.
 - Waits for: T5.
 
 T4a. Safe storage provider and service wiring.
+
 - Spec: S4.
 - Model: Haiku.
 - Edits: `packages/app/src/main/device-key.ts` (new), `packages/app/src/main/device-key.test.ts` (new), `packages/app/src/main/rpc/app-services.ts`, `packages/app/src/main/index.ts`.
@@ -466,6 +481,7 @@ T4a. Safe storage provider and service wiring.
 - Waits for: T2.
 
 T7a. Set and remove password modals.
+
 - Spec: S7, the two modals.
 - Model: Haiku.
 - Edits: `packages/ui/src/settings/SetPasswordModal.tsx` (new), `packages/ui/src/settings/RemovePasswordModal.tsx` (new), `packages/ui/src/settings/MasterPasswordModals.test.tsx` (new).
@@ -479,6 +495,7 @@ T7a. Set and remove password modals.
 - Waits for: T5, T6a.
 
 T4b. Vault RPC handlers.
+
 - Spec: S5.
 - Model: Haiku.
 - Edits: `packages/app/src/main/rpc/vault.ts`, `packages/app/src/main/rpc/router.test.ts`.
@@ -494,6 +511,7 @@ T4b. Vault RPC handlers.
 - Waits for: T4a.
 
 T7b. Settings and shell wiring for device mode.
+
 - Spec: S7, the settings and shell parts.
 - Model: Haiku.
 - Edits: `packages/ui/src/settings/SettingsModal.tsx`, `packages/ui/src/screens/ShellScreen.tsx`, `packages/ui/src/settings/SettingsSections.test.tsx`, `packages/ui/src/screens/ShellScreen.lock.test.tsx` (new).
@@ -507,6 +525,7 @@ T7b. Settings and shell wiring for device mode.
 - Waits for: T7a.
 
 VF. Full gate.
+
 - Model: Opus validator, not an implementer.
 - Edits: nothing.
 - Work: run `pnpm typecheck`, `pnpm lint`, `pnpm test` and `pnpm format:check`. Compare the results with the baseline: 0 lint errors and no more than 12 warnings, 0 test failures, typecheck clean. Check `git status --porcelain` against the file lists in this plan, and check that `docs/screenshots` is unchanged. Grep the new code for `fill(0)` on `#dek` inside `setPassword`.
@@ -514,6 +533,7 @@ VF. Full gate.
 - Waits for: T4b, T6b, T7b, T8a, T8b.
 
 T9. Manual check in the mock UI.
+
 - Model: Haiku. This task uses the serial port 5174.
 - Edits: images only, `e2e/output/machine-encryption-*.png`. The Playwright script lives in a scratch folder outside the repo.
 - Reads: `.claude/skills/run-app/SKILL.md`, the "Browser mock UI" and Playwright sections.
@@ -530,10 +550,12 @@ T9. Manual check in the mock UI.
   9. `?preset=device-locked&deviceunlock=fail`
 
   Name the files `machine-encryption-01-choice.png` through `-09-unlock-failed.png`.
+
 - Acceptance: `ls e2e/output/machine-encryption-0*.png | wc -l` prints 9. An Opus validator then opens each image and checks it against the S7 copy.
 - Waits for: VF.
 
 T10. Finishing CPD scan.
+
 - Model: Opus validator.
 - Edits: nothing in the repo. The result goes to the coordinator, who appends it to the status file.
 - Work: after VF and T9 pass, run the cpd-duplication skill on the same four package folders with the same settings as T0. Compare the result with `docs/plans/2026-10-27-machine-encryption.cpd-baseline.md`. Report each new or grown cluster with its files, line ranges and a proposed fix. Do not refactor. Likely candidates are the inline fake providers in `vault.test.ts` and `router.test.ts`, the device keyring write in `initialiseDevice` and `removePassword`, `SetPasswordModal` against `ChangePasswordModal`, and the warning text in `FirstRunScreen` and `RemovePasswordModal`.
@@ -542,17 +564,17 @@ T10. Finishing CPD scan.
 
 ## Phases
 
-| Phase | Tasks run together | Notes |
-| --- | --- | --- |
-| 0 | T0 | Alone, before any change. |
-| 1 | T3, T8a, T8b | The docs are written from the spec. |
-| 2 | T1, T5 | Root typecheck turns green again after T5. |
-| 3 | T2, T6a, T6b | No shared files. |
-| 4 | T4a, T7a | |
-| 5 | T4b, T7b | The router test turns green after T4b. |
-| 6 | VF | |
-| 7 | T9 | Serial: port 5174. |
-| 8 | T10 | |
+| Phase | Tasks run together | Notes                                      |
+| ----- | ------------------ | ------------------------------------------ |
+| 0     | T0                 | Alone, before any change.                  |
+| 1     | T3, T8a, T8b       | The docs are written from the spec.        |
+| 2     | T1, T5             | Root typecheck turns green again after T5. |
+| 3     | T2, T6a, T6b       | No shared files.                           |
+| 4     | T4a, T7a           |                                            |
+| 5     | T4b, T7b           | The router test turns green after T4b.     |
+| 6     | VF                 |                                            |
+| 7     | T9                 | Serial: port 5174.                         |
+| 8     | T10                |                                            |
 
 An Opus phase validator runs after each of phases 1 to 5, before the next phase starts.
 

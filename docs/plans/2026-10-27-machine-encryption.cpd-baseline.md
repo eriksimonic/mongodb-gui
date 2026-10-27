@@ -150,4 +150,3 @@ Total: 28 clusters.
 
 - `packages/storage/src/store/favourites-repo.test.ts`: 1-20
 - `packages/storage/src/store/layout-repo.test.ts`: 1-20
-
