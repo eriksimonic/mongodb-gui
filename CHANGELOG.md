@@ -2,6 +2,20 @@
 
 All notable changes to Mongo GUI are listed here, newest first.
 
+## 0.4.4 - 2026-10-27
+
+### Added
+
+- The cell menu of the result grid has an "Edit document" entry.
+
+### Changed
+
+- The column chooser and the read-only badge sit in the results bar, beside the Table/Tree switch
+  and the count, so the grid has no toolbar row of its own.
+- The "Run all" toolbar button is gone. Ctrl+Shift+Enter still runs the whole text.
+- F5 runs the active tab from anywhere. Run takes the selection, or all the text when nothing is
+  selected.
+
 ## 0.4.3 - 2026-10-20
 
 ### Fixed

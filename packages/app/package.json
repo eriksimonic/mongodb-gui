@@ -2,7 +2,7 @@
   "name": "@mongo-gui/app",
   "productName": "Mongo GUI",
   "desktopName": "mongo-gui.desktop",
-  "version": "0.4.3",
+  "version": "0.4.4",
   "description": "A desktop MongoDB client with a mongosh-compatible editor.",
   "author": {
     "name": "Erik Simonic",
