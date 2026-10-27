@@ -2,7 +2,7 @@ export const storagePackageName = '@mongo-gui/storage';
 
 export { DEFAULT_KDF_PARAMS, deriveKek, type KdfParams } from './crypto/kdf';
 export { DecryptError, open, seal, type DecryptFailure } from './crypto/aead';
-export { Vault, type VaultOptions } from './vault/vault';
+export { Vault, type VaultOptions, type DeviceKeyProvider } from './vault/vault';
 export {
   EncryptedStore,
   type EncryptedStoreOptions,

@@ -11,7 +11,7 @@ import { join } from 'node:path';
 import { AppErrorException, type AppErrorCode } from '@mongo-gui/core';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { DecryptError, open, seal } from '../crypto/aead';
-import { Vault, type VaultOptions } from './vault';
+import { Vault, type DeviceKeyProvider, type VaultOptions } from './vault';
 import { readKeyringFile } from './keyring';
 
 const FAST_KDF = { N: 2 ** 10, r: 8, p: 1 };
@@ -43,6 +43,11 @@ async function expectCode(action: () => unknown, code: AppErrorCode): Promise<vo
   expect(caught).toMatchObject({ error: { code } });
 }
 
+function keyringSalt(path: string): string | undefined {
+  const keyring = readKeyringFile(path);
+  return keyring?.version === 1 ? keyring.kdf.salt : undefined;
+}
+
 beforeEach(() => {
   dirs = [];
 });
@@ -59,7 +64,7 @@ describe('Vault lifecycle', () => {
     const vault = newVault(newDir());
     expect(vault.status()).toEqual({ state: 'uninitialised' });
     vault.initialise(PASSWORD);
-    expect(vault.status()).toEqual({ state: 'unlocked' });
+    expect(vault.status()).toEqual({ state: 'unlocked', mode: 'password' });
     vault.lock();
   });
 
@@ -67,9 +72,9 @@ describe('Vault lifecycle', () => {
     const vault = newVault(newDir());
     vault.initialise(PASSWORD);
     vault.lock();
-    expect(vault.status()).toEqual({ state: 'locked' });
+    expect(vault.status()).toEqual({ state: 'locked', mode: 'password' });
     await vault.unlock(PASSWORD);
-    expect(vault.status()).toEqual({ state: 'unlocked' });
+    expect(vault.status()).toEqual({ state: 'unlocked', mode: 'password' });
     vault.lock();
   });
 
@@ -100,9 +105,9 @@ describe('Vault lifecycle', () => {
     vault.initialise(PASSWORD);
     vault.lock();
     await expectCode(() => vault.unlock(OTHER_PASSWORD), 'VAULT_BAD_PASSWORD');
-    expect(vault.status()).toEqual({ state: 'locked' });
+    expect(vault.status()).toEqual({ state: 'locked', mode: 'password' });
     await vault.unlock(PASSWORD);
-    expect(vault.status()).toEqual({ state: 'unlocked' });
+    expect(vault.status()).toEqual({ state: 'unlocked', mode: 'password' });
     vault.lock();
   });
 
@@ -135,7 +140,7 @@ describe('Vault lifecycle', () => {
     second.initialise(PASSWORD);
     const firstKeyring = readKeyringFile(first.keyringPath);
     const secondKeyring = readKeyringFile(second.keyringPath);
-    expect(firstKeyring?.kdf.salt).not.toBe(secondKeyring?.kdf.salt);
+    expect(keyringSalt(first.keyringPath)).not.toBe(keyringSalt(second.keyringPath));
     expect(firstKeyring?.wrappedDek).not.toBe(secondKeyring?.wrappedDek);
     first.lock();
     second.lock();
@@ -196,9 +201,9 @@ describe('Vault changePassword', () => {
     const vault = newVault(newDir());
     vault.initialise(PASSWORD);
     vault.lock();
-    const before = readKeyringFile(vault.keyringPath)?.kdf.salt;
+    const before = keyringSalt(vault.keyringPath);
     await vault.changePassword(PASSWORD, OTHER_PASSWORD);
-    expect(readKeyringFile(vault.keyringPath)?.kdf.salt).not.toBe(before);
+    expect(keyringSalt(vault.keyringPath)).not.toBe(before);
   });
 
   it('rejects a wrong current password without changing the keyring', async () => {
@@ -261,11 +266,11 @@ describe('Vault idle lock', () => {
     vault.withDek(() => undefined);
     clock = 1000;
     vi.advanceTimersByTime(1000);
-    expect(vault.status()).toEqual({ state: 'unlocked' });
+    expect(vault.status()).toEqual({ state: 'unlocked', mode: 'password' });
 
     clock = 1900;
     vi.advanceTimersByTime(900);
-    expect(vault.status()).toEqual({ state: 'locked' });
+    expect(vault.status()).toEqual({ state: 'locked', mode: 'password' });
   });
 
   it('calls onLocked when the idle timer locks the vault', () => {
@@ -277,7 +282,7 @@ describe('Vault idle lock', () => {
     clock = 1000;
     vi.advanceTimersByTime(1000);
     expect(onLocked).toHaveBeenCalledTimes(1);
-    expect(vault.status()).toEqual({ state: 'locked' });
+    expect(vault.status()).toEqual({ state: 'locked', mode: 'password' });
   });
 
   it('leaves no timer running after lock', () => {
@@ -298,7 +303,7 @@ describe('Vault idle lock', () => {
     vault.setIdleLockMs(500);
     clock = 500;
     vi.advanceTimersByTime(200);
-    expect(vault.status()).toEqual({ state: 'locked' });
+    expect(vault.status()).toEqual({ state: 'locked', mode: 'password' });
   });
 
   it('setIdleLockMs lengthens the timeout without locking early', () => {
@@ -311,11 +316,11 @@ describe('Vault idle lock', () => {
     vault.setIdleLockMs(5000);
     clock = 1000;
     vi.advanceTimersByTime(1000);
-    expect(vault.status()).toEqual({ state: 'unlocked' });
+    expect(vault.status()).toEqual({ state: 'unlocked', mode: 'password' });
 
     clock = 5000;
     vi.advanceTimersByTime(4000);
-    expect(vault.status()).toEqual({ state: 'locked' });
+    expect(vault.status()).toEqual({ state: 'locked', mode: 'password' });
   });
 
   it('setIdleLockMs locks at once when the vault is already idle past the new timeout', () => {
@@ -328,7 +333,7 @@ describe('Vault idle lock', () => {
     clock = 2000;
     vault.setIdleLockMs(500);
     vi.advanceTimersByTime(1);
-    expect(vault.status()).toEqual({ state: 'locked' });
+    expect(vault.status()).toEqual({ state: 'locked', mode: 'password' });
     expect(onLocked).toHaveBeenCalledTimes(1);
   });
 
@@ -340,7 +345,7 @@ describe('Vault idle lock', () => {
     vault.setIdleLockMs(0);
     clock = 1;
     vi.advanceTimersByTime(1);
-    expect(vault.status()).toEqual({ state: 'locked' });
+    expect(vault.status()).toEqual({ state: 'locked', mode: 'password' });
   });
 
   it('setIdleLockMs clamps an out-of-range timeout without throwing or looping', () => {
@@ -353,7 +358,7 @@ describe('Vault idle lock', () => {
     // One pending timer, armed at the largest delay setTimeout accepts.
     expect(vi.getTimerCount()).toBe(1);
     vi.advanceTimersByTime(60_000);
-    expect(vault.status()).toEqual({ state: 'unlocked' });
+    expect(vault.status()).toEqual({ state: 'unlocked', mode: 'password' });
   });
 
   it('setIdleLockMs still rejects NaN', () => {
@@ -389,7 +394,7 @@ describe('Vault KDF parameters', () => {
     writer.lock();
     const reader = new Vault({ dir, kdf: { N: 2 ** 12, r: 8, p: 1 }, failureDelayMs: 0 });
     await reader.unlock(PASSWORD);
-    expect(reader.status()).toEqual({ state: 'unlocked' });
+    expect(reader.status()).toEqual({ state: 'unlocked', mode: 'password' });
     reader.lock();
   });
 });
@@ -422,5 +427,170 @@ describe('Vault reset with a leftover temporary file', () => {
     vault.reset();
     expect(existsSync(`${vault.keyringPath}.tmp`)).toBe(false);
     expect(vault.status()).toEqual({ state: 'uninitialised' });
+  });
+});
+
+const MARKER = Buffer.from('DKEY', 'utf8');
+const deviceKey: DeviceKeyProvider = {
+  availability: () => ({ available: true }),
+  encrypt: (dek) => Buffer.concat([MARKER, dek]),
+  decrypt: (wrapped) => {
+    if (!wrapped.subarray(0, MARKER.length).equals(MARKER)) {
+      throw new Error('not wrapped by this device');
+    }
+    return Buffer.from(wrapped.subarray(MARKER.length));
+  },
+};
+const unavailableKey: DeviceKeyProvider = {
+  ...deviceKey,
+  availability: () => ({ available: false, reason: 'basic-text' }),
+};
+
+function copyDek(vault: Vault): Buffer {
+  return vault.withDek((dek) => Buffer.from(dek));
+}
+
+async function expectInternal(action: () => unknown): Promise<void> {
+  let caught: unknown;
+  try {
+    await action();
+  } catch (error) {
+    caught = error;
+  }
+  expect(caught).toMatchObject({
+    error: { code: 'INTERNAL', message: 'This machine could not open the vault key.' },
+  });
+}
+
+describe('Vault machine encryption', () => {
+  it('initialiseDevice writes a version 2 keyring and leaves the vault unlocked', () => {
+    const vault = newVault(newDir(), { deviceKey });
+    vault.initialiseDevice();
+    expect(readKeyringFile(vault.keyringPath)).toMatchObject({ version: 2, mode: 'device' });
+    expect(vault.status()).toEqual({ state: 'unlocked', mode: 'device' });
+  });
+
+  it('unlockDevice restores the same DEK after lock', () => {
+    const vault = newVault(newDir(), { deviceKey });
+    vault.initialiseDevice();
+    const before = copyDek(vault);
+    vault.lock();
+    expect(vault.status()).toEqual({ state: 'locked', mode: 'device' });
+    vault.unlockDevice();
+    expect(copyDek(vault).equals(before)).toBe(true);
+  });
+
+  it('unlockDevice throws INTERNAL when decrypt throws', async () => {
+    const dir = newDir();
+    newVault(dir, { deviceKey }).initialiseDevice();
+    const broken = newVault(dir, {
+      deviceKey: {
+        ...deviceKey,
+        decrypt: () => {
+          throw new Error('keyring locked');
+        },
+      },
+    });
+    await expectInternal(() => broken.unlockDevice());
+  });
+
+  it('unlockDevice throws INTERNAL and zeroes the result when it is not 32 bytes', async () => {
+    const dir = newDir();
+    newVault(dir, { deviceKey }).initialiseDevice();
+    const short = newVault(dir, {
+      deviceKey: { ...deviceKey, decrypt: () => Buffer.alloc(31, 1) },
+    });
+    await expectInternal(() => short.unlockDevice());
+  });
+
+  it('never locks on idle in device mode, even when setIdleLockMs is called', () => {
+    vi.useFakeTimers();
+    let clock = 0;
+    const vault = newVault(newDir(), { idleLockMs: 1000, now: () => clock, deviceKey });
+    vault.initialiseDevice();
+    vault.setIdleLockMs(1000);
+    clock = 5000;
+    vi.advanceTimersByTime(5000);
+    expect(vault.status()).toEqual({ state: 'unlocked', mode: 'device' });
+  });
+
+  it('setPassword writes a version 1 keyring, keeps the live DEK, and locks on idle again', async () => {
+    vi.useFakeTimers();
+    let clock = 0;
+    const vault = newVault(newDir(), { idleLockMs: 1000, now: () => clock, deviceKey });
+    vault.initialiseDevice();
+    const before = copyDek(vault);
+    vault.setPassword(OTHER_PASSWORD);
+    expect(readKeyringFile(vault.keyringPath)?.version).toBe(1);
+    expect(copyDek(vault).equals(before)).toBe(true);
+    clock = 1000;
+    vi.advanceTimersByTime(1000);
+    expect(vault.status()).toEqual({ state: 'locked', mode: 'password' });
+    await vault.unlock(OTHER_PASSWORD);
+    expect(copyDek(vault).equals(before)).toBe(true);
+    vault.lock();
+  });
+
+  it('setPassword is rejected in password mode and while locked', async () => {
+    const passwordVault = newVault(newDir(), { deviceKey });
+    passwordVault.initialise(PASSWORD);
+    await expectCode(() => passwordVault.setPassword(OTHER_PASSWORD), 'VALIDATION');
+
+    const deviceVault = newVault(newDir(), { deviceKey });
+    deviceVault.initialiseDevice();
+    deviceVault.lock();
+    await expectCode(() => deviceVault.setPassword(OTHER_PASSWORD), 'VAULT_LOCKED');
+  });
+
+  it('removePassword with the right password writes version 2, and unlockDevice then works', async () => {
+    const vault = newVault(newDir(), { deviceKey });
+    vault.initialise(PASSWORD);
+    const before = copyDek(vault);
+    await vault.removePassword(PASSWORD);
+    expect(readKeyringFile(vault.keyringPath)).toMatchObject({ version: 2, mode: 'device' });
+    vault.lock();
+    vault.unlockDevice();
+    expect(copyDek(vault).equals(before)).toBe(true);
+  });
+
+  it('removePassword with a wrong password leaves the keyring unchanged', async () => {
+    const vault = newVault(newDir(), { deviceKey });
+    vault.initialise(PASSWORD);
+    vault.lock();
+    const before = readFileSync(vault.keyringPath, 'utf8');
+    await expectCode(() => vault.removePassword(OTHER_PASSWORD), 'VAULT_BAD_PASSWORD');
+    expect(readFileSync(vault.keyringPath, 'utf8')).toBe(before);
+  });
+
+  it('removePassword and initialiseDevice give VALIDATION when the device key is unavailable', async () => {
+    const dir = newDir();
+    const passwordVault = newVault(dir, { deviceKey: unavailableKey });
+    passwordVault.initialise(PASSWORD);
+    await expectCode(() => passwordVault.removePassword(PASSWORD), 'VALIDATION');
+
+    const fresh = newVault(newDir(), { deviceKey: unavailableKey });
+    expect(() => fresh.initialiseDevice()).toThrow(AppErrorException);
+    expect(existsSync(fresh.keyringPath)).toBe(false);
+  });
+
+  it('unlock and changePassword give VALIDATION in device mode', async () => {
+    const vault = newVault(newDir(), { deviceKey });
+    vault.initialiseDevice();
+    vault.lock();
+    await expectCode(() => vault.unlock(PASSWORD), 'VALIDATION');
+    await expectCode(() => vault.changePassword(PASSWORD, OTHER_PASSWORD), 'VALIDATION');
+  });
+
+  it('status reports locked password for a malformed keyring without throwing', () => {
+    const vault = newVault(newDir());
+    writeFileSync(vault.keyringPath, '{"version": 9}');
+    expect(vault.status()).toEqual({ state: 'locked', mode: 'password' });
+  });
+
+  it('reports no-encryption when no device key is configured', () => {
+    expect(newVault(newDir()).deviceKeyAvailability()).toEqual({
+      available: false,
+      reason: 'no-encryption',
+    });
   });
 });
