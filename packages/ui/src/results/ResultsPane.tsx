@@ -12,7 +12,7 @@ import { discoverColumns, formatCount, type JsonObject } from './result-model';
 import { JsonView } from './JsonView';
 import { jsonTextFor } from './json-text';
 import type { ExportFormat } from './result-export';
-import { TableView } from './TableView';
+import { ColumnChooser, ReadOnlyBadge, TableView } from './TableView';
 import { TreeView, type TreeEdit } from './TreeView';
 
 const VIEW_LABELS: Readonly<Record<ResultView, string>> = {
@@ -90,6 +90,7 @@ export function ResultsPane({
   onUnsetField,
   onExport,
 }: ResultsPaneProps) {
+  const [hidden, setHidden] = useState<readonly string[]>([]);
   const [selected, setSelected] = useState<readonly number[]>([]);
   const [opened, setOpened] = useState<OpenedDocument | undefined>(undefined);
   const [opening, setOpening] = useState(false);
@@ -203,6 +204,12 @@ export function ResultsPane({
                 {formatCount(count, result.hasMore)}
               </Text>
             )}
+            {effectiveView !== 'table' || result === undefined || !isCursor ? null : (
+              <>
+                <ColumnChooser columns={columns} hidden={hidden} onHiddenChange={setHidden} />
+                {editable ? null : <ReadOnlyBadge note={editabilityNote} />}
+              </>
+            )}
             {opening ? (
               <Text size="xs" c="dimmed" aria-live="polite">
                 Opening document…
@@ -226,6 +233,32 @@ export function ResultsPane({
             )}
             {result === undefined || !isCursor ? null : (
               <>
+                <Button
+                  size="xs"
+                  variant="default"
+                  disabled={
+                    !result.hasMore ||
+                    result.capped ||
+                    result.loadingMore ||
+                    result.cursorRequestId === undefined
+                  }
+                  onClick={() =>
+                    modals.openConfirmModal({
+                      title: 'Load documents',
+                      centered: true,
+                      children: (
+                        <Text size="sm">
+                          Load up to {LOAD_ALL_LIMIT.toLocaleString('en-US')} documents into memory?
+                          Large results take a while and use memory.
+                        </Text>
+                      ),
+                      labels: { confirm: 'Load', cancel: 'Cancel' },
+                      onConfirm: onLoadAll,
+                    })
+                  }
+                >
+                  Load all up to {LOAD_ALL_LIMIT.toLocaleString('en-US')}
+                </Button>
                 <Button
                   size="xs"
                   variant="default"
@@ -325,8 +358,8 @@ export function ResultsPane({
             <TableView
               documents={result.documents}
               columns={columns}
+              hidden={hidden}
               editable={editable}
-              editabilityNote={editabilityNote}
               onOpenDocument={(index) => void openDocument(index)}
               onSetField={onSetField}
               readFull={readFull}

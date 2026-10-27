@@ -74,9 +74,10 @@ const NEAR_END_ROWS = 10;
 export interface TableViewProps {
   readonly documents: readonly JsonObject[];
   readonly columns: readonly ColumnDef[];
+  /** Paths of the columns the chooser has hidden. */
+  readonly hidden: readonly string[];
   /** Set when a row can be opened for editing. Describes why otherwise. */
   readonly editable: boolean;
-  readonly editabilityNote: string;
   readonly onOpenDocument: (documentIndex: number) => void;
   /** Writes one edited cell. Rejects with the reason when the write fails. */
   readonly onSetField: CellEditorParams['onSetField'];
@@ -233,6 +234,60 @@ function CellRenderer(props: CustomCellRendererProps<Row, unknown>) {
   );
 }
 
+/** The button and list that hide and show grid columns. */
+export function ColumnChooser({
+  columns,
+  hidden,
+  onHiddenChange,
+}: {
+  readonly columns: readonly ColumnDef[];
+  readonly hidden: readonly string[];
+  readonly onHiddenChange: (hidden: readonly string[]) => void;
+}) {
+  const shown = columns.filter((column) => !hidden.includes(column.path)).length;
+  return (
+    <Popover width={280} position="bottom-start" shadow="md" withinPortal>
+      <Popover.Target>
+        <Button size="xs" variant="default" leftSection={<IconColumns size={14} />}>
+          Columns {shown} of {columns.length}
+        </Button>
+      </Popover.Target>
+      <Popover.Dropdown>
+        <ScrollArea.Autosize mah={320}>
+          <Stack gap={6}>
+            {columns.map((column) => (
+              <Checkbox
+                key={column.path}
+                size="xs"
+                label={column.path}
+                checked={!hidden.includes(column.path)}
+                onChange={(event) =>
+                  onHiddenChange(
+                    event.currentTarget.checked
+                      ? hidden.filter((path) => path !== column.path)
+                      : [...hidden, column.path],
+                  )
+                }
+              />
+            ))}
+          </Stack>
+        </ScrollArea.Autosize>
+      </Popover.Dropdown>
+    </Popover>
+  );
+}
+
+/** Says why the grid cannot edit. */
+export function ReadOnlyBadge({ note }: { readonly note: string }) {
+  return (
+    <Tooltip label={note} multiline w={260} withArrow>
+      <Badge tt="none" size="sm" variant="light" color="gray" tabIndex={0} aria-label={note}>
+        Read only
+      </Badge>
+    </Tooltip>
+  );
+}
+
 /**
  * The documents as a grid. Each field path is a column, discovered from the loaded pages. The
  * column chooser hides and shows columns. Double-clicking, F2 or Enter edits a scalar cell in place
@@ -242,15 +297,14 @@ function CellRenderer(props: CustomCellRendererProps<Row, unknown>) {
 export function TableView({
   documents,
   columns,
+  hidden,
   editable,
-  editabilityNote,
   onOpenDocument,
   onSetField,
   readFull,
   onSelectionChange,
   onNearEnd,
 }: TableViewProps) {
-  const [hidden, setHidden] = useState<readonly string[]>([]);
   const [cellMenu, setCellMenu] = useState<CellMenuState | undefined>(undefined);
   const [viewing, setViewing] = useState<
     { readonly path: string; readonly load: () => Promise<string> } | undefined
@@ -290,51 +344,6 @@ export function TableView({
 
   return (
     <Stack gap={8} h="100%">
-      <Group gap={8} wrap="nowrap">
-        <Popover width={280} position="bottom-start" shadow="md" withinPortal>
-          <Popover.Target>
-            <Button size="xs" variant="default" leftSection={<IconColumns size={14} />}>
-              Columns {visible.length} of {columns.length}
-            </Button>
-          </Popover.Target>
-          <Popover.Dropdown>
-            <ScrollArea.Autosize mah={320}>
-              <Stack gap={6}>
-                {columns.map((column) => (
-                  <Checkbox
-                    key={column.path}
-                    size="xs"
-                    label={column.path}
-                    checked={!hidden.includes(column.path)}
-                    onChange={(event) => {
-                      const shown = event.currentTarget.checked;
-                      setHidden((current) =>
-                        shown
-                          ? current.filter((path) => path !== column.path)
-                          : [...current, column.path],
-                      );
-                    }}
-                  />
-                ))}
-              </Stack>
-            </ScrollArea.Autosize>
-          </Popover.Dropdown>
-        </Popover>
-        {editable ? null : (
-          <Tooltip label={editabilityNote} multiline w={260} withArrow>
-            <Badge
-              tt="none"
-              size="sm"
-              variant="light"
-              color="gray"
-              tabIndex={0}
-              aria-label={editabilityNote}
-            >
-              Read only
-            </Badge>
-          </Tooltip>
-        )}
-      </Group>
       <Box style={{ flex: 1, minHeight: 0 }}>
         <AgGridReact<Row>
           theme={scheme === 'dark' ? DARK_THEME : LIGHT_THEME}

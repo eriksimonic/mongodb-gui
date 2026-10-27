@@ -251,7 +251,7 @@ To run statements:
 
 1. Put the cursor on a statement and press F5 or Ctrl+Enter, or click "Run". The app runs the
    statement under the cursor. If you select text first, the app runs the selection.
-2. Press Ctrl+Shift+Enter, or click "Run all", to run the whole text of the editor. A script can
+2. Press Ctrl+Shift+Enter to run the whole text of the editor. A script can
    call `print`. Output appears in the Output panel.
 3. Click "Cancel" to stop a running statement. The app closes the cursor it holds.
 4. Click "Explain" to show the plan of the statement under the cursor. See [Explain](#explain).
@@ -421,7 +421,7 @@ To run SQL:
 
 1. Put the cursor on a statement and press F5 or Ctrl+Enter, or click "Run". The app runs the
    statement under the cursor. If you select text first, the app runs the selection.
-2. Press Ctrl+Shift+Enter, or click "Run all", to run the whole text. A statement ends at a `;`
+2. Press Ctrl+Shift+Enter to run the whole text. A statement ends at a `;`
    or at a `GO` on a line of its own.
 3. Read the mongosh line that the Output panel prints before the result.
 

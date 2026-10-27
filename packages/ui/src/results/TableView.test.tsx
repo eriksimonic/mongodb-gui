@@ -28,8 +28,8 @@ function renderTable(
         <TableView
           documents={documents}
           columns={discoverColumns(documents)}
+          hidden={[]}
           editable={editable}
-          editabilityNote="Only a plain find can be edited."
           onOpenDocument={onOpenDocument}
           onSetField={onSetField}
           readFull={readFull}
@@ -142,7 +142,6 @@ describe('TableView', () => {
     // The grid reports double-clicks on a timer, so the check waits for the call.
     expect(index).toBeGreaterThanOrEqual(0);
     await waitFor(() => expect(onOpen).toHaveBeenCalledWith(index));
-    expect(screen.getByText('Read only')).toBeInTheDocument();
   });
 
   it('edits a scalar cell in place and writes the typed value', async () => {

@@ -401,15 +401,6 @@ export function EditorView({ tabId }: EditorViewProps) {
         <Button
           size="xs"
           variant="default"
-          disabled={busy || current.text.trim() === ''}
-          onClick={() => editorUiEvents.emit({ type: 'editor:command', tabId, command: 'runAll' })}
-          title="Run all (Ctrl+Shift+Enter)"
-        >
-          Run all
-        </Button>
-        <Button
-          size="xs"
-          variant="default"
           onClick={() => editorUiEvents.emit({ type: 'editor:command', tabId, command: 'explain' })}
         >
           Explain
