@@ -498,6 +498,7 @@ T7b. Settings and shell wiring for device mode.
 - Model: Haiku.
 - Edits: `packages/ui/src/settings/SettingsModal.tsx`, `packages/ui/src/screens/ShellScreen.tsx`, `packages/ui/src/settings/SettingsSections.test.tsx`, `packages/ui/src/screens/ShellScreen.lock.test.tsx` (new).
 - Reads: `SettingsModal.tsx:280-330`, `ShellScreen.tsx:525-540`, `:660-672` and `:828-845`, `SettingsSections.test.tsx:80-110`.
+- The modals from T7a show their own success notifications, so `onDone` in `SettingsModal` only closes the modal. It must not show a second notification.
 - Tests:
   - With `preset: 'unlocked'`, the security section shows "Change master password", "Remove master password", "Lock now" and the idle field.
   - With `preset: 'device'`, the security section shows "Set master password" and none of the other four.
