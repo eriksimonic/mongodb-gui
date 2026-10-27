@@ -85,10 +85,10 @@ export function FirstRunScreen() {
         </Text>
         <Radio.Group value={choice ?? null} onChange={(value) => setChoice(value as Choice)}>
           <Stack gap="sm">
-            <Radio.Card value="device" disabled={unavailable}>
+            <Radio.Card value="device" disabled={unavailable} p="md" radius="md">
               <Group wrap="nowrap" align="flex-start">
                 <Radio.Indicator />
-                <Stack gap={4}>
+                <Stack gap={4} style={{ opacity: unavailable ? 0.5 : undefined }}>
                   <Text fw={600}>Machine encryption</Text>
                   <Text size="sm" c="dimmed">
                     Your operating system protects the key for your user account on this computer.
@@ -111,7 +111,7 @@ export function FirstRunScreen() {
                 checkedOnce={checkedOnce}
               />
             ) : null}
-            <Radio.Card value="password">
+            <Radio.Card value="password" p="md" radius="md">
               <Group wrap="nowrap" align="flex-start">
                 <Radio.Indicator />
                 <Stack gap={4}>
