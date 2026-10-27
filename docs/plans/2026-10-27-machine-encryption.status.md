@@ -8,3 +8,5 @@
 - T4a, T7a: passed first round. Plan amended: T7b onDone must not show a second notification. Next: phase 5 (T4b, T7b).
 - T4b, T7b: passed first round. Validator found App.test.tsx:14 failing since cd5e5f4 (first run opens on the choice screen); fix assigned as an extra task T6c before VF.
 - VF: first run failed on one lint error (keyring.test.ts unused var) and format of the two plan files; fixed. Rerun: lint 0 errors/12 warnings, tests 6967 passed, typecheck clean. format:check still lists 12 files not changed on this branch (exist on main). Next: T9.
+- T9: passed after one rework round (first-run card padding, dimmed disabled machine card). Nine images in e2e/output.
+- T10: no new or grown CPD clusters (28 before and after, router.test.ts offsets only). Done. Waiting for the owner review.
