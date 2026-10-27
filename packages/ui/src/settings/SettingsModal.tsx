@@ -30,6 +30,8 @@ import { LICENCE_URL, PROJECT_URL } from './links';
 import { useAppStore } from '../state/app-store-context';
 import { runReported } from '../kit/notify-error';
 import { ChangePasswordModal } from './ChangePasswordModal';
+import { RemovePasswordModal } from './RemovePasswordModal';
+import { SetPasswordModal } from './SetPasswordModal';
 import { ConnectionsExportModal } from './ConnectionsExportModal';
 import { ToolsLicenceModal, useMongoTools } from '../tools';
 import { ToolsSection } from './ToolsSection';
@@ -285,30 +287,71 @@ function AppearanceSection({ settings }: SectionProps) {
 function SecuritySection({ settings }: SectionProps) {
   const save = useSaveSettings();
   const lock = useAppStore((state) => state.lock);
+  const vaultMode = useAppStore((state) => state.vaultMode);
   const [changing, setChanging] = useState(false);
+  const [settingPassword, setSettingPassword] = useState(false);
+  const [removing, setRemoving] = useState(false);
+  const device = vaultMode === 'device';
   return (
     <Section id="settings-security" title="Security">
-      <NumericField
-        label="Idle lock (minutes)"
-        description="The vault locks after this many minutes without activity."
-        range={IDLE_LOCK_RANGE}
-        value={settings.idleLockMinutes}
-        onSave={(idleLockMinutes) => save({ idleLockMinutes })}
+      {device ? null : (
+        <NumericField
+          label="Idle lock (minutes)"
+          description="The vault locks after this many minutes without activity."
+          range={IDLE_LOCK_RANGE}
+          value={settings.idleLockMinutes}
+          onSave={(idleLockMinutes) => save({ idleLockMinutes })}
+        />
+      )}
+      {device ? (
+        <SettingRow
+          label="Master password"
+          description="None. Machine encryption protects the vault on this computer."
+        >
+          {() => (
+            <Button variant="default" onClick={() => setSettingPassword(true)}>
+              Set master password
+            </Button>
+          )}
+        </SettingRow>
+      ) : (
+        <>
+          <SettingRow label="Master password" description="The password that unlocks the vault.">
+            {() => (
+              <Button variant="default" onClick={() => setChanging(true)}>
+                Change master password
+              </Button>
+            )}
+          </SettingRow>
+          <SettingRow
+            label="Remove master password"
+            description="Switch to machine encryption. The app then opens without a password, on this computer only."
+          >
+            {() => (
+              <Button variant="default" onClick={() => setRemoving(true)}>
+                Remove master password
+              </Button>
+            )}
+          </SettingRow>
+          <SettingRow label="Lock" description="Locks the vault now. Open connections close.">
+            {() => (
+              <Button variant="default" onClick={() => void runReported(() => lock())}>
+                Lock now
+              </Button>
+            )}
+          </SettingRow>
+        </>
+      )}
+      <SetPasswordModal
+        opened={settingPassword}
+        onClose={() => setSettingPassword(false)}
+        onDone={() => setSettingPassword(false)}
       />
-      <SettingRow label="Master password" description="The password that unlocks the vault.">
-        {() => (
-          <Button variant="default" onClick={() => setChanging(true)}>
-            Change master password
-          </Button>
-        )}
-      </SettingRow>
-      <SettingRow label="Lock" description="Locks the vault now. Open connections close.">
-        {() => (
-          <Button variant="default" onClick={() => void runReported(() => lock())}>
-            Lock now
-          </Button>
-        )}
-      </SettingRow>
+      <RemovePasswordModal
+        opened={removing}
+        onClose={() => setRemoving(false)}
+        onDone={() => setRemoving(false)}
+      />
       <ChangePasswordModal
         opened={changing}
         onClose={() => setChanging(false)}
