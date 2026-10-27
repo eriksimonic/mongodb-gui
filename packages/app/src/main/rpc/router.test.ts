@@ -27,7 +27,7 @@ import {
   type RpcResult,
   type Settings,
 } from '@mongo-gui/core';
-import { EncryptedStore, Vault } from '@mongo-gui/storage';
+import { EncryptedStore, Vault, type DeviceKeyProvider } from '@mongo-gui/storage';
 import type { DockerRuntime } from '../docker/runtime';
 import type { Logger } from '../log';
 import {
@@ -114,6 +114,18 @@ interface Harness {
   dispose(): void;
 }
 
+const DEVICE_MARKER = Buffer.from('DEV1');
+const deviceKey: DeviceKeyProvider = {
+  availability: () => ({ available: true }),
+  encrypt: (dek) => Buffer.concat([DEVICE_MARKER, dek]),
+  decrypt: (wrapped) => {
+    if (!wrapped.subarray(0, DEVICE_MARKER.length).equals(DEVICE_MARKER)) {
+      throw new Error('not wrapped by this device');
+    }
+    return wrapped.subarray(DEVICE_MARKER.length);
+  },
+};
+
 function buildHarness(logger?: Logger, docker?: DockerRuntime, dialogs?: NativeDialogs): Harness {
   const dir = mkdtempSync(join(tmpdir(), 'router-'));
   const lockListeners = new Set<() => void>();
@@ -121,6 +133,7 @@ function buildHarness(logger?: Logger, docker?: DockerRuntime, dialogs?: NativeD
     dir,
     kdf: FAST_KDF,
     failureDelayMs: 0,
+    deviceKey,
     onLocked: () => {
       for (const listener of lockListeners) {
         listener();
@@ -208,11 +221,13 @@ describe('vault calls', () => {
     expectValue(await router.handle('vault.initialise', { password: PASSWORD }));
     expect(expectValue(await router.handle('vault.status', undefined))).toEqual({
       state: 'unlocked',
+      mode: 'password',
     });
 
     expectValue(await router.handle('vault.lock', undefined));
     expect(expectValue(await router.handle('vault.status', undefined))).toEqual({
       state: 'locked',
+      mode: 'password',
     });
 
     expectError(
@@ -226,6 +241,50 @@ describe('vault calls', () => {
     );
     expectValue(await router.handle('vault.lock', undefined));
     expectError(await router.handle('vault.unlock', { password: PASSWORD }), 'VAULT_BAD_PASSWORD');
+    expectValue(await router.handle('vault.unlock', { password: NEW_PASSWORD }));
+  });
+
+  it('unlocks a device-mode vault after a lock and reports the device key as available', async () => {
+    harness = buildHarness();
+    const { router } = harness;
+
+    expect(expectValue(await router.handle('vault.deviceKeyAvailability', undefined))).toEqual({
+      available: true,
+    });
+    expectValue(await router.handle('vault.initialiseDevice', undefined));
+    expect(expectValue(await router.handle('vault.status', undefined))).toEqual({
+      state: 'unlocked',
+      mode: 'device',
+    });
+
+    expectValue(await router.handle('vault.lock', undefined));
+    expectValue(await router.handle('vault.unlockDevice', undefined));
+    expect(expectValue(await router.handle('vault.status', undefined))).toEqual({
+      state: 'unlocked',
+      mode: 'device',
+    });
+  });
+
+  it('switches a password vault to device and back, and rejects unlock in device mode', async () => {
+    harness = buildHarness();
+    const { router } = harness;
+    expectValue(await router.handle('vault.initialise', { password: PASSWORD }));
+
+    expectValue(await router.handle('vault.removePassword', { current: PASSWORD }));
+    expect(expectValue(await router.handle('vault.status', undefined))).toEqual({
+      state: 'unlocked',
+      mode: 'device',
+    });
+    expectValue(await router.handle('vault.lock', undefined));
+    expectError(await router.handle('vault.unlock', { password: PASSWORD }), 'VALIDATION');
+
+    expectValue(await router.handle('vault.unlockDevice', undefined));
+    expectValue(await router.handle('vault.setPassword', { password: NEW_PASSWORD }));
+    expect(expectValue(await router.handle('vault.status', undefined))).toEqual({
+      state: 'unlocked',
+      mode: 'password',
+    });
+    expectValue(await router.handle('vault.lock', undefined));
     expectValue(await router.handle('vault.unlock', { password: NEW_PASSWORD }));
   });
 
@@ -616,11 +675,13 @@ describe('idle lock setting', () => {
       vi.advanceTimersByTime(59_000);
       expect(harness.vault.status()).toEqual({
         state: 'unlocked',
+        mode: 'password',
       });
 
       vi.advanceTimersByTime(1_000);
       expect(harness.vault.status()).toEqual({
         state: 'locked',
+        mode: 'password',
       });
       expect(events).toContainEqual({ type: 'vault:locked' });
     } finally {
@@ -673,11 +734,13 @@ describe('idle lock setting', () => {
       vi.advanceTimersByTime(50_000);
       expect(harness.vault.status()).toEqual({
         state: 'unlocked',
+        mode: 'password',
       });
 
       vi.advanceTimersByTime(10_000);
       expect(harness.vault.status()).toEqual({
         state: 'locked',
+        mode: 'password',
       });
     } finally {
       harness.dispose();
@@ -705,10 +768,12 @@ describe('idle lock setting', () => {
         vi.advanceTimersByTime(119_000);
         expect(second.vault.status()).toEqual({
           state: 'unlocked',
+          mode: 'password',
         });
         vi.advanceTimersByTime(1_000);
         expect(second.vault.status()).toEqual({
           state: 'locked',
+          mode: 'password',
         });
       } finally {
         await second.dispose();
@@ -739,9 +804,9 @@ describe('idle lock setting', () => {
         expectValue(await secondRouter.handle('vault.unlock', { password: PASSWORD }));
         // The invalid field is dropped, so the vault keeps its 30 minute default.
         vi.advanceTimersByTime(29 * 60_000);
-        expect(second.vault.status()).toEqual({ state: 'unlocked' });
+        expect(second.vault.status()).toEqual({ state: 'unlocked', mode: 'password' });
         vi.advanceTimersByTime(60_000);
-        expect(second.vault.status()).toEqual({ state: 'locked' });
+        expect(second.vault.status()).toEqual({ state: 'locked', mode: 'password' });
       } finally {
         await second.dispose();
       }
@@ -985,6 +1050,7 @@ describe('createAppServices', () => {
         expect(events).toContainEqual({ type: 'vault:locked' });
         expect(expectValue(await router.handle('vault.status', undefined))).toEqual({
           state: 'locked',
+          mode: 'password',
         });
       } finally {
         await services.dispose();
