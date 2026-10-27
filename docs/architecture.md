@@ -109,9 +109,13 @@ Locking the app also disconnects every connection. Quitting locks first, then cl
 
 `packages/storage` has three parts.
 
-- `packages/storage/src/vault/vault.ts` holds the key encryption key and the data key in memory. It
-  wraps and unwraps the data key with the keyring in `vault/keyring.ts`. It clears the key on lock.
-  It locks after the idle timeout, which defaults to 30 minutes.
+- `packages/storage/src/vault/vault.ts` holds the data key in memory. In password mode it also
+  derives the key encryption key from the master password. It wraps and unwraps the data key with
+  the keyring in `vault/keyring.ts`. The keyring has two versions. Version 1 wraps the data key
+  under a password-derived key. Version 2 wraps it with a device key provider. The app implements
+  that provider on Electron `safeStorage` in `packages/app/src/main/device-key.ts` and injects it
+  through `VaultOptions.deviceKey`. The vault clears the key on lock. It locks after the idle
+  timeout, which defaults to 30 minutes, in password mode only.
 - `packages/storage/src/crypto` holds the scrypt derivation in `kdf.ts` and the AES-256-GCM
   seal and open in `aead.ts`. The additional data for each row is `table:id`.
 - `packages/storage/src/store` holds `encrypted-store.ts` and the repositories for connections,

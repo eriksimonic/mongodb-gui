@@ -11,7 +11,7 @@ describe('App', () => {
   it('opens on the first-run screen when the store is fresh', async () => {
     renderApp({ mock: { preset: 'fresh' } });
     expect(
-      await screen.findByRole('heading', { name: 'Create master password' }),
+      await screen.findByRole('heading', { name: 'Choose how to protect your data' }),
     ).toBeInTheDocument();
   });
 

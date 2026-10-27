@@ -1,0 +1,12 @@
+# Machine encryption: status
+
+- Branch feat/machine-encryption created from main. Phase 0 (T0) started.
+- T0: passed (CPD via podman eclipse-temurin:21-jre, typescript, --minimum-tokens 100, 28 clusters; T10 reuses these settings). Next: phase 1 (T3, T8a, T8b).
+- T3, T8a, T8b: passed after one rework round for T8a and T8b (validator nits). Next: phase 2 (T1, T5).
+- T1, T5: passed (T1 reworked once for test types; plan amended: T1 acceptance vitest-only, red window until T2). Next: phase 3 (T2, T6a, T6b).
+- T2, T6a, T6b: passed first round. Validator nits left for later: 31-byte test does not assert zeroing, unavailable initialiseDevice test lacks VALIDATION code check, device unlock runs twice under StrictMode in dev. Next: phase 4 (T4a, T7a).
+- T4a, T7a: passed first round. Plan amended: T7b onDone must not show a second notification. Next: phase 5 (T4b, T7b).
+- T4b, T7b: passed first round. Validator found App.test.tsx:14 failing since cd5e5f4 (first run opens on the choice screen); fix assigned as an extra task T6c before VF.
+- VF: first run failed on one lint error (keyring.test.ts unused var) and format of the two plan files; fixed. Rerun: lint 0 errors/12 warnings, tests 6967 passed, typecheck clean. format:check still lists 12 files not changed on this branch (exist on main). Next: T9.
+- T9: passed after one rework round (first-run card padding, dimmed disabled machine card). Nine images in e2e/output.
+- T10: no new or grown CPD clusters (28 before and after, router.test.ts offsets only). Done. Waiting for the owner review.

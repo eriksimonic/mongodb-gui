@@ -31,7 +31,7 @@ describe('mock vault', () => {
   it('initialises and leaves the vault unlocked', async () => {
     const api = createMockUiApi();
     await api.rpc.vault.initialise({ password: 'a long enough password' });
-    expect(await api.rpc.vault.status()).toEqual({ state: 'unlocked' });
+    expect(await api.rpc.vault.status()).toEqual({ state: 'unlocked', mode: 'password' });
   });
 
   it('rejects a wrong password on unlock and stays locked', async () => {
@@ -40,14 +40,14 @@ describe('mock vault', () => {
     await expect(api.rpc.vault.unlock({ password: 'not the password' })).rejects.toMatchObject({
       error: { code: 'VAULT_BAD_PASSWORD' },
     });
-    expect(await api.rpc.vault.status()).toEqual({ state: 'locked' });
+    expect(await api.rpc.vault.status()).toEqual({ state: 'locked', mode: 'password' });
   });
 
   it('unlocks with the right password', async () => {
     const api = createMockUiApi({ preset: 'unlocked' });
     await api.rpc.vault.lock();
     await api.rpc.vault.unlock({ password: mockMasterPassword });
-    expect(await api.rpc.vault.status()).toEqual({ state: 'unlocked' });
+    expect(await api.rpc.vault.status()).toEqual({ state: 'unlocked', mode: 'password' });
   });
 
   it('refuses connection calls while locked', async () => {
@@ -76,7 +76,67 @@ describe('mock vault', () => {
     });
     await api.rpc.vault.lock();
     await api.rpc.vault.unlock({ password: 'another password' });
-    expect(await api.rpc.vault.status()).toEqual({ state: 'unlocked' });
+    expect(await api.rpc.vault.status()).toEqual({ state: 'unlocked', mode: 'password' });
+  });
+
+  it('reports the mode with each preset', async () => {
+    const unlocked = createMockUiApi({ preset: 'unlocked' });
+    const device = createMockUiApi({ preset: 'device' });
+    const deviceLocked = createMockUiApi({ preset: 'device-locked' });
+    expect(await unlocked.rpc.vault.status()).toEqual({ state: 'unlocked', mode: 'password' });
+    expect(await device.rpc.vault.status()).toEqual({ state: 'unlocked', mode: 'device' });
+    expect(await deviceLocked.rpc.vault.status()).toEqual({ state: 'locked', mode: 'device' });
+  });
+
+  it('initialises in device mode when machine encryption is available', async () => {
+    const api = createMockUiApi();
+    expect(await api.rpc.vault.deviceKeyAvailability()).toEqual({ available: true });
+    await api.rpc.vault.initialiseDevice();
+    expect(await api.rpc.vault.status()).toEqual({ state: 'unlocked', mode: 'device' });
+  });
+
+  it('refuses device mode with basic-text and reports the reason', async () => {
+    const api = createMockUiApi({ deviceKey: 'basic-text' });
+    expect(await api.rpc.vault.deviceKeyAvailability()).toEqual({
+      available: false,
+      reason: 'basic-text',
+    });
+    await expect(api.rpc.vault.initialiseDevice()).rejects.toMatchObject({
+      error: { code: 'VALIDATION' },
+    });
+    expect(await api.rpc.vault.status()).toEqual({ state: 'uninitialised' });
+  });
+
+  it('unlocks device mode without a password', async () => {
+    const api = createMockUiApi({ preset: 'device-locked' });
+    await api.rpc.vault.unlockDevice();
+    expect(await api.rpc.vault.status()).toEqual({ state: 'unlocked', mode: 'device' });
+  });
+
+  it('fails device unlock when the mock is set to fail', async () => {
+    const api = createMockUiApi({ preset: 'device-locked', deviceUnlock: 'fail' });
+    await expect(api.rpc.vault.unlockDevice()).rejects.toMatchObject({
+      error: { code: 'INTERNAL', message: 'This machine could not open the vault key.' },
+    });
+    expect(await api.rpc.vault.status()).toEqual({ state: 'locked', mode: 'device' });
+  });
+
+  it('refuses the password unlock in device mode', async () => {
+    const api = createMockUiApi({ preset: 'device-locked' });
+    await expect(api.rpc.vault.unlock({ password: 'anything' })).rejects.toMatchObject({
+      error: { code: 'VALIDATION' },
+    });
+  });
+
+  it('switches between password and device mode', async () => {
+    const api = createMockUiApi({ preset: 'unlocked' });
+    await expect(api.rpc.vault.removePassword({ current: 'wrong password' })).rejects.toMatchObject(
+      { error: { code: 'VAULT_BAD_PASSWORD' } },
+    );
+    await api.rpc.vault.removePassword({ current: mockMasterPassword });
+    expect(await api.rpc.vault.status()).toEqual({ state: 'unlocked', mode: 'device' });
+    await api.rpc.vault.setPassword({ password: 'a new password' });
+    expect(await api.rpc.vault.status()).toEqual({ state: 'unlocked', mode: 'password' });
   });
 
   it('returns to uninitialised on reset and drops the data', async () => {

@@ -530,6 +530,7 @@ const GenerateDataDialog = lazy(() =>
 export function ShellScreen() {
   const generateOpen = useGenerateDialog((state) => state.target !== undefined);
   const lock = useAppStore((state) => state.lock);
+  const vaultMode = useAppStore((state) => state.vaultMode);
   const stopMonitor = useAppStore((state) => state.stopMonitor);
   const dialog = useAppStore((state) => state.dialog);
   const setDialog = useAppStore((state) => state.setDialog);
@@ -666,7 +667,7 @@ export function ShellScreen() {
   useHotkeys(
     shellHotkeys({
       openSettings: () => setSettingsOpen(true),
-      lock: () => void runReported(() => lock()),
+      lock: vaultMode === 'device' ? () => undefined : () => void runReported(() => lock()),
       openHelp: () => setShortcutsOpen(true),
       focusSearch: () => window.dispatchEvent(new Event(FOCUS_TREE_SEARCH_EVENT)),
       toggleOutput: () => {
@@ -831,16 +832,18 @@ export function ShellScreen() {
                       <IconSettings size={16} aria-hidden="true" />
                     </ActionIcon>
                   </Tooltip>
-                  <Tooltip label="Lock">
-                    <ActionIcon
-                      variant="default"
-                      size="md"
-                      aria-label="Lock"
-                      onClick={() => void runReported(() => lock())}
-                    >
-                      <IconLock size={16} aria-hidden="true" />
-                    </ActionIcon>
-                  </Tooltip>
+                  {vaultMode === 'device' ? null : (
+                    <Tooltip label="Lock">
+                      <ActionIcon
+                        variant="default"
+                        size="md"
+                        aria-label="Lock"
+                        onClick={() => void runReported(() => lock())}
+                      >
+                        <IconLock size={16} aria-hidden="true" />
+                      </ActionIcon>
+                    </Tooltip>
+                  )}
                   <WindowControls />
                 </Group>
               </Group>

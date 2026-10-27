@@ -20,3 +20,13 @@ export default meta;
 type Story = StoryObj<typeof meta>;
 
 export const Default: Story = {};
+
+export const BasicText: Story = {
+  decorators: [
+    (Story) => (
+      <AppRoot api={createMockUiApi({ preset: 'fresh', deviceKey: 'basic-text' })}>
+        <Story />
+      </AppRoot>
+    ),
+  ],
+};

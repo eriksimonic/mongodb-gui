@@ -122,17 +122,20 @@ KEK  --AES-256-GCM unwrap-->  DEK (32B, random, generated once)
 DEK  --AES-256-GCM-->  every content column in the SQLite store
 ```
 
-- First launch: user sets a master password (minimum 10 characters, strength meter,
-  confirmation). The app generates a random DEK, wraps it under the KEK, and writes
-  `keyring.json` containing `{ version, kdf: {salt, N, r, p}, wrappedDek }`. The AES-GCM
-  tag on the wrapped DEK is the password verifier; there is no separate verifier field.
-- Every launch: the app shows the unlock screen before any window content. Wrong
-  password yields a generic error with a 500 ms delay per attempt.
+- First launch in password mode: the user sets a master password (minimum 4 characters,
+  strength meter, confirmation). The app generates a random DEK, wraps it under the KEK, and
+  writes version 1 of `keyring.json` containing `{ version, kdf: {salt, N, r, p}, wrappedDek }`.
+  The AES-GCM tag on the wrapped DEK is the password verifier; there is no separate verifier
+  field.
+- Every launch in password mode: the app shows the unlock screen before any window content.
+  Wrong password yields a generic error with a 500 ms delay per attempt. In device mode (3.4),
+  the app unlocks at startup without a prompt.
 - Password change: re-derive KEK, re-wrap the DEK. No data rewrite.
 - Lost password: no recovery. The UI offers "reset store", which deletes the store after
   a typed confirmation.
 - The DEK lives only in main process memory, in a `Buffer` zeroed on lock, on quit, and
-  after a configurable idle timeout (default 30 minutes, which locks the UI).
+  after a configurable idle timeout (default 30 minutes, which locks the UI). The idle timeout
+  does not run in device mode.
 - The DEK never reaches the renderer or utility processes. They receive decrypted
   connection details per connection on demand.
 
@@ -155,8 +158,11 @@ text backend when no secret service is running. A TPM is not reachable from Elec
 without a per-platform native addon (tpm2-tss on Linux, NCrypt Platform Crypto Provider on
 Windows, Secure Enclave on macOS), and a TPM-sealed key is still released to any process
 as the user. The master password is the only root that works identically on all three
-platforms and survives a copied profile directory. An optional "unlock with OS keychain
-on this device" setting can be added later; it stays off by default.
+platforms and survives a copied profile directory. Device mode gives up that property on
+purpose. The user picks it on the first run or in Settings, and the app then wraps the data key
+with `safeStorage` so the vault opens without a prompt. The trade-off is that the data cannot move
+to another computer or user, and any process running as the same user can unwrap the key. The
+first-run screen selects neither option, so the user always makes the choice.
 
 ### 3.5 Other rules
 

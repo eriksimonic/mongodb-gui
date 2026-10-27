@@ -32,7 +32,9 @@ import {
   type ShellRuntimeState,
   type SettingsPatch,
   type UpdateState,
+  type VaultMode,
   type VaultStatus,
+  type DeviceKeyAvailability,
   directConnectionName,
   directUriFor,
   type StartupSettings,
@@ -83,7 +85,7 @@ import { createMockBackup } from '../backup/mock';
 import { createMockTools, type MockToolsMode } from '../tools/mock';
 import type { UiApi } from './ui-api';
 
-export type MockPreset = 'fresh' | 'unlocked';
+export type MockPreset = 'fresh' | 'unlocked' | 'device' | 'device-locked';
 
 /**
  * A scripted sequence of update states. The first state is the starting state. Each check,
@@ -121,6 +123,10 @@ export interface MockUiApiOptions {
   readonly replSetUninitiated?: boolean;
   /** Which MongoDB Database Tools the mock has installed. Defaults to `ok`. */
   readonly tools?: MockToolsMode;
+  /** The machine encryption key the mock reports. `available` is the default. */
+  readonly deviceKey?: 'available' | 'no-encryption' | 'basic-text' | 'unknown-backend';
+  /** `fail` makes unlocking a device-mode vault fail, as an unreadable keyring would. */
+  readonly deviceUnlock?: 'ok' | 'fail';
 }
 
 const DEFAULT_UPDATE_STATE: UpdateState = { phase: 'idle', current: '0.1.0', canInstall: true };
@@ -130,6 +136,9 @@ type VaultState = VaultStatus['state'];
 interface MockState {
   vault: VaultState;
   password: string | undefined;
+  vaultMode: VaultMode | undefined;
+  deviceKey: DeviceKeyAvailability;
+  deviceUnlockFails: boolean;
   connections: ConnectionProfile[];
   statuses: Map<string, ConnectionStatus>;
   settings: Settings;
@@ -158,6 +167,9 @@ const MOCK_DOCKER_PASSWORD = 'secret';
 
 const SERVER_VERSION = '8.0.4';
 
+const DEVICE_MODE_MESSAGE = 'The vault uses machine encryption and has no master password.';
+const PASSWORD_MODE_MESSAGE = 'The vault uses a master password.';
+
 /** Version strings the mock reports for the About panel. */
 const MOCK_VERSIONS = { app: '0.1.0', electron: '44.0.0', chrome: '152.0.0', node: '24.0.0' };
 const AVERAGE_OBJECT_SIZE = 420;
@@ -167,6 +179,9 @@ function initialState(preset: MockPreset): MockState {
   const base: MockState = {
     vault: 'uninitialised',
     password: undefined,
+    vaultMode: undefined,
+    deviceKey: { available: true },
+    deviceUnlockFails: false,
     connections: [],
     statuses: new Map(),
     settings: { ...defaultSettings },
@@ -193,10 +208,12 @@ function initialState(preset: MockPreset): MockState {
     base.catalogs.set(connection.id, fixtureCatalog(connection.id));
     base.builds.set(connection.id, fixtureBuilds(connection.id, now));
   }
+  const device = preset === 'device' || preset === 'device-locked';
   return {
     ...base,
-    vault: 'unlocked',
-    password: mockMasterPassword,
+    vault: preset === 'device-locked' ? 'locked' : 'unlocked',
+    password: device ? undefined : mockMasterPassword,
+    vaultMode: device ? 'device' : 'password',
     connections: [...connections, fixtureDockerProfile()],
     statuses: new Map([[DOCKER_PROFILE_ID, connectedStatus('standalone', true)]]),
     history: fixtureHistory(),
@@ -387,6 +404,11 @@ export function createMockUiApi(options: MockUiApiOptions = {}): MockUiApi {
   const state = initialState(options.preset ?? 'fresh');
   let startupSettings: StartupSettings = { disableGpu: false };
   state.dockerAvailable = options.docker !== 'unavailable';
+  state.deviceKey =
+    options.deviceKey === undefined || options.deviceKey === 'available'
+      ? { available: true }
+      : { available: false, reason: options.deviceKey };
+  state.deviceUnlockFails = options.deviceUnlock === 'fail';
   const listeners = new Set<(event: RpcEvent) => void>();
   if (options.updates !== undefined && options.updates.states.length > 0) {
     state.updateStates = options.updates.states;
@@ -469,6 +491,12 @@ export function createMockUiApi(options: MockUiApiOptions = {}): MockUiApi {
   function requireInitialised(): void {
     if (state.vault === 'uninitialised') {
       throw fail('VAULT_NOT_INITIALISED', 'Create a master password first');
+    }
+  }
+
+  function requireDeviceKey(): void {
+    if (!state.deviceKey.available) {
+      throw fail('VALIDATION', 'Machine encryption is not available on this system.');
     }
   }
 
@@ -902,16 +930,48 @@ export function createMockUiApi(options: MockUiApiOptions = {}): MockUiApi {
       }),
     },
     vault: {
-      status: method(rpcContract.vault.status, latencyMs, () => ({ state: state.vault })),
+      status: method(rpcContract.vault.status, latencyMs, () =>
+        state.vault === 'uninitialised'
+          ? { state: state.vault }
+          : { state: state.vault, mode: state.vaultMode },
+      ),
       initialise: method(rpcContract.vault.initialise, latencyMs, ({ password }) => {
         if (state.vault !== 'uninitialised') {
           throw fail('VALIDATION', 'The vault already exists');
         }
         state.password = password;
+        state.vaultMode = 'password';
         state.vault = 'unlocked';
       }),
+      initialiseDevice: method(rpcContract.vault.initialiseDevice, latencyMs, () => {
+        if (state.vault !== 'uninitialised') {
+          throw fail('VALIDATION', 'The vault is already initialised.');
+        }
+        requireDeviceKey();
+        state.password = undefined;
+        state.vaultMode = 'device';
+        state.vault = 'unlocked';
+      }),
+      unlockDevice: method(rpcContract.vault.unlockDevice, latencyMs, () => {
+        requireInitialised();
+        if (state.vaultMode !== 'device') {
+          throw fail('VALIDATION', PASSWORD_MODE_MESSAGE);
+        }
+        if (state.deviceUnlockFails) {
+          throw fail('INTERNAL', 'This machine could not open the vault key.');
+        }
+        state.vault = 'unlocked';
+      }),
+      deviceKeyAvailability: method(
+        rpcContract.vault.deviceKeyAvailability,
+        latencyMs,
+        () => state.deviceKey,
+      ),
       unlock: method(rpcContract.vault.unlock, latencyMs, ({ password }) => {
         requireInitialised();
+        if (state.vaultMode === 'device') {
+          throw fail('VALIDATION', DEVICE_MODE_MESSAGE);
+        }
         if (password !== state.password) {
           throw fail('VAULT_BAD_PASSWORD', 'Wrong master password');
         }
@@ -929,15 +989,40 @@ export function createMockUiApi(options: MockUiApiOptions = {}): MockUiApi {
       }),
       changePassword: method(rpcContract.vault.changePassword, latencyMs, ({ current, next }) => {
         requireUnlocked();
+        if (state.vaultMode === 'device') {
+          throw fail('VALIDATION', DEVICE_MODE_MESSAGE);
+        }
         if (current !== state.password) {
           throw fail('VAULT_BAD_PASSWORD', 'Wrong master password');
         }
         state.password = next;
       }),
+      setPassword: method(rpcContract.vault.setPassword, latencyMs, ({ password }) => {
+        requireInitialised();
+        if (state.vaultMode === 'password') {
+          throw fail('VALIDATION', PASSWORD_MODE_MESSAGE);
+        }
+        requireUnlocked();
+        state.password = password;
+        state.vaultMode = 'password';
+      }),
+      removePassword: method(rpcContract.vault.removePassword, latencyMs, ({ current }) => {
+        requireUnlocked();
+        if (state.vaultMode === 'device') {
+          throw fail('VALIDATION', DEVICE_MODE_MESSAGE);
+        }
+        requireDeviceKey();
+        if (current !== state.password) {
+          throw fail('VAULT_BAD_PASSWORD', 'Wrong master password');
+        }
+        state.password = undefined;
+        state.vaultMode = 'device';
+      }),
       reset: method(rpcContract.vault.reset, latencyMs, () => {
         disconnectAll();
         state.vault = 'uninitialised';
         state.password = undefined;
+        state.vaultMode = undefined;
         state.connections = [];
         state.statuses.clear();
         state.settings = { ...defaultSettings };

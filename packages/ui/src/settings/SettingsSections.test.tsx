@@ -107,6 +107,30 @@ describe('SettingsModal sections', () => {
     await waitFor(async () => expect((await api.rpc.vault.status()).state).toBe('locked'));
   });
 
+  it('shows the password and lock rows in password mode', async () => {
+    await renderSettings('Security');
+    expect(
+      await screen.findByRole('button', { name: 'Remove master password' }),
+    ).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Change master password' })).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Lock now' })).toBeInTheDocument();
+    expect(screen.getByLabelText('Idle lock (minutes)')).toBeInTheDocument();
+  });
+
+  it('shows only Set master password in device mode', async () => {
+    renderWithApp(<SettingsModal />, {
+      mock: { preset: 'device' },
+      initialState: { settingsOpen: true },
+    });
+    fireEvent.click(await screen.findByRole('tab', { name: 'Security' }));
+
+    expect(await screen.findByRole('button', { name: 'Set master password' })).toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: 'Change master password' })).toBeNull();
+    expect(screen.queryByRole('button', { name: 'Remove master password' })).toBeNull();
+    expect(screen.queryByRole('button', { name: 'Lock now' })).toBeNull();
+    expect(screen.queryByLabelText('Idle lock (minutes)')).toBeNull();
+  });
+
   it('saves the Docker auto connect switch', async () => {
     const { api } = await renderSettings('Connections');
     fireEvent.click(await screen.findByRole('switch', { name: /Connect Docker instances/ }));

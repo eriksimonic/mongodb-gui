@@ -1,10 +1,30 @@
 import { randomBytes } from 'node:crypto';
 import { mkdirSync, existsSync } from 'node:fs';
 import { join } from 'node:path';
-import { AppErrorException, appError, type VaultStatus } from '@mongo-gui/core';
+import {
+  AppErrorException,
+  appError,
+  type DeviceKeyAvailability,
+  type VaultMode,
+  type VaultStatus,
+} from '@mongo-gui/core';
 import { DEFAULT_KDF_PARAMS, deriveKek, type KdfParams } from '../crypto/kdf';
 import { DecryptError, open, seal } from '../crypto/aead';
-import { readKeyringFile, removeKeyringFile, writeKeyringFile, type KeyringFile } from './keyring';
+import {
+  keyringMode,
+  readKeyringFile,
+  removeKeyringFile,
+  writeKeyringFile,
+  type KeyringFile,
+  type PasswordKeyring,
+} from './keyring';
+
+/** Wraps and unwraps the DEK with a key that the operating system protects for the current user. */
+export interface DeviceKeyProvider {
+  availability(): DeviceKeyAvailability;
+  encrypt(dek: Buffer): Buffer;
+  decrypt(wrapped: Buffer): Buffer;
+}
 
 export interface VaultOptions {
   /** Directory that holds keyring.json. Created on initialise. */
@@ -19,9 +39,12 @@ export interface VaultOptions {
   readonly onLocked?: () => void;
   /** Called after initialise or unlock leaves the vault unlocked. */
   readonly onUnlocked?: () => void;
+  /** Provides machine encryption. Without it, machine encryption is unavailable. */
+  readonly deviceKey?: DeviceKeyProvider;
 }
 
 const MIN_PASSWORD_LENGTH = 4;
+const DEVICE_KEY_FAILED = 'This machine could not open the vault key.';
 const SALT_BYTES = 32;
 const DEK_BYTES = 32;
 const KEYRING_FILE_NAME = 'keyring.json';
@@ -46,8 +69,10 @@ export class Vault {
   readonly #now: () => number;
   readonly #onLocked: (() => void) | undefined;
   readonly #onUnlocked: (() => void) | undefined;
+  readonly #deviceKey: DeviceKeyProvider | undefined;
 
   #dek: Buffer | undefined;
+  #mode: VaultMode | undefined;
   #lastActivity = 0;
   #idleTimer: ReturnType<typeof setTimeout> | undefined;
 
@@ -60,13 +85,14 @@ export class Vault {
     this.#now = options.now ?? Date.now;
     this.#onLocked = options.onLocked;
     this.#onUnlocked = options.onUnlocked;
+    this.#deviceKey = options.deviceKey;
   }
 
   status(): VaultStatus {
     if (!existsSync(this.keyringPath)) {
       return { state: 'uninitialised' };
     }
-    return { state: this.#dek === undefined ? 'locked' : 'unlocked' };
+    return { state: this.#dek === undefined ? 'locked' : 'unlocked', mode: this.#fileMode() };
   }
 
   /** Creates a new DEK under the given password and leaves the vault unlocked. */
@@ -80,6 +106,7 @@ export class Vault {
     const keyring = this.#wrap(password, salt, dek);
     mkdirSync(this.#dir, { recursive: true, mode: 0o700 });
     writeKeyringFile(this.keyringPath, keyring);
+    this.#mode = 'password';
     this.#install(dek);
     this.#onUnlocked?.();
   }
@@ -89,8 +116,9 @@ export class Vault {
    * failure delay and then throws VAULT_BAD_PASSWORD.
    */
   async unlock(password: string): Promise<void> {
-    const keyring = this.#requireKeyring();
+    const keyring = this.#requirePasswordKeyring();
     const dek = await this.#unwrap(keyring, password);
+    this.#mode = 'password';
     this.#install(dek);
     this.#onUnlocked?.();
   }
@@ -109,7 +137,7 @@ export class Vault {
    */
   async changePassword(current: string, next: string): Promise<void> {
     assertPasswordLength(next);
-    const keyring = this.#requireKeyring();
+    const keyring = this.#requirePasswordKeyring();
     const dek = await this.#unwrap(keyring, current);
     try {
       writeKeyringFile(this.keyringPath, this.#wrap(next, randomBytes(SALT_BYTES), dek));
@@ -121,7 +149,93 @@ export class Vault {
   /** Locks the vault and deletes keyring.json. The caller deletes the store file. */
   reset(): void {
     this.lock();
+    this.#mode = undefined;
     removeKeyringFile(this.keyringPath);
+  }
+
+  /** Reports whether machine encryption can be used on this system. */
+  deviceKeyAvailability(): DeviceKeyAvailability {
+    return this.#deviceKey?.availability() ?? { available: false, reason: 'no-encryption' };
+  }
+
+  /** Creates a new DEK wrapped by the device key and leaves the vault unlocked. */
+  initialiseDevice(): void {
+    if (existsSync(this.keyringPath)) {
+      throw new AppErrorException(appError('VALIDATION', 'The vault is already initialised.'));
+    }
+    const provider = this.#requireDeviceKey();
+    const dek = randomBytes(DEK_BYTES);
+    mkdirSync(this.#dir, { recursive: true, mode: 0o700 });
+    writeKeyringFile(this.keyringPath, {
+      version: 2,
+      mode: 'device',
+      wrappedDek: provider.encrypt(dek).toString('base64'),
+    });
+    this.#mode = 'device';
+    this.#install(dek);
+    this.#onUnlocked?.();
+  }
+
+  /** Unwraps the DEK with the device key and leaves the vault unlocked. */
+  unlockDevice(): void {
+    const keyring = this.#requireKeyring();
+    if (keyring.version === 1) {
+      throw new AppErrorException(appError('VALIDATION', 'The vault uses a master password.'));
+    }
+    const provider = this.#deviceKey;
+    if (provider === undefined) {
+      throw new AppErrorException(appError('INTERNAL', DEVICE_KEY_FAILED));
+    }
+    let dek: Buffer;
+    try {
+      dek = provider.decrypt(Buffer.from(keyring.wrappedDek, 'base64'));
+    } catch {
+      throw new AppErrorException(appError('INTERNAL', DEVICE_KEY_FAILED));
+    }
+    if (dek.length !== DEK_BYTES) {
+      dek.fill(0);
+      throw new AppErrorException(appError('INTERNAL', DEVICE_KEY_FAILED));
+    }
+    this.#mode = 'device';
+    this.#install(dek);
+    this.#onUnlocked?.();
+  }
+
+  /**
+   * Switches a machine-encrypted vault to a master password. The live DEK stays in memory,
+   * so it is not zeroed here.
+   */
+  setPassword(next: string): void {
+    assertPasswordLength(next);
+    const keyring = this.#requireKeyring();
+    if (keyring.version === 1) {
+      throw new AppErrorException(appError('VALIDATION', 'The vault uses a master password.'));
+    }
+    const dek = this.#dek;
+    if (dek === undefined) {
+      throw new AppErrorException(appError('VAULT_LOCKED', 'The vault is locked.'));
+    }
+    writeKeyringFile(this.keyringPath, this.#wrap(next, randomBytes(SALT_BYTES), dek));
+    this.#mode = 'password';
+    this.touch();
+  }
+
+  /** Switches a password vault to machine encryption. Needs the current master password. */
+  async removePassword(current: string): Promise<void> {
+    const keyring = this.#requirePasswordKeyring();
+    const provider = this.#requireDeviceKey();
+    const dek = await this.#unwrap(keyring, current);
+    try {
+      writeKeyringFile(this.keyringPath, {
+        version: 2,
+        mode: 'device',
+        wrappedDek: provider.encrypt(dek).toString('base64'),
+      });
+    } finally {
+      dek.fill(0);
+    }
+    this.#mode = 'device';
+    this.#clearIdleTimer();
   }
 
   /**
@@ -155,7 +269,7 @@ export class Vault {
     // Values outside the timer range are clamped, so a stored value can never break the timer.
     const clamped = Math.min(Math.max(1, Math.floor(ms)), Number.MAX_SAFE_INTEGER);
     this.#idleLockMs = clamped;
-    if (this.#dek === undefined) {
+    if (this.#dek === undefined || this.#mode === 'device') {
       return;
     }
     if (this.#idleTimer !== undefined) {
@@ -166,9 +280,12 @@ export class Vault {
     this.#armIdleTimer(Math.max(0, clamped - idleFor));
   }
 
-  /** Records activity and arms the idle timer. Does nothing while the vault is locked. */
+  /**
+   * Records activity and arms the idle timer. Does nothing while the vault is locked or
+   * uses machine encryption, because the device key unlocks it again at once.
+   */
   touch(): void {
-    if (this.#dek === undefined) {
+    if (this.#dek === undefined || this.#mode === 'device') {
       return;
     }
     this.#lastActivity = this.#now();
@@ -202,11 +319,15 @@ export class Vault {
     this.touch();
   }
 
-  #clearDek(): void {
+  #clearIdleTimer(): void {
     if (this.#idleTimer !== undefined) {
       clearTimeout(this.#idleTimer);
       this.#idleTimer = undefined;
     }
+  }
+
+  #clearDek(): void {
+    this.#clearIdleTimer();
     this.#dek?.fill(0);
     this.#dek = undefined;
   }
@@ -221,7 +342,38 @@ export class Vault {
     return keyring;
   }
 
-  #wrap(password: string, salt: Buffer, dek: Buffer): KeyringFile {
+  #requirePasswordKeyring(): PasswordKeyring {
+    const keyring = this.#requireKeyring();
+    if (keyring.version === 2) {
+      throw new AppErrorException(
+        appError('VALIDATION', 'The vault uses machine encryption and has no master password.'),
+      );
+    }
+    return keyring;
+  }
+
+  #requireDeviceKey(): DeviceKeyProvider {
+    const provider = this.#deviceKey;
+    if (provider === undefined || !provider.availability().available) {
+      throw new AppErrorException(
+        appError('VALIDATION', 'Machine encryption is not available on this system.'),
+      );
+    }
+    return provider;
+  }
+
+  /** Reads the mode from keyring.json. A malformed file counts as password mode. */
+  #fileMode(): VaultMode {
+    try {
+      const keyring = readKeyringFile(this.keyringPath);
+      return keyring === undefined ? 'password' : keyringMode(keyring);
+    } catch {
+      // The unlock screen and its reset button still show for a malformed file.
+      return 'password';
+    }
+  }
+
+  #wrap(password: string, salt: Buffer, dek: Buffer): PasswordKeyring {
     const kek = deriveKek(password, salt, this.#kdf);
     try {
       return {
@@ -234,7 +386,7 @@ export class Vault {
     }
   }
 
-  async #unwrap(keyring: KeyringFile, password: string): Promise<Buffer> {
+  async #unwrap(keyring: PasswordKeyring, password: string): Promise<Buffer> {
     const salt = Buffer.from(keyring.kdf.salt, 'base64');
     const wrapped = Buffer.from(keyring.wrappedDek, 'base64');
     const kek = deriveKek(password, salt, {

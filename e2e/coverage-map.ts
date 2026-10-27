@@ -9,6 +9,11 @@ export const coverageMap: Readonly<Record<string, Coverage>> = {
   'vault.lock': { excluded: 'Electron layer: vault master password' },
   'vault.changePassword': { excluded: 'Electron layer: vault master password' },
   'vault.reset': { excluded: 'Electron layer: vault reset' },
+  'vault.initialiseDevice': { excluded: 'Electron layer: vault machine encryption' },
+  'vault.unlockDevice': { excluded: 'Electron layer: vault machine encryption' },
+  'vault.deviceKeyAvailability': { excluded: 'Electron layer: vault machine encryption' },
+  'vault.setPassword': { excluded: 'Electron layer: vault machine encryption' },
+  'vault.removePassword': { excluded: 'Electron layer: vault machine encryption' },
 
   'connections.list': { journey: 'connect.spec.ts' },
   'connections.get': { journey: 'connection-crud.spec.ts' },

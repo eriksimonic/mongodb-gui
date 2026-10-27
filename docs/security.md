@@ -23,7 +23,8 @@ it needs for the open connection. See [The mongosh runtime](#the-mongosh-runtime
 ## Master password and key hierarchy
 
 The master password derives a key that encrypts a random data key. The data key encrypts every
-stored record.
+stored record. This section describes password mode. [Machine encryption](#machine-encryption)
+wraps the same data key with the operating system instead.
 
 ```
 master password --scrypt(N=2^17, r=8, p=1, 32-byte salt)--> key encryption key (32 bytes)
@@ -33,17 +34,51 @@ data key --AES-256-GCM--> every stored record
 
 - The app normalises the password to Unicode NFC before it derives the key.
 - The app requires at least 4 characters for a new master password. Longer passwords make the scrypt-derived key harder to guess; the strength meter counts 10 or more as one rule met.
-- At the first launch, the app creates the data key, wraps it under the key encryption key, and
-  writes the wrapped key to `keyring.json`. The authentication tag of the wrapped key checks the
-  password. The file has no separate password hash.
+- When you set a master password on the first run, the app creates the data key, wraps it under
+  the key encryption key, and writes the wrapped key to `keyring.json`. The authentication tag of
+  the wrapped key checks the password. The file has no separate password hash.
 - A wrong password gets the message "The master password is incorrect." Each failed unlock
   waits 500 milliseconds before the next check.
 - Changing the password derives a new key encryption key and wraps the data key again. The stored
   records stay as they are.
 - The data key exists only in the memory of the main process. The app clears it when you lock,
-  when you quit, and after the idle lock period. The default idle lock period is 30 minutes. You
-  can change it in Settings.
+  when you quit, and after the idle lock period in password mode. The default period is 30
+  minutes. You can change it in Settings.
 - The renderer process never receives the data key. Neither does the runtime process.
+
+## Machine encryption
+
+Machine encryption is the other choice on the first run. The app creates the same random data key
+and wraps it with Electron `safeStorage`. `safeStorage` uses the key store of the current OS user:
+DPAPI on Windows, Keychain on macOS, and libsecret or KWallet on Linux. The app writes the wrapped
+key to `keyring.json` as a version 2 keyring with `"mode": "device"`. That file holds no password
+settings. At startup, the app unwraps the key and opens the vault without a prompt.
+
+The encrypted records and the data key stay the same in both modes, so switching modes rewrites
+only `keyring.json`.
+
+Machine encryption protects against a copied data folder or a stolen disk image without the user's
+login. It does not protect against malware or another program running as the same OS user, which
+can ask the operating system to unwrap the key.
+
+- The data opens only for this OS user on this computer. Copying the data folder to another
+  computer, reinstalling the system or losing the user profile makes the data unreadable. The only
+  way out is "Reset store". Use connection export files to move connections to another computer.
+- The app does not lock on idle in device mode. "Lock now", the Lock button in the shell and the
+  lock shortcut are hidden, because the app would unlock again at once. Quitting still clears the
+  key from memory.
+- On Linux, the app refuses machine encryption unless a keyring is running. Electron's `basic_text`
+  backend stores the key in plain text, so the app refuses that backend too. See
+  [keyring-setup.md](keyring-setup.md).
+- Removing the master password wraps the same data key with `safeStorage`. Setting a master
+  password wraps it with a key derived from the new password.
+- An app version from before this feature reads a version 2 keyring as a damaged file. Switch to
+  password mode before you downgrade. Otherwise the older app offers a reset, which deletes the
+  saved data.
+- The data key passes through a base64 string on its way to and from `safeStorage`. JavaScript
+  strings cannot be overwritten, so a copy of the key can stay in memory until the garbage
+  collector frees it. The threat model above already excludes code that runs as the same user, so
+  the app accepts this.
 
 ## What is encrypted and where it lives
 
@@ -58,8 +93,9 @@ name "Mongo GUI":
 
 The directory holds two files:
 
-- `keyring.json` holds the key derivation settings, the salt and the wrapped data key. The app
-  creates the directory with mode 0700 on Linux and macOS. Windows applies its own file permissions.
+- `keyring.json` holds the wrapped data key. In password mode it also holds the key derivation
+  settings and the salt. The app creates the directory with mode 0700 on Linux and macOS. Windows
+  applies its own file permissions.
 - `store.sqlite` is the encrypted database. It has tables for connections, history, favourites,
   settings and layout.
 
@@ -120,8 +156,8 @@ the import each read and decrypt the file.
 
 ## What is never stored or logged
 
-- The master password is never written to disk. The app keeps only the key derivation settings
-  and the wrapped data key.
+- The master password is never written to disk. The app keeps only the wrapped data key and, in
+  password mode, the key derivation settings.
 - The app never writes a connection string with a password to a log. Log lines pass through a
   redaction helper, which replaces the password in any `mongodb://` or `mongodb+srv://` URI with
   `***`.
@@ -184,12 +220,12 @@ only the path that you choose.
 
 ## When you forget the master password
 
-The app cannot recover the data. The data key is wrapped only under the master password, and the
-app keeps no copy of it. A forgotten password leaves the stored data unreadable.
+In password mode, the app cannot recover the data. The data key is wrapped only under the master
+password, and the app keeps no copy of it. A forgotten password leaves the stored data unreadable.
 
 To use the app again, choose "Reset store" on the unlock screen. Type `DELETE` and click "Delete
-store". The reset removes `store.sqlite` and `keyring.json`. The app then asks you to create a new
-master password. Saved connections, history, favourites and settings are gone.
+store". The reset removes `store.sqlite` and `keyring.json`. The app then asks you to set up a new
+vault, as on the first run. Saved connections, history, favourites and settings are gone.
 
 If you want a copy of your saved connections, keep your own record of their URIs and credentials
 before you forget the password.

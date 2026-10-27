@@ -23,6 +23,7 @@ import {
   SavedBackupsRepository,
   SettingsRepository,
   Vault,
+  type DeviceKeyProvider,
   type KdfParams,
   type VaultOptions,
 } from '@mongo-gui/storage';
@@ -66,6 +67,8 @@ export interface AppServicesOptions {
   readonly userDataDir: string;
   readonly kdf?: KdfParams;
   readonly failureDelayMs?: number;
+  /** Wraps the data key with the OS key store. Without it the device mode is unavailable. */
+  readonly deviceKey?: DeviceKeyProvider;
   /**
    * How the shell runtime processes start. The app passes the built bundle and a utility process
    * fork. Without it the shell refuses to start.
@@ -128,6 +131,7 @@ export function createAppServices(options: AppServicesOptions): AppServices {
     dir: options.userDataDir,
     kdf: options.kdf ?? DEFAULT_KDF_PARAMS,
     ...(options.failureDelayMs === undefined ? {} : { failureDelayMs: options.failureDelayMs }),
+    ...(options.deviceKey === undefined ? {} : { deviceKey: options.deviceKey }),
     onLocked: () => {
       for (const listener of [...lockListeners]) {
         listener();

@@ -22,18 +22,21 @@ to use, modify and share. You may not sell it. The license is Apache 2.0 with th
 - Robo 3T is free. Its last stable release, 1.4, embeds the MongoDB 4.2 shell, not mongosh.
 - Browser tools such as Mongo Express usually run in Docker. You start a container and open a browser tab before you see any data.
 
-Mongo GUI keeps your connections in an encrypted store behind a master password, and it locks that
-store when you step away. The next section covers how.
+Mongo GUI keeps your connections in an encrypted store. You choose whether a master password or your
+operating system protects the key. With a master password, the app locks the store when you step
+away. The next section covers how.
 
 ## The encrypted store and the store lock
 
 Saved connections, with their credentials, plus query history, favourites and settings live in one
-encrypted store. A master password you type at launch unlocks it.
+encrypted store. A master password you type at launch unlocks it. With machine encryption, the
+operating system unlocks it for your user account on this computer, and the app opens without a
+password.
 
-- The app encrypts each record with AES-256-GCM. A key derived from the master password with scrypt unwraps the random data key.
-- The app never saves the master password and cannot recover it. If you lose it, the stored data is gone. "Reset store" on the unlock screen deletes everything in the store.
-- The app locks after 30 minutes without activity by default. Change the period under "Idle lock (minutes)" in Settings.
-- To lock at once, press Ctrl+L (Cmd+L on macOS), click "Lock" in the toolbar, or click "Lock now" in Settings.
+- The app encrypts each record with AES-256-GCM. A key unwraps the random data key. In password mode, a key derived from the master password with scrypt unwraps it. In machine mode, the operating system protects that key.
+- In password mode, the app never saves the master password and cannot recover it. If you lose it, the stored data is gone. "Reset store" on the unlock screen deletes everything in the store.
+- In password mode, the app locks after 30 minutes without activity by default. Change the period under "Idle lock (minutes)" in Settings. Machine encryption has no idle lock.
+- In password mode, to lock at once, press Ctrl+L (Cmd+L on macOS), click "Lock" in the toolbar, or click "Lock now" in Settings. In machine mode, these lock controls are hidden.
 - Locking closes every open connection and clears the data key from memory.
 
 The lock does not stop code that runs as your user while the app is unlocked. Lock the app when you
@@ -152,7 +155,7 @@ The changes in each version are listed in [CHANGELOG.md](CHANGELOG.md).
 
 The app checks GitHub for a new release about ten seconds after you unlock it, and then every
 six hours. The check runs in the background and never delays startup. The setting lives in the
-encrypted store, so the first check waits for the master password. A check that fails, for
+encrypted store, so the first check waits until the store is unlocked. A check that fails, for
 example while the machine is offline, stays out of sight, and the app tries again on the next
 schedule. An available update shows a notice in the toolbar with its version.
 

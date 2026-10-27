@@ -65,20 +65,28 @@ export function vaultOperations(deps: VaultDeps): [string, Operation][] {
     }
   }
 
+  function afterInitialise(): void {
+    applyStoredIdleLock();
+    deps.updates?.refreshSchedule();
+  }
+
+  function afterUnlock(): void {
+    applyStoredIdleLock();
+    void deps.docker?.pruneMissing(deps.emit);
+    void deps.docker?.autoConnect();
+    deps.docker?.resume();
+    deps.updates?.refreshSchedule();
+  }
+
   return [
     entry('vault.status', rpcContract.vault.status, () => deps.vault.status()),
     entry('vault.initialise', rpcContract.vault.initialise, (input) => {
       deps.vault.initialise(input.password);
-      applyStoredIdleLock();
-      deps.updates?.refreshSchedule();
+      afterInitialise();
     }),
     entry('vault.unlock', rpcContract.vault.unlock, async (input) => {
       await deps.vault.unlock(input.password);
-      applyStoredIdleLock();
-      void deps.docker?.pruneMissing(deps.emit);
-      void deps.docker?.autoConnect();
-      deps.docker?.resume();
-      deps.updates?.refreshSchedule();
+      afterUnlock();
     }),
     entry('vault.lock', rpcContract.vault.lock, () => {
       deps.vault.lock();
@@ -87,5 +95,23 @@ export function vaultOperations(deps: VaultDeps): [string, Operation][] {
       await deps.vault.changePassword(input.current, input.next);
     }),
     entry('vault.reset', rpcContract.vault.reset, resetVault),
+    entry('vault.initialiseDevice', rpcContract.vault.initialiseDevice, () => {
+      deps.vault.initialiseDevice();
+      afterInitialise();
+    }),
+    entry('vault.unlockDevice', rpcContract.vault.unlockDevice, () => {
+      deps.vault.unlockDevice();
+      afterUnlock();
+    }),
+    entry('vault.deviceKeyAvailability', rpcContract.vault.deviceKeyAvailability, () =>
+      deps.vault.deviceKeyAvailability(),
+    ),
+    entry('vault.setPassword', rpcContract.vault.setPassword, (input) => {
+      deps.vault.setPassword(input.password);
+      applyStoredIdleLock();
+    }),
+    entry('vault.removePassword', rpcContract.vault.removePassword, async (input) => {
+      await deps.vault.removePassword(input.current);
+    }),
   ];
 }

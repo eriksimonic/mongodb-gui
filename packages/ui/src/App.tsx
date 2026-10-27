@@ -1,6 +1,7 @@
 import { Alert, Center, Loader } from '@mantine/core';
 import { AppRoot } from './AppRoot';
 import type { UiApi } from './api/ui-api';
+import { DeviceUnlockScreen } from './screens/DeviceUnlockScreen';
 import { FirstRunScreen } from './screens/FirstRunScreen';
 import { ShellScreen } from './screens/ShellScreen';
 import { UnlockScreen } from './screens/UnlockScreen';
@@ -21,6 +22,7 @@ export function App({ api }: AppProps) {
 
 function VaultScreen() {
   const vault = useAppStore((state) => state.vault);
+  const vaultMode = useAppStore((state) => state.vaultMode);
   if (vault === 'loading') {
     return (
       <Center mih="100vh">
@@ -39,6 +41,9 @@ function VaultScreen() {
   }
   if (vault === 'uninitialised') {
     return <FirstRunScreen />;
+  }
+  if (vault === 'locked' && vaultMode === 'device') {
+    return <DeviceUnlockScreen />;
   }
   if (vault === 'locked') {
     return <UnlockScreen />;

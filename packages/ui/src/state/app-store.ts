@@ -24,6 +24,8 @@ import {
   type Settings,
   type SettingsPatch,
   type UpdateState,
+  type DeviceKeyAvailability,
+  type VaultMode,
   type VaultStatus,
   type ReplicaSetStatus,
 } from '@mongo-gui/core';
@@ -201,6 +203,8 @@ export interface DockerView {
 /** Everything the screens read. Kept apart from the actions so tests can seed it. */
 export interface AppData {
   readonly vault: VaultView;
+  /** The key protection of the vault. Undefined while loading or uninitialised. */
+  readonly vaultMode: VaultMode | undefined;
   readonly connections: Loadable<readonly ConnectionProfileSummary[]>;
   readonly statuses: Readonly<Record<string, ConnectionStatus>>;
   readonly docker: DockerView;
@@ -257,6 +261,11 @@ export interface AppActions extends EditorActions, ExplainActions {
   refreshVault(): Promise<void>;
   initialise(password: string): Promise<void>;
   unlock(password: string): Promise<void>;
+  initialiseDevice(): Promise<void>;
+  unlockDevice(): Promise<void>;
+  setPassword(password: string): Promise<void>;
+  removePassword(current: string): Promise<void>;
+  deviceKeyAvailability(): Promise<DeviceKeyAvailability>;
   lock(): Promise<void>;
   reset(): Promise<void>;
   loadConnections(): Promise<void>;
@@ -438,6 +447,7 @@ const NO_UPDATE_STATE: UpdateState = { phase: 'idle', current: '', canInstall: f
 
 const INITIAL_DATA: AppData = {
   vault: 'loading',
+  vaultMode: undefined,
   catalogRevision: 0,
   gridfsRevision: 0,
   ...SESSION_RESET,
@@ -687,6 +697,12 @@ export function createAppStore(api: UiApi, initial: Partial<AppData> = {}): AppS
       }
     }
 
+    const afterOpen = async (mode: VaultMode): Promise<void> => {
+      set({ vault: 'unlocked', vaultMode: mode, lockReason: undefined });
+      void get().loadSettings();
+      await get().loadConnections();
+    };
+
     return {
       ...INITIAL_DATA,
       theme: cached.theme,
@@ -697,11 +713,11 @@ export function createAppStore(api: UiApi, initial: Partial<AppData> = {}): AppS
 
       async refreshVault() {
         try {
-          const { state } = await rpc.vault.status();
+          const { state, mode } = await rpc.vault.status();
           if (state !== 'unlocked') {
             clearSession();
           }
-          set({ vault: state });
+          set({ vault: state, vaultMode: mode });
           if (state === 'unlocked') {
             // Settings load in the background, so the connection list is not held back.
             void get().loadSettings();
@@ -714,16 +730,36 @@ export function createAppStore(api: UiApi, initial: Partial<AppData> = {}): AppS
 
       async initialise(password) {
         await rpc.vault.initialise({ password });
-        set({ vault: 'unlocked', lockReason: undefined });
-        void get().loadSettings();
-        await get().loadConnections();
+        await afterOpen('password');
       },
 
       async unlock(password) {
         await rpc.vault.unlock({ password });
-        set({ vault: 'unlocked', lockReason: undefined });
-        void get().loadSettings();
-        await get().loadConnections();
+        await afterOpen('password');
+      },
+
+      async initialiseDevice() {
+        await rpc.vault.initialiseDevice();
+        await afterOpen('device');
+      },
+
+      async unlockDevice() {
+        await rpc.vault.unlockDevice();
+        await afterOpen('device');
+      },
+
+      async setPassword(password) {
+        await rpc.vault.setPassword({ password });
+        set({ vaultMode: 'password' });
+      },
+
+      async removePassword(current) {
+        await rpc.vault.removePassword({ current });
+        set({ vaultMode: 'device' });
+      },
+
+      deviceKeyAvailability() {
+        return rpc.vault.deviceKeyAvailability();
       },
 
       async lock() {
