@@ -2,6 +2,22 @@
 
 All notable changes to Mongo GUI are listed here, newest first.
 
+## Unreleased
+
+### Added
+
+- The first run offers machine encryption as a choice. The operating system protects the key for
+  your user account, so the app opens without a password. The data then opens only on this
+  computer for this user. Before you downgrade to an older version, switch back to password
+  encryption, because older versions cannot open machine-encryption data.
+- Settings can set and remove the master password, with "Set master password" and "Remove master
+  password" in the Security section. Switching rewrites only the key wrap, not the data.
+
+### Changed
+
+- The first run asks you to choose between machine encryption and password encryption. Nothing is
+  selected by default.
+
 ## 0.4.4 - 2026-10-27
 
 ### Added

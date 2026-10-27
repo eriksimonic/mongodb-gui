@@ -5,7 +5,7 @@ quotes are the text on the buttons, menus and fields.
 
 ## Contents
 
-- [First launch and the master password](#first-launch-and-the-master-password)
+- [First launch and encryption](#first-launch-and-encryption)
 - [Connections](#connections)
 - [Docker discovery](#docker-discovery)
 - [The connection tree](#the-connection-tree)
@@ -29,43 +29,77 @@ quotes are the text on the buttons, menus and fields.
 - [Settings and appearance](#settings-and-appearance)
 - [Updates](#updates)
 
-## First launch and the master password
+## First launch and encryption
 
-The app stores saved connections, query history, favourites and settings on disk. A master
-password encrypts all of them. The password never leaves your machine, and the app keeps no
-copy of it. See [security.md](security.md) for the details.
+The app stores saved connections, query history, favourites and settings on disk, in one
+encrypted store. A key protects that store, and you choose how the key is protected. See
+[security.md](security.md) for the details.
 
-On the first launch, the app shows the first-run screen.
+On the first launch, the app shows the choice screen, "Choose how to protect your data". Nothing
+is selected at first. Pick one of these options.
 
-1. Type a master password in "Master password". The password must have at least 4 characters. The strength meter still rates anything under 10 as weak.
-2. Type the same password in "Confirm master password". The strength meter shows how strong the
+- "Machine encryption". Your operating system protects the key for your user account on this
+  computer, and the app opens without a password. The data opens only for this user on this
+  computer. If you reinstall the system, lose your user profile or copy the data folder elsewhere,
+  the data cannot be opened, and the only way out is a reset. Use connection export files to move
+  connections to another computer.
+- "Password encryption". A master password protects the key. You type it when the app starts and
+  after the idle lock. The data folder can be moved to another computer.
+
+Machine encryption needs the operating system's key store. On Linux, that is GNOME Keyring or
+KWallet. When the key store is not available, the option is disabled. The screen then shows the
+reason, a "How to set up a keyring" link and a "Check again" button. The link opens
+[keyring-setup.md](keyring-setup.md).
+
+To use machine encryption:
+
+1. Click "Machine encryption".
+2. Tick "I understand that this data cannot be moved or recovered."
+3. Click "Continue". The app opens the vault without a prompt.
+
+To use password encryption:
+
+1. Click "Password encryption", then click "Continue".
+2. Type a master password in "Master password". The password must have at least 4 characters.
+   The strength meter still rates anything under 10 as weak.
+3. Type the same password in "Confirm master password". The strength meter shows how strong the
    password is.
-3. Click "Create vault".
+4. Click "Create vault".
 
-Every later launch shows the unlock screen before any other content.
+Later launches in password mode show the unlock screen before any other content.
 
 1. Type the master password in "Master password".
 2. Click "Unlock". A wrong password shows "The master password is incorrect." Each failed
    attempt waits half a second before the app checks again.
 
-Keep the master password safe. The app cannot recover it. A forgotten password means the
-stored data cannot be read again. To start over, use "Reset store" on the unlock screen. Type
-`DELETE` in the confirmation field and click "Delete store". The reset deletes every saved
+Later launches in machine mode open the vault without a prompt. If the key cannot be read, for
+example after you copy the data folder to another computer, the app shows "The vault cannot be
+opened on this computer". Click "Try again" to retry, or "Reset store" to start over.
+
+In password mode, keep the master password safe. The app cannot recover it. A forgotten password
+means the stored data cannot be read again. To start over, use "Reset store" on the unlock screen.
+Type `DELETE` in the confirmation field and click "Delete store". The reset deletes every saved
 connection, history entry, favourite and setting.
 
-The app locks itself after a period without activity. The default is 30 minutes. Change it
-under "Idle lock (minutes)" in Settings, in the Security section. To lock the app at once,
-use one of these:
+In password mode, the app locks itself after a period without activity. The default is 30
+minutes. Change it under "Idle lock (minutes)" in Settings, in the Security section. To lock the
+app at once, use one of these:
 
 - Click "Lock" in the toolbar.
 - Press Ctrl+L, or Cmd+L on macOS.
 - Open Settings and click "Lock now".
 
-Locking closes every open connection and clears the key from memory.
+Locking closes every open connection and clears the key from memory. Machine encryption has no
+idle lock and no lock command, because the app would open again at once.
 
-To change the master password, open Settings, go to Security, and click "Change master
-password". Type the current password, then the new password twice. The app re-wraps its key
+In password mode, to change the master password, open Settings, go to Security, and click "Change
+master password". Type the current password, then the new password twice. The app re-wraps its key
 under the new password. It does not rewrite your data.
+
+To switch to machine encryption, click "Remove master password" in the same section. In the
+dialog, type the current password, tick the checkbox, and click "Remove password". To switch back,
+open Settings in machine mode, click "Set master password", enter the new password twice, and click
+"Set password". Each switch rewrites only the key wrap. It does not rewrite your data.
 
 ## Connections
 
@@ -1007,7 +1041,9 @@ Cmd+, on macOS. The screen has these sections:
 - Appearance. "Dark", "Light" or "System" set the theme. "Editor font size" sets the editor font and
   scales the rest of the window with it, including the connection tree, the tabs and the output
   panel. "Compact" or "Comfortable" sets the density.
-- Security. "Idle lock (minutes)", "Change master password" and "Lock now".
+- Security. In password mode: "Idle lock (minutes)", "Change master password", "Lock now" and
+  "Remove master password", which switches to machine encryption. In machine mode: "Set master
+  password", which switches to password encryption.
 - Connections. "Connect Docker instances automatically".
 - Updates. "Check for updates".
 - Data. "Sample size (documents)" sets how many documents schema analysis reads. "History limit

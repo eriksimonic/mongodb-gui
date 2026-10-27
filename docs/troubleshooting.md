@@ -84,12 +84,20 @@ check that fails stays out of sight. The next check runs on schedule. To stop ch
 
 ## The vault will not unlock
 
-- "The vault has not been set up yet." The app has no `keyring.json` in its data directory. Create
-  a master password on the first-run screen. If you expected your data, check the data directory
-  for the files. See [security.md](security.md#what-is-encrypted-and-where-it-lives).
+- "The vault has not been set up yet." The app has no `keyring.json` in its data directory. Choose
+  how to protect the data on the first-run screen. If you expected your data, check the data
+  directory for the files. See [security.md](security.md#what-is-encrypted-and-where-it-lives).
 - The unlock fails with an internal error. The `keyring.json` file is damaged. Restore it from a
   backup if you have one. Otherwise, use "Reset store" on the unlock screen. The reset deletes the
   saved data.
+- "The vault cannot be opened on this computer." The vault uses machine encryption, and the
+  operating system does not return its key. Common causes are a data folder copied from another
+  computer or user, a new user profile or system install, and a keyring that was reset. Fix the
+  cause, then click "Try again". If that does not help, use "Reset store". The reset deletes the
+  saved data, because no other copy of the key exists.
+- "Machine encryption is disabled on Linux." No keyring is running, or the app found only the plain
+  text backend. Set up GNOME Keyring or KWallet, then restart the app. See
+  [keyring-setup.md](keyring-setup.md).
 
 ## A wrong master password
 
