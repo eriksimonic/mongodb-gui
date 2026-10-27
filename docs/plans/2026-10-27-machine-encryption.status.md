@@ -4,3 +4,4 @@
 - T0: passed (CPD via podman eclipse-temurin:21-jre, typescript, --minimum-tokens 100, 28 clusters; T10 reuses these settings). Next: phase 1 (T3, T8a, T8b).
 - T3, T8a, T8b: passed after one rework round for T8a and T8b (validator nits). Next: phase 2 (T1, T5).
 - T1, T5: passed (T1 reworked once for test types; plan amended: T1 acceptance vitest-only, red window until T2). Next: phase 3 (T2, T6a, T6b).
+- T2, T6a, T6b: passed first round. Validator nits left for later: 31-byte test does not assert zeroing, unavailable initialiseDevice test lacks VALIDATION code check, device unlock runs twice under StrictMode in dev. Next: phase 4 (T4a, T7a).
