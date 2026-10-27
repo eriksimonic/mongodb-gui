@@ -4,6 +4,7 @@ import {
   dialog,
   ipcMain,
   net,
+  safeStorage,
   screen,
   session,
   shell,
@@ -25,6 +26,7 @@ import {
 import { scriptedDialogs } from './dialog-picks';
 import { createRouter, type NativeDialogs, type Router } from './rpc/router';
 import { createAppServices, type AppServices } from './rpc/app-services';
+import { createSafeStorageDeviceKey } from './device-key';
 import { registerIpc, sendEvent } from './rpc/ipc';
 import { utilityFork } from './shell/utility-fork';
 import { readStartupSettings, writeStartupSettings } from './startup-settings';
@@ -390,6 +392,7 @@ app
     installContentSecurityPolicy();
     const appServices = createAppServices({
       userDataDir: app.getPath('userData'),
+      deviceKey: createSafeStorageDeviceKey(safeStorage, process.platform),
       // A RAM-backed temp folder falls through to the user data folder, which is on disk.
       spillBases: [app.getPath('temp'), join(app.getPath('userData'), 'spill-tmp')],
       shell: { entryPath: shellRuntimePath, fork: utilityFork },
