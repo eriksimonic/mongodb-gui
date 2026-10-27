@@ -2,7 +2,7 @@
 
 All notable changes to Mongo GUI are listed here, newest first.
 
-## Unreleased
+## 0.5.0 - 2026-10-27
 
 ### Added
 
