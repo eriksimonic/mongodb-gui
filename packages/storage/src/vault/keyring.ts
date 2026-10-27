@@ -10,18 +10,24 @@ import {
 } from 'node:fs';
 import { dirname } from 'node:path';
 import { z } from 'zod';
-import { AppErrorException, appError } from '@mongo-gui/core';
+import { AppErrorException, appError, type VaultMode } from '@mongo-gui/core';
 import { SCRYPT_MAX_MEMORY } from '../crypto/kdf';
 
 const SALT_BYTES = 32;
 const WRAPPED_DEK_BYTES = 12 + 32 + 16;
 const MAX_SCRYPT_N = 2 ** 30;
+// The safeStorage output length varies by platform, so the device field is bounded, not fixed.
+const MAX_DEVICE_WRAPPED_BYTES = 4096;
 
-/** Accepts only the canonical base64 form of exactly `bytes` bytes. */
-function canonicalBase64(bytes: number): z.ZodString {
+/** Accepts only the canonical base64 form of between `minBytes` and `maxBytes` bytes. */
+function canonicalBase64(minBytes: number, maxBytes = minBytes): z.ZodString {
   return z.string().refine((text) => {
     const decoded = Buffer.from(text, 'base64');
-    return decoded.length === bytes && decoded.toString('base64') === text;
+    return (
+      decoded.length >= minBytes &&
+      decoded.length <= maxBytes &&
+      decoded.toString('base64') === text
+    );
   });
 }
 
@@ -41,7 +47,8 @@ const KdfSchema = z
   // OpenSSL allocates 128 * r * (N + 2 + p) bytes, so this is the exact bound.
   .refine((kdf) => 128 * kdf.r * (kdf.N + 2 + kdf.p) <= SCRYPT_MAX_MEMORY);
 
-export const KeyringFileSchema = z
+/** Version 1: the DEK is wrapped by a scrypt key from the master password. */
+const PasswordKeyringSchema = z
   .object({
     version: z.literal(1),
     kdf: KdfSchema,
@@ -49,8 +56,28 @@ export const KeyringFileSchema = z
   })
   .strict();
 
-/** The on-disk keyring. The wrapped DEK doubles as the password verifier. */
-export type KeyringFile = z.infer<typeof KeyringFileSchema>;
+/** Version 2: the DEK is wrapped by safeStorage for the current OS user. */
+const DeviceKeyringSchema = z
+  .object({
+    version: z.literal(2),
+    mode: z.literal('device'),
+    wrappedDek: canonicalBase64(1, MAX_DEVICE_WRAPPED_BYTES),
+  })
+  .strict();
+
+export const KeyringFileSchema = z.discriminatedUnion('version', [
+  PasswordKeyringSchema,
+  DeviceKeyringSchema,
+]);
+
+/** The on-disk keyring. The wrapped DEK doubles as the password verifier in version 1. */
+export type PasswordKeyring = z.infer<typeof PasswordKeyringSchema>;
+export type DeviceKeyring = z.infer<typeof DeviceKeyringSchema>;
+export type KeyringFile = PasswordKeyring | DeviceKeyring;
+
+export function keyringMode(keyring: KeyringFile): VaultMode {
+  return keyring.version === 1 ? 'password' : 'device';
+}
 
 /**
  * Validates an unknown value as a keyring file. Throws INTERNAL with one fixed message,

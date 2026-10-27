@@ -54,6 +54,7 @@ No agent blames these on its own task.
 
 - From T3 until T5 is done, root `pnpm typecheck` fails in `packages/ui/src/api/mock-rpc-client.ts`. That file types the mock as `RpcClient`, which lacks the new calls until T5 adds them.
 - From T3 until T4b is done, `packages/app/src/main/rpc/router.test.ts` fails "answers every contract method without treating it as unknown" (line ~322).
+- From T1 until T2 is done, `pnpm exec tsc -b packages/storage` fails in `vault.ts` and `vault.test.ts` (`kdf` does not exist on the keyring union).
 - From T2 until T4a is done, nothing app-side uses the new Vault options. That is fine, and no red window is expected there.
 
 Each task's acceptance command is scoped so that it passes during these windows.
@@ -383,7 +384,7 @@ T1. Keyring version 2.
   - Version 3 is rejected.
   - The existing version 1 fixtures still pass unchanged.
   - `keyringMode` returns both values.
-- Acceptance: `pnpm exec tsc -b packages/storage && pnpm exec vitest run --project unit packages/storage/src/vault/keyring.test.ts`.
+- Acceptance: `pnpm exec vitest run --project unit packages/storage/src/vault/keyring.test.ts`. The `tsc -b packages/storage` check moves to T2, because `vault.ts` reads `keyring.kdf` until T2 narrows it.
 - Waits for: T3.
 
 T5. UI store, mock client and link constant.

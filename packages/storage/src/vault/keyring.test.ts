@@ -4,22 +4,29 @@ import { join } from 'node:path';
 import { AppErrorException } from '@mongo-gui/core';
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 import {
+  keyringMode,
   parseKeyringFile,
   readKeyringFile,
   removeKeyringFile,
   writeKeyringFile,
-  type KeyringFile,
+  type DeviceKeyring,
+  type PasswordKeyring,
 } from './keyring';
 
 const SALT_B64 = Buffer.alloc(32, 3).toString('base64');
 const WRAPPED_B64 = Buffer.alloc(60, 4).toString('base64');
+const DEVICE_WRAPPED_B64 = Buffer.alloc(120, 5).toString('base64');
 
-function validKeyring(): KeyringFile {
+function validKeyring(): PasswordKeyring {
   return {
     version: 1,
     kdf: { salt: SALT_B64, N: 2 ** 17, r: 8, p: 1 },
     wrappedDek: WRAPPED_B64,
   };
+}
+
+function validDeviceKeyring(): DeviceKeyring {
+  return { version: 2, mode: 'device', wrappedDek: DEVICE_WRAPPED_B64 };
 }
 
 function caughtInternal(action: () => unknown): boolean {
@@ -46,8 +53,42 @@ describe('parseKeyringFile', () => {
     expect(parseKeyringFile(validKeyring())).toEqual(validKeyring());
   });
 
-  it('rejects a wrong version', () => {
-    expect(caughtInternal(() => parseKeyringFile({ ...validKeyring(), version: 2 }))).toBe(true);
+  it('rejects an unknown version', () => {
+    expect(caughtInternal(() => parseKeyringFile({ ...validKeyring(), version: 3 }))).toBe(true);
+  });
+
+  it('accepts a well-formed device keyring', () => {
+    expect(parseKeyringFile(validDeviceKeyring())).toEqual(validDeviceKeyring());
+  });
+
+  it('rejects a device keyring that carries a kdf', () => {
+    const keyring = { ...validDeviceKeyring(), kdf: validKeyring().kdf };
+    expect(caughtInternal(() => parseKeyringFile(keyring))).toBe(true);
+  });
+
+  it('rejects a device keyring without a mode', () => {
+    const { mode: _mode, ...keyring } = validDeviceKeyring() as Record<string, unknown>;
+    expect(caughtInternal(() => parseKeyringFile(keyring))).toBe(true);
+  });
+
+  it('rejects an empty or oversized device wrapped DEK', () => {
+    const empty = { ...validDeviceKeyring(), wrappedDek: '' };
+    const oversized = {
+      ...validDeviceKeyring(),
+      wrappedDek: Buffer.alloc(4097, 5).toString('base64'),
+    };
+    expect(caughtInternal(() => parseKeyringFile(empty))).toBe(true);
+    expect(caughtInternal(() => parseKeyringFile(oversized))).toBe(true);
+  });
+
+  it('rejects non-canonical base64 in a device keyring', () => {
+    const keyring = { ...validDeviceKeyring(), wrappedDek: `${DEVICE_WRAPPED_B64.slice(0, -2)}!!` };
+    expect(caughtInternal(() => parseKeyringFile(keyring))).toBe(true);
+  });
+
+  it('reports the mode of each keyring version', () => {
+    expect(keyringMode(validKeyring())).toBe('password');
+    expect(keyringMode(validDeviceKeyring())).toBe('device');
   });
 
   it('rejects an N whose scrypt memory use exceeds the bound', () => {
