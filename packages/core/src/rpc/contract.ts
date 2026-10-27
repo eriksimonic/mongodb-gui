@@ -35,7 +35,7 @@ import {
   HistoryAppendInputSchema,
   HistoryEntrySchema,
 } from '../schemas/history';
-import { VaultStatusSchema } from '../schemas/vault';
+import { DeviceKeyAvailabilitySchema, VaultStatusSchema } from '../schemas/vault';
 import {
   ShellCancelInputSchema,
   ShellCompleteInputSchema,
@@ -313,6 +313,11 @@ export const rpcContract = {
     unlock: defineCall(z.object({ password }), z.void()),
     lock: defineCall(z.void(), z.void()),
     changePassword: defineCall(z.object({ current: password, next: newPassword }), z.void()),
+    initialiseDevice: defineCall(z.void(), z.void()),
+    unlockDevice: defineCall(z.void(), z.void()),
+    deviceKeyAvailability: defineCall(z.void(), DeviceKeyAvailabilitySchema),
+    setPassword: defineCall(z.object({ password: newPassword }), z.void()),
+    removePassword: defineCall(z.object({ current: password }), z.void()),
     reset: defineCall(z.object({ confirmation: z.literal('DELETE') }), z.void()),
   },
   connections: {
