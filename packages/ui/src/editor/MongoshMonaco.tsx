@@ -122,6 +122,13 @@ export function MongoshMonaco({
     };
     attach(editor.getModel());
     editor.onDidChangeModel(() => attach(editor.getModel()));
+    editor.onDidChangeCursorSelection((change) => {
+      editorUiEvents.emit({
+        type: 'editor:selection',
+        tabId,
+        selected: !change.selection.isEmpty(),
+      });
+    });
     const runAt = (
       request: (value: string, cursor: number, selection: RunRequest['selection']) => void,
     ) => {
@@ -144,7 +151,8 @@ export function MongoshMonaco({
     editor.addAction({
       id: 'mongo-gui.run',
       label: 'Run statement',
-      keybindings: [monaco.KeyMod.CtrlCmd | monaco.KeyCode.Enter, monaco.KeyCode.F5],
+      // F5 is handled by the editor view, so it also runs when the focus is outside the editor.
+      keybindings: [monaco.KeyMod.CtrlCmd | monaco.KeyCode.Enter],
       run: () => {
         runAt((code, cursor, selection) => latest.current.onRun({ code, cursor, selection }));
       },

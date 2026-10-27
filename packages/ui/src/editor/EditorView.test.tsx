@@ -434,7 +434,7 @@ describe('EditorView SQL mode', () => {
     });
   });
 
-  it('runs the SQL statement under the cursor', async () => {
+  it('runs all the SQL when nothing is selected', async () => {
     const api = await connectedMockApi();
     const evaluate = vi.spyOn(api.rpc.shell, 'evaluate');
     await openSql(`SELECT * FROM orders;\n${SQL_SAMPLES}`, api);
@@ -443,7 +443,7 @@ describe('EditorView SQL mode', () => {
     pressRun();
 
     await waitFor(() => expect(evaluate).toHaveBeenCalled());
-    expect(evaluate.mock.calls[0]?.[0]).toMatchObject({ code: MONGOSH_SAMPLES });
+    expect(evaluate.mock.calls[0]?.[0]).toMatchObject({ code: expect.stringContaining('orders') });
   });
 
   it('runs only the selected SQL', async () => {

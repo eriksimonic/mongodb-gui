@@ -8,7 +8,9 @@ export type EditorUiEvent =
   | { readonly type: 'editor:insert'; readonly tabId: string; readonly text: string }
   /** Puts the cursor in the tab's editor, as when the tab is opened from the tree. */
   | { readonly type: 'editor:focus'; readonly tabId: string }
-  /** Runs what the keyboard runs: the selection or the statement, or all of the text. */
+  /** The editor of the tab has a selection, or lost it. The Run button names what it runs. */
+  | { readonly type: 'editor:selection'; readonly tabId: string; readonly selected: boolean }
+  /** Runs what the keyboard runs: the selection, or all of the text. */
   | {
       readonly type: 'editor:command';
       readonly tabId: string;

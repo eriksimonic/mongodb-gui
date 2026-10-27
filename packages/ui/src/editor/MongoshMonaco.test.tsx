@@ -86,6 +86,7 @@ function fakeEditor(
       captured.modelChanged = handler;
       return { dispose: () => undefined };
     },
+    onDidChangeCursorSelection: () => ({ dispose: () => undefined }),
     onDidDispose: () => undefined,
     getPosition: () => point(cursor),
     getSelection: () =>
@@ -142,11 +143,10 @@ function action(id: string): RecordedAction {
 }
 
 describe('MongoshMonaco run keys', () => {
-  it('binds the run action to Ctrl+Enter and F5', async () => {
+  it('binds the run action to Ctrl+Enter, and leaves F5 to the editor view', async () => {
     await mount();
     expect(action('mongo-gui.run').keybindings).toEqual([
       monaco.KeyMod.CtrlCmd | monaco.KeyCode.Enter,
-      monaco.KeyCode.F5,
     ]);
   });
 
@@ -194,7 +194,9 @@ describe('MongoshMonaco run keys', () => {
 
   it('binds the same keys in SQL mode', async () => {
     await mount({ language: 'sql' });
-    expect(action('mongo-gui.run').keybindings).toContain(monaco.KeyCode.F5);
+    expect(action('mongo-gui.run').keybindings).toContain(
+      monaco.KeyMod.CtrlCmd | monaco.KeyCode.Enter,
+    );
     expect((captured.props as { language: string }).language).toBe('tsql');
   });
 });

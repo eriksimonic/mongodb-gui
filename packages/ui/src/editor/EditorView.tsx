@@ -120,6 +120,36 @@ export function EditorView({ tabId }: EditorViewProps) {
   const [share, setShare] = useState(DEFAULT_EDITOR_SHARE);
   const split = useRef<HTMLDivElement>(null);
   const connectionId = tab?.connectionId;
+  const [hasSelection, setHasSelection] = useState(false);
+
+  useEffect(
+    () =>
+      editorUiEvents.subscribe((event) => {
+        if (event.type === 'editor:selection' && event.tabId === tabId) {
+          setHasSelection(event.selected);
+        }
+      }),
+    [tabId],
+  );
+
+  // F5 runs the active tab from anywhere in the window, not only from inside the editor.
+  useEffect(() => {
+    const onKeyDown = (event: globalThis.KeyboardEvent) => {
+      const state = store.getState().editors;
+      if (
+        event.key !== 'F5' ||
+        event.repeat ||
+        state.activeId !== tabId ||
+        state.tabs[tabId]?.running !== undefined
+      ) {
+        return;
+      }
+      event.preventDefault();
+      editorUiEvents.emit({ type: 'editor:command', tabId, command: 'run' });
+    };
+    window.addEventListener('keydown', onKeyDown);
+    return () => window.removeEventListener('keydown', onKeyDown);
+  }, [store, tabId]);
 
   useEffect(() => {
     if (connectionId !== undefined && connected && databases === undefined) {
@@ -214,6 +244,10 @@ export function EditorView({ tabId }: EditorViewProps) {
   }
 
   function run(request: RunRequest) {
+    if (request.selection === undefined) {
+      runAll(request.code);
+      return;
+    }
     const target = targetOf(request);
     if (target.source === 'empty') {
       return;
@@ -357,11 +391,11 @@ export function EditorView({ tabId }: EditorViewProps) {
             size="xs"
             leftSection={<IconPlayerPlay size={13} />}
             onClick={() => editorUiEvents.emit({ type: 'editor:command', tabId, command: 'run' })}
-            title="Run the selection or the statement under the cursor (F5 or Ctrl+Enter)"
+            title="Run the selection, or all the text when nothing is selected (F5 or Ctrl+Enter)"
             miw="calc(76px * var(--mg-font-scale, 1))"
             fw={600}
           >
-            Run
+            {hasSelection ? 'Run selected' : 'Run'}
           </Button>
         )}
         <Button
