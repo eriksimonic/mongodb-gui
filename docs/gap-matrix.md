@@ -53,11 +53,11 @@ Decision column is for you: In, Out, Later.
 
 ## Management
 
-| Feature                                                | Status                                                                  | Seen in  | Decision                 |
-| ------------------------------------------------------ | ----------------------------------------------------------------------- | -------- | ------------------------ |
-| Copy or paste collections across databases and servers | Gap (design only, no code: `docs/plans/2026-10-17-copy-sync.design.md`) | NSB, S3T | yes but more intentional |
-| Copy or paste databases across servers                 | Gap                                                                     | NSB, S3T | yes but more intentional |
-| Data compare and sync                                  | Gap                                                                     | S3T      | yes a specific project   |
+| Feature                                                | Status                                                                             | Seen in  | Decision                 |
+| ------------------------------------------------------ | ---------------------------------------------------------------------------------- | -------- | ------------------------ |
+| Copy or paste collections across databases and servers | Gap (design only, no code: `docs/implementation-notes.md`, copy, compare and sync) | NSB, S3T | yes but more intentional |
+| Copy or paste databases across servers                 | Gap                                                                                | NSB, S3T | yes but more intentional |
+| Data compare and sync                                  | Gap                                                                                | S3T      | yes a specific project   |
 
 ## Monitoring
 

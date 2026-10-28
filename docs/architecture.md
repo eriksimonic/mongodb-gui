@@ -202,6 +202,23 @@ The release workflow in `.github/workflows/release.yml` builds the installers. S
 - Container management does not write compose files, log in to registries other than
   `podman login` inside the WSL distro, translate Windows paths in bind mounts, run Windows
   containers, or manage Kubernetes. SSH tunnels are not built.
+- Storage usage panel: the adapter integration test (`packages/mongo-adapter`) and the e2e smoke
+  spec have never run, because Docker is not installed on the dev machine. Run
+  `pnpm run test:integration` and the e2e smoke spec on a machine with Docker, then fix what fails.
+- Storage usage panel: opening Storage for a database while the panel is already open ignores the
+  new database focus. Make the open panel follow the requested database, with a test.
+- Journey batch 2: the coverage check fails when run on the standalone trace alone, because the
+  replica-set and Docker journeys are missing from it. Decide whether the check merges all segment
+  traces or accepts one segment, then update `e2e/coverage-check.ts` to match.
+- Machine encryption: the macOS Keychain prompt is untested. The builds are ad-hoc signed, so
+  the prompt may return after each update. Test two consecutive signed builds on a Mac before the
+  next release.
+- Machine encryption: the owner has not chosen the keyring help URL. `KEYRING_HELP_URL` in
+  `packages/ui/src/settings/links.ts` points at `docs/keyring-setup.md` on GitHub. Pick the final
+  URL, keeping it on `github.com/eriksimonic/mongodb-gui`.
+- Green CI plan: the CPD comparison (finishing step T8) has not been run. Run the
+  `cpd-duplication` skill on `packages/ui` and `packages/app` and compare with the baseline in
+  git history (`docs/plans/2026-10-17-green-ci.cpd-baseline.md` at `e85767f^`).
 
 ### Wave 2: tests
 

@@ -97,7 +97,7 @@ unexpectedly. The map is the list to measure journey coverage against.
 - Backup and Restore dialogs wait up to 30 s on the tools feed when the network is blocked.
 - `connections.status` has no journey and stays excluded in the coverage map.
 - Coverage check on a single segment's trace fails, because the other segments' methods are
-  missing. Decide how the check handles one segment (`docs/plans/2026-10-15-journey-batch-2.status.md`, F1).
+  missing. Decide how the check handles one segment (see "Open work" in `docs/architecture.md`).
 - 78 RPC methods still say "no journey planned yet" in `e2e/coverage-map.ts`. Add journeys for
   them, starting with the remaining common paths.
 - The wiring matrix has not been confirmed on GitHub Actions since the last local runs. Check the

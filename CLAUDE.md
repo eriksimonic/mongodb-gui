@@ -1,5 +1,12 @@
 # Mongo GUI
 
+## Plans
+
+When a plan is complete, convert it into a section of `docs/implementation-notes.md` and delete the
+plan files. Keep only decisions, constraints and gotchas the code does not show. Move anything still
+open into "Open work" in `docs/architecture.md`. Do not leave finished plans, status files or
+baselines in the repo; git history keeps them.
+
 ## Docs screenshots
 
 `docs/screenshots` holds exactly six pinned screenshots. Do not add others.
