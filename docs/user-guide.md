@@ -1,6 +1,6 @@
 # User guide
 
-This guide describes the Mongo GUI desktop app as shipped in version 0.4.0. Labels in
+This guide describes the Mongo GUI desktop app as shipped in version 0.5.0. Labels in
 quotes are the text on the buttons, menus and fields.
 
 ## Contents
@@ -39,10 +39,8 @@ On the first launch, the app shows the choice screen, "Choose how to protect you
 is selected at first. Pick one of these options.
 
 - "Machine encryption". Your operating system protects the key for your user account on this
-  computer, and the app opens without a password. The data opens only for this user on this
-  computer. If you reinstall the system, lose your user profile or copy the data folder elsewhere,
-  the data cannot be opened, and the only way out is a reset. Use connection export files to move
-  connections to another computer.
+  computer, and the app opens without a password. The data cannot be opened after a system
+  reinstall, a profile loss or a copy to another computer. See [security.md](security.md).
 - "Password encryption". A master password protects the key. You type it when the app starts and
   after the idle lock. The data folder can be moved to another computer.
 
@@ -86,7 +84,7 @@ minutes. Change it under "Idle lock (minutes)" in Settings, in the Security sect
 app at once, use one of these:
 
 - Click "Lock" in the toolbar.
-- Press Ctrl+L, or Cmd+L on macOS.
+- Press the lock shortcut (see [shortcuts.md](shortcuts.md)).
 - Open Settings and click "Lock now".
 
 Locking closes every open connection and clears the key from memory. Machine encryption has no
@@ -147,12 +145,12 @@ when it is already open.
 
 ### Connection manager
 
-The "Connections" button in the toolbar opens the connection manager. It lists every saved
-connection as a table row with the columns "Name", "Server", "Security", "Color" and "Last
-accessed". Click a column heading to sort by it, and click it again to reverse the order. Type in
-the field under a heading to filter the rows by that column. Each row has two icon buttons. The
-"Edit" button opens the connection dialog. The "Delete" button opens a "Remove connection"
-confirmation. Removing a connection also deletes its saved query history.
+The "Connections" button in the toolbar opens the connection manager. It lists the saved
+connections. Type in "Search connections" to filter the list. Select a connection to see its
+details, including "Last connected". The selected connection has these buttons: "Test", "Connect",
+"Edit", "Duplicate", "Copy URI without password" and "Delete". "Delete" asks for confirmation.
+Removing a connection also deletes its saved query history. "Import" and "Export" in the header
+handle connection export files, see [Settings and appearance](#settings-and-appearance).
 
 ## Docker discovery
 
@@ -219,16 +217,8 @@ The left panel shows the connections. Each connected server has these nodes:
 - Monitoring. Holds two rows. "Monitoring" opens the monitor dashboard, and "Operations" opens
   the list of running operations.
 
-Keyboard use in the tree:
-
-1. Press Up and Down to move between rows.
-2. Press Right to expand a node, and Left to collapse it.
-3. Press Home and End to jump to the first or last row.
-4. Press Enter to connect or open the selected row. On a database or collection it does what a
-   double-click does, and the editor tab it opens has the cursor in it.
-5. Press Shift+F10, or the context menu key, to open the menu for the row.
-6. Type letters to filter the siblings of the focused row. Backspace shortens the filter, and
-   Escape clears it.
+Keyboard use in the tree is listed in [shortcuts.md](shortcuts.md). Enter on a database or
+collection does what a double-click does.
 
 Right-click a database or collection to see its menu. Related items sit in submenus, which open
 when the pointer is over them or with Right. The collection menu offers these items:
@@ -283,9 +273,10 @@ T-SQL instead, switch the tab to SQL mode. See [SQL mode](#sql-mode).
 
 To run statements:
 
-1. Put the cursor on a statement and press F5 or Ctrl+Enter, or click "Run". The app runs the
-   statement under the cursor. If you select text first, the app runs the selection.
-2. Press Ctrl+Shift+Enter to run the whole text of the editor. A script can
+1. Put the cursor on a statement and click "Run", or press F5 (see [shortcuts.md](shortcuts.md)).
+   The app runs the statement under the cursor. If you select text first, the app runs the
+   selection.
+2. Run the whole text of the editor with the shortcut in [shortcuts.md](shortcuts.md). A script can
    call `print`. Output appears in the Output panel.
 3. Click "Cancel" to stop a running statement. The app closes the cursor it holds.
 4. Click "Explain" to show the plan of the statement under the cursor. See [Explain](#explain).
@@ -451,13 +442,8 @@ language control brings it back. Right-click the tab and choose "Open in Mongo" 
 the tab menu. Both are disabled when the text has no statement or a statement does not
 translate. The tab menu item shows the message as its tooltip.
 
-To run SQL:
-
-1. Put the cursor on a statement and press F5 or Ctrl+Enter, or click "Run". The app runs the
-   statement under the cursor. If you select text first, the app runs the selection.
-2. Press Ctrl+Shift+Enter to run the whole text. A statement ends at a `;`
-   or at a `GO` on a line of its own.
-3. Read the mongosh line that the Output panel prints before the result.
+To run SQL, run a statement as in mongosh mode. The Output panel prints the mongosh line before
+the result.
 
 A statement that the translator refuses, or that does not parse, is not run. The editor
 underlines the clause that caused the error, and the tab shows the message. Fix the text and run
@@ -486,11 +472,8 @@ Completion works in SQL mode too:
 Field names come from the sample that the app takes of the collection. The app samples again after
 each run and once a minute.
 
-The translator maps a table to a collection and a column to a field. A `dbo.` prefix is dropped.
-A join becomes a `$lookup`, and GROUP BY becomes a `$group`. A LIKE pattern ignores case. A find
-leaves out `_id` unless the column list names it. Some results differ from SQL Server, for
-example integer division and the default text order. The supported statements and functions, the
-refused constructs and the differences from SQL Server are listed in [docs/sql.md](sql.md).
+The supported T-SQL, the function list, the refused constructs and the differences from SQL Server
+are in [docs/sql.md](sql.md).
 
 ## Collection management
 
@@ -516,7 +499,7 @@ refused constructs and the differences from SQL Server are listed in [docs/sql.m
 
 ### Indexes
 
-Open the "Indexes" panel from "Structure" in the collection menu.
+Open the "Indexes" panel from the "Collection" submenu of the collection menu.
 
 1. Read the list. Each index shows its keys, with an arrow for ascending or descending order,
    and its usage counts from `$indexStats`.
@@ -539,8 +522,8 @@ does an index whose keys the builder cannot show, such as a geoHaystack key.
 
 ### Validation
 
-Open the "Validation" panel from "Structure" in the collection menu. It shows the JSON schema validator of
-the collection in an editor.
+Open the "Validation" panel from the "Collection" submenu of the collection menu. It shows the JSON
+schema validator of the collection in an editor.
 
 1. Edit the validator.
 2. Choose the "Validation level": "Off", "Moderate, existing invalid documents are skipped" or
@@ -568,9 +551,8 @@ Panel controls:
 
 1. Click "Add panel" to open the picker. Panels are grouped by category. Type in "Search
    panels" to filter them.
-2. Use the menu on a panel card to change it. "Move left" and "Move right" reorder the panels.
-   "Width" sets 1, 2 or 3 columns. "Height" sets "Standard" or "Tall". "About this panel"
-   explains the metric. "Close panel" removes the panel.
+2. Use the options menu on a panel card. "About this panel" explains the metric. "Close panel"
+   removes the panel.
 3. Drag a panel by its handle to move it. The handle has the tooltip "Drag to move this panel".
 4. Click "Reset to default" to restore the default panels.
 
@@ -689,7 +671,7 @@ Nested objects and arrays are not generated.
 
 ## Schema analysis
 
-Open "Analyse schema" from "Structure" in the collection menu.
+Open "Analyse schema" from the "Collection" submenu of the collection menu.
 
 1. Set "Sample size" in documents.
 2. Choose the sampling strategy: "Random", "First by _id" or "Last by _id".
@@ -745,8 +727,8 @@ Actions on a member:
 1. "Step down" on the primary opens a dialog with a "Seconds" field. Set the seconds and click
    "Step down". The panel offers this action only when you connect to the primary.
 2. "Freeze" stops a member from becoming primary for the number of seconds you set.
-3. "Edit" changes the priority, votes, hidden flag, delay and tags. The dialog shows a preview
-   with "Preview change". Click "Apply" to save the change.
+3. "Edit" changes the priority, votes, hidden flag, delay and tags. Click "Apply" to save the
+   change.
 4. "Remove" takes a member out of the set. Type the set name, then click "Apply".
 
 To add a member, click "Add member". Enter the host and the member's options. Use "Build
@@ -770,7 +752,7 @@ Open "Sharding" from "Administration" in the connection menu. The panel has four
   sharding for a database.
 - The "Collections" tab lists the sharded collections, with the shard key and the chunk count per
   shard. "Distribution" shows the chunk layout of a collection.
-- To shard a collection, choose "Structure" > "Shard collection" from the collection menu. Choose the shard key
+- To shard a collection, choose "Collection" > "Shard collection" from the collection menu. Choose the shard key
   and the options "Unique" and "Presplit hashed zones". Click "Apply" after the summary shows
   the change. The dialog asks you to type the namespace before "Apply" becomes available.
 
@@ -794,7 +776,7 @@ warnings", "Parameters", "Server status", "Host and build", "Top", "Connection p
 - "Sessions" lists the sessions. Choose "Kill" on a session to end it. "Kill all sessions of"
   a user asks you to type the user name first.
 
-To read the statistics of one collection, choose "Monitoring" > "Collection stats" from the collection menu.
+To read the statistics of one collection, choose "Collection" > "Collection stats" from the collection menu.
 The panel lists the document count, data size, average document size, storage size, index count
 and index size.
 
@@ -811,7 +793,7 @@ The toggle sets the size that the bar column shows and that the table sorts by. 
 - The disk strip shows the used and free disk of the server, with the total size of the
   databases inside it. It appears only when the server reports the disk size.
 - The treemap shows the databases. Click a database to see its collections, and click a
-  collection to see its data, its free space ("Free (reclaimable)") and each index. Use the
+  collection to see its data, its free space ("Free space") and each index. Use the
   breadcrumb to go up.
 - The table below the treemap lists the same level and sorts by any column. Click a row to
   drill down. Collection rows show the document count, sizes, index share and compression
@@ -1049,7 +1031,7 @@ Cmd+, on macOS. The screen has these sections:
 - Data. "Sample size (documents)" sets how many documents schema analysis reads. "History limit
   (entries)" sets how many history entries the app keeps.
 - Data, "Export connections". Select the connections to write, then type a passphrase of at least
-  10 characters and confirm it. The app opens a save dialog, and it writes an encrypted file there.
+  4 characters and confirm it. The app opens a save dialog, and it writes an encrypted file there.
   The passphrase belongs to this file. You need it to import the file, and the app cannot recover
   it. The file holds the credentials of the connections you selected, so store it as carefully as
   the passwords themselves.
@@ -1061,7 +1043,7 @@ Cmd+, on macOS. The screen has these sections:
   The result line gives the counts, and the connection tree reloads.
 - MongoDB tools. The installed tools versions, the default version and the downloads. See
   [Managing tools versions](#managing-tools-versions).
-- Performance. "Disable GPU acceleration" saves about 90 MB of memory and moves drawing to the CPU.
+- Performance. "Disable GPU acceleration" moves drawing to the CPU and lowers the memory the GPU process uses.
   It takes effect after a restart, and "Restart now" appears when you change it. The setting is
   stored outside the vault. See [troubleshooting.md](troubleshooting.md#use-less-memory).
 - About. The version, the project page and the project licence, which is Apache 2.0 with the

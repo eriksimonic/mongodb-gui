@@ -15,7 +15,7 @@ import { TABLE_FONT } from '../theme/theme';
 
 ModuleRegistry.registerModules([AllCommunityModule]);
 
-// Same dark colours as the result table, from docs/color-palette.md.
+// Same dark colours as the result table, from docs/design-language.md#tables.
 const DARK_THEME = themeQuartz.withPart(colorSchemeDark).withParams({
   fontFamily: TABLE_FONT,
   backgroundColor: '#18191b',

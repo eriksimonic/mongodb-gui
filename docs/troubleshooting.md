@@ -95,9 +95,9 @@ check that fails stays out of sight. The next check runs on schedule. To stop ch
   computer or user, a new user profile or system install, and a keyring that was reset. Fix the
   cause, then click "Try again". If that does not help, use "Reset store". The reset deletes the
   saved data, because no other copy of the key exists.
-- "Machine encryption is disabled on Linux." No keyring is running, or the app found only the plain
-  text backend. Set up GNOME Keyring or KWallet, then restart the app. See
-  [keyring-setup.md](keyring-setup.md).
+- The notice says "No keyring is running, so Linux would keep the key in plain text", or that the
+  app could not tell which keyring the desktop uses. Set up GNOME Keyring or KWallet, then restart
+  the app. See [keyring-setup.md](keyring-setup.md).
 
 ## A wrong master password
 
@@ -133,11 +133,11 @@ server. A query that scans a large collection takes as long as the query itself.
 
 ## Use less memory
 
-With a vault open and one connection, the app uses about 400 MB, and the GPU process is about 125 MB of that. Turn on Settings > Performance > Disable GPU acceleration and restart. The GPU process drops to about 30 MB, which saves about 90 MB in total. Rendering moves to the CPU, so scrolling a large grid and the monitor charts use more CPU.
+The GPU process can use a large share of the app's memory. Turn on Settings > Performance > Disable GPU acceleration and restart to shrink it. Rendering moves to the CPU, so scrolling a large grid and the monitor charts use more CPU.
 
 The option is stored in `startup.json` in the app data folder, outside the vault, because Electron reads it before the vault can be opened. Starting the app with `--disable-gpu` has the same effect for one run.
 
-Large results cost more. A result of 50,000 documents (about 14 MB of data) takes about 320 MB in the window, and the memory returns about 15 seconds after you run a smaller query. Use the batch size, `limit` or a projection instead of `toArray()` on a large collection.
+Large results cost more memory. Use the batch size, `limit` or a projection instead of `toArray()` on a large collection.
 
 ## Where the logs are
 

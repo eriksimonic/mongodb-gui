@@ -22,9 +22,9 @@ Decisions from the diagnostics, connections and profiler work. Follow them for n
 
 ## Showing data
 
-- Colours come from `docs/color-palette.md`. Mantine's `red` is the palette's pink, and the app uses no `green` or `teal`: OK is `blue`.
+- Colours and tokens come from `docs/design-language.md`. Use `--mg-link` for info, `--mg-ok` for healthy, `--mg-warn` for slow or warning, and `--mg-danger` for errors.
 - Severity colours: fatal and error red, warning orange, info blue, debug grey. Tint the whole row for warning and above, so problems stand out while scrolling.
-- Colour values by type: true blue, false grey, numbers orange.
+- Result values are coloured by BSON type in `results/value-color.ts`.
 - Show a share as a bar behind the cell (Top time columns). Dim the database part of a namespace so the collection stands out.
 - Show a long identifier cut to its start, with the full value on hover and a copy button.
 - Show time as relative ("12 s ago", "6 days ago") with the exact time on hover. Never shows as "Never".
@@ -59,7 +59,6 @@ Decisions from the diagnostics, connections and profiler work. Follow them for n
 
 ## Popups and completion
 
-- Menus, popovers and dropdowns have a strong border and `--mg-shadow-popup`, so they stand apart from the rows behind them. Both live in the shared `popup` styles of `theme.ts`.
 - A collapse or close button never sits over a scrollbar. Put it in a strip beside the content.
 - Completion lists group names (fields, collections) first, then operators, then functions, and sort each group alphabetically. `completionGroup` in `completion-model.ts` owns the order.
 - A code editor in a small box renders its suggest widget outside the box (`fixedOverflowWidgets`).

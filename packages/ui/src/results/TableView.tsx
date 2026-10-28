@@ -52,7 +52,7 @@ import { TABLE_FONT } from '../theme/theme';
 
 ModuleRegistry.registerModules([AllCommunityModule]);
 
-// The dark grid takes its colours from docs/color-palette.md.
+// The dark grid takes its colours from docs/design-language.md#tables.
 const DARK_THEME = themeQuartz.withPart(colorSchemeDark).withParams({
   fontFamily: TABLE_FONT,
   backgroundColor: '#18191b',

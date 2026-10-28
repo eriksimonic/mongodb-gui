@@ -1,8 +1,7 @@
 # Security
 
 This document describes how Mongo GUI protects the data it stores, what it never stores or
-logs, and which process runs which code. It is written for users and for reviewers. For the
-original design notes, see [PLAN.md](PLAN.md).
+logs, and which process runs which code. It is written for users and for reviewers. For how the storage layer is built, see [architecture.md](architecture.md).
 
 ## Threat model
 
@@ -33,7 +32,7 @@ data key --AES-256-GCM--> every stored record
 ```
 
 - The app normalises the password to Unicode NFC before it derives the key.
-- The app requires at least 4 characters for a new master password. Longer passwords make the scrypt-derived key harder to guess; the strength meter counts 10 or more as one rule met.
+- The app requires at least 4 characters for a new master password. The strength meter counts 10 or more characters as one of its rules.
 - When you set a master password on the first run, the app creates the data key, wraps it under
   the key encryption key, and writes the wrapped key to `keyring.json`. The authentication tag of
   the wrapped key checks the password. The file has no separate password hash.
@@ -43,7 +42,7 @@ data key --AES-256-GCM--> every stored record
   records stay as they are.
 - The data key exists only in the memory of the main process. The app clears it when you lock,
   when you quit, and after the idle lock period in password mode. The default period is 30
-  minutes. You can change it in Settings.
+  minutes, set in Settings.
 - The renderer process never receives the data key. Neither does the runtime process.
 
 ## Machine encryption
@@ -96,8 +95,8 @@ The directory holds two files:
 - `keyring.json` holds the wrapped data key. In password mode it also holds the key derivation
   settings and the salt. The app creates the directory with mode 0700 on Linux and macOS. Windows
   applies its own file permissions.
-- `store.sqlite` is the encrypted database. It has tables for connections, history, favourites,
-  settings and layout.
+- `store.sqlite` is the encrypted database. Its tables are connections, history, favourites,
+  settings, layout, saved_backups and saved_restores.
 
 Every table stores its data in one `payload` column. The payload is encrypted with AES-256-GCM.
 Each payload uses a fresh 12-byte nonce, and it carries a 16-byte tag. The additional data for
@@ -125,7 +124,7 @@ depend on the vault.
 - The payload is encrypted with AES-256-GCM. Each export draws a new 12-byte IV.
 - The authenticated data covers the format name, the version, the scrypt parameters, the salt and
   the IV. A changed header fails the check.
-- The passphrase must be 10 to 1024 characters. The app does not store it, and it cannot recover
+- The passphrase must be 4 to 1024 characters. The app does not store it, and it cannot recover
   it. A lost passphrase means the file cannot be opened.
 - The GCM tag is the only check on the passphrase. A wrong passphrase and a damaged file give the
   same message.
@@ -176,8 +175,7 @@ process starts it, and it runs the mongosh runtime with the MongoDB driver.
 - A crash or a runaway statement affects only that connection's process. The app shows the
   error for that connection. It restarts the process after a crash, up to three times within 60
   seconds. After that, the connection needs a manual restart.
-- The runtime receives the connection details for its own connection on demand. It does not
-  receive the data key, and it does not read the store.
+- The runtime does not receive the data key, and it does not read the store.
 - The renderer never runs your statements. It sends the text to the main process, and the main
   process sends it to the runtime.
 

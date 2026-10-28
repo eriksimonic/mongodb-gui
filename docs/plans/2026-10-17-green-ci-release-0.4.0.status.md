@@ -1,4 +1,4 @@
-- T0: done, CPD baseline saved to docs/plans/2026-10-17-green.ci.cpd-baseline.md (93 clusters, 20 source, 73 test)
+- T0: done, CPD baseline saved to docs/plans/2026-10-17-green-ci.cpd-baseline.md (93 clusters, 20 source, 73 test)
 - T1: done, prettier on LogsTab, ConnectionDialog and connection-test spec (three files, not one), validated, commit ad1900c range
 - T2: done, UnlockScreen test cleanup, validated, not reproduced locally
 - T3: done, backup afterAll guard and mongo:4.4 pre-pull, validated

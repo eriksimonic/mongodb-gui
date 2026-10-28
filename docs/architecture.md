@@ -1,8 +1,23 @@
 # Architecture
 
 This document is for contributors. It describes how the code is split, how a call travels from
-the UI to the MongoDB driver, and how the tests are organised. The original build plan is in
-[PLAN.md](PLAN.md). This document describes the code as it ships.
+the UI to the MongoDB driver, and how the tests are organised. [security.md](security.md) covers
+the threat model and the encryption design. This document describes the code as it ships.
+
+## Decisions
+
+- TypeScript throughout. Electron 44 runs the app, with the Node 24 bundled in it. The UI is React
+  with Mantine, dockview and Monaco. The result grid is AG Grid Community.
+- Native Node modules are not used. SQLite comes from `node:sqlite`, and AES and scrypt come from
+  `node:crypto`. The build has no `electron-rebuild` step and no per-platform binaries.
+- Queries run through the official mongosh runtime packages (Apache 2.0), in a utility process per
+  connection. A runaway script or driver crash ends only that process.
+- The master password is the root of the key hierarchy. Device mode, which wraps the data key with
+  Electron `safeStorage`, is a choice the user makes on first run or in Settings.
+- The renderer runs with `contextIsolation: true`, `nodeIntegration: false` and `sandbox: true`,
+  under a strict CSP. The preload exposes only the RPC client.
+- The project is licensed under Apache 2.0 with the Commons Clause. MongoDB 4.4 and newer are
+  supported.
 
 ## Processes
 
@@ -21,7 +36,8 @@ channel names are in `packages/core/src/rpc/channels.ts`.
 The main process supervises the utility processes in `packages/app/src/main/shell/supervisor.ts`.
 It forks them with `utilityProcess.fork` in `packages/app/src/main/shell/utility-fork.ts`. A crash
 restarts the process up to three times within 60 seconds. Disconnecting kills the process after a
-short grace period.
+short grace period. The main process talks to a utility process over a MessagePort, never through
+the driver.
 
 ## Packages
 
@@ -32,7 +48,7 @@ short grace period.
 | `packages/shell-runtime` | core, mongo-adapter | `@mongosh/*`                              | Hosts the mongosh evaluator in the utility process. It also runs as a plain child process in tests.                                                                              |
 | `packages/storage`       | core                | `node:sqlite`, `node:crypto`              | The vault (key derivation and wrapping), the encrypted store and its repositories.                                                                                               |
 | `packages/docker`        | core                | Node built-ins                            | Talks to the Docker Engine over its socket and manages the forwarder containers.                                                                                                 |
-| `packages/ui`            | core                | React, Mantine, dockview, Monaco, AG Grid | Every screen. It talks to an `RpcClient` interface and ships a mock client for browser development and tests.                                                                    |
+| `packages/ui`            | core                | React, Mantine, dockview, Monaco, AG Grid | Every screen. It talks to an RPC client and ships a mock client for browser development and tests.                                                                               |
 | `packages/app`           | all                 | Electron                                  | The main process, the preload script, the renderer entry, the RPC router and the updater.                                                                                        |
 
 The import rules are enforced in `eslint.config.js`. Each package has a `no-restricted-imports`
@@ -47,10 +63,11 @@ supported subset and the refusals.
 ## The RPC contract
 
 `packages/core/src/rpc/contract.ts` declares every call as a pair of zod schemas. The `rpcContract`
-object groups the calls by namespace. The namespaces are `vault`, `connections`, `databases`,
+object groups the calls by namespace: `vault`, `generate`, `connections`, `databases`, `catalog`,
 `collections`, `shell`, `explain`, `management`, `security`, `sharding`, `replication`,
 `diagnostics`, `schema`, `settings`, `monitor`, `history`, `favourites`, `profiler`, `changes`,
-`docker`, `gridfs`, `transfer`, `updates`, `layout` and `app`.
+`docker`, `gridfs`, `transfer`, `updates`, `layout`, `app`, `backup`, `savedBackups`,
+`savedRestores` and `tools`.
 
 `defineCall` in `packages/core/src/rpc/define.ts` builds one call from an input schema and an output
 schema. Each side validates with these schemas. The main process validates the input before it runs
@@ -59,6 +76,26 @@ the handler. The renderer validates the output.
 Events go the other way. `packages/core/src/schemas/events.ts` lists the event types, such as
 `connection:status`, `shell:print`, `profiler:entries`, `changes:event`, `monitor:sample` and
 `transfer:progress`.
+
+BSON crosses the IPC boundary as canonical EJSON, so ObjectId, Decimal128, Long, dates and binary
+survive intact. The helpers are in `packages/mongo-adapter/src/ejson.ts`. The UI shows each typed
+value with its BSON type badge.
+
+`packages/ui/src/api/mock-rpc-client.ts` assembles the mock client that `pnpm dev:ui`, Storybook
+and the UI tests use. The preload bridge carries the real client.
+
+## Query lifecycle
+
+1. Ctrl+Enter in the editor calls `shell.evaluate` with the connection id, the database and the code.
+2. The main process forwards the call to the connection's utility process.
+3. `shell-runtime` evaluates the code with the mongosh runtime. The runtime keeps the cursor and
+   returns the first batch as EJSON documents. A document that arrived only as a preview is
+   fetched in full with `shell.readDocument`.
+4. The results view pulls more batches with `shell.next`.
+5. `shell.cancel` closes the cursor. `shell.releaseResult` frees a result the UI no longer shows.
+
+Explain uses the `explain` namespace. It runs the statement through the connection's runtime or
+driver. `core` normalises the raw plan. Explain writes nothing.
 
 ## Adding a call end to end
 
@@ -157,3 +194,42 @@ job runs them under `xvfb-run`.
 `pnpm check` runs lint, typecheck and unit tests in that order. CI also runs `pnpm format:check`.
 The release workflow in `.github/workflows/release.yml` builds the installers. See
 [CONTRIBUTING.md](../CONTRIBUTING.md) for the commands.
+
+## Open work
+
+- Container management on macOS is out of scope for this release. The engine sits behind one
+  interface, so a Podman machine socket can be added later. No Podman-specific code exists yet.
+- Container management does not write compose files, log in to registries other than
+  `podman login` inside the WSL distro, translate Windows paths in bind mounts, run Windows
+  containers, or manage Kubernetes. SSH tunnels are not built.
+
+### Wave 2: tests
+
+Rules:
+
+- Pure logic is tested once, in `core`.
+- Adapter tests run against a real MongoDB through testcontainers. Do not repeat their assertions
+  with fakes elsewhere.
+- Router tests check wiring and error mapping per feature, table-driven (`it.each`), not one
+  hand-written test per error code.
+- UI tests check panel behaviour. They do not re-check what core's model tests already check.
+
+Candidates:
+
+- `app/src/main/rpc/router.test.ts` (about 1,860 lines): split by feature to match the router
+  split, then turn the error-mapping cases into tables.
+- `core/src/sql`: `break-hostile-input.test.ts` and `break-hostile-input-2.test.ts` cover the same
+  area. `translate.test.ts` has single-case `it`s that suit `it.each`.
+- Explain is tested in core, the adapter, the app and the UI. Check which panel and model tests
+  re-assert core's normalise output.
+- `app/src/test/build-shell-runtime.ts` and `shell-runtime/src/test/build-global-setup.ts` may both
+  build the shell-runtime bundle. Both run as globalSetup.
+- Before deleting a test, confirm another test covers the same behaviour. A test with a unique
+  assertion stays.
+
+### Wave 3: needs investigation first
+
+- `ui/src/state/app-store.ts` (about 1,380 lines) and `editor-actions.ts` (about 870): find which
+  parts belong to a feature once wave 2 is done.
+- `ui/src/api/explain-lab.ts` imports `../../../../dev/explain-lab/queries.js?raw`, from outside
+  the package.

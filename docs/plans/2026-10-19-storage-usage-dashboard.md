@@ -85,7 +85,7 @@ Names in code:
 ## Baseline (T0 writes the result here)
 
 Commands: `pnpm run lint`, `pnpm run typecheck`, `pnpm test`, `pnpm run test:integration`.
-Record which of them fail before any change, with the failing test names, in `docs/plans/storage-usage-dashboard.baseline.md`. No later agent blames a failure listed there on its own work.
+Record which of them fail before any change, with the failing test names, in `docs/plans/2026-10-19-storage-usage-dashboard.status.md`. No later agent blames a failure listed there on its own work.
 
 ## Pattern to copy
 
@@ -109,10 +109,9 @@ Each task: edit only the listed files, read the listed files, run its check, rep
 
 ### T0 baseline (Haiku, discover)
 
-- Edits: `docs/plans/storage-usage-dashboard.baseline.md`
 - Reads: root `package.json`
 - Waits for: nothing
-- Check: file lists each of the four commands with pass or fail and failing test names.
+- Check: `docs/plans/2026-10-19-storage-usage-dashboard.status.md` lists each of the four commands with pass or fail and failing test names.
 
 ### T1 core schemas and contract (Haiku)
 

@@ -33,7 +33,7 @@ interface TokenColors {
   readonly comment: string;
 }
 
-/** The dark colours come from docs/color-palette.md. */
+/** The dark token colours are listed in docs/design-language.md#editor-colours. */
 const DARK_COLORS: TokenColors = {
   property: 'D0D0CD',
   type: 'AB79ED',
@@ -69,7 +69,7 @@ function rulesOf(colors: TokenColors): Monaco.editor.ITokenThemeRule[] {
   ];
 }
 
-/** Editor surfaces of the dark theme, from docs/color-palette.md. */
+/** Editor surfaces of the dark theme, listed in docs/design-language.md#editor-colours. */
 const DARK_EDITOR_COLORS: Monaco.editor.IColors = {
   'editor.background': '#18191b',
   'editor.foreground': '#f2f3f5',

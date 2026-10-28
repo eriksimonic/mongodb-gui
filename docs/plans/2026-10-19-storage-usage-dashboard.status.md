@@ -14,3 +14,4 @@
 - T10 (e2e smoke): written, typecheck and lint pass, wiring test never run, Docker missing
 - V4 (full check): pass, no new failures versus baseline, minor unslop nits left
 - T11 (restart app): app listens on 5173, log e2e/output/electron-restart.log has no "shell state changed" line, only two vault.unlock bad password warnings
+- Baseline counts (T0, `pnpm test`): 6870 passed, 7 failed, 6 skipped in 5 of 361 files. The failures are symlink tests (backup-service, rpc/backup, rpc/export-file, rpc/router, tools/registry). Lint: 0 errors, 12 warnings.

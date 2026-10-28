@@ -21,14 +21,14 @@ function importBoundary({ packages, nodeBuiltins }) {
   const patterns = [
     {
       regex: packageRegex(packages),
-      message: `Package boundary: this package may not import ${packages.join(', ')}. See docs/PLAN.md section 2.2.`,
+      message: `Package boundary: this package may not import ${packages.join(', ')}. See docs/architecture.md, Packages.`,
     },
   ];
   if (nodeBuiltins) {
     patterns.push({
       regex: nodeBuiltinRegex,
       message:
-        'Package boundary: this package may not import Node built-in modules. See docs/PLAN.md section 2.2.',
+        'Package boundary: this package may not import Node built-in modules. See docs/architecture.md, Packages.',
     });
   }
   return ['error', { patterns }];
