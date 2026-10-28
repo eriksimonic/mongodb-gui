@@ -2,7 +2,7 @@
 import '@mantine/core/styles.css';
 import '@mantine/notifications/styles.css';
 import './tokens.css';
-import { MantineProvider } from '@mantine/core';
+import { MantineProvider, mergeThemeOverrides } from '@mantine/core';
 import { ModalsProvider } from '@mantine/modals';
 import { Notifications } from '@mantine/notifications';
 import type { ReactNode } from 'react';
@@ -20,12 +20,16 @@ export interface AppProvidersProps {
 const inTests = import.meta.env.MODE === 'test';
 const testModalProps = inTests ? { transitionProps: { duration: 0 } } : {};
 const testNotificationProps = inTests ? { transitionDuration: 0 } : {};
+// ModalsProvider only covers modals opened through the manager. A <Modal> rendered directly needs its own default.
+const theme = inTests
+  ? mergeThemeOverrides(appTheme, { components: { Modal: { defaultProps: testModalProps } } })
+  : appTheme;
 
 /** Mantine theme, modal host and notification host. Wraps every screen. */
 export function AppProviders({ colorScheme = 'dark', children }: AppProvidersProps) {
   return (
     <MantineProvider
-      theme={appTheme}
+      theme={theme}
       forceColorScheme={colorScheme}
       env={inTests ? 'test' : 'default'}
     >
