@@ -1,6 +1,7 @@
 import { expect, test, type Page } from '@playwright/test';
 import {
   closeWindowAndWaitForExit,
+  createPasswordVault,
   createUserDataDir,
   expectCleanLogs,
   forceClose,
@@ -27,15 +28,14 @@ test('master password, connection tree and lock, end to end', async () => {
     const window = app.window;
 
     await test.step('first-run screen is visible', async () => {
-      await expect(window.getByRole('heading', { name: 'Create master password' })).toBeVisible();
+      await expect(
+        window.getByRole('heading', { name: 'Choose how to protect your data' }),
+      ).toBeVisible();
       await captureStep(window, SPEC, '01-first-run');
     });
 
-    await test.step('set the master password and create the vault', async () => {
-      await window.getByLabel('Master password', { exact: true }).fill(MASTER_PASSWORD);
-      await window.getByLabel('Confirm master password', { exact: true }).fill(MASTER_PASSWORD);
-      await window.getByRole('button', { name: 'Create vault' }).click();
-      await expect(window.getByRole('button', { name: 'Lock', exact: true })).toBeVisible();
+    await test.step('choose password encryption and create the vault', async () => {
+      await createPasswordVault(window, MASTER_PASSWORD);
       await expect(window.getByText('No connections yet.', { exact: true })).toBeVisible();
       await captureStep(window, SPEC, '02-shell-empty');
     });

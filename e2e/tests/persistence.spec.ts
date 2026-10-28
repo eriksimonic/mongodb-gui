@@ -1,6 +1,7 @@
 import { expect, test } from '@playwright/test';
 import {
   closeWindowAndWaitForExit,
+  createPasswordVault,
   createUserDataDir,
   expectCleanLogs,
   forceClose,
@@ -20,10 +21,7 @@ test('a relaunch on the same profile asks for the master password', async () => 
     await test.step('create the vault and quit', async () => {
       session = await launchApp(userDataDir);
       const window = session.window;
-      await window.getByLabel('Master password', { exact: true }).fill(MASTER_PASSWORD);
-      await window.getByLabel('Confirm master password', { exact: true }).fill(MASTER_PASSWORD);
-      await window.getByRole('button', { name: 'Create vault' }).click();
-      await expect(window.getByRole('button', { name: 'Lock', exact: true })).toBeVisible();
+      await createPasswordVault(window, MASTER_PASSWORD);
       const exitCode = await closeWindowAndWaitForExit(session);
       expect(exitCode).toBe(0);
       expectCleanLogs(session);

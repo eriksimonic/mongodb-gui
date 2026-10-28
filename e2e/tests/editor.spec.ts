@@ -12,6 +12,7 @@ import {
 } from 'mongodb';
 import {
   closeWindowAndWaitForExit,
+  createPasswordVault,
   createUserDataDir,
   expectCleanLogs,
   forceClose,
@@ -38,10 +39,7 @@ test('editor, results, paging, tree edit, print, history and favourites, end to 
     const window = session.window;
 
     await test.step('create the vault', async () => {
-      await window.getByLabel('Master password', { exact: true }).fill(MASTER_PASSWORD);
-      await window.getByLabel('Confirm master password', { exact: true }).fill(MASTER_PASSWORD);
-      await window.getByRole('button', { name: 'Create vault' }).click();
-      await expect(window.getByRole('button', { name: 'Lock', exact: true })).toBeVisible();
+      await createPasswordVault(window, MASTER_PASSWORD);
     });
 
     await test.step('add the connection and connect', async () => {

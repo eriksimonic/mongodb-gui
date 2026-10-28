@@ -112,6 +112,16 @@ export async function launchApp(
   return { app, window, mainStderr, rendererErrors };
 }
 
+/** Takes the first-run path that protects the vault with a master password, and waits for the shell. */
+export async function createPasswordVault(window: Page, password: string): Promise<void> {
+  await window.getByText('Password encryption', { exact: true }).click();
+  await window.getByRole('button', { name: 'Continue' }).click();
+  await window.getByLabel('Master password', { exact: true }).fill(password);
+  await window.getByLabel('Confirm master password', { exact: true }).fill(password);
+  await window.getByRole('button', { name: 'Create vault' }).click();
+  await expect(window.getByRole('button', { name: 'Lock', exact: true })).toBeVisible();
+}
+
 /** Closes the window the way a user does, quits on macOS where closing does not, then waits for exit. */
 export async function closeWindowAndWaitForExit(session: AppSession): Promise<number | null> {
   const exit = waitForExit(session.app.process());
