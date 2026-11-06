@@ -1,5 +1,10 @@
-import { DumpOptionsSchema, RestoreOptionsSchema, type RpcEvent } from '@mongo-gui/core';
-import { describe, expect, it } from 'vitest';
+import {
+  DumpOptionsSchema,
+  RestoreOptionsSchema,
+  type CopyOptions,
+  type RpcEvent,
+} from '@mongo-gui/core';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { createMockUiApi } from './mock-rpc-client';
 import { localConnectionId, mockMasterPassword, stagingConnectionId } from './mock-fixtures';
 
@@ -384,6 +389,101 @@ describe('mock saved restores', () => {
     expect(await api.rpc.savedRestores.list()).toEqual([]);
     await expect(api.rpc.savedRestores.open({ id: saved.id })).rejects.toMatchObject({
       error: { code: 'NOT_FOUND' },
+    });
+  });
+});
+
+function copyRequest(targetConnectionId: string, confirmation?: string): CopyOptions {
+  return {
+    sourceConnectionId: localConnectionId,
+    targetConnectionId,
+    sourceDatabase: 'shop',
+    targetDatabase: 'shop',
+    items: [
+      { source: 'orders', target: 'orders_copy' },
+      { source: 'users', target: 'users_copy' },
+    ],
+    mode: 'merge',
+    acknowledged: [],
+    ...(confirmation === undefined ? {} : { confirmation }),
+  };
+}
+
+function copyProgressOf(events: readonly RpcEvent[]) {
+  return events.flatMap((event) => (event.type === 'copy:progress' ? [event.progress] : []));
+}
+
+describe('mock copy', () => {
+  beforeEach(() => {
+    vi.useFakeTimers();
+  });
+
+  afterEach(() => {
+    vi.useRealTimers();
+  });
+
+  it('sends preparing, then three copying frames per item with growing counts, then finished', async () => {
+    const api = createMockUiApi({ preset: 'unlocked' });
+    await api.rpc.connections.connect({ id: localConnectionId });
+    const events = collectEvents(api);
+
+    const { jobId } = await api.rpc.copy.start(copyRequest(localConnectionId));
+    await vi.runAllTimersAsync();
+
+    const progress = copyProgressOf(events);
+    expect(progress.map((item) => item.phase)).toEqual([
+      'preparing',
+      'copying',
+      'copying',
+      'copying',
+      'copying',
+      'copying',
+      'copying',
+      'finished',
+    ]);
+    const copying = progress.filter((item) => item.phase === 'copying');
+    expect(copying.map((item) => item.documents)).toEqual([250, 500, 750, 1000, 1250, 1500]);
+    expect(copying[0]?.current).toBe('orders_copy');
+    expect(progress.at(-1)).toMatchObject({ done: true, cancelled: false, collectionsDone: 2 });
+    expect(events.every((event) => event.type !== 'copy:progress' || event.jobId === jobId)).toBe(
+      true,
+    );
+  });
+
+  it('stops the job on cancel and sends one cancelled final frame', async () => {
+    const api = createMockUiApi({ preset: 'unlocked' });
+    await api.rpc.connections.connect({ id: localConnectionId });
+    const events = collectEvents(api);
+
+    const { jobId } = await api.rpc.copy.start(copyRequest(localConnectionId));
+    await vi.advanceTimersByTimeAsync(500);
+    await api.rpc.copy.cancel({ jobId });
+    await vi.runAllTimersAsync();
+
+    const progress = copyProgressOf(events);
+    expect(progress.map((item) => item.phase)).toEqual(['preparing', 'copying', 'finished']);
+    expect(progress.at(-1)).toMatchObject({ done: true, cancelled: true });
+  });
+
+  it('refuses a production target unless the typed name is the target database', async () => {
+    const api = createMockUiApi({ preset: 'unlocked' });
+    await api.rpc.connections.connect({ id: localConnectionId });
+    // The Staging fixture fails its auth check, so the production target is a local connection.
+    const production = await api.rpc.connections.create({
+      name: 'Prod copy',
+      uri: 'mongodb://localhost:27018/',
+      production: true,
+    });
+    await api.rpc.connections.connect({ id: production.id });
+
+    await expect(api.rpc.copy.start(copyRequest(production.id))).rejects.toMatchObject({
+      error: { code: 'VALIDATION' },
+    });
+    await expect(api.rpc.copy.start(copyRequest(production.id, 'staging'))).rejects.toMatchObject({
+      error: { code: 'VALIDATION' },
+    });
+    await expect(api.rpc.copy.start(copyRequest(production.id, 'shop'))).resolves.toEqual({
+      jobId: expect.any(String),
     });
   });
 });

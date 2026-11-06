@@ -57,6 +57,7 @@ import {
   type MonitorView,
 } from './monitor-state';
 import { createExplainActions, type ExplainActions, type ExplainPanelState } from '../explain';
+import { createCopyStore, type CopyStore } from '../copy/copy-store';
 import { catalogKey, connectionNodeId } from './node-ids';
 import {
   buildMongoUri,
@@ -384,7 +385,11 @@ export interface AppActions extends EditorActions, ExplainActions {
   refreshTransfers(): Promise<void>;
 }
 
-export type AppState = AppData & AppActions;
+export type AppState = AppData &
+  AppActions & {
+    /** The copy jobs. Components read it with `useStore(state.copies, selector)`. */
+    readonly copies: CopyStore;
+  };
 export type AppStore = StoreApi<AppState>;
 
 const SESSION_RESET: Pick<
@@ -533,6 +538,8 @@ export function createAppStore(api: UiApi, initial: Partial<AppData> = {}): AppS
   const dashboardReads = new Set<string>();
   // Changes made before the saved layout was read. They replay on top of it once it loads.
   const pendingDashboardChanges = new Map<string, LayoutChange[]>();
+  // Copy jobs have no connection, so their progress does not go through the connection state.
+  const copies = createCopyStore(rpc.copy);
 
   const store = createStore<AppState>()((set, get) => {
     const editorActions = createEditorActions({
@@ -710,6 +717,7 @@ export function createAppStore(api: UiApi, initial: Partial<AppData> = {}): AppS
       ...initial,
       ...editorActions,
       ...createExplainActions(rpc, set, get),
+      copies,
 
       async refreshVault() {
         try {
@@ -1467,6 +1475,11 @@ export function createAppStore(api: UiApi, initial: Partial<AppData> = {}): AppS
         }
         // Tool downloads belong to the tools store, which has no connection.
         if (event.type === 'tools:download') {
+          return;
+        }
+        // Copy progress belongs to the copy store, which has no connection.
+        if (event.type === 'copy:progress') {
+          copies.getState().applyProgress(event.jobId, event.progress);
           return;
         }
         // Change events belong to the change streams store.

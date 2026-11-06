@@ -1,4 +1,5 @@
-import { describe, expect, it, vi } from 'vitest';
+import type { CopyProgress } from '@mongo-gui/core';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { localConnectionId, mockMasterPassword, stagingConnectionId } from '../api/mock-fixtures';
 import { createMockUiApi } from '../api/mock-rpc-client';
 
@@ -200,5 +201,59 @@ describe('createAppStore tree loading', () => {
     expect(store.getState().expanded['conn:x']).toBe(true);
     store.getState().setNodeExpanded('conn:x', false);
     expect(store.getState().expanded['conn:x']).toBe(false);
+  });
+});
+
+describe('createAppStore copy progress', () => {
+  beforeEach(() => {
+    vi.useFakeTimers();
+  });
+
+  afterEach(() => {
+    vi.useRealTimers();
+  });
+
+  it('sends copy:progress to the copy store and leaves the connections alone', async () => {
+    const api = createMockUiApi({ preset: 'unlocked' });
+    const store = createAppStore(api);
+    await store.getState().refreshVault();
+    await api.rpc.connections.connect({ id: localConnectionId });
+    const copies = store.getState().copies;
+    const jobId = await copies.getState().start({
+      sourceConnectionId: localConnectionId,
+      targetConnectionId: localConnectionId,
+      sourceDatabase: 'shop',
+      targetDatabase: 'shop',
+      items: [
+        { source: 'orders', target: 'orders_copy' },
+        { source: 'users', target: 'users_copy' },
+      ],
+      mode: 'merge',
+      acknowledged: [],
+    });
+    const list = vi.spyOn(api.rpc.connections, 'list');
+    const connections = store.getState().connections;
+    const progress: CopyProgress = {
+      phase: 'copying',
+      documents: 250,
+      totalDocuments: 1000,
+      collectionsDone: 1,
+      collectionsTotal: 2,
+      current: 'users_copy',
+      failedDocuments: 0,
+      skippedDocuments: 0,
+      lines: ['Copying users to users_copy'],
+      elapsedMs: 300,
+      done: false,
+      cancelled: false,
+    };
+
+    store.getState().applyEvent({ type: 'copy:progress', jobId, progress });
+
+    const job = copies.getState().jobs[jobId];
+    expect(job?.progress).toEqual(progress);
+    expect(job?.itemStates.map((item) => item.status)).toEqual(['done', 'copying']);
+    expect(list).not.toHaveBeenCalled();
+    expect(store.getState().connections).toBe(connections);
   });
 });

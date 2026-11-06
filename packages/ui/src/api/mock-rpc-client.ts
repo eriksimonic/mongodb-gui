@@ -82,6 +82,7 @@ import { createShardingCalls, fixtureCluster, type MockCluster } from '../shardi
 import { createMockReplication, type MockReplicaSetInfo } from '../replication/mock';
 import { createMockExplain } from '../explain/mock';
 import { createMockBackup } from '../backup/mock';
+import { createMockCopy } from '../copy/mock';
 import { createMockTools, type MockToolsMode } from '../tools/mock';
 import type { UiApi } from './ui-api';
 
@@ -736,6 +737,10 @@ export function createMockUiApi(options: MockUiApiOptions = {}): MockUiApi {
 
   const tools = createMockTools(emit, options.tools ?? 'ok');
   const backup = createMockBackup({ emit, picks, catalogOf, statusOf });
+  const copy = createMockCopy({
+    emit,
+    isProduction: (connectionId) => findConnection(connectionId).production === true,
+  });
 
   const rpc: RpcClient = {
     savedBackups: {
@@ -789,6 +794,18 @@ export function createMockUiApi(options: MockUiApiOptions = {}): MockUiApi {
       cancel: method(rpcContract.backup.cancel, latencyMs, ({ jobId }) => {
         requireUnlocked();
         backup.cancel(jobId);
+      }),
+    },
+    copy: {
+      start: method(rpcContract.copy.start, latencyMs, (input) => {
+        requireUnlocked();
+        requireConnected(input.sourceConnectionId);
+        requireConnected(input.targetConnectionId);
+        return { jobId: copy.start(input) };
+      }),
+      cancel: method(rpcContract.copy.cancel, latencyMs, ({ jobId }) => {
+        requireUnlocked();
+        copy.cancel(jobId);
       }),
     },
     tools: {
