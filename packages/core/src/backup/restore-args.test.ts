@@ -1,6 +1,11 @@
 import { describe, expect, it } from 'vitest';
 import { RestoreOptionsSchema } from './options';
-import { applyRenames, escapeNamespacePart, restoreArgs } from './restore-args';
+import {
+  applyRenames,
+  collectionRenameArgs,
+  escapeNamespacePart,
+  restoreArgs,
+} from './restore-args';
 
 const CONFIG = '/data/tmp/tools-1/config.yaml';
 const ARCHIVE = { kind: 'archive', gzip: true } as const;
@@ -151,5 +156,30 @@ describe('applyRenames', () => {
   it('leaves other databases alone', () => {
     expect(applyRenames('shopping.orders', renames)).toBe('shopping.orders');
     expect(applyRenames('blog.posts', [])).toBe('blog.posts');
+  });
+});
+
+describe('collectionRenameArgs', () => {
+  it('renames one collection and escapes both parts', () => {
+    expect(
+      collectionRenameArgs(
+        { database: 'sh*p', collection: 'orders$1' },
+        { database: 'shop_copy', collection: 'a\\b' },
+      ),
+    ).toEqual(['--nsFrom=sh\\*p.orders\\$1', '--nsTo=shop_copy.a\\\\b']);
+  });
+
+  it('keeps a collection name with dots whole', () => {
+    expect(
+      collectionRenameArgs(
+        { database: 'shop', collection: 'a.b' },
+        { database: 'shop', collection: 'c' },
+      ),
+    ).toEqual(['--nsFrom=shop.a.b', '--nsTo=shop.c']);
+  });
+
+  it('returns nothing when the namespace stays the same', () => {
+    const ns = { database: 'shop', collection: 'orders' };
+    expect(collectionRenameArgs(ns, { ...ns })).toEqual([]);
   });
 });

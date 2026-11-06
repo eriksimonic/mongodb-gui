@@ -85,6 +85,25 @@ export function escapeNamespacePart(name: string): string {
   return name.replace(/[\\*$]/g, (character) => `\\${character}`);
 }
 
+export interface NamespaceRef {
+  readonly database: string;
+  readonly collection: string;
+}
+
+/**
+ * The --nsFrom and --nsTo flags for one collection rename. Both parts are escaped. Empty when
+ * the name stays the same.
+ */
+export function collectionRenameArgs(from: NamespaceRef, to: NamespaceRef): string[] {
+  if (from.database === to.database && from.collection === to.collection) {
+    return [];
+  }
+  return [
+    `--nsFrom=${escapeNamespacePart(from.database)}.${escapeNamespacePart(from.collection)}`,
+    `--nsTo=${escapeNamespacePart(to.database)}.${escapeNamespacePart(to.collection)}`,
+  ];
+}
+
 /** The namespace a source namespace is restored to after the database renames. */
 export function applyRenames(namespace: string, renames: readonly DatabaseRename[]): string {
   const dot = namespace.indexOf('.');
