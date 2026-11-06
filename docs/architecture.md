@@ -217,6 +217,23 @@ The release workflow in `.github/workflows/release.yml` builds the installers. S
 - Green CI plan: the CPD comparison (finishing step T8) has not been run. Run the
   `cpd-duplication` skill on `packages/ui` and `packages/app` and compare with the baseline in
   git history (`docs/plans/2026-10-17-green-ci.cpd-baseline.md` at `e85767f^`).
+- Compare and sync: not built. The design is in `docs/implementation-notes.md`, "Compare and sync".
+- Copy: startup cleanup does not exist. A crash mid-copy leaves a `__copy_` temporary collection
+  in the target database. Decide whether to list and drop these at startup.
+- Copy: merge into a collection that does not exist creates it without indexes. Decide whether
+  to restore the source indexes in that case.
+- Copy: `sameServer` in `packages/core/src/copy/server-identity.ts` compares the host list and the
+  replica set name. Two `mongos` hosts of one sharded cluster count as two servers, so the
+  same-server overlap block can miss a copy onto itself.
+- Copy: replace over a sharded target and `renameCollection` on sharded targets are not verified
+  on a real cluster.
+- Copy: the counts of a cancelled job include documents that the cancel rolled back. The progress
+  summary words it as "processed before the stop".
+- Copy: the copy dialog has no tools version choice. The service picks the newest installed
+  tools that fit both servers, using `newestFittingTools`, and the dialog uses the same rule.
+- Copy: the tree has no multi-select entry. Copy works on one collection or on one database.
+- Production flag: only copy checks the typed database name in the main process. Restore checks it in
+  `RestoreDialog.tsx` only, so a call to `backup.startRestore` that skips the dialog is not gated.
 
 ### Wave 2: tests
 

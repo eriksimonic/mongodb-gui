@@ -26,6 +26,7 @@ quotes are the text on the buttons, menus and fields.
 - [GridFS](#gridfs)
 - [Change streams](#change-streams)
 - [Backup and restore](#backup-and-restore)
+- [Copy](#copy)
 - [Settings and appearance](#settings-and-appearance)
 - [Updates](#updates)
 
@@ -228,8 +229,8 @@ when the pointer is over them or with Right. The collection menu offers these it
   "Select top 1000 rows" (`SELECT TOP 1000 * FROM <collection>;`), "Select first row"
   (`SELECT TOP 1 * …`) and "Count rows" (`SELECT COUNT(*) …`).
 - "Collection" holds "Indexes", "Validation", "Analyse schema", "Collection stats", "Watch changes" and "Shard collection". The last one works on a sharded cluster only.
-- "Import and export" holds "Import data", "Export data", "Generate data" and "Back up
-  collection…".
+- "Import and export" holds "Import data", "Export data", "Generate data", "Back up
+  collection…" and "Copy to…".
 - "Rename", "Clear" and "Drop" change the collection. Each one asks for confirmation.
 - "Refresh" reloads the node.
 
@@ -243,8 +244,8 @@ The database menu offers "Open editor", "New collection", "New GridFS bucket", "
 "Refresh" and "Drop database", and these submenus:
 
 - "Monitoring": "Database stats", "Open profiler" and "Watch changes".
-- "Import and backup": "Import data into new collection", "Back up database…" and "Restore into
-  database…".
+- "Import and backup": "Import data into new collection", "Back up database…", "Restore into
+  database…" and "Copy to…".
 
 The connection menu offers "Connect", "Disconnect", "Open editor", "New database", "Edit",
 "Refresh" and "Remove", and these submenus:
@@ -1014,6 +1015,75 @@ server, so this path has less test coverage than the rest. Test a backup and a r
 connection before you rely on them. If a TLS connection fails with an error about a TLS option,
 report the error and the tools version through the steps in
 [troubleshooting.md](troubleshooting.md).
+
+## Copy
+
+Copy writes the documents of a collection, or of every collection in a database, to another
+connection or database. It runs `mongodump` and `mongorestore` from MongoDB Database Tools, the same
+tools as backup and restore. The menu entry is disabled while the connection is not connected. The
+target list shows connected connections only.
+
+### Copy a collection or a database
+
+1. Right-click a collection and choose "Import and export" > "Copy to…". To copy every collection
+   in a database, right-click the database and choose "Import and backup" > "Copy to…".
+2. Choose the "Target connection" and type the "Target database".
+3. Check the "Target collection" name for each collection. It starts as the source name. Change it
+   to write to a new collection.
+4. To copy only matching documents, click the row's "Filter" button and type an Extended JSON
+   object in the text box, such as `{"status": "paid"}`. Each row has its own filter. An empty
+   filter copies every document. Clear the check box of a row to skip that collection.
+5. Choose the "Copy mode".
+6. Read the findings, then click "Start copy". The button stays off while a red finding applies.
+
+The modes:
+
+- "Drop and replace": the target collection is replaced. The copy writes to a temporary collection
+  and swaps it in at the end, so a cancel keeps the old data. Time series collections are the
+  exception, see [Limits](#limits).
+- "Merge": each source document replaces the target document with the same `_id`, or is inserted
+  when none exists.
+- "Insert only": source documents whose `_id` is not in the target are inserted. Existing `_id`
+  values are skipped and counted as skipped.
+
+Findings use the colors in [What the findings mean](#what-the-findings-mean). A red finding stops
+the copy. An orange finding needs a tick on "I understand" first.
+
+### Progress and cancel
+
+The progress view shows the collection being copied, the document counts and a row for each
+collection. Click "Show log" to see the tool output. Click "Cancel" to stop the copy. Closing the
+window, reloading the app, locking the vault or losing the connection also cancels a running copy.
+
+A cancelled or failed copy keeps the collections that finished. The summary says what stays in the
+target. A cancelled merge or insert only run leaves the collection it was writing partly filled.
+
+### Production connections
+
+1. Check "Production" in the connection dialog. The tree and the tab headers then show a red PROD
+   mark.
+2. Before a copy into a production connection, type the target database name in the dialog. The
+   name must match exactly. "Start copy" stays off until it matches.
+3. Before a restore into a production connection, type each database name you restore. A dry run
+   does not ask for the names.
+
+Only copy and restore check this flag. The editor, imports and other writes are not gated by it.
+
+### Limits
+
+- Merge copies documents only. It leaves the indexes of the target alone. A merge into a collection
+  that does not exist creates it without indexes.
+- Time series collections are copied in place, even in drop and replace mode. A cancel leaves them
+  partly filled. Their counts are buckets, not documents.
+- A crash during a copy can leave a collection named `__copy_<id>_<name>` in the target database.
+  Drop it by hand. The app does not remove it at startup.
+- The counts of a cancelled copy include documents that the cancel rolled back.
+- Merge with a time series source or target is blocked. Insert only and drop and replace are also
+  blocked when the source is time series and the target collection exists and is not time series.
+- A copy on the same server cannot write to a collection it also reads. Use another target name.
+- Views and `system.*` collections are not copied.
+- You cannot select several collections in the tree yet. Copy one collection at a time, or a whole
+  database.
 
 ## Settings and appearance
 

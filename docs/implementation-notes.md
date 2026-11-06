@@ -97,17 +97,62 @@ logs are in git history before commit `e85767f`.
   is not three separate pushes.
 - The first v0.4.0 release failed the Windows and macOS packaged-app smoke. The cause and fix are above.
 
-## Copy, compare and sync (design, not built)
+## Copy collections and databases (2026-11-06)
+
+- Drop and replace restores into `__copy_<jobId>_<target>` in the target database, then renames it
+  over the target with `dropTarget`. A cancel or a failure drops the temporary collection, so the
+  old data stays. The target part of the name is cut to keep `database.name` within 255 bytes
+  (`packages/core/src/copy/temp-name.ts`).
+- The pipe waits for both tool runs to settle before the caller drops the temporary collection.
+  Otherwise the drop races the restore.
+- Each tool run gets its own config FIFO pair, because a FIFO serves one reader.
+- A filter needs its own dump per collection, because `mongodump --query` takes one collection.
+  The service runs one pipe per item.
+- The tools check has a 4.2 server minimum (`MIN_SERVER` in `compat.ts`). `assessCopy` blocks with
+  `tools-too-old-for-server` when no installed or downloadable tools version fits both servers.
+- Time series cannot be renamed. renameCollection fails on MongoDB 8.0.17
+  (CommandNotSupportedOnView). A time series source or target is written in place with `--drop`.
+  The source also gets a second `--nsFrom`/`--nsTo` pair for `system.buckets.<name>`. That bucket
+  rename needs tools 100.16.0 or newer (`TIMESERIES_TOOLS` in
+  `packages/core/src/copy/assess.ts`). Older tools get the `copy-timeseries-rename` warning.
+- Time series counts are buckets. A time series source adds a note to the progress log.
+- Merge does not use mongorestore, because mongorestore cannot upsert. The driver writer in
+  `packages/mongo-adapter/src/copy/upsert-writer.ts` runs unordered batched `replaceOne` upserts by
+  `_id`. Failed documents come from `MongoBulkWriteError.writeErrors`. The abort signal is checked
+  between batches.
+- Insert only passes `--noIndexRestore`. mongorestore exits 0 when it skips documents, so the
+  skipped count comes from the "failed to restore" line. Duplicates print `continuing through error`
+  and exit 0, with no `Failed:` line (confirmed on a real server).
+- The same-server overlap block (`copy-overlap`) refuses a copy that writes to a collection it reads.
+  A drop would delete data that the dump is still reading. "Same server" means the same hosts and
+  replica set name, not the same profile.
+- The production gate is enforced in the main process. `prepare` in
+  `packages/app/src/main/copy/copy-service.ts` throws unless `confirmation` equals the target
+  database name exactly, before any job, tool or temporary collection starts. The dialog checks it
+  again. Restore checks the flag in `RestoreDialog` only. The backup service does not check it.
+- A direct connection copies the `production` flag from its parent
+  (`packages/app/src/main/rpc/connections.ts`).
+- `serverIdentity` reads `hosts` from `hello`, which a replica set returns. A standalone server or
+  `mongos` returns no hosts, so it uses `serverStatus.host`. If `serverStatus` is denied too, it
+  falls back to the connected host list. Two connection strings for one server then look like two
+  servers.
+- Renderer reset, vault lock and connection loss cancel copy jobs (`router.ts`). Job ids are UUIDs
+  from `crypto.randomUUID`.
+- Blocking rules live in core: `assessCopy` in `assess.ts`, and `unresolvedCopyFindings` and
+  `newestFittingTools` in `start-checks.ts`. The dialog and the service call the same functions, so
+  their findings agree.
+- The dialog hides views and `system.*` (`isCopyable`). It does not list the target connections
+  that are not connected. The "Copy to…" menu entries are disabled while the connection is not
+  connected.
+- Progress events go out every 250 ms (`COPY_PROGRESS_INTERVAL_MS`).
+- Verified by the copy service unit tests and `packages/app/src/main/copy/copy.integration.test.ts`.
+  The integration test runs each mode, cancel, the overlap refusal and the production gate against
+  two real servers.
+
+## Compare and sync (design, not built)
 
 ### Not built
 
-- Copy runs `mongodump --archive` piped into `mongorestore --archive`. A filter needs its own
-  dump per collection, because `mongodump --query` takes one collection.
-- Insert-only passes `--noIndexRestore`. mongorestore exits 0 when documents are skipped, so the
-  count comes from its "failed to restore" line.
-- Copy is blocked when any target namespace equals a source namespace on the same server. A drop
-  would delete data that the dump is still reading. "Same server" means the same hosts and
-  replica set name, not the same profile.
 - Compare merge-joins both sides sorted by the match key, with simple collation. Equality ignores
   field order and counts array order. Replica sets on MongoDB 5.0 or later use snapshot reads, and
   `SnapshotTooOld` offers a retry. The target is collections under about 1M documents.
@@ -118,16 +163,10 @@ logs are in git history before commit `e85767f`.
   reject the change.
 - Views are compare-only, and sync updates their definition. Time series are copy-only. Capped
   collections allow insert only. `system.*` is always skipped.
-- Open question: `mongorestore` cannot upsert, so merge in copy needs a batched `replaceOne`
-  writer. Also open: cancelling a drop-and-replace leaves the target half-filled. The proposed fix
-  restores into a temporary name and renames it over the target.
-- Production flag: `production` boolean on `ConnectionProfileSchema`, a red PROD badge, and a typed target database name before copy, restore or sync writes to it.
+- Sync writes to a production connection need a typed target database name, as copy and restore do.
 - Run log: each run writes a JSON log with the header, counts and failed keys, encrypted like the rest of the app data. Up to 100 per source-target pair, oldest deleted first.
 - Retry failed: re-reads only the failed keys from the source at that moment.
 - Per-failure resolutions: overwrite or skip for unique index conflicts, skip or edit and retry for validator rejections. They run as one more batched sync into the same log.
-- Tools version check: copy takes the intersection of `assessBackup` and `assessRestore` on both servers, with 4.2 as the minimum, and blocks when it is empty.
-- Time series rename: fails on older tools versions, so the check confirms support or blocks the rename.
-- Job model: copy runs as a job in the `backup-service.ts` model, with a job id, progress events every 250 ms, and cancel.
 - Open question: a custom match key needs a unique index on both sides. `_id` always works.
 
 ## CPD duplication removal (not started)
