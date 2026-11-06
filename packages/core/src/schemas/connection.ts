@@ -27,6 +27,8 @@ export const ConnectionProfileSchema = z.object({
     .enum(['primary', 'primaryPreferred', 'secondary', 'secondaryPreferred', 'nearest'])
     .optional(),
   connectTimeoutMs: z.number().int().positive().optional(),
+  /** A production connection asks for a typed confirmation before a copy or restore writes to it. */
+  production: z.boolean().optional(),
   /** `docker` profiles come from a Docker container and are reused for that container. */
   source: z.enum(['manual', 'docker']).optional(),
   dockerContainerId: DockerContainerIdSchema.optional(),

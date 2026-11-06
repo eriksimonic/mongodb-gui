@@ -48,6 +48,23 @@ describe('ConnectionProfileSchema', () => {
     });
     expect(result.success).toBe(false);
   });
+
+  it('connection profile keeps production when it is true or false', () => {
+    const flagged = ConnectionProfileSchema.parse({ ...profile, production: true });
+    expect(flagged.production).toBe(true);
+    const unflagged = ConnectionProfileSchema.parse({ ...profile, production: false });
+    expect(unflagged.production).toBe(false);
+  });
+
+  it('connection profile without production loads with the flag undefined', () => {
+    const loaded = ConnectionProfileSchema.parse(profile);
+    expect(loaded.production).toBeUndefined();
+  });
+
+  it('connection profile rejects a production value that is not a boolean', () => {
+    const result = ConnectionProfileSchema.safeParse({ ...profile, production: 'yes' });
+    expect(result.success).toBe(false);
+  });
 });
 
 describe('ConnectionProfileInputSchema', () => {

@@ -165,3 +165,28 @@ describe('ConnectionsRepository.markAccessed', () => {
     ).toBe('CONNECTION_NOT_FOUND');
   });
 });
+
+describe('ConnectionsRepository production flag', () => {
+  it('connection create stores production and get and list return it', () => {
+    test = openTestStore();
+    const created = test.connections.create(connectionInput({ production: true }));
+    expect(created.production).toBe(true);
+    expect(test.connections.get(created.id).production).toBe(true);
+    expect(test.connections.list()[0]?.production).toBe(true);
+  });
+
+  it('connection profile created without production reads back as not set', () => {
+    test = openTestStore();
+    const created = test.connections.create(connectionInput());
+    expect(test.connections.get(created.id).production).toBeUndefined();
+  });
+
+  it('connection update sets production to false and keeps the other fields', () => {
+    test = openTestStore();
+    const created = test.connections.create(connectionInput({ production: true, color: 'red' }));
+    const updated = test.connections.update(created.id, { production: false });
+    expect(updated.production).toBe(false);
+    expect(updated.color).toBe('red');
+    expect(test.connections.get(created.id).production).toBe(false);
+  });
+});

@@ -3,6 +3,7 @@ import { AppErrorException } from '../domain/errors';
 import {
   describeConnectionUri,
   parseConnectionsFile,
+  parseConnectionsPayload,
   planConnectionsImport,
 } from './connections-file';
 
@@ -189,5 +190,41 @@ describe('planConnectionsImport', () => {
   it('renames a repeat of a name created earlier in replace mode', () => {
     const plan = planConnectionsImport([fresh, fresh], [], 'replace');
     expect(plan[1]).toMatchObject({ kind: 'create', renamed: true });
+  });
+});
+
+describe('connection production flag in the file payload', () => {
+  const base = {
+    id: '0f1c4b7e-2d3a-4f5b-8c9d-1e2f3a4b5c6d',
+    name: 'Orders',
+    uri: 'mongodb://localhost:27017',
+    createdAt: '2026-01-01T00:00:00.000Z',
+    updatedAt: '2026-01-01T00:00:00.000Z',
+  };
+
+  it('connection payload keeps production true, false and absent', () => {
+    const parsed = parseConnectionsPayload([
+      { ...base, production: true },
+      { ...base, id: '7a8b9c0d-1e2f-4a3b-9c8d-7e6f5a4b3c2d', production: false },
+      base,
+    ]);
+    expect(parsed.map((profile) => profile.production)).toEqual([true, false, undefined]);
+  });
+
+  it('connection import keeps production on a created and a renamed entry', () => {
+    const plan = planConnectionsImport(
+      [
+        { ...base, production: true },
+        { ...base, production: true },
+      ],
+      [],
+      'rename',
+    );
+    expect(plan[0]).toMatchObject({ kind: 'create', input: { production: true } });
+    expect(plan[1]).toMatchObject({
+      kind: 'create',
+      renamed: true,
+      input: { production: true, name: 'Orders (2)' },
+    });
   });
 });

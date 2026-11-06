@@ -87,6 +87,7 @@ export function connectionsOperations(deps: ConnectionsDeps): [string, Operation
         ...(parent.connectTimeoutMs === undefined
           ? {}
           : { connectTimeoutMs: parent.connectTimeoutMs }),
+        ...(parent.production === undefined ? {} : { production: parent.production }),
         name: directConnectionName(parent.name, input.host),
         uri: directUriFor(parent.uri, input.host),
         source: 'manual',
@@ -254,6 +255,7 @@ function replacementPatch(input: ConnectionProfileInput): Partial<ConnectionProf
     tls: input.tls,
     readPreference: input.readPreference,
     connectTimeoutMs: input.connectTimeoutMs,
+    production: input.production,
     source: input.source,
     dockerContainerId: input.dockerContainerId,
   } as Partial<ConnectionProfileInput>;

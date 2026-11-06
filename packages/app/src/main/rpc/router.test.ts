@@ -323,6 +323,25 @@ describe('vault calls', () => {
     expect(direct.color).toBe('#ff0000');
   });
 
+  it('gives a direct connection the production flag of its parent', async () => {
+    harness = buildHarness();
+    const { router } = harness;
+    expectValue(await router.handle('vault.initialise', { password: PASSWORD }));
+    const parent = expectValue(
+      await router.handle('connections.create', {
+        name: 'Perf',
+        uri: 'mongodb://admin:admin@a:27117,b:27118/?replicaSet=rs0&authSource=admin',
+        production: true,
+      }),
+    ) as { id: string };
+
+    const direct = expectValue(
+      await router.handle('connections.createDirect', { id: parent.id, host: 'b:27118' }),
+    ) as { production?: boolean };
+
+    expect(direct.production).toBe(true);
+  });
+
   it('resets the vault and store, then initialises again on a fresh store', async () => {
     harness = buildHarness();
     const { router } = harness;
@@ -1925,6 +1944,66 @@ describe('connection files', { timeout: 30_000 }, () => {
     ) as ConnectionProfile;
     expect(replaced.uri).toBe('mongodb://remote.example.com:27017');
     expect(replaced.tls).toBeUndefined();
+  });
+
+  it('replace mode sets the production flag from the file', async () => {
+    const { router, remoteId } = await setUp();
+    expectValue(
+      await router.handle('connections.update', { id: remoteId, patch: { production: true } }),
+    );
+    const written = await exportTo(router, [remoteId]);
+    await pickOpen(router, written);
+    // Rename the source so the name is free again, then give the target the same name unflagged.
+    expectValue(
+      await router.handle('connections.update', { id: remoteId, patch: { name: 'Other' } }),
+    );
+    const target = expectValue(
+      await router.handle('connections.create', {
+        name: 'Remote',
+        uri: 'mongodb://old.example.com:27017',
+      }),
+    ) as { id: string };
+
+    const result = expectValue(
+      await router.handle('connections.importFromFile', {
+        path: written,
+        passphrase: PASSPHRASE,
+        mode: 'replace',
+      }),
+    );
+    expect(result).toEqual({ imported: 0, skipped: 0, renamed: 0, replaced: 1 });
+    const replaced = expectValue(
+      await router.handle('connections.get', { id: target.id }),
+    ) as ConnectionProfile;
+    expect(replaced.production).toBe(true);
+  });
+
+  it('replace mode clears the production flag that the file leaves out', async () => {
+    const { router, remoteId } = await setUp();
+    const written = await exportTo(router, [remoteId]);
+    await pickOpen(router, written);
+    expectValue(
+      await router.handle('connections.update', { id: remoteId, patch: { name: 'Other' } }),
+    );
+    const target = expectValue(
+      await router.handle('connections.create', {
+        name: 'Remote',
+        uri: 'mongodb://old.example.com:27017',
+        production: true,
+      }),
+    ) as { id: string };
+
+    expectValue(
+      await router.handle('connections.importFromFile', {
+        path: written,
+        passphrase: PASSPHRASE,
+        mode: 'replace',
+      }),
+    );
+    const replaced = expectValue(
+      await router.handle('connections.get', { id: target.id }),
+    ) as ConnectionProfile;
+    expect(replaced.production).toBeUndefined();
   });
 
   it('fails the start-up option calls with INTERNAL when the app gives no controls', async () => {

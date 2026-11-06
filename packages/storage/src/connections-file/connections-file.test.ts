@@ -56,6 +56,23 @@ describe('connections file', () => {
     expect(bytes.toString('utf8')).not.toContain('s3cret');
   });
 
+  it('connection export round trips production true, false and absent', () => {
+    const orders = profiles[0];
+    const local = profiles[1];
+    if (orders === undefined || local === undefined) {
+      throw new Error('the fixture needs two profiles');
+    }
+    const flagged: ConnectionProfile[] = [
+      { ...orders, production: true },
+      { ...local, production: false },
+      orders,
+    ];
+    const bytes = exportConnections(flagged, PASSPHRASE, CHEAP_KDF);
+    const imported = importConnections(bytes, PASSPHRASE);
+    expect(imported.map((profile) => profile.production)).toEqual([true, false, undefined]);
+    expect(imported).toEqual(flagged);
+  });
+
   it('writes the documented envelope', () => {
     const file = envelope(exportConnections(profiles, PASSPHRASE));
     expect(file).toMatchObject({
