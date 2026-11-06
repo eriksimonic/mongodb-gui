@@ -1,6 +1,7 @@
 import { z } from 'zod';
 import { CollectionNameSchema, DatabaseNameSchema } from '../management/types';
 import { AppErrorSchema } from '../schemas/errors';
+import { CopyFindingCodeSchema } from './assess';
 
 // Replace drops the target collection first. Merge upserts by _id. Insert only skips existing _ids.
 export const CopyModeSchema = z.enum(['replace', 'merge', 'insertOnly']);
@@ -22,6 +23,11 @@ export const CopyOptionsSchema = z
     targetDatabase: DatabaseNameSchema,
     items: z.array(CopyItemSchema).min(1).max(5000),
     mode: CopyModeSchema,
+    // Finding codes the user accepted in the dialog. A confirmable finding needs its code here.
+    acknowledged: z.array(CopyFindingCodeSchema).default([]),
+    // The typed target database name when the target connection is production. The main process
+    // checks it before the copy starts.
+    confirmation: z.string().max(200).optional(),
   })
   .superRefine((input, ctx) => {
     // Both items would write the same target collection. Names compare exactly.

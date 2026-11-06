@@ -123,6 +123,7 @@ import {
 } from '../backup/saved-restore';
 import { BackupInspectionSchema, InspectBackupInputSchema } from '../backup/inspection';
 import { BackupServerInfoSchema, DescribeServerInputSchema } from '../backup/server-info';
+import { CopyOptionsSchema } from '../copy/options';
 import {
   ToolsAvailableInputSchema,
   ToolsAvailableOutputSchema,
@@ -639,6 +640,11 @@ export const rpcContract = {
     inspect: defineCall(InspectBackupInputSchema, BackupInspectionSchema),
     startRestore: defineCall(RestoreStartInputSchema, BackupStartOutputSchema),
     cancel: defineCall(BackupCancelInputSchema, z.void()),
+  },
+  // Copies collections or a database between connections. A job reports through copy:progress.
+  copy: {
+    start: defineCall(CopyOptionsSchema, z.object({ jobId: z.uuid() })),
+    cancel: defineCall(z.object({ jobId: z.uuid() }), z.void()),
   },
   savedBackups: {
     list: defineCall(z.void(), z.array(SavedBackupSchema)),

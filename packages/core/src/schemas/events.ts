@@ -11,6 +11,7 @@ import { TransferProgressSchema } from '../transfer/types';
 import { ShellRuntimeStateSchema } from '../shell/rpc-schemas';
 import { BackupJobKindSchema } from '../backup/options';
 import { BackupProgressSchema } from '../backup/progress';
+import { CopyProgressSchema } from '../copy/options';
 import { ToolsDownloadProgressSchema, ToolsVersionSchema } from '../tools/types';
 import { GenerateProgressSchema } from '../generate/spec';
 
@@ -99,6 +100,12 @@ export const RpcEventSchema = z.discriminatedUnion('type', [
     jobId: z.uuid(),
     kind: BackupJobKindSchema,
     progress: BackupProgressSchema,
+  }),
+  // Progress of one copy job. The last event of a job has done set.
+  z.object({
+    type: z.literal('copy:progress'),
+    jobId: z.uuid(),
+    progress: CopyProgressSchema,
   }),
   // Progress of one download of the MongoDB tools.
   z.object({

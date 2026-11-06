@@ -23,11 +23,13 @@ import {
   type ConnectionProfile,
   type ConnectionStatus,
   type ConnectionTestResult,
+  type CopyOptions,
   type RpcEvent,
   type RpcResult,
   type Settings,
 } from '@mongo-gui/core';
 import { EncryptedStore, Vault, type DeviceKeyProvider } from '@mongo-gui/storage';
+import type { CopyService, CopyWiring } from './copy';
 import type { DockerRuntime } from '../docker/runtime';
 import type { Logger } from '../log';
 import {
@@ -126,7 +128,12 @@ const deviceKey: DeviceKeyProvider = {
   },
 };
 
-function buildHarness(logger?: Logger, docker?: DockerRuntime, dialogs?: NativeDialogs): Harness {
+function buildHarness(
+  logger?: Logger,
+  docker?: DockerRuntime,
+  dialogs?: NativeDialogs,
+  copy?: (wiring: CopyWiring) => CopyService,
+): Harness {
   const dir = mkdtempSync(join(tmpdir(), 'router-'));
   const lockListeners = new Set<() => void>();
   const vault = new Vault({
@@ -171,6 +178,7 @@ function buildHarness(logger?: Logger, docker?: DockerRuntime, dialogs?: NativeD
     ...(logger === undefined ? {} : { log: logger }),
     ...(docker === undefined ? {} : { docker }),
     ...(dialogs === undefined ? {} : { dialogs }),
+    ...(copy === undefined ? {} : { copy }),
   });
   return {
     router,
@@ -632,6 +640,91 @@ describe('settings, history and favourites', () => {
 
     expect(expectValue(await router.handle('history.list', {}))).toEqual([]);
     expectValue(await router.handle('history.clear', undefined));
+  });
+});
+
+describe('copy calls', () => {
+  let harness: Harness | undefined;
+  afterEach(() => {
+    harness?.dispose();
+    harness = undefined;
+  });
+
+  const JOB_ID = '5c7d9e1f-2a3b-4c5d-8e9f-0a1b2c3d4e5f';
+
+  /** Creates the source and target profiles that a copy names. */
+  async function setUpProfiles(router: Router): Promise<{ source: string; target: string }> {
+    expectValue(await router.handle('vault.initialise', { password: PASSWORD }));
+    const source = expectValue(await router.handle('connections.create', profileInput)) as {
+      id: string;
+    };
+    const target = expectValue(
+      await router.handle('connections.create', { name: 'Target', uri: URI }),
+    ) as { id: string };
+    return { source: source.id, target: target.id };
+  }
+
+  function copyInput(sourceConnectionId: string, targetConnectionId: string) {
+    return {
+      sourceConnectionId,
+      targetConnectionId,
+      sourceDatabase: 'shop',
+      targetDatabase: 'shop',
+      items: [{ source: 'orders', target: 'orders' }],
+      mode: 'replace',
+    };
+  }
+
+  it('starts a copy through the service and forwards cancel', async () => {
+    const started: CopyOptions[] = [];
+    const cancelled: string[] = [];
+    harness = buildHarness(undefined, undefined, undefined, () => ({
+      async start(options) {
+        started.push(options);
+        return JOB_ID;
+      },
+      cancel(jobId) {
+        cancelled.push(jobId);
+      },
+    }));
+    const { router } = harness;
+    const ids = await setUpProfiles(router);
+
+    expect(
+      expectValue(await router.handle('copy.start', copyInput(ids.source, ids.target))),
+    ).toEqual({ jobId: JOB_ID });
+    // The parsed input gets the schema default for acknowledged.
+    expect(started).toEqual([{ ...copyInput(ids.source, ids.target), acknowledged: [] }]);
+
+    expectValue(await router.handle('copy.cancel', { jobId: JOB_ID }));
+    expect(cancelled).toEqual([JOB_ID]);
+  });
+
+  it('refuses a copy from an unknown connection without starting it', async () => {
+    const started: CopyOptions[] = [];
+    harness = buildHarness(undefined, undefined, undefined, () => ({
+      async start(options) {
+        started.push(options);
+        return JOB_ID;
+      },
+      cancel() {},
+    }));
+    const { router } = harness;
+    const ids = await setUpProfiles(router);
+
+    const unknown = '8a1e4d2c-6b3f-4e9a-8d7c-1f0e2b3a4c5d';
+    expect((await router.handle('copy.start', copyInput(unknown, ids.target))).ok).toBe(false);
+    expect((await router.handle('copy.start', copyInput(ids.source, unknown))).ok).toBe(false);
+    expect(started).toEqual([]);
+  });
+
+  it('returns INTERNAL for copy calls when no copy service is wired', async () => {
+    harness = buildHarness();
+    const { router } = harness;
+    const ids = await setUpProfiles(router);
+
+    expectError(await router.handle('copy.start', copyInput(ids.source, ids.target)), 'INTERNAL');
+    expectError(await router.handle('copy.cancel', { jobId: JOB_ID }), 'INTERNAL');
   });
 });
 

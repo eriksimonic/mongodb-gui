@@ -50,6 +50,43 @@ describe('CopyOptionsSchema', () => {
     );
   });
 
+  it('still refuses two items on one target when acknowledged and a confirmation are set', () => {
+    const parsed = CopyOptionsSchema.safeParse({
+      ...options([
+        { source: 'orders', target: 'copy' },
+        { source: 'invoices', target: 'copy' },
+      ]),
+      acknowledged: ['copy-timeseries-target'],
+      confirmation: 'shop_copy',
+    });
+    expect(parsed.success).toBe(false);
+    expect(parsed.error?.issues).toContainEqual(
+      expect.objectContaining({ path: ['items', 1, 'target'] }),
+    );
+  });
+
+  it('defaults acknowledged to an empty list and leaves confirmation unset', () => {
+    const parsed = CopyOptionsSchema.parse(options());
+    expect(parsed.acknowledged).toEqual([]);
+    expect(parsed.confirmation).toBeUndefined();
+  });
+
+  it('accepts acknowledged codes from the backup and copy lists and a confirmation', () => {
+    expect(
+      CopyOptionsSchema.safeParse({
+        ...options(),
+        acknowledged: ['server-too-old', 'copy-overlap'],
+        confirmation: 'shop_copy',
+      }).success,
+    ).toBe(true);
+    expect(
+      CopyOptionsSchema.safeParse({ ...options(), acknowledged: ['made-up-code'] }).success,
+    ).toBe(false);
+    expect(
+      CopyOptionsSchema.safeParse({ ...options(), confirmation: 'x'.repeat(201) }).success,
+    ).toBe(false);
+  });
+
   it('accepts items whose target names differ only by case', () => {
     const parsed = CopyOptionsSchema.safeParse(
       options([

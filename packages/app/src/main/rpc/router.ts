@@ -43,6 +43,7 @@ import { managementOperations } from './management';
 import { schemaOperations } from './schema';
 import { createChangesService, type OpenChangeWatch } from './changes';
 import { createBackupRpcService } from './backup';
+import { copyOperations, type CopyService, type CopyWiring } from './copy';
 import { toolsOperations } from './tools';
 import { gridfsOperations } from './gridfs';
 import { appOperations } from './app';
@@ -154,6 +155,11 @@ export interface RouterDeps {
    * fail with INTERNAL. Tests pass fakes.
    */
   readonly backupTools?: (wiring: BackupToolsWiring) => BackupTools;
+  /**
+   * Builds the copy service for this router. Without it the copy calls fail with INTERNAL. Tests
+   * pass fakes.
+   */
+  readonly copy?: (wiring: CopyWiring) => CopyService;
   /**
    * Appends one JSON line per handle call to this file, so the e2e tests can see which calls
    * reached the router. index.ts sets it from MONGO_GUI_RPC_TRACE, and never in a packaged app.
@@ -275,6 +281,13 @@ export function createRouter(deps: RouterDeps): Router {
     }
     return backupTools;
   };
+  const copyService = deps.copy?.({ emit: deps.onEvent });
+  const copy = (): CopyService => {
+    if (copyService === undefined) {
+      throw new AppErrorException(appError('INTERNAL', 'Copy is not available.'));
+    }
+    return copyService;
+  };
 
   /** Checks that a connection profile exists. A locked vault reports VAULT_LOCKED from the store. */
   const requireConnectionProfile = (connectionId: string): void => {
@@ -386,6 +399,7 @@ export function createRouter(deps: RouterDeps): Router {
     ...generate.operations(),
 
     ...backup.operations(),
+    ...copyOperations({ copy, requireConnectionProfile }),
     ...toolsOperations({ tools, repos }),
     ...gridfsOperations({
       getClient: (connectionId) => deps.connections.getClient(connectionId),

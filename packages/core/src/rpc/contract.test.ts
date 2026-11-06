@@ -1,8 +1,11 @@
 import { describe, expect, it } from 'vitest';
 import { rpcContract } from './contract';
+import { RpcEventSchema } from '../schemas/events';
 
 const namespaces = Object.entries(rpcContract);
 const CONNECTION_ID = '3f2b8c1e-5d4a-4b7e-9c1f-2a6d8e0b7f10';
+const TARGET_CONNECTION_ID = '8a1e4d2c-6b3f-4e9a-8d7c-1f0e2b3a4c5d';
+const JOB_ID = '5c7d9e1f-2a3b-4c5d-8e9f-0a1b2c3d4e5f';
 
 describe('rpcContract', () => {
   it('declares the namespaces required by P1-1, P2-2, P2-5 layout, the P3-1 explain runner, the P4-B management calls, the P6-2 profiler and the P8-3 sharding calls', () => {
@@ -14,6 +17,7 @@ describe('rpcContract', () => {
         'changes',
         'collections',
         'connections',
+        'copy',
         'databases',
         'diagnostics',
         'docker',
@@ -40,6 +44,52 @@ describe('rpcContract', () => {
         'vault',
       ].sort(),
     );
+  });
+
+  it('checks copy start and cancel inputs and the copy:progress event', () => {
+    const { copy } = rpcContract;
+    const item = { source: 'orders', target: 'orders' };
+    const start = {
+      sourceConnectionId: CONNECTION_ID,
+      targetConnectionId: TARGET_CONNECTION_ID,
+      sourceDatabase: 'shop',
+      targetDatabase: 'shop',
+      items: [item],
+      mode: 'replace',
+    };
+    expect(copy.start.input.safeParse(start).success).toBe(true);
+    expect(
+      copy.start.input.safeParse({ ...start, acknowledged: ['copy-overlap'], confirmation: 'shop' })
+        .success,
+    ).toBe(true);
+    expect(copy.start.input.safeParse({ ...start, acknowledged: ['made-up'] }).success).toBe(false);
+    expect(copy.start.input.safeParse({ ...start, items: [item, item] }).success).toBe(false);
+    expect(copy.start.input.safeParse({ ...start, mode: 'upsert' }).success).toBe(false);
+    expect(copy.start.input.safeParse({ ...start, targetConnectionId: 'target' }).success).toBe(
+      false,
+    );
+    expect(copy.start.output.safeParse({ jobId: JOB_ID }).success).toBe(true);
+    expect(copy.start.output.safeParse({ jobId: 'job' }).success).toBe(false);
+    expect(copy.cancel.input.safeParse({ jobId: JOB_ID }).success).toBe(true);
+    expect(copy.cancel.input.safeParse({ jobId: 'job' }).success).toBe(false);
+    const progress = {
+      phase: 'copying',
+      documents: 10,
+      collectionsDone: 0,
+      collectionsTotal: 1,
+      failedDocuments: 0,
+      skippedDocuments: 0,
+      lines: [],
+      elapsedMs: 250,
+      done: false,
+      cancelled: false,
+    };
+    expect(
+      RpcEventSchema.safeParse({ type: 'copy:progress', jobId: JOB_ID, progress }).success,
+    ).toBe(true);
+    expect(
+      RpcEventSchema.safeParse({ type: 'copy:progress', jobId: 'job', progress }).success,
+    ).toBe(false);
   });
 
   it('checks change stream watch ids and refuses both resume options at once', () => {

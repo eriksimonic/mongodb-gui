@@ -207,6 +207,9 @@ export const coverageMap: Readonly<Record<string, Coverage>> = {
   'backup.startRestore': { journey: 'restore.spec.ts' },
   'backup.cancel': { excluded: 'no journey planned yet' },
 
+  'copy.start': { excluded: 'copy journey comes with R2 (T12)' },
+  'copy.cancel': { excluded: 'copy journey comes with R2 (T12)' },
+
   'savedBackups.list': { journey: 'backup.spec.ts' },
   'savedBackups.save': { excluded: 'no journey planned yet' },
   'savedBackups.rename': { excluded: 'no journey planned yet' },

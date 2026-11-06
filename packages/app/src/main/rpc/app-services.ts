@@ -34,6 +34,7 @@ import { RuntimeSupervisor } from '../shell/supervisor';
 import { spillEnv } from '@mongo-gui/storage/spill';
 import { createSpillRoot, type SpillRoot } from '../spill/spill-root';
 import { type UpdaterBackend } from '../updates/updater';
+import { type CopyService } from './copy';
 import { createUpdatesService } from './updates';
 import { refuseFork } from './shell';
 import { createBackupService } from '../backup/backup-service';
@@ -118,6 +119,16 @@ export type AppServices = Omit<RouterDeps, 'onEvent' | 'docker' | 'updates' | 's
 
 const KEYRING_DIR_MODE = 0o700;
 const STORE_FILE_NAME = 'store.sqlite';
+
+/** Stands in for the copy service until it is built. Every call fails. */
+const copyNotImplemented: CopyService = {
+  start() {
+    throw new Error('not implemented');
+  },
+  cancel() {
+    throw new Error('not implemented');
+  },
+};
 
 /**
  * Opens the vault, the encrypted store and the connection manager under userDataDir.
@@ -216,6 +227,7 @@ export function createAppServices(options: AppServicesOptions): AppServices {
     },
     updates,
     ...(backupTools === undefined ? {} : { backupTools: backupTools.build }),
+    copy: () => copyNotImplemented,
     async dispose() {
       // Wait for the runtime to exit, so nothing writes to the spill after the wipe.
       await shell.dispose();
