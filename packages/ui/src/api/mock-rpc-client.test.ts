@@ -204,6 +204,19 @@ describe('mock connections', () => {
     expect(updated.tls).toBeUndefined();
   });
 
+  it('sets and clears the production flag on update, and keeps it when the patch omits it', async () => {
+    const api = createMockUiApi({ preset: 'unlocked' });
+    const created = await api.rpc.connections.create({ ...connectionInput, production: true });
+    const kept = await api.rpc.connections.update({ id: created.id, patch: { name: 'Renamed' } });
+    expect(kept.production).toBe(true);
+    const cleared = await api.rpc.connections.update({
+      id: created.id,
+      patch: { ...connectionInput, production: false },
+    });
+    expect(cleared.production).toBe(false);
+    expect((await api.rpc.connections.get({ id: created.id })).production).toBe(false);
+  });
+
   it('accepts a test for a localhost URI and fails auth for other hosts', async () => {
     const api = createMockUiApi({ preset: 'unlocked' });
     expect(await api.rpc.connections.test(connectionInput)).toEqual({

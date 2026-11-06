@@ -14,6 +14,8 @@ import {
 import type { MouseEvent } from 'react';
 import { CollectionIcon } from './CollectionIcon';
 import { ConnectionStatusIcon } from './ConnectionStatusIcon';
+import { prodDescriptionId } from './prod-description';
+import { ProdBadge } from './ProdBadge';
 import { DockerContainerMeta } from './DockerContainerMeta';
 import { connectionTreeMeta } from './connection-status-label';
 import type { ConnectionStatus, ReplicaSetMember } from '@mongo-gui/core';
@@ -61,6 +63,7 @@ export function TreeRow({
       aria-level={row.depth + 1}
       aria-expanded={row.expandable ? row.expanded : undefined}
       aria-selected={selected}
+      aria-describedby={row.production === true ? prodDescriptionId(row.key) : undefined}
       data-ancestor={ancestor === true && !selected ? 'true' : undefined}
       tabIndex={focused ? 0 : -1}
       ref={(element) => setRef(row.key, element)}
@@ -100,6 +103,7 @@ export function TreeRow({
           ? marked(row.label, highlight)
           : row.label}
       </span>
+      {row.production === true ? <ProdBadge id={prodDescriptionId(row.key)} /> : null}
       {row.container === undefined ? null : <DockerContainerMeta container={row.container} />}
       {row.kind === 'connection' && row.status !== undefined ? (
         <ConnectionMeta status={row.status} />

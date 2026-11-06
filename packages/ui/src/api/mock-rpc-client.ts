@@ -234,6 +234,7 @@ function replacementPatch(input: ConnectionProfileInput): ProfilePatch {
     tls: input.tls,
     readPreference: input.readPreference,
     connectTimeoutMs: input.connectTimeoutMs,
+    production: input.production,
     source: input.source,
     dockerContainerId: input.dockerContainerId,
   };
@@ -255,6 +256,7 @@ function applyPatch(
     readPreference: 'readPreference' in patch ? patch.readPreference : current.readPreference,
     connectTimeoutMs:
       'connectTimeoutMs' in patch ? patch.connectTimeoutMs : current.connectTimeoutMs,
+    production: 'production' in patch ? patch.production : current.production,
     ...(current.source === undefined ? {} : { source: current.source }),
     ...(current.dockerContainerId === undefined
       ? {}

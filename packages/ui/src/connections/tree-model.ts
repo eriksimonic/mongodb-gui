@@ -60,6 +60,8 @@ export interface TreeRow {
   readonly expandable: boolean;
   readonly expanded: boolean;
   readonly color: string | undefined;
+  /** Set on `connection` rows only. True shows the PROD badge. */
+  readonly production?: boolean | undefined;
   readonly status: ConnectionStatus | undefined;
   /** Set on `container` rows only. */
   readonly container: DockerMongoContainerSummary | undefined;
@@ -475,6 +477,7 @@ function connectionRows(
     expandable: canOpen,
     expanded,
     color: connection.color,
+    production: connection.production,
     status,
     container: extras.container,
     note: extras.note,

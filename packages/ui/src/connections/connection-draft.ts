@@ -16,6 +16,8 @@ export type DraftMode = 'uri' | 'form';
 export interface ConnectionDraft {
   readonly name: string;
   readonly color: string;
+  /** Set by the Production checkbox. Always sent, so unchecking it clears the flag on save. */
+  readonly production: boolean;
   readonly mode: DraftMode;
   /** The URI as typed. Only used while the mode is `uri`. */
   readonly uri: string;
@@ -33,6 +35,7 @@ export function createDraft(mode: DraftMode, source?: ConnectionProfile): Connec
   return {
     name: source?.name ?? '',
     color: source?.color ?? '',
+    production: source?.production === true,
     mode,
     uri,
     form: parsed.ok ? parsed.form : emptyUriForm(),
@@ -78,6 +81,7 @@ export function draftInput(draft: ConnectionDraft): ConnectionProfileInput {
   return {
     name: draft.name.trim(),
     uri: draftUri(draft),
+    production: draft.production,
     ...(color === '' ? {} : { color }),
     ...options,
   };

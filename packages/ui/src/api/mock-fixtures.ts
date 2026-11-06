@@ -32,6 +32,7 @@ export function fixtureConnections(): ConnectionProfile[] {
       color: '#ffbe0b',
       uri: 'mongodb+srv://ops:hunter2@cluster0.example.net/?retryWrites=true',
       tls: { enabled: true },
+      production: true,
       createdAt: UPDATED_AT,
       updatedAt: UPDATED_AT,
     },

@@ -1,7 +1,7 @@
 // @vitest-environment jsdom
-import { fireEvent, screen } from '@testing-library/react';
+import { fireEvent, screen, waitFor, within } from '@testing-library/react';
 import { describe, expect, it } from 'vitest';
-import { localConnectionId } from '../api/mock-fixtures';
+import { localConnectionId, stagingConnectionId } from '../api/mock-fixtures';
 import { renderWithApp } from '../test-support/render';
 import { ConnectionDialog } from './ConnectionDialog';
 import { ConnectionTree } from './ConnectionTree';
@@ -86,5 +86,37 @@ describe('ConnectionDialog', () => {
     expect(screen.getByLabelText('Connection string')).toHaveValue(
       'mongodb://app:secret@localhost:27017/?authSource=admin',
     );
+  });
+
+  it('shows the saved Production flag in the editor', async () => {
+    renderWithApp(
+      <ConnectionDialog connectionId={stagingConnectionId} onClose={() => undefined} />,
+      {
+        mock: { preset: 'unlocked' },
+      },
+    );
+    expect(await screen.findByDisplayValue('Staging')).toBeInTheDocument();
+    expect(screen.getByLabelText('Production')).toBeChecked();
+  });
+
+  it('clears the PROD badge in the tree when Production is unchecked and saved', async () => {
+    renderWithApp(
+      <>
+        <ConnectionDialog connectionId={stagingConnectionId} onClose={() => undefined} />
+        <ConnectionTree />
+      </>,
+      { mock: { preset: 'unlocked' } },
+    );
+    const staging = await screen.findByRole('treeitem', { name: 'Staging' });
+    expect(within(staging).getByText('PROD')).toBeInTheDocument();
+
+    fireEvent.click(await screen.findByLabelText('Production'));
+    fireEvent.click(screen.getByRole('button', { name: 'Save' }));
+
+    await waitFor(() => {
+      expect(
+        within(screen.getByRole('treeitem', { name: 'Staging' })).queryByText('PROD'),
+      ).toBeNull();
+    });
   });
 });

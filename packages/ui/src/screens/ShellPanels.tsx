@@ -49,6 +49,8 @@ import {
   type IDockviewPanelProps,
 } from 'dockview-react';
 import { ConnectionTree } from '../connections';
+import { prodDescriptionId } from '../connections/prod-description';
+import { ProdBadge } from '../connections/ProdBadge';
 import { TreeMenu, type TreeMenuEntry } from '../kit/TreeMenu';
 import { isOutputCollapsed, toggleOutputPanel } from './output-collapse';
 import { IndexesPanel, ValidationPanel } from '../management';
@@ -249,9 +251,12 @@ const TAB_ICONS: Record<string, Icon> = {
 /** Dockview's default tab with the panel kind's icon in front of the title. */
 function IconTab(
   props: IDockviewPanelHeaderProps &
-    HTMLAttributes<HTMLDivElement> & { readonly hideClose?: boolean },
+    HTMLAttributes<HTMLDivElement> & {
+      readonly hideClose?: boolean;
+      readonly production?: boolean;
+    },
 ) {
-  const { api, hideClose, onPointerDown, onPointerLeave } = props;
+  const { api, hideClose, onPointerDown, onPointerLeave, production } = props;
   const [title, setTitle] = useState(api.title ?? '');
   useEffect(() => {
     const subscription = api.onDidTitleChange((event) => setTitle(event.title));
@@ -264,6 +269,7 @@ function IconTab(
       onPointerLeave={onPointerLeave}
       className="dv-default-tab"
       title={title}
+      aria-describedby={production === true ? prodDescriptionId(`tab-${api.id}`) : undefined}
       onPointerUp={(event) => {
         if (event.button === 1 && !hideClose) {
           event.preventDefault();
@@ -275,6 +281,7 @@ function IconTab(
         <TabIcon size={14} style={{ flexShrink: 0 }} aria-hidden="true" />
       )}
       <span className="dv-default-tab-content">{title}</span>
+      {production === true ? <ProdBadge id={prodDescriptionId(`tab-${api.id}`)} /> : null}
       {hideClose === true ? null : (
         <button
           type="button"
@@ -313,6 +320,15 @@ export function ClosableTab(props: IDockviewPanelHeaderProps) {
   const store = useAppStoreApi();
   // An editor panel carries its tab's id, so the tab is found by the panel id.
   const editorTab = useAppStore((state) => state.editors.tabs[panelId]);
+  // A panel of a connection carries its connection id in the params. An editor tab has it in the tab.
+  const connectionId: string | undefined =
+    editorTab?.connectionId ??
+    (typeof props.params.connectionId === 'string' ? props.params.connectionId : undefined);
+  const production = useAppStore((state) =>
+    state.connections.state === 'ready' && connectionId !== undefined
+      ? state.connections.data.some((item) => item.id === connectionId && item.production === true)
+      : false,
+  );
 
   function openInMongo(tab: EditorTab): void {
     const source = createCompletionSource({
@@ -341,7 +357,7 @@ export function ClosableTab(props: IDockviewPanelHeaderProps) {
         setPosition({ x: event.clientX, y: event.clientY });
       }}
     >
-      <IconTab {...props} />
+      <IconTab {...props} production={production} />
       {position === undefined ? null : (
         // The tab strip is a containing block for fixed elements and clips them, so the menu's
         // anchor goes to the body, where `position: fixed` matches the pointer.

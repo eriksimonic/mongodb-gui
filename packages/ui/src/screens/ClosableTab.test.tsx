@@ -3,7 +3,7 @@ import { fireEvent, screen, waitFor } from '@testing-library/react';
 import type { IDockviewPanelHeaderProps } from 'dockview-react';
 import { describe, expect, it, vi } from 'vitest';
 import { connectedMockApi } from '../api/connected-mock';
-import { localConnectionId } from '../api/mock-fixtures';
+import { fixtureConnections, localConnectionId, stagingConnectionId } from '../api/mock-fixtures';
 import { EDITOR_TAB_ID, editorStateWith } from '../test-support/editor-state';
 import { renderWithApp } from '../test-support/render';
 import { useAppStore } from '../state/app-store-context';
@@ -14,8 +14,8 @@ vi.mock('dockview-react', async (importOriginal) => ({
   DockviewDefaultTab: () => <span>Editor tab</span>,
 }));
 
-/** The header props the tab menu reads: the panel id and a dock without other panels. */
-function headerProps(): IDockviewPanelHeaderProps {
+/** The header props the tab menu reads: the panel id, the panel params and a dock without other panels. */
+function headerProps(params: Record<string, unknown> = {}): IDockviewPanelHeaderProps {
   const props = {
     api: {
       id: EDITOR_TAB_ID,
@@ -24,6 +24,7 @@ function headerProps(): IDockviewPanelHeaderProps {
       onDidTitleChange: () => ({ dispose: () => undefined }),
     },
     containerApi: { getPanel: () => undefined, panels: [], removePanel: vi.fn() },
+    params,
   };
   return props as unknown as IDockviewPanelHeaderProps;
 }
@@ -63,6 +64,30 @@ async function openTabMenu(text: string, language: 'sql' | 'mongosh') {
   fireEvent.contextMenu(screen.getByText('Editor tab'));
   return { ...rendered, api };
 }
+
+describe('ClosableTab PROD badge', () => {
+  const connections = fixtureConnections().map((profile) => ({
+    ...profile,
+    uriRedacted: profile.uri,
+  }));
+
+  it('shows the PROD badge on a tab of a production connection', () => {
+    renderWithApp(<ClosableTab {...headerProps({ connectionId: stagingConnectionId })} />, {
+      initialState: { connections: { state: 'ready', data: connections } },
+    });
+    expect(screen.getByText('PROD')).toBeInTheDocument();
+    const tab = screen.getByText('Editor tab').closest<HTMLElement>('.dv-default-tab');
+    expect(tab).toHaveAccessibleDescription('Production connection');
+  });
+
+  it('shows no PROD badge on a tab of a connection that is not production', () => {
+    renderWithApp(<ClosableTab {...headerProps({ connectionId: localConnectionId })} />, {
+      initialState: { connections: { state: 'ready', data: connections } },
+    });
+    expect(screen.getByText('Editor tab')).toBeInTheDocument();
+    expect(screen.queryByText('PROD')).toBeNull();
+  });
+});
 
 describe('ClosableTab Open in Mongo entry', () => {
   it('switches the tab to the mongosh and keeps the SQL for the language toggle', async () => {

@@ -20,6 +20,12 @@ describe('createDraft', () => {
     expect(draft.form.username).toBe('app');
   });
 
+  it('keeps the production flag of the profile and is not production when it is unset', () => {
+    expect(createDraft('uri', { ...profile, production: true }).production).toBe(true);
+    expect(createDraft('uri', profile).production).toBe(false);
+    expect(createDraft('uri').production).toBe(false);
+  });
+
   it('starts from the default URI when creating', () => {
     const draft = createDraft('form');
     expect(draft.mode).toBe('form');
@@ -99,7 +105,13 @@ describe('validateDraft', () => {
 describe('draftInput', () => {
   it('trims the name and leaves out an empty colour', () => {
     const input = draftInput({ ...createDraft('uri'), name: '  Dev  ', color: '' });
-    expect(input).toEqual({ name: 'Dev', uri: 'mongodb://localhost:27017/' });
+    expect(input).toEqual({ name: 'Dev', uri: 'mongodb://localhost:27017/', production: false });
+  });
+
+  it('sends production true or false, so unchecking it clears the flag', () => {
+    const draft = createDraft('uri', { ...profile, production: true });
+    expect(draftInput(draft).production).toBe(true);
+    expect(draftInput({ ...draft, production: false }).production).toBe(false);
   });
 
   it('takes TLS options from the URI in URI mode', () => {

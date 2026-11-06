@@ -14,6 +14,24 @@ import { ConnectionTree } from './ConnectionTree';
 import { FOCUS_TREE_SEARCH_EVENT } from './search-constants';
 
 describe('ConnectionTree', () => {
+  it('marks only the production connection with the PROD badge', async () => {
+    renderWithApp(<ConnectionTree />, { mock: { preset: 'unlocked' } });
+    const staging = await screen.findByRole('treeitem', { name: 'Staging' });
+    const local = await screen.findByRole('treeitem', { name: 'Local dev' });
+    expect(within(staging).getByText('PROD')).toBeInTheDocument();
+    expect(within(local).queryByText('PROD')).toBeNull();
+  });
+
+  it('describes a production row as a production connection and keeps its name', async () => {
+    renderWithApp(<ConnectionTree />, { mock: { preset: 'unlocked' } });
+    const staging = await screen.findByRole('treeitem', { name: 'Staging' });
+    const local = await screen.findByRole('treeitem', { name: 'Local dev' });
+    expect(staging).toHaveAccessibleName('Staging');
+    expect(staging).toHaveAccessibleDescription('Production connection');
+    expect(local).toHaveAccessibleName('Local dev');
+    expect(local).not.toHaveAccessibleDescription();
+  });
+
   it('searches without crashing and keeps the typed text', async () => {
     renderWithApp(<ConnectionTree />, { mock: { preset: 'unlocked' } });
     const local = await screen.findByRole('treeitem', { name: 'Local dev' });

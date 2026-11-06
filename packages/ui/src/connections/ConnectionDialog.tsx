@@ -2,6 +2,7 @@ import {
   Alert,
   Badge,
   Button,
+  Checkbox,
   Code,
   ColorInput,
   ColorSwatch,
@@ -212,6 +213,12 @@ export function ConnectionDialog({
               onChange={(value) => updateDraft({ ...draft, color: value })}
             />
           </Group>
+          <Checkbox
+            label="Production"
+            description="Copy and restore into this connection ask for the connection name first."
+            checked={draft.production}
+            onChange={(event) => updateDraft({ ...draft, production: event.currentTarget.checked })}
+          />
           <SegmentedControl
             fullWidth
             className="mg-dialog-segments"
