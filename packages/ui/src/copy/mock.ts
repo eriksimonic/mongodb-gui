@@ -52,17 +52,18 @@ function framesFor(items: readonly CopyItem[]): Frame[] {
     },
   ];
   items.forEach((item, index) => {
-    for (let step = 1; step <= FRAMES_PER_ITEM; step += 1) {
-      const written = index * FRAMES_PER_ITEM * DOCUMENTS_PER_FRAME + step * DOCUMENTS_PER_FRAME;
+    const before = index * FRAMES_PER_ITEM * DOCUMENTS_PER_FRAME;
+    // Step 0 names the item before any of its documents are written, as the service does.
+    for (let step = 0; step <= FRAMES_PER_ITEM; step += 1) {
       frames.push({
         ...base,
         phase: 'copying',
-        documents: written,
+        documents: before + step * DOCUMENTS_PER_FRAME,
         totalDocuments,
         collectionsDone: step === FRAMES_PER_ITEM ? index + 1 : index,
         collectionsTotal,
         current: item.target,
-        lines: step === 1 ? [`Copying ${item.source} to ${item.target}`] : [],
+        lines: step === 0 ? [`Copying ${item.source} to ${item.target}`] : [],
         done: false,
       });
     }

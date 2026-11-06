@@ -74,6 +74,7 @@ type MenuTarget =
       readonly connectionId: string;
       readonly database: string;
       readonly collection: string;
+      readonly collectionType: TreeRowModel['collectionType'];
     };
 
 interface MenuAnchor {
@@ -160,6 +161,7 @@ function menuTargetFor(
             connectionId: row.connectionId,
             database: row.database,
             collection: row.collection,
+            collectionType: row.collectionType,
           };
     case 'gridfs':
       return row.database === undefined
@@ -764,6 +766,7 @@ export function ConnectionTree() {
           connectionId={target.connectionId}
           database={target.database}
           collection={target.collection}
+          collectionType={target.collectionType}
           position={position}
           onClose={closeMenu}
         />

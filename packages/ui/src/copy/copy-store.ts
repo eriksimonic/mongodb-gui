@@ -17,6 +17,17 @@ export interface CopyItemState {
   readonly source: string;
   readonly target: string;
   readonly status: CopyItemStatus;
+  /** Documents written for this item. The service reports totals, so this is their difference. */
+  readonly documents: number;
+  /** Documents skipped for this item. Insert only counts the _id matches here. */
+  readonly skipped: number;
+}
+
+/** The job totals when the service began writing one target collection. */
+export interface CopyItemMark {
+  readonly target: string;
+  readonly documents: number;
+  readonly skipped: number;
 }
 
 export interface CopyJob {
@@ -24,6 +35,8 @@ export interface CopyJob {
   /** The items from the start call. Empty when a progress event arrives before that call returns. */
   readonly items: readonly CopyItem[];
   readonly itemStates: readonly CopyItemState[];
+  /** One mark per target, in the order the service began them. */
+  readonly marks: readonly CopyItemMark[];
   /** The latest progress event. */
   readonly progress: CopyProgress | undefined;
   /** The event that ended the job. Set once, when `done` is true. */
@@ -45,7 +58,51 @@ export interface CopyState {
 export type CopyStore = StoreApi<CopyState>;
 
 function emptyJob(jobId: string): CopyJob {
-  return { jobId, items: [], itemStates: [], progress: undefined, result: undefined, lines: [] };
+  return {
+    jobId,
+    items: [],
+    itemStates: [],
+    marks: [],
+    progress: undefined,
+    result: undefined,
+    lines: [],
+  };
+}
+
+/** Records the totals when the service names a new target. Each target gets one mark. */
+function marksAfter(marks: readonly CopyItemMark[], progress: CopyProgress): CopyItemMark[] {
+  const { current } = progress;
+  if (current === undefined || marks.some((mark) => mark.target === current)) {
+    return [...marks];
+  }
+  return [
+    ...marks,
+    { target: current, documents: progress.documents, skipped: progress.skippedDocuments },
+  ];
+}
+
+/**
+ * The documents and skips of one target. They run from its mark to the next mark, or to the
+ * latest totals when it is the last target begun.
+ */
+function countsOf(
+  target: string,
+  marks: readonly CopyItemMark[],
+  progress: CopyProgress | undefined,
+): Pick<CopyItemState, 'documents' | 'skipped'> {
+  const index = marks.findIndex((mark) => mark.target === target);
+  const start = marks[index];
+  if (start === undefined || progress === undefined) {
+    return { documents: 0, skipped: 0 };
+  }
+  const end = marks[index + 1] ?? {
+    documents: progress.documents,
+    skipped: progress.skippedDocuments,
+  };
+  return {
+    documents: end.documents - start.documents,
+    skipped: end.skipped - start.skipped,
+  };
 }
 
 function statusOf(
@@ -75,17 +132,19 @@ function statusOf(
 function itemStatesOf(
   items: readonly CopyItem[],
   progress: CopyProgress | undefined,
+  marks: readonly CopyItemMark[],
 ): CopyItemState[] {
   return items.map((item, index) => ({
     source: item.source,
     target: item.target,
     status: statusOf(index, item, progress),
+    ...countsOf(item.target, marks, progress),
   }));
 }
 
-/** Keeps the derived item states in step with the items and the latest progress. */
+/** Keeps the derived item states in step with the items, the marks and the latest progress. */
 function withDerived(job: CopyJob): CopyJob {
-  return { ...job, itemStates: itemStatesOf(job.items, job.progress) };
+  return { ...job, itemStates: itemStatesOf(job.items, job.progress, job.marks) };
 }
 
 /**
@@ -116,6 +175,7 @@ export function createCopyStore(client: CopyClient): CopyStore {
         update(jobId, (job) => ({
           ...job,
           progress,
+          marks: marksAfter(job.marks, progress),
           result: progress.done ? progress : job.result,
           lines: [...job.lines, ...progress.lines].slice(-MAX_COPY_LINES),
         }));

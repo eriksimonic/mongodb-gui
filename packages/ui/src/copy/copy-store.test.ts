@@ -1,5 +1,6 @@
-import type { CopyOptions, CopyProgress } from '@mongo-gui/core';
+import type { CopyOptions, CopyProgress, RpcEvent } from '@mongo-gui/core';
 import { describe, expect, it, vi } from 'vitest';
+import { createMockCopy } from './mock';
 import { createCopyStore, MAX_COPY_LINES, type CopyClient } from './copy-store';
 
 const JOB = '3f2b8c1e-7a4d-4e9b-8c2f-1d5e6a7b8c9d';
@@ -62,8 +63,8 @@ describe('copy store start', () => {
     const job = store.getState().jobs[JOB];
     expect(job?.items).toEqual(TWO_ITEMS.items);
     expect(job?.itemStates).toEqual([
-      { source: 'orders', target: 'orders', status: 'queued' },
-      { source: 'users', target: 'users', status: 'queued' },
+      { source: 'orders', target: 'orders', status: 'queued', documents: 0, skipped: 0 },
+      { source: 'users', target: 'users', status: 'queued', documents: 0, skipped: 0 },
     ]);
     expect(job?.progress).toBeUndefined();
   });
@@ -104,6 +105,40 @@ describe('copy store progress', () => {
       .applyProgress(JOB, progress({ current: 'users', collectionsDone: 1, documents: 20 }));
     expect(statusesOf(store, JOB)).toEqual(['done', 'copying']);
     expect(store.getState().jobs[JOB]?.progress?.documents).toBe(20);
+  });
+
+  it('counts the documents and skips of each item from the totals at its start', async () => {
+    const { client } = fakeClient();
+    const store = createCopyStore(client);
+    await store.getState().start(TWO_ITEMS);
+
+    store.getState().applyProgress(JOB, progress({ current: 'orders', documents: 0 }));
+    store
+      .getState()
+      .applyProgress(JOB, progress({ current: 'orders', documents: 30, skippedDocuments: 4 }));
+    store.getState().applyProgress(
+      JOB,
+      progress({
+        current: 'users',
+        collectionsDone: 1,
+        documents: 40,
+        skippedDocuments: 5,
+      }),
+    );
+    store.getState().applyProgress(
+      JOB,
+      progress({
+        current: 'users',
+        collectionsDone: 1,
+        documents: 52,
+        skippedDocuments: 6,
+      }),
+    );
+
+    expect(store.getState().jobs[JOB]?.itemStates).toEqual([
+      { source: 'orders', target: 'orders', status: 'done', documents: 40, skipped: 5 },
+      { source: 'users', target: 'users', status: 'copying', documents: 12, skipped: 1 },
+    ]);
   });
 
   it('keeps the final event as the result and marks every item done', async () => {
@@ -182,5 +217,52 @@ describe('copy store progress', () => {
 
     expect(statusesOf(store, JOB)).toEqual(['queued', 'queued']);
     expect(statusesOf(store, OTHER_JOB)).toEqual(['copying']);
+  });
+});
+
+describe('copy store with the mock copy frames', () => {
+  it('gives each item its own documents, and the items add up to the job total', async () => {
+    vi.useFakeTimers();
+    try {
+      const events: RpcEvent[] = [];
+      const mock = createMockCopy({
+        emit: (event) => events.push(event),
+        isProduction: () => false,
+      });
+      const client: CopyClient = {
+        start: (input) =>
+          Promise.resolve({
+            jobId: mock.start({ ...input, acknowledged: input.acknowledged ?? [] }),
+          }),
+        cancel: (input) => {
+          mock.cancel(input.jobId);
+          return Promise.resolve();
+        },
+      };
+      const store = createCopyStore(client);
+      const jobId = await store.getState().start(
+        optionsWith([
+          { source: 'customers', target: 'customers' },
+          { source: 'orders', target: 'orders' },
+          { source: 'users', target: 'users' },
+        ]),
+      );
+      await vi.runAllTimersAsync();
+      for (const event of events) {
+        if (event.type === 'copy:progress') {
+          store.getState().applyProgress(event.jobId, event.progress);
+        }
+      }
+
+      const job = store.getState().jobs[jobId];
+      const perItem = job?.itemStates.map((item) => item.documents) ?? [];
+      expect(perItem).toEqual([750, 750, 750]);
+      expect(perItem.reduce((sum, count) => sum + count, 0)).toBe(
+        job?.result?.documents ?? Number.NaN,
+      );
+      expect(job?.result).toMatchObject({ phase: 'finished', done: true, documents: 2250 });
+    } finally {
+      vi.useRealTimers();
+    }
   });
 });

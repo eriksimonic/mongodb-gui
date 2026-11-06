@@ -1,9 +1,12 @@
+import type { CollectionInfo } from '@mongo-gui/core';
 import { useChangesOpener } from '../changes';
 import { useProfilerOpener } from '../profiler';
 import { useAppStore } from '../state/app-store-context';
 import { shardingAvailability } from '../sharding';
 import { usePanelOpener } from '../state/panel-opener';
 import { useBackupDialogs } from '../backup';
+import { useCopyDialogs } from '../copy';
+import { isCopyable } from '../copy/copy-model';
 import { useGenerateDialog } from '../generate';
 import { collectionCountStatement, collectionSelectStatement } from '../state/collection-query';
 import { TreeMenu, type TreeMenuEntry } from '../kit/TreeMenu';
@@ -40,6 +43,13 @@ export function DatabaseContextMenu({
         : undefined) ?? '',
   );
   const connected = useAppStore((state) => state.statuses[connectionId]?.state === 'connected');
+  const copyEntry: TreeMenuEntry = {
+    kind: 'item',
+    label: 'Copy to…',
+    disabled: !connected,
+    reason: connected ? undefined : 'Not connected',
+    onSelect: () => useCopyDialogs.getState().open({ variant: 'database', connectionId, database }),
+  };
   const entries: TreeMenuEntry[] = [
     {
       kind: 'item',
@@ -106,6 +116,7 @@ export function DatabaseContextMenu({
           onSelect: () =>
             useBackupDialogs.getState().open({ kind: 'restore', connectionId, database }),
         },
+        copyEntry,
       ],
     },
     {
@@ -133,6 +144,7 @@ export interface CollectionContextMenuProps extends MenuPlacement {
   readonly connectionId: string;
   readonly database: string;
   readonly collection: string;
+  readonly collectionType: CollectionInfo['type'] | undefined;
 }
 
 /** Menu for a collection node. Panels open in the dock. Destructive actions open a confirmation. */
@@ -140,6 +152,7 @@ export function CollectionContextMenu({
   connectionId,
   database,
   collection,
+  collectionType,
   position,
   onClose,
 }: CollectionContextMenuProps) {
@@ -148,9 +161,23 @@ export function CollectionContextMenu({
   const setManagementDialog = useAppStore((state) => state.setManagementDialog);
   const setTransferDialog = useAppStore((state) => state.setTransferDialog);
   const refreshDatabase = useAppStore((state) => state.refreshDatabase);
+  const connected = useAppStore((state) => state.statuses[connectionId]?.state === 'connected');
   const sharding = shardingAvailability(useAppStore((state) => state.statuses[connectionId]));
   const target = { connectionId, database, collection };
   const runSql = (sql: string) => () => void openCollectionQuery(target, sql);
+  const copyEntry: TreeMenuEntry = {
+    kind: 'item',
+    label: 'Copy to…',
+    disabled: !connected,
+    reason: connected ? undefined : 'Not connected',
+    onSelect: () =>
+      useCopyDialogs.getState().open({
+        variant: 'one',
+        connectionId,
+        database,
+        collection,
+      }),
+  };
   const entries: TreeMenuEntry[] = [
     {
       kind: 'item',
@@ -243,6 +270,7 @@ export function CollectionContextMenu({
               .getState()
               .open({ kind: 'backup', connectionId, database, collection }),
         },
+        ...(isCopyable({ name: collection, type: collectionType }) ? [copyEntry] : []),
       ],
     },
     { kind: 'divider' },

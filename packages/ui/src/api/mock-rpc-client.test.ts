@@ -431,8 +431,11 @@ describe('mock copy', () => {
     await vi.runAllTimersAsync();
 
     const progress = copyProgressOf(events);
+    // Each item sends a frame that names it before any of its documents, then three frames.
     expect(progress.map((item) => item.phase)).toEqual([
       'preparing',
+      'copying',
+      'copying',
       'copying',
       'copying',
       'copying',
@@ -442,7 +445,9 @@ describe('mock copy', () => {
       'finished',
     ]);
     const copying = progress.filter((item) => item.phase === 'copying');
-    expect(copying.map((item) => item.documents)).toEqual([250, 500, 750, 1000, 1250, 1500]);
+    expect(copying.map((item) => item.documents)).toEqual([
+      0, 250, 500, 750, 750, 1000, 1250, 1500,
+    ]);
     expect(copying[0]?.current).toBe('orders_copy');
     expect(progress.at(-1)).toMatchObject({ done: true, cancelled: false, collectionsDone: 2 });
     expect(events.every((event) => event.type !== 'copy:progress' || event.jobId === jobId)).toBe(

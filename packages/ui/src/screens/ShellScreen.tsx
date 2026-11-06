@@ -29,6 +29,7 @@ import { ShortcutsModal } from '../shortcuts/ShortcutsModal';
 import { shellHotkeys } from '../shortcuts/shortcuts';
 import { TransferModals } from '../transfers';
 import { BackupDialogs } from '../backup';
+import { CopyDialogs } from '../copy';
 import { useGenerateDialog } from '../generate';
 import { UpdateBanner } from '../updates';
 import { ProfilerOpenerContext, type ProfilerOpener } from '../profiler';
@@ -918,6 +919,7 @@ export function ShellScreen() {
                 </Suspense>
               )}
               <BackupDialogs />
+              <CopyDialogs />
             </Flex>
           </ChangesOpenerContext.Provider>
         </GridFsOpenerContext.Provider>

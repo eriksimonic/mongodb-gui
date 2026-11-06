@@ -5,10 +5,12 @@ import { localConnectionId } from '../api/mock-fixtures';
 import { GridFsBucketDialogs } from '../gridfs';
 import { ManagementDialogs } from '../management';
 import { useBackupDialogs } from '../backup';
+import { useCopyDialogs } from '../copy';
 import { TransferModals } from '../transfers';
 import { renderWithApp } from '../test-support/render';
 import { connectedMockApi } from '../api/connected-mock';
 import { ConnectionTree } from './ConnectionTree';
+import { CollectionContextMenu, DatabaseContextMenu } from './CatalogContextMenu';
 import { openSubmenu } from '../test-support/menu';
 
 /** Renders the tree with the management dialog host and opens shop, so its collections show. */
@@ -180,6 +182,103 @@ describe('tree context menus for transfers', () => {
     fireEvent.click(screen.getByText('Import data into new collection'));
 
     await waitFor(() => expect(screen.getByLabelText('New collection name')).toBeInTheDocument());
+  });
+});
+
+describe('tree context menus for copy', () => {
+  afterEach(() => {
+    useCopyDialogs.setState({ request: undefined, jobId: undefined });
+  });
+
+  it('opens a copy request for the collection that was clicked', async () => {
+    await renderTreeWithShopOpen();
+    fireEvent.contextMenu(screen.getByRole('treeitem', { name: 'customers' }));
+    await openSubmenu('Import and export');
+    fireEvent.click(await screen.findByText('Copy to…'));
+
+    expect(useCopyDialogs.getState().request).toEqual({
+      variant: 'one',
+      connectionId: localConnectionId,
+      database: 'shop',
+      collection: 'customers',
+    });
+  });
+
+  it('opens a copy request for the whole database that was clicked', async () => {
+    const { shop } = await renderTreeWithShopOpen();
+    fireEvent.contextMenu(shop);
+    await openSubmenu('Import and backup');
+    fireEvent.click(await screen.findByText('Copy to…'));
+
+    expect(useCopyDialogs.getState().request).toEqual({
+      variant: 'database',
+      connectionId: localConnectionId,
+      database: 'shop',
+    });
+  });
+
+  it('does not offer copy on a view', async () => {
+    await renderTreeWithShopOpen();
+    fireEvent.contextMenu(await screen.findByRole('treeitem', { name: 'paid_orders' }));
+    await openSubmenu('Import and export');
+
+    expect(await screen.findByText('Back up collection…')).toBeInTheDocument();
+    expect(screen.queryByText('Copy to…')).not.toBeInTheDocument();
+  });
+});
+
+describe('copy entries when the connection is not connected', () => {
+  const position = { x: 0, y: 0 };
+
+  it('shows copy disabled with a reason on a database', async () => {
+    renderWithApp(
+      <DatabaseContextMenu
+        connectionId={localConnectionId}
+        database="shop"
+        position={position}
+        onClose={vi.fn()}
+      />,
+    );
+    await openSubmenu('Import and backup');
+
+    const item = await screen.findByRole('menuitem', { name: /Copy to/ });
+    expect(item).toBeDisabled();
+    expect(item).toHaveTextContent('Not connected');
+  });
+
+  it('shows copy disabled with a reason on a collection', async () => {
+    renderWithApp(
+      <CollectionContextMenu
+        connectionId={localConnectionId}
+        database="shop"
+        collection="customers"
+        collectionType="collection"
+        position={position}
+        onClose={vi.fn()}
+      />,
+    );
+    await openSubmenu('Import and export');
+
+    const item = await screen.findByRole('menuitem', { name: /Copy to/ });
+    expect(item).toBeDisabled();
+    expect(item).toHaveTextContent('Not connected');
+  });
+
+  it('hides copy on a view even when the connection is not connected', async () => {
+    renderWithApp(
+      <CollectionContextMenu
+        connectionId={localConnectionId}
+        database="shop"
+        collection="paid_orders"
+        collectionType="view"
+        position={position}
+        onClose={vi.fn()}
+      />,
+    );
+    await openSubmenu('Import and export');
+
+    expect(await screen.findByText('Back up collection…')).toBeInTheDocument();
+    expect(screen.queryByText(/Copy to/)).not.toBeInTheDocument();
   });
 });
 

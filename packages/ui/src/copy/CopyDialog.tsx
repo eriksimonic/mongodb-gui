@@ -309,6 +309,11 @@ function CopyForm({
           />
         </Stack>
       ) : null}
+      {rows.length === 0 ? (
+        <Text size="sm" c="dimmed">
+          This database has no collections to copy.
+        </Text>
+      ) : null}
       <CopyItemsEditor
         variant={variant}
         rows={rows}

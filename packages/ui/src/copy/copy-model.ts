@@ -1,5 +1,6 @@
 import {
   CollectionNameSchema,
+  type CollectionInfo,
   type CopyItem,
   type CopyMode,
   type CopyOptions,
@@ -33,6 +34,14 @@ export const MODE_HELP: Readonly<Record<CopyMode, string>> = {
   merge: 'Upserts by _id and copies documents only. Target indexes are not changed.',
   insertOnly: 'Skips documents whose _id already exists in the target.',
 };
+
+/** Views and system collections are not copied. The copy service skips them too. */
+export function isCopyable(collection: {
+  readonly name: string;
+  readonly type?: CollectionInfo['type'] | undefined;
+}): boolean {
+  return collection.type !== 'view' && !collection.name.startsWith('system.');
+}
 
 /** One checked row per collection, each named after its source. */
 export function rowsFor(collections: readonly string[]): CopyRow[] {
