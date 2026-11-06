@@ -77,3 +77,6 @@ export {
   isReplicaSet,
 } from './replication/status';
 export * from './sharding/index';
+export { dropCollectionIfExists, type CollectionRef } from './copy/rename';
+export { mergeCollection, type MergeCounts, type MergeOptions } from './copy/upsert-writer';
+export { serverIdentity, type ServerIdentity } from './copy/identity';
