@@ -207,8 +207,11 @@ export const coverageMap: Readonly<Record<string, Coverage>> = {
   'backup.startRestore': { journey: 'restore.spec.ts' },
   'backup.cancel': { excluded: 'no journey planned yet' },
 
-  'copy.start': { excluded: 'copy journey comes with R2 (T12)' },
-  'copy.cancel': { excluded: 'copy journey comes with R2 (T12)' },
+  'copy.start': { journey: 'copy.spec.ts' },
+  'copy.cancel': {
+    excluded:
+      'no wiring step: a Cancel click needs a copy that runs long enough, which the sample does not; covered by the integration test "cancels a replace mid-copy and keeps the old target data"',
+  },
 
   'savedBackups.list': { journey: 'backup.spec.ts' },
   'savedBackups.save': { excluded: 'no journey planned yet' },
