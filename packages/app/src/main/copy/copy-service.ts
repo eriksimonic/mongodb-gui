@@ -3,19 +3,17 @@ import {
   appError,
   AppErrorException,
   assessCopy,
-  compareVersions,
   copyDumpArgs,
   copyRestoreArgs,
-  firstToolsFor,
   newId,
+  newestFittingTools,
   parseRestoreCounts,
   sameServer,
   tempCollectionName,
   toolsConfigYaml,
+  unresolvedCopyFindings,
   type AppError,
   type ConnectionProfile,
-  type CopyFinding,
-  type CopyFindingCode,
   type CopyItem,
   type CopyMode,
   type CopyOptions,
@@ -188,18 +186,6 @@ async function masked<T>(secrets: readonly string[], action: () => Promise<T>): 
   }
 }
 
-/** The findings that stop a copy: every block, and each strong finding the user did not acknowledge. */
-function unresolvedCopyFindings(
-  findings: readonly CopyFinding[],
-  acknowledged: readonly CopyFindingCode[],
-): CopyFinding[] {
-  return findings.filter(
-    (item) =>
-      item.severity === 'block' ||
-      (item.severity === 'strong' && !acknowledged.includes(item.code)),
-  );
-}
-
 /** Parses one item filter. The text must be an EJSON object. */
 function parseFilter(item: CopyItem): FilterDocument | undefined {
   if (item.filter === undefined) return undefined;
@@ -222,12 +208,7 @@ async function chooseTools(
   const installed = listed.installs
     .filter((install) => install.health.state === 'ok')
     .map((install) => install.version);
-  const minimums = serverVersions
-    .map((version) => firstToolsFor(version)?.tools)
-    .filter((version): version is string => version !== undefined);
-  const fits = (version: string) =>
-    minimums.every((minimum) => compareVersions(version, minimum) >= 0);
-  const best = installed.filter(fits).sort((a, b) => compareVersions(b, a))[0];
+  const best = newestFittingTools(installed, serverVersions);
   const tools =
     best === undefined ? await registry.resolvePreferred('auto') : await registry.resolve(best);
   return { tools, installed };

@@ -65,6 +65,7 @@ export * from './copy/assess';
 export * from './copy/options';
 export * from './copy/parse-restore';
 export * from './copy/server-identity';
+export * from './copy/start-checks';
 export * from './copy/temp-name';
 export * from './replication/normalise';
 export * from './replication/patch-rules';
