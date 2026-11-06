@@ -187,6 +187,34 @@ describe('assessCopy', () => {
     expect(codes(assessCopy(timeseriesTarget))).not.toContain('copy-timeseries-insert');
   });
 
+  it('blocks replace from a time series source into an existing plain collection', () => {
+    const base = facts({
+      sourceNamespaces: [{ database: 'shop', collection: 'orders', type: 'timeseries' }],
+    });
+    const plainTarget = {
+      ...base,
+      targetNamespaces: [
+        { database: 'shop_copy', collection: 'orders', type: 'collection' as const },
+      ],
+    };
+    expect(assessCopy(plainTarget)).toContainEqual(
+      expect.objectContaining({ code: 'copy-timeseries-replace', severity: 'block' }),
+    );
+    expect(codes(assessCopy(base))).not.toContain('copy-timeseries-replace');
+    const timeseriesTarget = {
+      ...base,
+      targetNamespaces: [
+        { database: 'shop_copy', collection: 'orders', type: 'timeseries' as const },
+      ],
+    };
+    expect(codes(assessCopy(timeseriesTarget))).not.toContain('copy-timeseries-replace');
+    const insertOnly = {
+      ...plainTarget,
+      options: { ...plainTarget.options, mode: 'insertOnly' as const },
+    };
+    expect(codes(assessCopy(insertOnly))).not.toContain('copy-timeseries-replace');
+  });
+
   it('lists views as skipped and leaves them out of the overlap check', () => {
     const findings = assessCopy(
       facts({

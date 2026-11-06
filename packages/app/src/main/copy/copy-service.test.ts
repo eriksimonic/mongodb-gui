@@ -645,4 +645,18 @@ describe('copy service: time series source', () => {
     });
     expect(h.runTool).not.toHaveBeenCalled();
   });
+
+  it('refuses replace from a time series source into an existing plain collection', async () => {
+    const h = harness({
+      sourceNamespaces: timeseriesSource,
+      targetNamespaces: [{ database: 'archive', collection: 'orders', type: 'collection' }],
+    });
+    await expect(h.service.start(options({ mode: 'replace' }))).rejects.toMatchObject({
+      error: { code: 'VALIDATION', message: expect.stringContaining('Drop the target first') },
+    });
+    expect(h.runTool).not.toHaveBeenCalled();
+    expect(h.dropIfExists).not.toHaveBeenCalled();
+    expect(h.rename).not.toHaveBeenCalled();
+    expect(h.registry.markInUse).not.toHaveBeenCalled();
+  });
 });

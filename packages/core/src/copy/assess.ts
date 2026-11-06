@@ -19,6 +19,7 @@ export const CopyFindingCodeSchema = z.enum([
   'copy-timeseries-target',
   'copy-timeseries-merge',
   'copy-timeseries-insert',
+  'copy-timeseries-replace',
   'copy-skipped-namespaces',
 ]);
 export const CopyFindingSchema = FindingSchema.extend({ code: CopyFindingCodeSchema });
@@ -167,8 +168,8 @@ export function assessCopy(facts: CopyFacts): CopyFinding[] {
       ),
     );
   }
-  // Insert only restores the buckets of a time series source. An existing plain collection
-  // cannot take them, so the copy would fail part way.
+  // A time series source is restored as its buckets. An existing plain collection cannot take
+  // them, and replace drops only the buckets, so the plain collection would stay.
   const plainTargets = timeseriesSources.filter((item) =>
     facts.targetNamespaces.some(
       (ns) =>
@@ -176,13 +177,24 @@ export function assessCopy(facts: CopyFacts): CopyFinding[] {
         key(ns.database, ns.collection) === key(targetDatabase, item.target),
     ),
   );
+  const plainNames = plainTargets.map((item) => key(targetDatabase, item.target)).join(', ');
   if (options.mode === 'insertOnly' && plainTargets.length > 0) {
     findings.push(
       finding(
         'copy-timeseries-insert',
         'block',
         'Insert only cannot add time series data to a collection that is not time series. Use replace.',
-        plainTargets.map((item) => key(targetDatabase, item.target)).join(', '),
+        plainNames,
+      ),
+    );
+  }
+  if (options.mode === 'replace' && plainTargets.length > 0) {
+    findings.push(
+      finding(
+        'copy-timeseries-replace',
+        'block',
+        'Replace cannot write a time series source over a collection that is not time series. Drop the target first.',
+        plainNames,
       ),
     );
   }
