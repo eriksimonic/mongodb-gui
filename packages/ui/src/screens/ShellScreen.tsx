@@ -324,6 +324,7 @@ function openStoragePanel(api: DockviewApi, request: StoragePanelRequest): void 
   const id = storagePanelId(request.connectionId);
   const existing = api.getPanel(id);
   if (existing !== undefined) {
+    existing.api.updateParameters({ database: request.database });
     existing.api.setActive();
     return;
   }

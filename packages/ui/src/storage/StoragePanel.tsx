@@ -75,6 +75,12 @@ export function StoragePanel({ connectionId, focusDatabase }: StoragePanelProps)
   const { rpc } = useUiApi();
   const [store] = useState(() => createStorageStore({ connectionId }, rpc.diagnostics));
   const [drill, setDrill] = useState<StorageDrill>({ database: focusDatabase });
+  const [seenFocus, setSeenFocus] = useState(focusDatabase);
+  if (seenFocus !== focusDatabase) {
+    // A new request while the panel is open: drill to the requested database.
+    setSeenFocus(focusDatabase);
+    setDrill({ database: focusDatabase });
+  }
   const [metric, setMetric] = useState<StorageMetric>('storage');
   const [filter, setFilter] = useState('');
   const databases = useStore(store, (state) => state.databases);

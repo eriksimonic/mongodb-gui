@@ -2,6 +2,7 @@
 import { fireEvent, screen, within } from '@testing-library/react';
 import { describe, expect, it } from 'vitest';
 import { connectedMockApi } from '../api/connected-mock';
+import { AppRoot } from '../AppRoot';
 import { localConnectionId } from '../api/mock-fixtures';
 import { formatBytes } from '../diagnostics/format';
 import { renderWithApp } from '../test-support/render';
@@ -95,7 +96,9 @@ describe('StoragePanel', () => {
     renderWithApp(<StoragePanel connectionId={localConnectionId} />, { api });
 
     fireEvent.click(await screen.findByTestId('storage-row-shop'));
-    const tile = (await screen.findByTestId('storage-row-orders')).closest('[role="row"]') as HTMLElement;
+    const tile = (await screen.findByTestId('storage-row-orders')).closest(
+      '[role="row"]',
+    ) as HTMLElement;
     expect(within(tile).getAllByText(formatBytes(640 * MB)).length).toBeGreaterThan(0);
 
     fireEvent.click(screen.getByLabelText('Data size'));
@@ -109,5 +112,19 @@ describe('StoragePanel', () => {
 
     expect(await screen.findByTestId('storage-row-app')).toBeInTheDocument();
     expect(screen.getByTestId('storage-row-access')).toBeInTheDocument();
+  });
+
+  it('follows a new focusDatabase while it is open', async () => {
+    const api = await connectedMockApi();
+    const panel = (database: string) => (
+      <StoragePanel connectionId={localConnectionId} focusDatabase={database} />
+    );
+    const { rerender } = renderWithApp(panel('logs'), { api });
+    expect(await screen.findByTestId('storage-row-app')).toBeInTheDocument();
+
+    rerender(<AppRoot api={api}>{panel('shop')}</AppRoot>);
+
+    expect(await screen.findByTestId('storage-row-orders')).toBeInTheDocument();
+    expect(screen.queryByTestId('storage-row-app')).not.toBeInTheDocument();
   });
 });

@@ -205,8 +205,6 @@ The release workflow in `.github/workflows/release.yml` builds the installers. S
 - Storage usage panel: the adapter integration test (`packages/mongo-adapter`) and the e2e smoke
   spec have never run, because Docker is not installed on the dev machine. Run
   `pnpm run test:integration` and the e2e smoke spec on a machine with Docker, then fix what fails.
-- Storage usage panel: opening Storage for a database while the panel is already open ignores the
-  new database focus. Make the open panel follow the requested database, with a test.
 - Journey batch 2: the coverage check fails when run on the standalone trace alone, because the
   replica-set and Docker journeys are missing from it. Decide whether the check merges all segment
   traces or accepts one segment, then update `e2e/coverage-check.ts` to match.
