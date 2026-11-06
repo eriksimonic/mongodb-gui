@@ -19,7 +19,7 @@ export interface CopyRestoreArgsInput {
   readonly mode: Exclude<CopyMode, 'merge'>;
   // The source is a time series collection. Its data sits in system.buckets.<name>, so that
   // namespace gets its own rename pair.
-  readonly timeseries?: boolean;
+  readonly timeseries: boolean;
 }
 
 const bucketsOf = (ref: NamespaceRef): NamespaceRef => ({
@@ -59,7 +59,7 @@ export function copyRestoreArgs(input: CopyRestoreArgsInput): string[] {
       options,
     }),
     ...collectionRenameArgs(input.source, input.target),
-    ...(input.timeseries === true
+    ...(input.timeseries
       ? collectionRenameArgs(bucketsOf(input.source), bucketsOf(input.target))
       : []),
   ];

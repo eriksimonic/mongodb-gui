@@ -167,7 +167,7 @@ function harness(fixture: Partial<Fixture> = {}) {
     ) as unknown as CopyServiceDeps['readServerInfo'],
     identify: vi.fn(async (client: Client) => ({
       hosts: [(client as unknown as { host: string }).host],
-      replicaSet: undefined,
+      setName: undefined,
     })) as unknown as CopyServiceDeps['identify'],
     rename: rename as unknown as CopyServiceDeps['rename'],
     dropIfExists: dropIfExists as unknown as CopyServiceDeps['dropIfExists'],

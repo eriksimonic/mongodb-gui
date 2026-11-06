@@ -260,7 +260,7 @@ describe.each(MONGO_IMAGES)('copy helpers on %s', (image) => {
         const second = await withClient(uri, serverIdentity);
 
         expect(first.hosts).toHaveLength(1);
-        expect(first.replicaSet).toBeUndefined();
+        expect(first.setName).toBeUndefined();
         expect(second).toEqual(first);
       },
       TEST_TIMEOUT_MS,
@@ -294,7 +294,7 @@ describe.each(MONGO_IMAGES)('copy helpers on %s', (image) => {
 
         expect(seen.statusDenied).toBe(true);
         expect(seen.connectionHosts).toHaveLength(1);
-        expect(seen.identity).toEqual({ hosts: seen.connectionHosts, replicaSet: undefined });
+        expect(seen.identity).toEqual({ hosts: seen.connectionHosts, setName: undefined });
       },
       TEST_TIMEOUT_MS,
     );
@@ -341,7 +341,7 @@ describe('serverIdentity tells servers apart', () => {
 
       const identity = await withClient(member.directUri, serverIdentity);
 
-      expect(identity).toEqual({ hosts: [member.host], replicaSet: REPLICA_SET_NAME });
+      expect(identity).toEqual({ hosts: [member.host], setName: REPLICA_SET_NAME });
     },
     TEST_TIMEOUT_MS,
   );

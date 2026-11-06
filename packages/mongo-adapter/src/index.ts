@@ -79,4 +79,4 @@ export {
 export * from './sharding/index';
 export { dropCollectionIfExists, type CollectionRef } from './copy/rename';
 export { mergeCollection, type MergeCounts, type MergeOptions } from './copy/upsert-writer';
-export { serverIdentity, type ServerIdentity } from './copy/identity';
+export { serverIdentity } from './copy/identity';

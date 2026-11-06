@@ -37,6 +37,7 @@ describe('copyRestoreArgs', () => {
         source: { database: 'shop', collection: 'orders' },
         target: { database: 'shop', collection: '__copy_x_orders' },
         mode: 'replace',
+        timeseries: false,
       }),
     ).toEqual([
       `--config=${CONFIG}`,
@@ -51,7 +52,13 @@ describe('copyRestoreArgs', () => {
   it('insert only skips the index restore and writes the same name without renames', () => {
     const ns = { database: 'shop_copy', collection: 'orders' };
     expect(
-      copyRestoreArgs({ configPath: CONFIG, source: ns, target: ns, mode: 'insertOnly' }),
+      copyRestoreArgs({
+        configPath: CONFIG,
+        source: ns,
+        target: ns,
+        mode: 'insertOnly',
+        timeseries: false,
+      }),
     ).toEqual([`--config=${CONFIG}`, '--archive', '--noIndexRestore', ...TAIL]);
   });
 
@@ -92,7 +99,13 @@ describe('copyRestoreArgs', () => {
       '--nsFrom=shop.system.buckets.metrics',
       '--nsTo=shopcopy.system.buckets.metrics2',
     ]);
-    const plain = copyRestoreArgs({ configPath: CONFIG, source, target, mode: 'insertOnly' });
+    const plain = copyRestoreArgs({
+      configPath: CONFIG,
+      source,
+      target,
+      mode: 'insertOnly',
+      timeseries: false,
+    });
     expect(plain.filter((arg) => arg.includes('system.buckets'))).toEqual([]);
     expect(plain.slice(-2)).toEqual(['--nsFrom=shop.metrics', '--nsTo=shopcopy.metrics2']);
   });

@@ -23,11 +23,9 @@ import {
 } from '@mongo-gui/core';
 import {
   dropCollectionIfExists,
-  mapDriverError,
   mergeCollection,
   parseCommandEjson,
   readBackupServerInfo,
-  redactPassword,
   renameCollection,
   serverIdentity,
   type ConnectionManager,
@@ -35,8 +33,8 @@ import {
 import type { CopyService } from '../rpc/copy';
 import type { ToolsEndpoint } from '../backup/endpoint';
 import { log as defaultLog, type Logger } from '../log';
-import { redactText } from '../redact';
 import { openConfigPipe, type ConfigPipe } from '../backup/temp-config';
+import { masked, toAppError } from '../backup/tool-errors';
 import { runTool } from '../backup/tool-process';
 import type { SpawnFn } from '../tools/probe';
 import type { ResolvedTools, ToolsRegistry } from '../tools/registry';
@@ -153,41 +151,6 @@ function isCancelled(reason: unknown): boolean {
   return reason instanceof AppErrorException && reason.error.code === 'CANCELLED';
 }
 
-/**
- * An AppError for any failure, with every secret masked. A driver failure is mapped as the other
- * calls map it; any other failure is INTERNAL.
- */
-function toAppError(failure: unknown, secrets: readonly string[], driver = false): AppError {
-  const error =
-    failure instanceof AppErrorException
-      ? failure.error
-      : driver
-        ? mapDriverError(failure)
-        : appError('INTERNAL', failure instanceof Error ? failure.message : String(failure));
-  const sorted = [...secrets].sort((a, b) => b.length - a.length);
-  const mask = (text: string): string =>
-    sorted.reduce(
-      (value, secret) => redactPassword(value, secret),
-      redactPassword(redactText(text)),
-    );
-  const { detail, cause, ...rest } = error;
-  return {
-    ...rest,
-    message: mask(rest.message),
-    ...(detail === undefined ? {} : { detail: mask(detail) }),
-    ...(cause === undefined ? {} : { cause: mask(cause) }),
-  };
-}
-
-/** Runs a driver call during a start or a job. Rethrows its error mapped and masked. */
-async function masked<T>(secrets: readonly string[], action: () => Promise<T>): Promise<T> {
-  try {
-    return await action();
-  } catch (failure) {
-    throw new AppErrorException(toAppError(failure, secrets, true));
-  }
-}
-
 /** Parses one item filter. The text must be an EJSON object. */
 function parseFilter(item: CopyItem): FilterDocument | undefined {
   if (item.filter === undefined) return undefined;
@@ -259,10 +222,7 @@ export function createCopyService(deps: CopyServiceDeps): CopyJobs {
       source: sourceInfo,
       target: targetInfo,
       tools: { selected: tools.install.version, installed, available: [] },
-      sameServer: sameServer(
-        { hosts: sourceId.hosts, setName: sourceId.replicaSet },
-        { hosts: targetId.hosts, setName: targetId.replicaSet },
-      ),
+      sameServer: sameServer(sourceId, targetId),
       options: {
         sourceDatabase: options.sourceDatabase,
         targetDatabase: options.targetDatabase,
@@ -522,12 +482,7 @@ export function createCopyService(deps: CopyServiceDeps): CopyJobs {
     }
   }
 
-  async function copyItem(
-    job: Job,
-    plan: CopyPlan,
-    item: PlanItem,
-    report: Reporter,
-  ): Promise<void> {
+  function copyItem(job: Job, plan: CopyPlan, item: PlanItem, report: Reporter): Promise<void> {
     const { options } = plan;
     const source = { database: options.sourceDatabase, collection: item.source };
     const target = { database: options.targetDatabase, collection: item.target };

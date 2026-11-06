@@ -38,9 +38,7 @@ import {
   type RestoreStartInput,
   type RpcEvent,
 } from '@mongo-gui/core';
-import { mapDriverError, redactPassword } from '@mongo-gui/mongo-adapter';
 import { log as defaultLog, type Logger } from '../log';
-import { redactText } from '../redact';
 import type { SpawnFn } from '../tools/probe';
 import type { ResolvedTools, ToolsRegistry } from '../tools/registry';
 import { toolEnv } from '../tools/tool-env';
@@ -49,6 +47,7 @@ import { hashDirectory, hashFile, listFiles } from './file-hash';
 import { createProgressTracker, type ProgressTracker } from './progress-tracker';
 import { buildSidecar, writeSidecar } from './sidecar-writer';
 import { openConfigPipe, type ConfigPipe } from './temp-config';
+import { masked, toAppError } from './tool-errors';
 import { runTool } from './tool-process';
 
 /** Progress events per job, at most this often. Phase changes and the final event are not throttled. */
@@ -135,41 +134,6 @@ interface RestorePlan {
 
 function invalid(message: string): AppErrorException {
   return new AppErrorException(appError('VALIDATION', message));
-}
-
-/**
- * An AppError for any failure, with every secret masked. A driver failure is mapped as the other
- * calls map it; any other failure is INTERNAL.
- */
-function toAppError(failure: unknown, secrets: readonly string[], driver = false): AppError {
-  const error =
-    failure instanceof AppErrorException
-      ? failure.error
-      : driver
-        ? mapDriverError(failure)
-        : appError('INTERNAL', failure instanceof Error ? failure.message : String(failure));
-  const sorted = [...secrets].sort((a, b) => b.length - a.length);
-  const mask = (text: string): string =>
-    sorted.reduce(
-      (value, secret) => redactPassword(value, secret),
-      redactPassword(redactText(text)),
-    );
-  const { detail, cause, ...rest } = error;
-  return {
-    ...rest,
-    message: mask(rest.message),
-    ...(detail === undefined ? {} : { detail: mask(detail) }),
-    ...(cause === undefined ? {} : { cause: mask(cause) }),
-  };
-}
-
-/** Runs a driver call during a start check. Rethrows its error mapped and masked. */
-async function masked<T>(secrets: readonly string[], action: () => Promise<T>): Promise<T> {
-  try {
-    return await action();
-  } catch (failure) {
-    throw new AppErrorException(toAppError(failure, secrets, true));
-  }
 }
 
 function refuseUnresolved(findings: Finding[]): void {

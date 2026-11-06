@@ -1,3 +1,5 @@
+import { utf8ByteLength } from '../schemas/layout';
+
 const TEMP_PREFIX = '__copy_';
 // The most bytes in "database.collection".
 const MAX_NAMESPACE_BYTES = 255;
@@ -8,10 +10,10 @@ const MAX_NAMESPACE_BYTES = 255;
  */
 export function tempCollectionName(database: string, target: string, jobId: string): string {
   const prefix = `${TEMP_PREFIX}${jobId}_`;
-  let room = MAX_NAMESPACE_BYTES - utf8Bytes(database) - 1 - utf8Bytes(prefix);
+  let room = MAX_NAMESPACE_BYTES - utf8ByteLength(database) - 1 - utf8ByteLength(prefix);
   let kept = '';
   for (const char of target) {
-    const size = utf8Bytes(char);
+    const size = utf8ByteLength(char);
     if (size > room) {
       break;
     }
@@ -19,14 +21,4 @@ export function tempCollectionName(database: string, target: string, jobId: stri
     room -= size;
   }
   return `${prefix}${kept}`;
-}
-
-// UTF-8 length, counted per code point. The core package uses no DOM or Node types here.
-function utf8Bytes(value: string): number {
-  let bytes = 0;
-  for (const char of value) {
-    const code = char.codePointAt(0) ?? 0;
-    bytes += code < 0x80 ? 1 : code < 0x800 ? 2 : code < 0x10000 ? 3 : 4;
-  }
-  return bytes;
 }
