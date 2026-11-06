@@ -36,7 +36,7 @@ function CopyRequestDialog({ request }: { readonly request: CopyDialogRequest })
   }, [variant, connectionId, database, loadCollections]);
 
   // The dialog builds its rows once, from the collections it gets on mount. Wait for the list.
-  if (request.variant === 'one') {
+  if (variant === 'one') {
     return (
       <CopyDialog
         sourceConnectionId={connectionId}

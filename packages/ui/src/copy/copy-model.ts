@@ -1,5 +1,6 @@
 import {
   CollectionNameSchema,
+  CopyModeSchema,
   type CollectionInfo,
   type CopyItem,
   type CopyMode,
@@ -21,7 +22,7 @@ export interface CopyRow {
   readonly included: boolean;
 }
 
-export const COPY_MODES: readonly CopyMode[] = ['replace', 'merge', 'insertOnly'];
+export const COPY_MODES: readonly CopyMode[] = CopyModeSchema.options;
 
 export const MODE_LABELS: Readonly<Record<CopyMode, string>> = {
   replace: 'Drop and replace',

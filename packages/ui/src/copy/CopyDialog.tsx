@@ -348,9 +348,6 @@ function CopyForm({
           );
         }}
         connectionName={targetName}
-        confirmation=""
-        onConfirmationChange={() => undefined}
-        onUseTools={() => undefined}
       />
       {loadProblem === undefined ? null : (
         <Alert color="red" role="alert">

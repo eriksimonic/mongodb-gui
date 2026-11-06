@@ -19,10 +19,11 @@ export interface CompatibilityFindingsProps {
   readonly onAcknowledge: (code: FindingCode, checked: boolean) => void;
   /** The connection name the user must type to go ahead past a confirmable block. */
   readonly connectionName: string;
-  readonly confirmation: string;
-  readonly onConfirmationChange: (value: string) => void;
+  /** The typed connection name. Empty when the caller has no confirmable block. */
+  readonly confirmation?: string;
+  readonly onConfirmationChange?: (value: string) => void;
   /** Called for the "Use X" action, and once a download started from "Download X" is done. */
-  readonly onUseTools: (version: ToolsVersion) => void;
+  readonly onUseTools?: (version: ToolsVersion) => void;
   /** Called instead of onUseTools once a download is done, so the caller can reload its list. */
   readonly onDownloaded?: ((version: ToolsVersion) => void) | undefined;
   /** The end of the confirmation label. Backup has no confirmable block, so restore sets it. */
@@ -35,7 +36,7 @@ export function CompatibilityFindings({
   acknowledged,
   onAcknowledge,
   connectionName,
-  confirmation,
+  confirmation = '',
   onConfirmationChange,
   onUseTools,
   onDownloaded,
@@ -72,7 +73,7 @@ export function CompatibilityFindings({
                   onClick={() => {
                     const { action } = finding;
                     if (action?.kind === 'use-tools') {
-                      onUseTools(action.version);
+                      onUseTools?.(action.version);
                     } else if (action !== undefined) {
                       setDownloadVersion(action.version);
                     }
@@ -97,7 +98,7 @@ export function CompatibilityFindings({
                 label={`Type ${connectionName} to ${confirmAction}`}
                 value={confirmation}
                 onChange={(event) => {
-                  onConfirmationChange(event.currentTarget.value);
+                  onConfirmationChange?.(event.currentTarget.value);
                 }}
               />
             ) : null}
@@ -112,7 +113,7 @@ export function CompatibilityFindings({
         }}
         onDone={(version) => {
           setDownloadVersion(undefined);
-          (onDownloaded ?? onUseTools)(version);
+          (onDownloaded ?? onUseTools)?.(version);
         }}
       />
     </Stack>

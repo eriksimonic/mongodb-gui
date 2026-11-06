@@ -216,11 +216,9 @@ function JobSummary({
   const tally = stopped
     ? `Processed ${count(result.documents)} documents before the stop`
     : `Copied ${count(result.documents)} documents`;
-  let keptLine =
-    'Collections that finished stay in the target. The collection being written when the job stopped may be partly filled.';
-  if (hasNotes) {
-    keptLine = 'The target may be partly written. Read the warnings above.';
-  }
+  const keptLine = hasNotes
+    ? 'The target may be partly written. Read the warnings above.'
+    : 'Collections that finished stay in the target. The collection being written when the job stopped may be partly filled.';
   return (
     <Alert color={color} title={resultTitle(result)} role={color === 'red' ? 'alert' : 'status'}>
       <Stack gap={4}>

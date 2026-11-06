@@ -1,4 +1,4 @@
-import { Button, Checkbox, Group, Stack, Text, TextInput, Textarea } from '@mantine/core';
+import { Button, Checkbox, Group, Stack, TextInput, Textarea } from '@mantine/core';
 import { useId, useState } from 'react';
 import type { CopyRow, CopyVariant } from './copy-model';
 
@@ -22,9 +22,6 @@ export function CopyItemsEditor({
 }: CopyItemsEditorProps) {
   const baseId = useId();
   const [expanded, setExpanded] = useState<readonly string[]>([]);
-  if (rows.length === 0) {
-    return <Text size="sm">The database has no collections to copy.</Text>;
-  }
   const several = variant !== 'one';
 
   return (
