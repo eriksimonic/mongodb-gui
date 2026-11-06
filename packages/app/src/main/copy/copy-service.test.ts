@@ -22,6 +22,9 @@ const SOURCE_ID = '3f2b8c1e-5d4a-4b7e-9c1f-2a6d8e0b7f10';
 const TARGET_ID = '7a1d2e3f-4b5c-4d6e-8f70-123456789abc';
 const PASSWORD = 'Sup3r-Secret';
 const VERSION = '100.19.1';
+// Each tool run first starts a real mkfifo process, so the job takes longer under load than
+// vitest's 1 s default wait. Every wait in this file uses this bound.
+const WAIT_MS = 10_000;
 
 type Client = ReturnType<CopyServiceDeps['getClient']>;
 type RunToolOptions = Parameters<CopyServiceDeps['runTool']>[0];
@@ -207,7 +210,7 @@ function finalProgress(events: RpcEvent[]): CopyProgress | undefined {
 async function waitForFinal(events: RpcEvent[]): Promise<CopyProgress> {
   await vi.waitFor(() => {
     expect(finalProgress(events)).toBeDefined();
-  });
+  }, WAIT_MS);
   const final = finalProgress(events);
   if (final === undefined) throw new Error('The job sent no final event');
   return final;
@@ -294,7 +297,7 @@ describe('copy service: replace', () => {
     const jobId = await h.service.start(options());
     await vi.waitFor(() => {
       expect(h.runTool).toHaveBeenCalledTimes(2);
-    });
+    }, WAIT_MS);
 
     h.service.cancel(jobId);
     const final = await waitForFinal(h.events);
@@ -318,7 +321,7 @@ describe('copy service: replace', () => {
     await h.service.start(options());
     await vi.waitFor(() => {
       expect(h.runTool).toHaveBeenCalledTimes(2);
-    });
+    }, WAIT_MS);
 
     h.service.cancelAll();
     const final = await waitForFinal(h.events);
@@ -513,7 +516,7 @@ describe('copy service: stops and failures', () => {
     await h.service.start(options());
     await vi.waitFor(() => {
       expect(h.runTool).toHaveBeenCalledTimes(2);
-    });
+    }, WAIT_MS);
     await new Promise((resolve) => setTimeout(resolve, 20));
     expect(h.dropIfExists).not.toHaveBeenCalled();
 
@@ -559,7 +562,7 @@ describe('copy service: stops and failures', () => {
     const jobId = await h.service.start(options());
     await vi.waitFor(() => {
       expect(h.runTool).toHaveBeenCalledTimes(2);
-    });
+    }, WAIT_MS);
 
     h.service.cancelConnection('0b8e2f4a-1c3d-4e5f-8a6b-7c9d0e1f2a3b');
     await new Promise((resolve) => setTimeout(resolve, 20));
@@ -575,7 +578,7 @@ describe('copy service: stops and failures', () => {
     await h.service.start(options());
     await vi.waitFor(() => {
       expect(h.runTool).toHaveBeenCalledTimes(2);
-    });
+    }, WAIT_MS);
 
     await h.service.dispose();
     expect(finalProgress(h.events)).toMatchObject({ cancelled: true });
