@@ -6,6 +6,7 @@ import { createMockUiApi, type MockUiApiOptions } from '../api/mock-rpc-client';
 import { localConnectionId } from '../api/mock-fixtures';
 import type { UiApi } from '../api/ui-api';
 import { renderWithApp } from '../test-support/render';
+import { FIXTURE_BACKUP_NAMESPACES, fixtureInspection } from './mock-fixtures';
 import { RestoreDialogBody } from './RestoreDialog';
 
 async function renderDialog(mock: MockUiApiOptions = { preset: 'unlocked' }): Promise<UiApi> {
@@ -262,5 +263,115 @@ describe('RestoreDialog', () => {
       'cannot be opened from /backups/gone.archive',
     );
     expect(screen.getByRole('button', { name: 'Restore' })).toBeDisabled();
+  });
+});
+
+describe('RestoreDialog production gate', () => {
+  // The mock only connects to localhost URIs, so the production profile points there.
+  async function renderIntoProduction(api = createMockUiApi({ preset: 'unlocked' })) {
+    const production = await api.rpc.connections.create({
+      name: 'Production',
+      uri: 'mongodb://app:secret@localhost:27017/?authSource=admin',
+      color: '#e63946',
+      production: true,
+    });
+    await api.rpc.connections.connect({ id: production.id });
+    renderWithApp(<RestoreDialogBody connectionId={production.id} onClose={() => undefined} />, {
+      api,
+    });
+    return api;
+  }
+
+  it('keeps Restore disabled on a production connection until the database name is typed', async () => {
+    const api = await renderIntoProduction();
+    const spy = vi.spyOn(api.rpc.backup, 'startRestore');
+    await chooseArchive();
+    // The mock target is a newer server than the backup, so the block needs its name typed.
+    const anyway = screen.queryByLabelText(/^Type .* to restore anyway$/);
+    if (anyway !== null) {
+      fireEvent.change(anyway, { target: { value: 'Production' } });
+    }
+    for (const box of screen.queryAllByLabelText('I understand')) {
+      fireEvent.click(box);
+    }
+    const restore = screen.getByRole('button', { name: 'Restore' });
+    const typed = screen.getByLabelText('Type shop to confirm');
+    expect(restore).toBeDisabled();
+
+    fireEvent.change(typed, { target: { value: 'Shop' } });
+    expect(restore).toBeDisabled();
+    fireEvent.change(typed, { target: { value: 'shop' } });
+    await waitFor(() => expect(restore).toBeEnabled());
+    fireEvent.click(restore);
+    await waitFor(() => expect(spy).toHaveBeenCalledTimes(1));
+  });
+
+  it('needs a name typed for each database of a production restore', async () => {
+    const api = createMockUiApi({ preset: 'unlocked' });
+    vi.spyOn(api.rpc.backup, 'inspect').mockResolvedValue({
+      ...fixtureInspection('/mock/shop.archive'),
+      namespaces: [
+        ...FIXTURE_BACKUP_NAMESPACES,
+        { database: 'orders', collection: 'items', type: 'collection', documents: 3 },
+      ],
+    });
+    await renderIntoProduction(api);
+    await chooseArchive();
+    // The mock target is a newer server than the backup, so the block needs its name typed.
+    const anyway = screen.queryByLabelText(/^Type .* to restore anyway$/);
+    if (anyway !== null) {
+      fireEvent.change(anyway, { target: { value: 'Production' } });
+    }
+    for (const box of screen.queryAllByLabelText('I understand')) {
+      fireEvent.click(box);
+    }
+    const restore = screen.getByRole('button', { name: 'Restore' });
+    const shop = screen.getByLabelText('Type shop to confirm');
+    const orders = screen.getByLabelText('Type orders to confirm');
+    expect(restore).toBeDisabled();
+
+    fireEvent.change(shop, { target: { value: 'shop' } });
+    expect(restore).toBeDisabled();
+    fireEvent.change(orders, { target: { value: 'orders' } });
+    await waitFor(() => expect(restore).toBeEnabled());
+  });
+
+  it('does not ask for a database name before a dry run on a production connection', async () => {
+    await renderIntoProduction();
+    await chooseArchive();
+    fireEvent.click(screen.getByLabelText('Dry run'));
+    // The mock target is a newer server than the backup, so the block needs its name typed.
+    const anyway = screen.queryByLabelText(/^Type .* to restore anyway$/);
+    if (anyway !== null) {
+      fireEvent.change(anyway, { target: { value: 'Production' } });
+    }
+    for (const box of screen.queryAllByLabelText('I understand')) {
+      fireEvent.click(box);
+    }
+    expect(screen.queryByLabelText('Type shop to confirm')).toBeNull();
+    await waitFor(() => expect(screen.getByRole('button', { name: 'Run dry run' })).toBeEnabled());
+  });
+
+  it('asks for the name a rename gives the database', async () => {
+    await renderIntoProduction();
+    await chooseArchive();
+    fireEvent.change(await screen.findByLabelText('Restore shop as'), {
+      target: { value: 'shop_copy' },
+    });
+    expect(await screen.findByLabelText('Type shop_copy to confirm')).toBeInTheDocument();
+    expect(screen.queryByLabelText('Type shop to confirm')).toBeNull();
+  });
+
+  it('does not ask for a database name on a connection that is not production', async () => {
+    await renderDialog();
+    await chooseArchive();
+    fireEvent.change(await screen.findByLabelText('Type Local dev to restore anyway'), {
+      target: { value: 'Local dev' },
+    });
+    for (const box of screen.queryAllByLabelText('I understand')) {
+      fireEvent.click(box);
+    }
+    expect(screen.queryByLabelText('Type shop to confirm')).toBeNull();
+    await waitFor(() => expect(screen.getByRole('button', { name: 'Restore' })).toBeEnabled());
   });
 });

@@ -24,6 +24,7 @@ import {
 } from '@mongo-gui/core';
 import { useEffect, useMemo, useState } from 'react';
 import { TipLabel } from '../kit/InfoTip';
+import { TypedNameConfirm } from '../kit/TypedNameConfirm';
 import { useUiApi } from '../api/ui-api';
 import { useAppStore } from '../state/app-store-context';
 import { errorText, runReported } from '../kit/notify-error';
@@ -117,6 +118,7 @@ export function RestoreDialogBody({
       ? connections.data.find((item) => item.id === connectionId)
       : undefined;
   const connectionName = profile?.name ?? 'connection';
+  const production = profile?.production === true;
 
   const [tools, setTools] = useState<ToolsListOutput | undefined>(undefined);
   const [available, setAvailable] = useState<readonly string[]>([]);
@@ -127,6 +129,8 @@ export function RestoreDialogBody({
   const [acknowledged, setAcknowledged] = useState<readonly FindingCode[]>([]);
   const [confirmation, setConfirmation] = useState('');
   const [loadProblem, setLoadProblem] = useState<string | undefined>(undefined);
+  // Whether each database's name is typed, keyed by the database the archive holds.
+  const [prodMatched, setProdMatched] = useState<Readonly<Record<string, boolean>>>({});
 
   useEffect(() => {
     onRunningChange?.(job.running);
@@ -288,8 +292,20 @@ export function RestoreDialogBody({
     });
   }, [effective, inspection, target, installed, available]);
 
+  const rows = effective === undefined ? [] : renameRows(effective, target?.databases ?? []);
+  // A dry run writes nothing, so only the real restore needs every target name typed.
+  const unconfirmed = rows
+    .filter((row) => prodMatched[row.from] !== true)
+    .map((row) => row.to.trim());
+  const productionBlocker =
+    !production || effective?.dryRun === true || (rows.length > 0 && unconfirmed.length === 0)
+      ? undefined
+      : rows.length === 0
+        ? 'Select something to restore'
+        : `Type ${unconfirmed.join(', ')} to restore into a production connection`;
+
   const unresolved = unresolvedFindings(findings, acknowledged, confirmation, connectionName);
-  const blocker = problems[0]?.message ?? unresolved[0]?.message;
+  const blocker = problems[0]?.message ?? unresolved[0]?.message ?? productionBlocker;
 
   function patch(next: Partial<RestoreDraft>) {
     setDraft((current) => (current === undefined ? current : { ...current, ...next }));
@@ -348,8 +364,6 @@ export function RestoreDialogBody({
       </Stack>
     );
   }
-
-  const rows = effective === undefined ? [] : renameRows(effective, target?.databases ?? []);
 
   return (
     <Stack gap="md">
@@ -697,6 +711,22 @@ export function RestoreDialogBody({
             }}
             onDownloaded={toolsDownloaded}
           />
+          {production && !effective.dryRun ? (
+            <Stack gap="xs">
+              <Text size="sm">
+                {connectionName} is a production connection. Type each database name to restore.
+              </Text>
+              {rows.map((row) => (
+                <TypedNameConfirm
+                  key={`${inspection.path}:${row.from}`}
+                  expected={row.to.trim()}
+                  onMatchChange={(matches) => {
+                    setProdMatched((current) => ({ ...current, [row.from]: matches }));
+                  }}
+                />
+              ))}
+            </Stack>
+          ) : null}
         </>
       )}
       {loadProblem === undefined ? null : (

@@ -1,5 +1,6 @@
-import { Alert, Button, Group, Modal, Stack, Text, TextInput } from '@mantine/core';
+import { Alert, Button, Group, Modal, Stack, Text } from '@mantine/core';
 import { errorText } from './notify-error';
+import { TypedNameConfirm } from './TypedNameConfirm';
 import { useState, type ReactNode } from 'react';
 
 export interface ConfirmDialogProps {
@@ -30,10 +31,10 @@ export function ConfirmDialog({
   onConfirm,
   onClose,
 }: ConfirmDialogProps) {
-  const [typed, setTyped] = useState('');
+  const [typedMatched, setTypedMatched] = useState(false);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | undefined>(undefined);
-  const typedMatches = typedConfirmation === undefined || typed === typedConfirmation;
+  const typedMatches = typedConfirmation === undefined || typedMatched;
   const disabled = !typedMatches || confirmDisabled || busy;
 
   async function confirm() {
@@ -54,14 +55,7 @@ export function ConfirmDialog({
       <Stack gap="sm">
         <Text size="sm">{description}</Text>
         {typedConfirmation === undefined ? null : (
-          <TextInput
-            label={`Type ${typedConfirmation} to confirm`}
-            aria-label={`Type ${typedConfirmation} to confirm`}
-            value={typed}
-            onChange={(event) => setTyped(event.currentTarget.value)}
-            autoComplete="off"
-            spellCheck={false}
-          />
+          <TypedNameConfirm expected={typedConfirmation} onMatchChange={setTypedMatched} />
         )}
         {error === undefined ? null : (
           <Alert color="red" variant="light">
