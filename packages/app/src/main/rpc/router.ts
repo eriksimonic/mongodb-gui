@@ -159,12 +159,21 @@ export interface RouterDeps {
    * Builds the copy service for this router. Without it the copy calls fail with INTERNAL. Tests
    * pass fakes.
    */
-  readonly copy?: (wiring: CopyWiring) => CopyService;
+  readonly copy?: (wiring: CopyWiring) => CopyService & CopyCancels;
   /**
    * Appends one JSON line per handle call to this file, so the e2e tests can see which calls
    * reached the router. index.ts sets it from MONGO_GUI_RPC_TRACE, and never in a packaged app.
    */
   readonly rpcTracePath?: string;
+}
+
+/**
+ * The stops a copy service offers the router. Optional, so a test fake of CopyService can leave
+ * them out. The app's copy service always has them.
+ */
+export interface CopyCancels {
+  cancelAll?(): void;
+  cancelConnection?(connectionId: string): void;
 }
 
 /** What the router gives the backup services: its event sink and its folder pick check. */
@@ -439,6 +448,10 @@ export function createRouter(deps: RouterDeps): Router {
     backupTools?.backups.cancelAll();
     backupTools?.downloads.cancelAll();
   });
+  // Copy jobs end with the page too, as backups do.
+  rendererResets.add(() => {
+    copyService?.cancelAll?.();
+  });
 
   // A reload or a closed window must not leave samplers running for a page that is gone.
   rendererResets.add(() => {
@@ -465,6 +478,7 @@ export function createRouter(deps: RouterDeps): Router {
       transfers.cancelConnection(connectionId);
       generate.cancelConnection(connectionId);
       backupTools?.backups.cancelConnection(connectionId);
+      copyService?.cancelConnection?.(connectionId);
     }
     // A runtime serves only an open connection, so any other state ends its process.
     if (status.state !== 'connected') {
@@ -488,6 +502,7 @@ export function createRouter(deps: RouterDeps): Router {
     transfers.cancelAll();
     // A job reads its connection profile from the store, so a lock ends it. Downloads go on.
     backupTools?.backups.cancelAll();
+    copyService?.cancelAll?.();
     void deps.connections.disconnectAll();
     void deps.shell?.stopAll();
     deps.docker?.suspend();

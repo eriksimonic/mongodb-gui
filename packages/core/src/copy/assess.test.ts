@@ -136,6 +136,22 @@ describe('assessCopy', () => {
     expect(codes(assessCopy(merge))).not.toContain('copy-timeseries-target');
   });
 
+  it('blocks merge into a time series target and leaves replace and insert only alone', () => {
+    const withTarget = facts({
+      targetNamespaces: [{ database: 'shop_copy', collection: 'orders', type: 'timeseries' }],
+    });
+    const merge = { ...withTarget, options: { ...withTarget.options, mode: 'merge' as const } };
+    expect(assessCopy(merge)).toContainEqual(
+      expect.objectContaining({ code: 'copy-timeseries-merge', severity: 'block' }),
+    );
+    const insertOnly = {
+      ...withTarget,
+      options: { ...withTarget.options, mode: 'insertOnly' as const },
+    };
+    expect(codes(assessCopy(insertOnly))).not.toContain('copy-timeseries-merge');
+    expect(codes(assessCopy(withTarget))).not.toContain('copy-timeseries-merge');
+  });
+
   it('lists views as skipped and leaves them out of the overlap check', () => {
     const findings = assessCopy(
       facts({

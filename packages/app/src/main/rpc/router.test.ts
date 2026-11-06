@@ -35,6 +35,7 @@ import type { Logger } from '../log';
 import {
   createRouter,
   type ConnectionRegistry,
+  type CopyCancels,
   type NativeDialogs,
   type Router,
   type StoreHandles,
@@ -132,7 +133,7 @@ function buildHarness(
   logger?: Logger,
   docker?: DockerRuntime,
   dialogs?: NativeDialogs,
-  copy?: (wiring: CopyWiring) => CopyService,
+  copy?: (wiring: CopyWiring) => CopyService & CopyCancels,
 ): Harness {
   const dir = mkdtempSync(join(tmpdir(), 'router-'));
   const lockListeners = new Set<() => void>();
@@ -716,6 +717,25 @@ describe('copy calls', () => {
     expect((await router.handle('copy.start', copyInput(unknown, ids.target))).ok).toBe(false);
     expect((await router.handle('copy.start', copyInput(ids.source, unknown))).ok).toBe(false);
     expect(started).toEqual([]);
+  });
+
+  it('cancels every copy job on a renderer reset and on a vault lock', async () => {
+    const cancelAll = vi.fn();
+    harness = buildHarness(undefined, undefined, undefined, () => ({
+      async start() {
+        return JOB_ID;
+      },
+      cancel() {},
+      cancelAll,
+      cancelConnection() {},
+    }));
+    const { router } = harness;
+    await setUpProfiles(router);
+
+    router.resetRenderer();
+    expect(cancelAll).toHaveBeenCalledTimes(1);
+    expectValue(await router.handle('vault.lock', undefined));
+    expect(cancelAll).toHaveBeenCalledTimes(2);
   });
 
   it('returns INTERNAL for copy calls when no copy service is wired', async () => {

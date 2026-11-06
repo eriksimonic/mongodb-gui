@@ -17,6 +17,7 @@ export const CopyFindingCodeSchema = z.enum([
   'copy-overlap',
   'copy-timeseries-rename',
   'copy-timeseries-target',
+  'copy-timeseries-merge',
   'copy-skipped-namespaces',
 ]);
 export const CopyFindingSchema = FindingSchema.extend({ code: CopyFindingCodeSchema });
@@ -141,24 +142,32 @@ export function assessCopy(facts: CopyFacts): CopyFinding[] {
     );
   }
 
-  if (options.mode === 'replace') {
-    const timeseriesTargets = items.filter((item) =>
-      facts.targetNamespaces.some(
-        (ns) =>
-          ns.type === 'timeseries' &&
-          key(ns.database, ns.collection) === key(targetDatabase, item.target),
+  const timeseriesTargets = items.filter((item) =>
+    facts.targetNamespaces.some(
+      (ns) =>
+        ns.type === 'timeseries' &&
+        key(ns.database, ns.collection) === key(targetDatabase, item.target),
+    ),
+  );
+  if (timeseriesTargets.length > 0 && options.mode === 'merge') {
+    findings.push(
+      finding(
+        'copy-timeseries-merge',
+        'block',
+        'Merge cannot write to a time series collection. Use replace or insert only.',
+        timeseriesTargets.map((item) => key(targetDatabase, item.target)).join(', '),
       ),
     );
-    if (timeseriesTargets.length > 0) {
-      findings.push(
-        finding(
-          'copy-timeseries-target',
-          'warning',
-          'Replace drops and refills a time series collection in place. A cancel leaves it partly filled.',
-          timeseriesTargets.map((item) => key(targetDatabase, item.target)).join(', '),
-        ),
-      );
-    }
+  }
+  if (timeseriesTargets.length > 0 && options.mode === 'replace') {
+    findings.push(
+      finding(
+        'copy-timeseries-target',
+        'warning',
+        'Replace drops and refills a time series collection in place. A cancel leaves it partly filled.',
+        timeseriesTargets.map((item) => key(targetDatabase, item.target)).join(', '),
+      ),
+    );
   }
 
   const views = options.items.filter(isView);

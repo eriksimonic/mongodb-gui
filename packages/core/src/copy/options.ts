@@ -56,6 +56,8 @@ export const CopyProgressSchema = z.object({
   skippedDocuments: z.number().int().min(0),
   // New redacted tool lines since the previous event.
   lines: z.array(z.string().max(2000)).max(100),
+  // Facts the user needs to read at the end, such as a time series collection filled in place.
+  notes: z.array(z.string().max(400)).max(50).optional(),
   elapsedMs: z.number().min(0),
   done: z.boolean(),
   cancelled: z.boolean(),

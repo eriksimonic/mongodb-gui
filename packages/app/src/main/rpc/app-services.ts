@@ -4,8 +4,12 @@ import { spawn as nodeSpawn } from 'node:child_process';
 import { type ConnectionProfile, type BackupInspection, type ToolsPlatform } from '@mongo-gui/core';
 import {
   ConnectionManager,
+  dropCollectionIfExists,
+  mergeCollection,
   readArchivePrelude,
   readBackupServerInfo,
+  renameCollection,
+  serverIdentity,
 } from '@mongo-gui/mongo-adapter';
 import {
   createDockerEngineClient,
@@ -34,13 +38,15 @@ import { RuntimeSupervisor } from '../shell/supervisor';
 import { spillEnv } from '@mongo-gui/storage/spill';
 import { createSpillRoot, type SpillRoot } from '../spill/spill-root';
 import { type UpdaterBackend } from '../updates/updater';
-import { type CopyService } from './copy';
+import { type CopyWiring } from './copy';
 import { createUpdatesService } from './updates';
 import { refuseFork } from './shell';
 import { createBackupService } from '../backup/backup-service';
 import { resolveToolsEndpoint, type ToolsEndpointDocker } from '../backup/endpoint';
 import { inspectBackup } from '../backup/inspect';
 import { sweepTempConfigs } from '../backup/temp-config';
+import { runTool } from '../backup/tool-process';
+import { createCopyService, type CopyJobs } from '../copy/copy-service';
 import { createToolsDownloads } from '../tools/download-service';
 import { createFeedClient } from '../tools/feed-client';
 import { toolsRoots } from '../tools/paths';
@@ -119,16 +125,6 @@ export type AppServices = Omit<RouterDeps, 'onEvent' | 'docker' | 'updates' | 's
 
 const KEYRING_DIR_MODE = 0o700;
 const STORE_FILE_NAME = 'store.sqlite';
-
-/** Stands in for the copy service until it is built. Every call fails. */
-const copyNotImplemented: CopyService = {
-  start() {
-    throw new Error('not implemented');
-  },
-  cancel() {
-    throw new Error('not implemented');
-  },
-};
 
 /**
  * Opens the vault, the encrypted store and the connection manager under userDataDir.
@@ -226,8 +222,9 @@ export function createAppServices(options: AppServicesOptions): AppServices {
       },
     },
     updates,
-    ...(backupTools === undefined ? {} : { backupTools: backupTools.build }),
-    copy: () => copyNotImplemented,
+    ...(backupTools === undefined
+      ? {}
+      : { backupTools: backupTools.build, copy: backupTools.buildCopy }),
     async dispose() {
       // Wait for the runtime to exit, so nothing writes to the spill after the wipe.
       await shell.dispose();
@@ -245,6 +242,8 @@ export function createAppServices(options: AppServicesOptions): AppServices {
 /** The backup services builder for createRouter, and the cleanup for what it built. */
 interface BackupToolsFactory {
   readonly build: (wiring: BackupToolsWiring) => BackupTools;
+  /** The copy service for the router. It uses the same tools registry as the backups. */
+  readonly buildCopy: (wiring: CopyWiring) => CopyJobs;
   dispose(): Promise<void>;
 }
 
@@ -297,6 +296,12 @@ function createBackupToolsFactory(
   const inspect = (path: string): Promise<BackupInspection> =>
     inspectBackup(path, { readPrelude: readArchivePrelude });
   const built: BackupTools[] = [];
+  const copies: CopyJobs[] = [];
+  const endpointDeps = {
+    status: (id: string) => deps.connections.status(id),
+    getProfile: (id: string) => deps.repos().connections.get(id),
+    dockerSummary,
+  };
 
   return {
     build(wiring) {
@@ -314,15 +319,7 @@ function createBackupToolsFactory(
         registry,
         getClient: (connectionId) => deps.connections.getClient(connectionId),
         endpoint: (connectionId, overrides) =>
-          resolveToolsEndpoint(
-            {
-              status: (id) => deps.connections.status(id),
-              getProfile: (id) => deps.repos().connections.get(id),
-              dockerSummary,
-            },
-            connectionId,
-            overrides,
-          ),
+          resolveToolsEndpoint(endpointDeps, connectionId, overrides),
         readServerInfo: readBackupServerInfo,
         inspect,
         spawn,
@@ -346,11 +343,35 @@ function createBackupToolsFactory(
       built.push(services);
       return services;
     },
+    // Shares the tools registry with the backups, so both mark the installs they run as in use.
+    buildCopy(wiring) {
+      const service = createCopyService({
+        registry,
+        getClient: (connectionId) => deps.connections.getClient(connectionId),
+        getProfile: (id) => deps.repos().connections.get(id),
+        endpoint: (connectionId) => resolveToolsEndpoint(endpointDeps, connectionId),
+        readServerInfo: readBackupServerInfo,
+        identify: serverIdentity,
+        rename: renameCollection,
+        dropIfExists: dropCollectionIfExists,
+        merge: mergeCollection,
+        runTool,
+        spawn,
+        emit: wiring.emit,
+        now: () => Date.now(),
+        tmpRoot: roots.tmp,
+        platform,
+        log,
+      });
+      copies.push(service);
+      return service;
+    },
     async dispose() {
       for (const services of built) {
         services.downloads.cancelAll();
       }
       await Promise.all(built.map((services) => services.backups.dispose()));
+      await Promise.all(copies.map((service) => service.dispose()));
     },
   };
 }
