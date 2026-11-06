@@ -17,7 +17,15 @@ export interface CopyRestoreArgsInput {
   readonly target: NamespaceRef;
   // Merge does not run mongorestore, so it has no restore argv.
   readonly mode: Exclude<CopyMode, 'merge'>;
+  // The source is a time series collection. Its data sits in system.buckets.<name>, so that
+  // namespace gets its own rename pair.
+  readonly timeseries?: boolean;
 }
+
+const bucketsOf = (ref: NamespaceRef): NamespaceRef => ({
+  database: ref.database,
+  collection: `system.buckets.${ref.collection}`,
+});
 
 /** The mongodump argv for one collection. The archive goes to stdout, uncompressed, for the pipe. */
 export function copyDumpArgs(input: CopyDumpArgsInput): string[] {
@@ -34,7 +42,8 @@ export function copyDumpArgs(input: CopyDumpArgsInput): string[] {
 
 /**
  * The mongorestore argv for one collection read from stdin. Replace passes --drop, insert only
- * passes --noIndexRestore. The rename flags come last.
+ * passes --noIndexRestore. The rename flags come last. A time series source adds the pair for its
+ * buckets after the collection pair, so each --nsFrom is followed by its --nsTo.
  */
 export function copyRestoreArgs(input: CopyRestoreArgsInput): string[] {
   const options = RestoreOptionsSchema.parse({
@@ -50,5 +59,8 @@ export function copyRestoreArgs(input: CopyRestoreArgsInput): string[] {
       options,
     }),
     ...collectionRenameArgs(input.source, input.target),
+    ...(input.timeseries === true
+      ? collectionRenameArgs(bucketsOf(input.source), bucketsOf(input.target))
+      : []),
   ];
 }

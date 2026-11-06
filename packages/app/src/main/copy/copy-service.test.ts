@@ -583,3 +583,66 @@ describe('copy service: stops and failures', () => {
     expect(leftoverConfigs()).toEqual([]);
   });
 });
+
+describe('copy service: time series source', () => {
+  const timeseriesSource = [
+    { database: 'shop', collection: 'orders', type: 'timeseries' as const, documents: 2 },
+  ];
+
+  it('replace writes in place with the bucket pair, and notes that counts are buckets', async () => {
+    const h = harness({ sourceNamespaces: timeseriesSource });
+    await h.service.start(options());
+    const final = await waitForFinal(h.events);
+
+    const restore = h.runTool.mock.calls[1]?.[0];
+    expect(restore?.args).toContain('--drop');
+    expect(restore?.args.slice(-4)).toEqual([
+      '--nsFrom=shop.orders',
+      '--nsTo=archive.orders',
+      '--nsFrom=shop.system.buckets.orders',
+      '--nsTo=archive.system.buckets.orders',
+    ]);
+    expect(restore?.args.join(' ')).not.toContain('__copy_');
+    expect(h.rename).not.toHaveBeenCalled();
+    expect(h.dropIfExists).not.toHaveBeenCalled();
+    expect(final.error).toBeUndefined();
+    expect(final.notes).toEqual([
+      'shop.orders is a time series collection. Its counts are buckets, not points.',
+      'archive.orders is written in place, because the source is a time series collection. A cancel leaves it partly filled.',
+    ]);
+  });
+
+  it('insert only into a time series target writes the buckets in place', async () => {
+    const h = harness({
+      sourceNamespaces: timeseriesSource,
+      targetNamespaces: [{ database: 'archive', collection: 'orders', type: 'timeseries' }],
+    });
+    await h.service.start(options({ mode: 'insertOnly' }));
+    const final = await waitForFinal(h.events);
+
+    const restore = h.runTool.mock.calls[1]?.[0];
+    expect(restore?.args).toContain('--noIndexRestore');
+    expect(restore?.args).toContain('--nsTo=archive.system.buckets.orders');
+    expect(final.error).toBeUndefined();
+  });
+
+  it('refuses merge from a time series source and runs nothing', async () => {
+    const h = harness({ sourceNamespaces: timeseriesSource });
+    await expect(h.service.start(options({ mode: 'merge' }))).rejects.toMatchObject({
+      error: { code: 'VALIDATION', message: expect.stringContaining('time series') },
+    });
+    expect(h.merge).not.toHaveBeenCalled();
+    expect(h.runTool).not.toHaveBeenCalled();
+  });
+
+  it('refuses insert only from a time series source into an existing plain collection', async () => {
+    const h = harness({
+      sourceNamespaces: timeseriesSource,
+      targetNamespaces: [{ database: 'archive', collection: 'orders', type: 'collection' }],
+    });
+    await expect(h.service.start(options({ mode: 'insertOnly' }))).rejects.toMatchObject({
+      error: { code: 'VALIDATION', message: expect.stringContaining('not time series') },
+    });
+    expect(h.runTool).not.toHaveBeenCalled();
+  });
+});

@@ -54,4 +54,46 @@ describe('copyRestoreArgs', () => {
       copyRestoreArgs({ configPath: CONFIG, source: ns, target: ns, mode: 'insertOnly' }),
     ).toEqual([`--config=${CONFIG}`, '--archive', '--noIndexRestore', ...TAIL]);
   });
+
+  it('a time series source adds the bucket pair after the collection pair', () => {
+    expect(
+      copyRestoreArgs({
+        configPath: CONFIG,
+        source: { database: 'shop', collection: 'metrics' },
+        target: { database: 'shopcopy', collection: 'metrics' },
+        mode: 'replace',
+        timeseries: true,
+      }),
+    ).toEqual([
+      `--config=${CONFIG}`,
+      '--archive',
+      '--drop',
+      ...TAIL,
+      '--nsFrom=shop.metrics',
+      '--nsTo=shopcopy.metrics',
+      '--nsFrom=shop.system.buckets.metrics',
+      '--nsTo=shopcopy.system.buckets.metrics',
+    ]);
+  });
+
+  it('a time series source in insert only maps its buckets too, and a plain source does not', () => {
+    const source = { database: 'shop', collection: 'metrics' };
+    const target = { database: 'shopcopy', collection: 'metrics2' };
+    const timeseries = copyRestoreArgs({
+      configPath: CONFIG,
+      source,
+      target,
+      mode: 'insertOnly',
+      timeseries: true,
+    });
+    expect(timeseries.slice(-4)).toEqual([
+      '--nsFrom=shop.metrics',
+      '--nsTo=shopcopy.metrics2',
+      '--nsFrom=shop.system.buckets.metrics',
+      '--nsTo=shopcopy.system.buckets.metrics2',
+    ]);
+    const plain = copyRestoreArgs({ configPath: CONFIG, source, target, mode: 'insertOnly' });
+    expect(plain.filter((arg) => arg.includes('system.buckets'))).toEqual([]);
+    expect(plain.slice(-2)).toEqual(['--nsFrom=shop.metrics', '--nsTo=shopcopy.metrics2']);
+  });
 });

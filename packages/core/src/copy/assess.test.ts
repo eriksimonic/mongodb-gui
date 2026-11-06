@@ -152,6 +152,41 @@ describe('assessCopy', () => {
     expect(codes(assessCopy(withTarget))).not.toContain('copy-timeseries-merge');
   });
 
+  it('blocks merge from a time series source', () => {
+    const source = facts({
+      sourceNamespaces: [{ database: 'shop', collection: 'orders', type: 'timeseries' }],
+    });
+    const merge = { ...source, options: { ...source.options, mode: 'merge' as const } };
+    expect(assessCopy(merge)).toContainEqual(
+      expect.objectContaining({ code: 'copy-timeseries-merge', severity: 'block' }),
+    );
+    expect(codes(assessCopy(source))).not.toContain('copy-timeseries-merge');
+  });
+
+  it('blocks insert only from a time series source into an existing plain collection', () => {
+    const base = facts({
+      sourceNamespaces: [{ database: 'shop', collection: 'orders', type: 'timeseries' }],
+    });
+    const insertOnly = { ...base, options: { ...base.options, mode: 'insertOnly' as const } };
+    const plainTarget = {
+      ...insertOnly,
+      targetNamespaces: [
+        { database: 'shop_copy', collection: 'orders', type: 'collection' as const },
+      ],
+    };
+    expect(assessCopy(plainTarget)).toContainEqual(
+      expect.objectContaining({ code: 'copy-timeseries-insert', severity: 'block' }),
+    );
+    expect(codes(assessCopy(insertOnly))).not.toContain('copy-timeseries-insert');
+    const timeseriesTarget = {
+      ...insertOnly,
+      targetNamespaces: [
+        { database: 'shop_copy', collection: 'orders', type: 'timeseries' as const },
+      ],
+    };
+    expect(codes(assessCopy(timeseriesTarget))).not.toContain('copy-timeseries-insert');
+  });
+
   it('lists views as skipped and leaves them out of the overlap check', () => {
     const findings = assessCopy(
       facts({

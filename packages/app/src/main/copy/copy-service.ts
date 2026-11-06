@@ -123,6 +123,8 @@ interface PlanItem {
   readonly filter: FilterDocument | undefined;
   // The target is a time series collection. Replace writes it in place, because it cannot rename.
   readonly targetTimeseries: boolean;
+  // The source is a time series collection. Its data is restored from system.buckets.<name>.
+  readonly sourceTimeseries: boolean;
   readonly estimate: number | undefined;
 }
 
@@ -285,6 +287,7 @@ export function createCopyService(deps: CopyServiceDeps): CopyJobs {
         filter: filters[index],
         // Merge into a time series target is refused by assessCopy, so only replace reads this.
         targetTimeseries: targetTypes.get(item.target) === 'timeseries',
+        sourceTimeseries: sourceTypes.get(item.source) === 'timeseries',
         estimate: sourceInfo.namespaces.find((ns) => ns.collection === item.source)?.documents,
       });
     });
@@ -489,6 +492,7 @@ export function createCopyService(deps: CopyServiceDeps): CopyJobs {
               source,
               target,
               mode,
+              timeseries: item.sourceTimeseries,
             }),
             cwd: restoreConfig.dir,
             stdin: data,
@@ -527,16 +531,30 @@ export function createCopyService(deps: CopyServiceDeps): CopyJobs {
     const { options } = plan;
     const source = { database: options.sourceDatabase, collection: item.source };
     const target = { database: options.targetDatabase, collection: item.target };
+    if (item.sourceTimeseries) {
+      // The tools count buckets. A time series source reports bucket counts, not points.
+      report.note(
+        `${source.database}.${source.collection} is a time series collection. Its counts are buckets, not points.`,
+      );
+    }
     switch (options.mode) {
       case 'merge':
         return mergeItem(job, plan, item, report);
       case 'insertOnly':
         return pipe(job, plan, source, target, item, 'insertOnly', report);
       case 'replace':
-        if (item.targetTimeseries) {
-          report.note(
-            `${target.database}.${target.collection} is a time series collection. Replace drops and refills it in place, so a cancel leaves it partly filled.`,
-          );
+        // A time series target or source cannot be renamed, so it is written in place.
+        if (item.targetTimeseries || item.sourceTimeseries) {
+          if (item.targetTimeseries) {
+            report.note(
+              `${target.database}.${target.collection} is a time series collection. Replace drops and refills it in place, so a cancel leaves it partly filled.`,
+            );
+          }
+          if (item.sourceTimeseries && !item.targetTimeseries) {
+            report.note(
+              `${target.database}.${target.collection} is written in place, because the source is a time series collection. A cancel leaves it partly filled.`,
+            );
+          }
           return pipe(job, plan, source, target, item, 'replace', report);
         }
         return replaceThroughTemp(job, plan, item, source, report);

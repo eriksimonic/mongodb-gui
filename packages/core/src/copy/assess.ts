@@ -18,6 +18,7 @@ export const CopyFindingCodeSchema = z.enum([
   'copy-timeseries-rename',
   'copy-timeseries-target',
   'copy-timeseries-merge',
+  'copy-timeseries-insert',
   'copy-skipped-namespaces',
 ]);
 export const CopyFindingSchema = FindingSchema.extend({ code: CopyFindingCodeSchema });
@@ -149,13 +150,39 @@ export function assessCopy(facts: CopyFacts): CopyFinding[] {
         key(ns.database, ns.collection) === key(targetDatabase, item.target),
     ),
   );
-  if (timeseriesTargets.length > 0 && options.mode === 'merge') {
+  // A time series source is read as its buckets, so merge would copy bucket documents as data.
+  const timeseriesSources = items.filter(
+    (item) => types.get(key(sourceDatabase, item.source)) === 'timeseries',
+  );
+  if (options.mode === 'merge' && (timeseriesTargets.length > 0 || timeseriesSources.length > 0)) {
     findings.push(
       finding(
         'copy-timeseries-merge',
         'block',
-        'Merge cannot write to a time series collection. Use replace or insert only.',
-        timeseriesTargets.map((item) => key(targetDatabase, item.target)).join(', '),
+        'Merge cannot copy time series collections. Use replace or insert only.',
+        [
+          ...timeseriesSources.map((item) => key(sourceDatabase, item.source)),
+          ...timeseriesTargets.map((item) => key(targetDatabase, item.target)),
+        ].join(', '),
+      ),
+    );
+  }
+  // Insert only restores the buckets of a time series source. An existing plain collection
+  // cannot take them, so the copy would fail part way.
+  const plainTargets = timeseriesSources.filter((item) =>
+    facts.targetNamespaces.some(
+      (ns) =>
+        ns.type === 'collection' &&
+        key(ns.database, ns.collection) === key(targetDatabase, item.target),
+    ),
+  );
+  if (options.mode === 'insertOnly' && plainTargets.length > 0) {
+    findings.push(
+      finding(
+        'copy-timeseries-insert',
+        'block',
+        'Insert only cannot add time series data to a collection that is not time series. Use replace.',
+        plainTargets.map((item) => key(targetDatabase, item.target)).join(', '),
       ),
     );
   }
