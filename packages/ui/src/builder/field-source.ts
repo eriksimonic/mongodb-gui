@@ -64,25 +64,43 @@ async function validatorOf(
   }
 }
 
-/** Sampled fields with the validator types merged in. A validator type replaces a sampled type. */
+/** The query path of a sample path. The sample names array elements with `[]`, a query does not. */
+function queryPath(samplePath: string): string {
+  return samplePath.replaceAll('[]', '');
+}
+
+/**
+ * Sampled fields with the validator types merged in. A validator type replaces a sampled type at
+ * the same sample path. Then the sample paths become query paths, and the types of paths that
+ * become equal are merged, so `tags[]` and `tags` give one `tags` with both types.
+ */
 function mergeFields(
   sampled: readonly FieldInfo[],
   validator: ReadonlyMap<string, string[]>,
 ): FieldInfo[] {
-  const merged = new Map<string, readonly string[]>();
+  const bySamplePath = new Map<string, readonly string[]>();
   for (const field of sampled) {
-    merged.set(field.path, field.types);
+    bySamplePath.set(field.path, field.types);
   }
   for (const [path, types] of validator) {
-    merged.set(path, types);
+    bySamplePath.set(path, types);
   }
-  return [...merged].map(([path, types]) => ({ path, types: [...types] }));
+  const byQueryPath = new Map<string, Set<string>>();
+  for (const [samplePath, types] of bySamplePath) {
+    const path = queryPath(samplePath);
+    const set = byQueryPath.get(path) ?? new Set<string>();
+    for (const type of types) {
+      set.add(type);
+    }
+    byQueryPath.set(path, set);
+  }
+  return [...byQueryPath].map(([path, types]) => ({ path, types: [...types].sort() }));
 }
 
 /**
- * The fields of a collection for the builder. The sampled fields come from the editor cache of
- * `source`, and the types of the collection's $jsonSchema validator are merged in. `database` must
- * be the database `source` samples.
+ * The fields of a collection for the builder, with query paths such as `items.sku` and `tags`.
+ * The sampled fields come from the editor cache of `source`, and the types of the collection's
+ * $jsonSchema validator are merged in. `database` must be the database `source` samples.
  */
 export async function getFields(
   source: Pick<CompletionSource, 'fieldsOf'>,

@@ -102,7 +102,7 @@ describe('getFields', () => {
     expect(typesAt(fields, 'a.b')).toEqual(['Int32']);
   });
 
-  it('names array elements of objects under items with the [] suffix', async () => {
+  it('reads the elements of an array of objects as the array field, without []', async () => {
     const rpc = rpcWithValidator({
       bsonType: 'object',
       properties: {
@@ -115,12 +115,12 @@ describe('getFields', () => {
 
     const fields = await getFields(sourceWith([]), rpc, connectionId, 'shop', 'orders');
 
-    expect(typesAt(fields, 'items')).toEqual(['Array']);
-    expect(typesAt(fields, 'items[]')).toEqual(['Object']);
-    expect(typesAt(fields, 'items[].sku')).toEqual(['String']);
+    expect(typesAt(fields, 'items')).toEqual(['Array', 'Object']);
+    expect(typesAt(fields, 'items.sku')).toEqual(['String']);
+    expect(fields.some((field) => field.path.includes('['))).toBe(false);
   });
 
-  it('names scalar array elements with the [] suffix', async () => {
+  it('reads the elements of a scalar array as the array field, without []', async () => {
     const rpc = rpcWithValidator({
       bsonType: 'object',
       properties: { tags: { bsonType: 'array', items: { bsonType: 'string' } } },
@@ -128,8 +128,28 @@ describe('getFields', () => {
 
     const fields = await getFields(sourceWith([]), rpc, connectionId, 'shop', 'orders');
 
-    expect(typesAt(fields, 'tags')).toEqual(['Array']);
-    expect(typesAt(fields, 'tags[]')).toEqual(['String']);
+    expect(typesAt(fields, 'tags')).toEqual(['Array', 'String']);
+    expect(fields.filter((field) => field.path === 'tags')).toHaveLength(1);
+  });
+
+  it('merges sampled element types into the array field and drops duplicates', async () => {
+    const rpc = rpcWithValidator({ bsonType: 'object' });
+
+    const fields = await getFields(
+      sourceWith([
+        sampled('tags', ['Array', 'String']),
+        sampled('tags[]', ['String', 'Int32']),
+        sampled('meta', ['Object']),
+      ]),
+      rpc,
+      connectionId,
+      'shop',
+      'orders',
+    );
+
+    expect(typesAt(fields, 'tags')).toEqual(['Array', 'Int32', 'String']);
+    expect(fields.filter((field) => field.path === 'tags')).toHaveLength(1);
+    expect(typesAt(fields, 'meta')).toEqual(['Object']);
   });
 
   it('replaces a sampled type with the validator type at the same path', async () => {
