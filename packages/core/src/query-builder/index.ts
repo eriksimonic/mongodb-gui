@@ -8,6 +8,7 @@ export { projectionFromEjson, sortFromEjson, stageFromEjson } from './parse-part
 // `emitStatement` is named `emitStatement` in `sql/index.ts`, so the builder's version is renamed.
 export {
   emitStatement as emitBuilderStatement,
+  hasDroppedItems,
   projectionToEjson,
   sortToEjson,
   stageToEjson,

@@ -6,8 +6,9 @@
 
 import { formatMongoshSyntax } from '../ejson/format';
 import { collectionAccess } from '../shell/collection-access';
-import { emitFilter, filterToEjson } from './emit-filter';
+import { emitFilter, filterToEjson, hasLive } from './emit-filter';
 import type {
+  AccumulatorRow,
   FindStatement,
   PipelineStage,
   ProjectionRow,
@@ -19,6 +20,21 @@ import type {
 
 type Plain = Record<string, unknown>;
 
+/** True for a projection row the emitter writes: enabled, with a field name. */
+function isLiveProjectionRow(row: ProjectionRow): boolean {
+  return row.enabled && !(row.kind === 'field' && row.field === '');
+}
+
+/** True for a sort row the emitter writes: enabled, with a field name. */
+function isLiveSortRow(row: SortRow): boolean {
+  return row.enabled && row.field !== '';
+}
+
+/** True for a `$group` output the emitter writes: it has an output name. */
+function isLiveAccumulator(row: AccumulatorRow): boolean {
+  return row.output !== '';
+}
+
 // Known limit: a field named like an integer, such as "2", moves first in sort and projection.
 /**
  * The projection as canonical EJSON: `1` or `0` for a field row, the value for a raw row. A field
@@ -26,7 +42,7 @@ type Plain = Record<string, unknown>;
  */
 export function projectionToEjson(rows: readonly ProjectionRow[]): Plain {
   const pairs: [string, unknown][] = rows
-    .filter((row) => row.enabled && !(row.kind === 'field' && row.field === ''))
+    .filter(isLiveProjectionRow)
     .map((row) => [row.field, row.kind === 'field' ? (row.include ? 1 : 0) : row.value]);
   return Object.fromEntries(pairs);
 }
@@ -34,7 +50,7 @@ export function projectionToEjson(rows: readonly ProjectionRow[]): Plain {
 /** The sort as canonical EJSON, `{ field: 1 }` or `{ field: -1 }`. A row with no field is left out. */
 export function sortToEjson(rows: readonly SortRow[]): Plain {
   const pairs: [string, number][] = rows
-    .filter((row) => row.enabled && row.field !== '')
+    .filter(isLiveSortRow)
     .map((row) => [row.field, row.direction]);
   return Object.fromEntries(pairs);
 }
@@ -63,7 +79,7 @@ export function stageToEjson(stage: StageBody): Plain {
       const pairs: [string, unknown][] = [
         ['_id', stage.id],
         ...stage.accumulators
-          .filter((row) => row.output !== '')
+          .filter(isLiveAccumulator)
           .map((row): [string, unknown] => [row.output, { [row.accumulator]: row.expression }]),
       ];
       return { $group: Object.fromEntries(pairs) };
@@ -91,10 +107,13 @@ export function emitStatement(statement: QueryStatement): string {
 }
 
 function aggregateText(access: string, stages: readonly PipelineStage[]): string {
-  const pipeline = stages
-    .filter((stage) => stage.enabled && !isUnfinished(stage))
-    .map((stage) => stageToEjson(stage));
+  const pipeline = stages.filter(isLiveStage).map((stage) => stageToEjson(stage));
   return `${access}.aggregate(${mongoshText(pipeline)})`;
+}
+
+/** True for a stage the emitter writes: enabled and not unfinished. */
+function isLiveStage(stage: PipelineStage): boolean {
+  return stage.enabled && !isUnfinished(stage);
 }
 
 /**
@@ -149,6 +168,53 @@ function findText(access: string, statement: FindStatement): string {
     text += `.limit(${statement.limit})`;
   }
   return text;
+}
+
+/**
+ * True when the statement holds an item the emitter leaves out on purpose: a disabled item or
+ * panel, an unfinished stage, or a blank row, condition or output. The builder shows its notice
+ * when a re-parse clears such items. The checks use the emitter's own predicates, so they match
+ * what the text leaves out. An empty group holds no dropped item.
+ */
+export function hasDroppedItems(statement: QueryStatement): boolean {
+  if (statement.kind === 'aggregate') {
+    return statement.stages.some(stageHasDropped);
+  }
+  return (
+    statement.filterEnabled === false ||
+    statement.projectionEnabled === false ||
+    statement.sortEnabled === false ||
+    groupHasDropped(statement.filter) ||
+    !statement.projection.every(isLiveProjectionRow) ||
+    !statement.sort.every(isLiveSortRow)
+  );
+}
+
+function stageHasDropped(stage: PipelineStage): boolean {
+  if (!isLiveStage(stage)) return true;
+  switch (stage.stage) {
+    case '$match':
+      return groupHasDropped(stage.filter);
+    case '$project':
+      return !stage.rows.every(isLiveProjectionRow);
+    case '$sort':
+      return !stage.rows.every(isLiveSortRow);
+    case '$group':
+      return !stage.accumulators.every(isLiveAccumulator);
+    default:
+      return false;
+  }
+}
+
+/** True when a group holds a dropped item at any depth, including inside an `$elemMatch`. */
+function groupHasDropped(group: QueryGroup): boolean {
+  return group.items.some((item) => {
+    if (item.kind === 'group') return groupHasDropped(item);
+    if (!hasLive(item)) return true;
+    return (
+      item.kind === 'condition' && item.operator === 'elemMatch' && groupHasDropped(item.group)
+    );
+  });
 }
 
 function hasKeys(value: Plain): boolean {

@@ -1,14 +1,23 @@
 import { describe, expect, it } from 'vitest';
-import { emitStatement, projectionToEjson, sortToEjson, stageToEjson } from './emit';
-import type {
-  AggregateStatement,
-  FindStatement,
-  PipelineStage,
-  ProjectionRow,
-  QueryGroup,
-  QueryItem,
-  SortRow,
-  StageBody,
+import {
+  emitStatement,
+  hasDroppedItems,
+  projectionToEjson,
+  sortToEjson,
+  stageToEjson,
+} from './emit';
+import { parseStatementAt } from './parse';
+import {
+  ARRAY_ELEMENT_FIELD,
+  type AggregateStatement,
+  type FindStatement,
+  type PipelineStage,
+  type ProjectionRow,
+  type QueryGroup,
+  type QueryItem,
+  type QueryStatement,
+  type SortRow,
+  type StageBody,
 } from './model';
 
 // Builders. Every part is enabled unless a test passes false.
@@ -444,5 +453,106 @@ describe('emitStatement, aggregate', () => {
     expect(emitStatement(aggregate([], 'order-items'))).toBe(
       "db.getCollection('order-items').aggregate([])",
     );
+  });
+});
+
+describe('hasDroppedItems', () => {
+  /** The statement a parsed text gives. The text must parse. */
+  function parsed(text: string): QueryStatement {
+    const result = parseStatementAt(text, 0);
+    if (result === null || !('statement' in result)) {
+      throw new Error(`does not parse: ${text}`);
+    }
+    return result.statement;
+  }
+
+  it.each([
+    'db.orders.find({ total: NumberInt(5) })',
+    'db.orders.find({ $or: [{ $or: [{ $and: [{ a: 1 }] }] }, { b: 2 }] })',
+    'db.orders.find({ $and: [{ $and: [{ a: 1 }] }, { b: 2 }] }, { a: 1 }).sort({ a: -1 })',
+    'db.orders.find({ tags: { $elemMatch: { $gt: 1 } } }).limit(3)',
+    'db.orders.aggregate([{ $match: { a: 1 } }, { $group: { _id: null, n: { $sum: 1 } } }])',
+  ])('is false for a parsed statement with nothing left out: %s', (text) => {
+    expect(hasDroppedItems(parsed(text))).toBe(false);
+  });
+
+  it('is false for a new statement with no parts', () => {
+    expect(hasDroppedItems(find())).toBe(false);
+    expect(hasDroppedItems(aggregate([]))).toBe(false);
+  });
+
+  it.each<[string, QueryStatement]>([
+    ['a disabled condition', find({ filter: group('and', eq('a', 1, false)) })],
+    [
+      'a disabled raw condition',
+      find({
+        filter: group('and', {
+          kind: 'rawCondition',
+          enabled: false,
+          field: 'a',
+          operator: '$mod',
+          value: [2, 0],
+        }),
+      }),
+    ],
+    [
+      'a disabled raw fragment',
+      find({
+        filter: group('and', { kind: 'rawFragment', enabled: false, key: '$expr', value: {} }),
+      }),
+    ],
+    ['a condition with no field', find({ filter: group('and', eq('', 1)) })],
+    [
+      'a disabled condition inside $elemMatch',
+      find({
+        filter: group('and', {
+          kind: 'condition',
+          enabled: true,
+          field: 'tags',
+          operator: 'elemMatch',
+          group: group('and', eq(ARRAY_ELEMENT_FIELD, 1, false)),
+        }),
+      }),
+    ],
+    [
+      'a disabled condition inside an $or',
+      find({ filter: group('or', group('and', eq('a', 1, false)), eq('b', 2)) }),
+    ],
+    ['a disabled Query panel', find({ filterEnabled: false })],
+    ['a disabled Projection panel', find({ projectionEnabled: false })],
+    ['a disabled Sort panel', find({ sortEnabled: false })],
+    ['a disabled projection row', find({ projection: [field('a', true, false)] })],
+    ['a projection row with no field', find({ projection: [field('', true)] })],
+    ['a disabled sort row', find({ sort: [sort('a', 1, false)] })],
+    ['a sort row with no field', find({ sort: [sort('', -1)] })],
+    ['a disabled stage', aggregate([stage({ stage: '$limit', count: 1 }, false)])],
+    [
+      'an unfinished $unwind',
+      aggregate([stage({ stage: '$unwind', path: '', preserveEmpty: false })]),
+    ],
+    [
+      'a $project with a blank row',
+      aggregate([stage({ stage: '$project', rows: [field('a', true), field('', true)] })]),
+    ],
+    [
+      'a $sort with a disabled row',
+      aggregate([stage({ stage: '$sort', rows: [sort('a', 1), sort('b', -1, false)] })]),
+    ],
+    [
+      'a $match with a disabled condition',
+      aggregate([stage({ stage: '$match', filter: group('and', eq('a', 1, false)) })]),
+    ],
+    [
+      'a $group accumulator with no output',
+      aggregate([
+        stage({
+          stage: '$group',
+          id: null,
+          accumulators: [{ output: '', accumulator: '$sum', expression: 1 }],
+        }),
+      ]),
+    ],
+  ])('is true for %s', (_name, statement) => {
+    expect(hasDroppedItems(statement)).toBe(true);
   });
 });

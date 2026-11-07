@@ -36,7 +36,7 @@ export function emitFilter(group: QueryGroup): string {
  * True when the item is enabled, or a group with at least one enabled item. A condition with no
  * field yet is not live, so a new row never writes an empty key.
  */
-function hasLive(item: QueryItem): boolean {
+export function hasLive(item: QueryItem): boolean {
   if (item.kind === 'group') return item.items.some(hasLive);
   return item.enabled && !(item.kind === 'condition' && item.field === '');
 }
