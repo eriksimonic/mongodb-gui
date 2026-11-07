@@ -140,7 +140,7 @@ function isObjectArray(value: unknown): value is Plain[] {
 }
 
 /** An object whose keys all start with `$`, such as `{ $gt: 1 }`. An EJSON wrapper is not one. */
-function isOperatorObject(value: unknown): value is Plain {
+export function isOperatorObject(value: unknown): value is Plain {
   if (!isPlainObject(value)) {
     return false;
   }
