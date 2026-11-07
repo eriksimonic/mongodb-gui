@@ -69,6 +69,64 @@ function rulesOf(colors: TokenColors): Monaco.editor.ITokenThemeRule[] {
   ];
 }
 
+/**
+ * The look of a popup: the Mantine Menu dropdown, which Popover and Combobox share. The values copy
+ * the tokens of `theme/tokens.css` and the Mantine item colors. Monaco colors take hex only, so a CSS
+ * variable cannot go here, and a test cannot read the CSS file (vitest stubs `?raw` CSS imports).
+ */
+interface PopupColors {
+  /** `--mg-surface-2`. */
+  readonly surface: string;
+  /** `--mg-border-strong`, the outline and the divider. */
+  readonly border: string;
+  /** The item text. `--mg-text-strong` in dark, and the theme's `black` in light. */
+  readonly text: string;
+  /** The hovered item. Dark is Mantine's `dark[4]`, which equals `--mg-border`. Light is Mantine's `gray[1]`. */
+  readonly hover: string;
+  /** The `--mg-shadow-popup` color at its alpha. */
+  readonly shadow: string;
+}
+
+const DARK_POPUP: PopupColors = {
+  surface: '#2b2d30',
+  border: '#4e5157',
+  text: '#f2f3f5',
+  hover: '#393b40',
+  shadow: '#00000099',
+};
+
+const LIGHT_POPUP: PopupColors = {
+  surface: '#fffefc',
+  border: '#d0ccc3',
+  text: '#1e1f22',
+  hover: '#f1f3f5',
+  shadow: '#00000038',
+};
+
+/** The Monaco colors of the popups: the context menu, the suggest list, hovers and parameter hints. */
+function popupColors(popup: PopupColors): Monaco.editor.IColors {
+  return {
+    'menu.background': popup.surface,
+    'menu.foreground': popup.text,
+    'menu.border': popup.border,
+    'menu.selectionBackground': popup.hover,
+    'menu.selectionForeground': popup.text,
+    'menu.separatorBackground': popup.border,
+    'list.hoverBackground': popup.hover,
+    'editorWidget.background': popup.surface,
+    'editorWidget.border': popup.border,
+    'editorSuggestWidget.background': popup.surface,
+    'editorSuggestWidget.border': popup.border,
+    'editorSuggestWidget.foreground': popup.text,
+    'editorSuggestWidget.selectedBackground': popup.hover,
+    'editorSuggestWidget.selectedForeground': popup.text,
+    'editorHoverWidget.background': popup.surface,
+    'editorHoverWidget.border': popup.border,
+    'editorHoverWidget.foreground': popup.text,
+    'widget.shadow': popup.shadow,
+  };
+}
+
 /** Editor surfaces of the dark theme, listed in docs/design-language.md#editor-colours. */
 const DARK_EDITOR_COLORS: Monaco.editor.IColors = {
   'editor.background': '#18191b',
@@ -81,16 +139,12 @@ const DARK_EDITOR_COLORS: Monaco.editor.IColors = {
   'editorLineNumber.foreground': '#7a7e85',
   'editorLineNumber.activeForeground': '#dfe1e5',
   'editorIndentGuide.background1': '#2b2d30',
-  'editorWidget.background': '#2b2d30',
-  'editorWidget.border': '#393b40',
-  'editorSuggestWidget.background': '#2b2d30',
-  'editorSuggestWidget.border': '#393b40',
-  'editorSuggestWidget.selectedBackground': '#2e436e',
-  'editorHoverWidget.background': '#2b2d30',
-  'editorHoverWidget.border': '#393b40',
   'scrollbarSlider.background': '#393b4099',
   'scrollbarSlider.hoverBackground': '#34363b',
+  ...popupColors(DARK_POPUP),
 };
+
+const LIGHT_EDITOR_COLORS: Monaco.editor.IColors = popupColors(LIGHT_POPUP);
 
 /** The token rules of one theme. Exported so tests can read the colors without a Monaco. */
 export function themeRules(name: EditorThemeName): readonly Monaco.editor.ITokenThemeRule[] {
@@ -132,6 +186,6 @@ export function defineEditorThemes(monaco: typeof Monaco): void {
     base: 'vs',
     inherit: true,
     rules: rulesOf(LIGHT_COLORS),
-    colors: {},
+    colors: LIGHT_EDITOR_COLORS,
   });
 }

@@ -119,3 +119,43 @@ describe('themeRules', () => {
     }
   });
 });
+
+describe('popup colors', () => {
+  const POPUP_KEYS = [
+    'menu.background',
+    'menu.foreground',
+    'menu.border',
+    'menu.selectionBackground',
+    'menu.selectionForeground',
+    'menu.separatorBackground',
+    'list.hoverBackground',
+    'editorWidget.background',
+    'editorWidget.border',
+    'editorSuggestWidget.background',
+    'editorSuggestWidget.border',
+    'editorSuggestWidget.selectedBackground',
+    'editorHoverWidget.background',
+    'editorHoverWidget.border',
+    'widget.shadow',
+  ];
+
+  it('defines the menu and widget colors in both themes', () => {
+    const { monaco, defineTheme } = fakeMonaco();
+    defineEditorThemes(monaco);
+    for (const [, data] of defineTheme.mock.calls) {
+      expect(Object.keys(data.colors ?? {})).toEqual(expect.arrayContaining(POPUP_KEYS));
+    }
+  });
+
+  it('gives the menu, suggest list and hover one surface and one border in each theme', () => {
+    const { monaco, defineTheme } = fakeMonaco();
+    defineEditorThemes(monaco);
+    for (const [, data] of defineTheme.mock.calls) {
+      const colors = data.colors ?? {};
+      expect(colors['editorSuggestWidget.background']).toBe(colors['menu.background']);
+      expect(colors['editorHoverWidget.background']).toBe(colors['menu.background']);
+      expect(colors['editorSuggestWidget.border']).toBe(colors['menu.border']);
+      expect(colors['editorHoverWidget.border']).toBe(colors['menu.border']);
+    }
+  });
+});

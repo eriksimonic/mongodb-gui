@@ -122,3 +122,24 @@
 .mg-app-header input {
   -webkit-app-region: no-drag;
 }
+
+/*
+ * Monaco popups take the Mantine Menu shape. Monaco reads the corner radius and the shadow from
+ * variables that the standalone build leaves unset, so they are set here. The context menu and the
+ * suggest list also set a shadow in their own rules, which !important overrides. The colors are in
+ * kit/code/editor-theme.ts, because Monaco theme keys take only colors.
+ */
+:root {
+  --vscode-cornerRadius-medium: var(--mantine-radius-md);
+  --vscode-cornerRadius-large: var(--mantine-radius-md);
+  --vscode-shadow-lg: var(--mg-shadow-popup);
+}
+
+.monaco-menu-container,
+.monaco-editor .suggest-widget {
+  box-shadow: var(--mg-shadow-popup) !important;
+}
+
+.monaco-menu-container {
+  font-family: var(--mantine-font-family) !important;
+}
