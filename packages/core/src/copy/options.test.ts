@@ -103,6 +103,7 @@ describe('CopyProgressSchema', () => {
     const parsed = CopyProgressSchema.safeParse({
       phase: 'copying',
       documents: 0,
+      processedDocuments: 0,
       collectionsDone: 0,
       collectionsTotal: 1,
       failedDocuments: 0,
@@ -113,5 +114,45 @@ describe('CopyProgressSchema', () => {
       cancelled: false,
     });
     expect(parsed.success).toBe(true);
+  });
+  it('accepts the live position and the current collection total', () => {
+    const base = {
+      phase: 'copying',
+      documents: 0,
+      processedDocuments: 0,
+      collectionsDone: 0,
+      collectionsTotal: 1,
+      failedDocuments: 0,
+      skippedDocuments: 0,
+      lines: [],
+      elapsedMs: 0,
+      done: false,
+      cancelled: false,
+    };
+    expect(
+      CopyProgressSchema.safeParse({
+        ...base,
+        processedDocuments: 198_253,
+        currentTotal: 1_000_000,
+      }).success,
+    ).toBe(true);
+    expect(CopyProgressSchema.safeParse({ ...base, processedDocuments: -1 }).success).toBe(false);
+    expect(CopyProgressSchema.safeParse({ ...base, currentTotal: 1.5 }).success).toBe(false);
+  });
+  it('rejects a progress event without processedDocuments', () => {
+    const event = {
+      phase: 'copying',
+      documents: 0,
+      collectionsDone: 0,
+      collectionsTotal: 1,
+      failedDocuments: 0,
+      skippedDocuments: 0,
+      lines: [],
+      elapsedMs: 0,
+      done: false,
+      cancelled: false,
+    };
+    expect(CopyProgressSchema.safeParse(event).success).toBe(false);
+    expect(CopyProgressSchema.safeParse({ ...event, processedDocuments: 0 }).success).toBe(true);
   });
 });

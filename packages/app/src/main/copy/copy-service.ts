@@ -20,6 +20,7 @@ import {
   type CopyProgress,
   type NamespaceRef,
   type RpcEvent,
+  type ToolLogLine,
 } from '@mongo-gui/core';
 import {
   dropCollectionIfExists,
@@ -50,6 +51,8 @@ export const COPY_PROGRESS_INTERVAL_MS = 250;
 const MERGE_BATCH_SIZE = 1000;
 const MAX_LINES_PER_EVENT = 100;
 const MAX_NOTES = 50;
+// A filtered dump prints a bare count instead of a bar: "<time>\tshop.events  99125".
+const DUMP_COUNT_LINE = /^\S+\t\S+\s+(\d+)$/;
 // Views and system collections are skipped. assessCopy reports the views.
 const SYSTEM_PREFIX = 'system.';
 
@@ -105,7 +108,9 @@ interface ReportDelta {
 
 /** What a job reports: the running tally, and the events it sends. */
 interface Reporter {
-  start(target: string): void;
+  start(target: string, estimate: number | undefined): void;
+  /** The tool's live position in the current collection. It is sent with the next event. */
+  position(done: number): void;
   collectionDone(): void;
   note(text: string): void;
   add(delta: ReportDelta): void;
@@ -149,6 +154,14 @@ function cancelledError(): AppError {
 
 function isCancelled(reason: unknown): boolean {
   return reason instanceof AppErrorException && reason.error.code === 'CANCELLED';
+}
+
+/** The dump's document position in one tool line, or undefined when the line has none. */
+function dumpPositionOf(parsed: ToolLogLine, text: string): number | undefined {
+  if (parsed.kind === 'bar' && parsed.unit === 'documents') return parsed.done;
+  if (parsed.kind === 'dumped') return parsed.documents;
+  const count = DUMP_COUNT_LINE.exec(text);
+  return count === null ? undefined : Number(count[1]);
 }
 
 /** Parses one item filter. The text must be an EJSON object. */
@@ -248,7 +261,11 @@ export function createCopyService(deps: CopyServiceDeps): CopyJobs {
         // Merge into a time series target is refused by assessCopy, so only replace reads this.
         targetTimeseries: targetTypes.get(item.target) === 'timeseries',
         sourceTimeseries: sourceTypes.get(item.source) === 'timeseries',
-        estimate: sourceInfo.namespaces.find((ns) => ns.collection === item.source)?.documents,
+        // The namespace count ignores the filter, so a filtered item has no known total.
+        estimate:
+          filters[index] === undefined
+            ? sourceInfo.namespaces.find((ns) => ns.collection === item.source)?.documents
+            : undefined,
       });
     });
     if (items.length === 0) {
@@ -285,10 +302,23 @@ export function createCopyService(deps: CopyServiceDeps): CopyJobs {
     const startedAt = deps.now();
     let phase: CopyProgress['phase'] = 'preparing';
     let lastSentAt = Number.NEGATIVE_INFINITY;
+    // Processed documents: the finished collections, and the tool's position in the current one.
+    let finished = 0;
+    let live = 0;
+    // Restored, skipped and failed documents of the current collection, once a tool reports them.
+    let exact: number | undefined;
+    let currentTotal: number | undefined;
+    let lastProcessed = 0;
 
     const send = (done: boolean, error?: AppError): void => {
       lastSentAt = deps.now();
       const lines = tally.lines.splice(0);
+      // Never lower the count. The restore can count fewer documents than the dump printed.
+      lastProcessed = Math.max(
+        lastProcessed,
+        finished + live,
+        tally.documents + tally.skipped + tally.failed,
+      );
       deps.emit({
         type: 'copy:progress',
         jobId: job.jobId,
@@ -296,6 +326,8 @@ export function createCopyService(deps: CopyServiceDeps): CopyJobs {
           phase: done ? 'finished' : phase,
           documents: tally.documents,
           ...(plan.totalDocuments === undefined ? {} : { totalDocuments: plan.totalDocuments }),
+          ...(currentTotal === undefined ? {} : { currentTotal }),
+          processedDocuments: lastProcessed,
           collectionsDone: tally.collectionsDone,
           collectionsTotal: plan.items.length,
           ...(tally.current === undefined ? {} : { current: tally.current }),
@@ -313,12 +345,22 @@ export function createCopyService(deps: CopyServiceDeps): CopyJobs {
 
     return {
       /** A collection starts. Sent at once. */
-      start(target: string): void {
+      start(target: string, estimate: number | undefined): void {
         phase = 'copying';
         tally.current = target;
+        currentTotal = estimate;
         send(false);
       },
+      /** The tool's position in the current collection. The next event carries it. */
+      position(done: number): void {
+        live = done;
+      },
       collectionDone(): void {
+        // The restore's exact counts win over the dump's last position, when the restore reported.
+        finished += exact ?? live;
+        live = 0;
+        exact = undefined;
+        currentTotal = undefined;
         tally.collectionsDone += 1;
         send(false);
       },
@@ -329,6 +371,14 @@ export function createCopyService(deps: CopyServiceDeps): CopyJobs {
         tally.documents += delta.documents ?? 0;
         tally.failed += delta.failed ?? 0;
         tally.skipped += delta.skipped ?? 0;
+        if (
+          delta.documents !== undefined ||
+          delta.failed !== undefined ||
+          delta.skipped !== undefined
+        ) {
+          exact =
+            (exact ?? 0) + (delta.documents ?? 0) + (delta.failed ?? 0) + (delta.skipped ?? 0);
+        }
       },
       /** A tool line. It goes out with the next event. */
       line(text: string): void {
@@ -423,6 +473,8 @@ export function createCopyService(deps: CopyServiceDeps): CopyJobs {
     };
     const data = new PassThrough();
     const configs: ConfigPipe[] = [];
+    // The tools print only every few seconds. This keeps the elapsed time and the position moving.
+    const heartbeat = setInterval(() => report.maybe(), interval);
     try {
       // A config pipe serves one reader, so each tool run gets its own.
       const dumpConfig = await openConfigPipe(deps.tmpRoot, toolsConfigYaml(plan.source.uri));
@@ -440,7 +492,11 @@ export function createCopyService(deps: CopyServiceDeps): CopyJobs {
             cwd: dumpConfig.dir,
             stdout: data,
             secrets: plan.source.secrets,
-            onLine: (_parsed, text) => report.line(text),
+            onLine: (parsed, text) => {
+              const position = dumpPositionOf(parsed, text);
+              if (position !== undefined) report.position(position);
+              report.line(text);
+            },
           })
           .catch(stopPair),
         deps
@@ -477,6 +533,7 @@ export function createCopyService(deps: CopyServiceDeps): CopyJobs {
       const failure = failures.find((outcome) => !isCancelled(outcome.reason)) ?? failures[0];
       if (failure !== undefined) throw failure.reason;
     } finally {
+      clearInterval(heartbeat);
       data.destroy();
       await Promise.all(configs.map((config) => config.dispose()));
     }
@@ -527,7 +584,7 @@ export function createCopyService(deps: CopyServiceDeps): CopyJobs {
       for (const item of plan.items) {
         if (signal.aborted) break;
         wrote = true;
-        report.start(item.target);
+        report.start(item.target, item.estimate);
         await copyItem(job, plan, item, report);
         report.collectionDone();
       }

@@ -44,6 +44,7 @@ function framesFor(items: readonly CopyItem[]): Frame[] {
       ...base,
       phase: 'preparing',
       documents: 0,
+      processedDocuments: 0,
       totalDocuments,
       collectionsDone: 0,
       collectionsTotal,
@@ -55,10 +56,12 @@ function framesFor(items: readonly CopyItem[]): Frame[] {
     const before = index * FRAMES_PER_ITEM * DOCUMENTS_PER_FRAME;
     // Step 0 names the item before any of its documents are written, as the service does.
     for (let step = 0; step <= FRAMES_PER_ITEM; step += 1) {
+      const documents = before + step * DOCUMENTS_PER_FRAME;
       frames.push({
         ...base,
         phase: 'copying',
-        documents: before + step * DOCUMENTS_PER_FRAME,
+        documents,
+        processedDocuments: documents,
         totalDocuments,
         collectionsDone: step === FRAMES_PER_ITEM ? index + 1 : index,
         collectionsTotal,
@@ -72,6 +75,7 @@ function framesFor(items: readonly CopyItem[]): Frame[] {
     ...base,
     phase: 'finished',
     documents: totalDocuments,
+    processedDocuments: totalDocuments,
     totalDocuments,
     collectionsDone: collectionsTotal,
     collectionsTotal,

@@ -51,6 +51,10 @@ export const CopyProgressSchema = z.object({
   collectionsTotal: z.number().int().min(0),
   // Target name of the collection being written.
   current: z.string().max(400).optional(),
+  // Documents of the current collection, known before it is restored. Undefined when unknown.
+  currentTotal: z.number().int().min(0).optional(),
+  // Documents handled so far across the job, live while a collection is dumped. Monotonic.
+  processedDocuments: z.number().int().min(0),
   failedDocuments: z.number().int().min(0),
   // Insert only: documents whose _id already existed in the target.
   skippedDocuments: z.number().int().min(0),

@@ -2,10 +2,12 @@ import { spawn } from 'node:child_process';
 import { existsSync, mkdirSync, mkdtempSync, rmSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
+import { PassThrough, Writable } from 'node:stream';
 import { MongoClient, type Collection } from 'mongodb';
 import { afterAll, beforeAll, beforeEach, describe, expect, it } from 'vitest';
 import {
   AppErrorException,
+  parseToolLine,
   type ConnectionProfile,
   type CopyOptions,
   type CopyProgress,
@@ -28,6 +30,7 @@ import {
 import type { ToolsEndpoint } from '../backup/endpoint';
 import { runTool } from '../backup/tool-process';
 import { createToolsRegistry } from '../tools/registry';
+import { toolEnv } from '../tools/tool-env';
 import { createCopyService, type CopyJobs } from './copy-service';
 
 // The same image as backup.integration.test.ts. Time series needs 5.0 or newer.
@@ -41,6 +44,12 @@ const TARGET_ID = '7a1d2e3f-4b5c-4d6e-8f70-123456789abc';
 const SYSTEM_DATABASES = ['admin', 'config', 'local'];
 const BULK_BATCHES = 24;
 const BULK_BATCH_SIZE = 5000;
+// The live timeline holds the restore input back for this long. mongodump then blocks on a full pipe
+// and prints a progress line every 3 s, so the test does not depend on how fast the machine restores.
+const LIVE_BATCHES = 200;
+const LIVE_DOCUMENTS = LIVE_BATCHES * BULK_BATCH_SIZE;
+const LIVE_HOLD_MS = 7_000;
+const LIVE_TIMEOUT_MS = 240_000;
 
 const appRoot = join(__dirname, '..', '..', '..');
 const toolsDir =
@@ -87,6 +96,26 @@ describe.skipIf(!hasTools)('copy with the real tools on two servers', () => {
   const events: RpcEvent[] = [];
   let service: CopyJobs;
   const profiles: Record<string, ConnectionProfile> = {};
+  // Zero except during the live timeline test.
+  let restoreHoldMs = 0;
+
+  /** The real runTool, except that a restore reads its input only after restoreHoldMs. */
+  function heldRunTool(options: Parameters<typeof runTool>[0]): ReturnType<typeof runTool> {
+    if (
+      restoreHoldMs === 0 ||
+      !options.binary.endsWith('mongorestore') ||
+      options.stdin === undefined
+    ) {
+      return runTool(options);
+    }
+    const source = options.stdin;
+    const held = new PassThrough();
+    const timer = setTimeout(() => {
+      if (!held.destroyed) source.pipe(held);
+    }, restoreHoldMs);
+    held.once('close', () => clearTimeout(timer));
+    return runTool({ ...options, stdin: held });
+  }
 
   const progressOf = (jobId: string): CopyProgress[] =>
     events.flatMap((event) =>
@@ -108,6 +137,17 @@ describe.skipIf(!hasTools)('copy with the real tools on two servers', () => {
     while (!condition()) {
       if (Date.now() > deadline) throw new Error('the condition was not met in time');
       await sleep(10);
+    }
+  }
+
+  // Runs one copy with the restore input held back, and returns its job id and final event.
+  async function runHeld(options: CopyOptions): Promise<{ jobId: string; final: CopyProgress }> {
+    restoreHoldMs = LIVE_HOLD_MS;
+    try {
+      const jobId = await service.start(options);
+      return { jobId, final: await finish(jobId) };
+    } finally {
+      restoreHoldMs = 0;
     }
   }
 
@@ -204,7 +244,7 @@ describe.skipIf(!hasTools)('copy with the real tools on two servers', () => {
       rename: renameCollection,
       dropIfExists: dropCollectionIfExists,
       merge: mergeCollection,
-      runTool,
+      runTool: heldRunTool,
       spawn,
       emit: (event) => events.push(event),
       now: () => Date.now(),
@@ -634,5 +674,118 @@ describe.skipIf(!hasTools)('copy with the real tools on two servers', () => {
       expect(await targetClient.db('archive').collection('orders').countDocuments()).toBe(50);
     },
     TEST_TIMEOUT_MS,
+  );
+  it(
+    'mongodump prints a bar that parseToolLine reads as documents, and a filtered dump prints a count',
+    async () => {
+      // mongodump prints a bar only while the dump is unfinished, so the collection must be larger
+      // than the first output chunk that the held stream below keeps.
+      const contract = sourceClient.db('shop').collection('contract');
+      for (let batch = 0; batch < 60; batch++) {
+        await contract.insertMany(
+          Array.from({ length: BULK_BATCH_SIZE }, (_, index) => ({
+            n: batch * BULK_BATCH_SIZE + index,
+            padding: 'x'.repeat(100),
+          })),
+        );
+      }
+      const mongodump = join(
+        toolsDir,
+        'bin',
+        process.platform === 'win32' ? 'mongodump.exe' : 'mongodump',
+      );
+      const baseArgs = [
+        '--uri',
+        source.rootUri,
+        '--db',
+        'shop',
+        '--collection',
+        'contract',
+        '--archive',
+      ];
+      // Each run holds its first output chunk for 4 s, as a slow restore does, so it prints progress.
+      const dumpLines = async (args: string[]): Promise<string[]> => {
+        const lines: string[] = [];
+        let released = false;
+        const stdout = new Writable({
+          write(_chunk, _encoding, callback) {
+            if (released) {
+              callback();
+              return;
+            }
+            setTimeout(() => {
+              released = true;
+              callback();
+            }, 4_000);
+          },
+        });
+        await runTool({
+          spawn,
+          binary: mongodump,
+          args,
+          env: toolEnv(process.env, process.platform),
+          cwd: work,
+          stdout,
+          secrets: [],
+          onLine: (_parsed, text) => {
+            lines.push(text);
+          },
+          platform: process.platform,
+        });
+        return lines;
+      };
+
+      const bars = (await dumpLines(baseArgs))
+        .map((text) => parseToolLine(text))
+        .filter((parsed) => parsed.kind === 'bar');
+      expect(bars.length).toBeGreaterThan(0);
+      for (const bar of bars) {
+        expect(bar).toMatchObject({ kind: 'bar', unit: 'documents', namespace: 'shop.contract' });
+      }
+
+      const filtered = await dumpLines([...baseArgs, '--query', '{"n":{"$gte":0}}']);
+      expect(filtered.some((text) => /\tshop\.contract\s+\d+$/.test(text))).toBe(true);
+    },
+    TEST_TIMEOUT_MS,
+  );
+
+  it(
+    'reports processed documents while a tool copy runs, for replace and insert only',
+    async () => {
+      const live = sourceClient.db('shop').collection('live');
+      for (let batch = 0; batch < LIVE_BATCHES; batch++) {
+        await live.insertMany(
+          Array.from({ length: BULK_BATCH_SIZE }, (_, index) => ({
+            n: batch * BULK_BATCH_SIZE + index,
+            padding: 'x'.repeat(40),
+          })),
+        );
+      }
+
+      for (const mode of ['replace', 'insertOnly'] as const) {
+        const target = mode === 'replace' ? 'live_replace' : 'live_insert';
+        const { jobId, final } = await runHeld(
+          copyOptions({ mode, items: [{ source: 'live', target }] }),
+        );
+        expect(final).toMatchObject({ done: true, cancelled: false, documents: LIVE_DOCUMENTS });
+        expect(final.elapsedMs).toBeGreaterThan(LIVE_HOLD_MS);
+
+        const processed = progressOf(jobId)
+          .filter((progress) => !progress.done)
+          .map((progress) => progress.processedDocuments ?? 0);
+        // One bar arrives while the dump is unfinished, so a value between 0 and the total is seen.
+        expect(processed.some((value) => value > 0 && value < LIVE_DOCUMENTS)).toBe(true);
+        let increases = 0;
+        for (let index = 1; index < processed.length; index++) {
+          const before = processed[index - 1] ?? 0;
+          const after = processed[index] ?? 0;
+          expect(after).toBeGreaterThanOrEqual(before);
+          if (after > before) increases += 1;
+        }
+        expect(increases).toBeGreaterThanOrEqual(2);
+        expect(final.processedDocuments).toBe(LIVE_DOCUMENTS);
+      }
+    },
+    LIVE_TIMEOUT_MS,
   );
 });

@@ -75,6 +75,7 @@ describe('rpcContract', () => {
     const progress = {
       phase: 'copying',
       documents: 10,
+      processedDocuments: 10,
       collectionsDone: 0,
       collectionsTotal: 1,
       failedDocuments: 0,

@@ -10,6 +10,7 @@ function progressOf(overrides: Partial<CopyProgress> = {}): CopyProgress {
   return {
     phase: 'copying',
     documents: 0,
+    processedDocuments: 0,
     collectionsDone: 0,
     collectionsTotal: 2,
     failedDocuments: 0,
@@ -28,6 +29,7 @@ const ORDERS_COPYING: CopyItemState = {
   status: 'copying',
   documents: 100,
   skipped: 0,
+  processed: 100,
 };
 const USERS_QUEUED: CopyItemState = {
   source: 'users',
@@ -35,6 +37,7 @@ const USERS_QUEUED: CopyItemState = {
   status: 'queued',
   documents: 0,
   skipped: 0,
+  processed: 0,
 };
 
 /** A job with its latest event, its final event (when it ended) and its item states. */
@@ -66,6 +69,7 @@ describe('CopyProgressView while the job runs', () => {
         progress: progressOf({
           current: 'orders',
           documents: 100,
+          processedDocuments: 100,
           totalDocuments: 200,
           skippedDocuments: 3,
           collectionsDone: 0,
@@ -79,7 +83,7 @@ describe('CopyProgressView while the job runs', () => {
     const bar = screen.getByRole('progressbar', { name: 'Copy progress' });
     expect(bar).toHaveAttribute('aria-valuenow', '50');
     expect(
-      screen.getByText(/100 of 200 documents, 3 skipped, 0 of 2 collections/),
+      screen.getByText(/100 of 200 processed, 3 skipped, 0 of 2 collections/),
     ).toBeInTheDocument();
   });
 
@@ -153,6 +157,97 @@ describe('CopyProgressView while the job runs', () => {
     );
 
     expect(screen.getByText('sensor_readings was filled in place')).toBeInTheDocument();
+  });
+});
+
+describe('CopyProgressView live progress', () => {
+  it('fills the bar from processed documents while the tool has restored none', () => {
+    renderView(
+      jobOf({
+        progress: progressOf({
+          current: 'orders',
+          documents: 0,
+          processedDocuments: 500,
+          totalDocuments: 1000,
+        }),
+        itemStates: [{ ...ORDERS_COPYING, documents: 0, processed: 500, total: 1000 }],
+      }),
+    );
+
+    expect(screen.getByRole('progressbar', { name: 'Copy progress' })).toHaveAttribute(
+      'aria-valuenow',
+      '50',
+    );
+    expect(screen.getByText(/500 of 1,000 processed, 0 restored, 0 skipped/)).toBeInTheDocument();
+  });
+
+  it('shows an indeterminate top bar while running without a total', () => {
+    renderView(jobOf({ progress: progressOf({ current: 'orders', processedDocuments: 500 }) }));
+
+    const bar = screen.getByRole('progressbar', { name: 'Copy progress' });
+    expect(bar).not.toHaveAttribute('aria-valuenow');
+    expect(screen.getByText(/500 processed, 0 restored, 0 skipped/)).toBeInTheDocument();
+  });
+
+  it('keeps the exact restored count in the text when it differs from processed', () => {
+    renderView(
+      jobOf({
+        progress: progressOf({
+          current: 'orders',
+          documents: 400,
+          skippedDocuments: 600,
+          processedDocuments: 1000,
+          totalDocuments: 1000,
+        }),
+      }),
+    );
+
+    expect(
+      screen.getByText(/1,000 of 1,000 processed, 400 restored, 600 skipped/),
+    ).toBeInTheDocument();
+  });
+
+  it('shows the copying item as a share of its own total', () => {
+    renderView(
+      jobOf({
+        progress: progressOf({ current: 'orders', currentTotal: 1000, processedDocuments: 250 }),
+        itemStates: [{ ...ORDERS_COPYING, processed: 250, total: 1000 }, USERS_QUEUED],
+      }),
+    );
+
+    expect(screen.getByRole('progressbar', { name: 'Progress for orders' })).toHaveAttribute(
+      'aria-valuenow',
+      '25',
+    );
+  });
+
+  it('shows the copying item as indeterminate when its total is unknown', () => {
+    renderView(
+      jobOf({
+        progress: progressOf({ current: 'orders', processedDocuments: 250 }),
+        itemStates: [{ ...ORDERS_COPYING, processed: 250 }, USERS_QUEUED],
+      }),
+    );
+
+    const row = screen.getByRole('progressbar', { name: 'Progress for orders' });
+    expect(row).not.toHaveAttribute('aria-valuenow');
+  });
+
+  it('fills a done item and leaves a queued item at 0', () => {
+    renderView(
+      jobOf({
+        progress: progressOf({ current: 'users_copy', collectionsDone: 1 }),
+        itemStates: [{ ...ORDERS_COPYING, status: 'done', processed: 100 }, USERS_QUEUED],
+      }),
+    );
+
+    expect(screen.getByRole('progressbar', { name: 'Progress for orders' })).toHaveAttribute(
+      'aria-valuenow',
+      '100',
+    );
+    expect(
+      screen.getByRole('progressbar', { name: 'Progress for users to users_copy' }),
+    ).toHaveAttribute('aria-valuenow', '0');
   });
 });
 

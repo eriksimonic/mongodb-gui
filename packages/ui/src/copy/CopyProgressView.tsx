@@ -40,12 +40,55 @@ function isCancelled(progress: CopyProgress): boolean {
   return progress.cancelled || progress.error?.code === 'CANCELLED';
 }
 
-/** Documents written over documents expected. Without a total, collections done over collections. */
-function fractionOf(progress: CopyProgress): number {
-  if (progress.totalDocuments !== undefined && progress.totalDocuments > 0) {
-    return Math.min(1, progress.documents / progress.totalDocuments);
+/** Documents handled over the job total. Undefined without a usable total, so the bar has no value. */
+function documentFractionOf(progress: CopyProgress): number | undefined {
+  const total = progress.totalDocuments;
+  if (!total) {
+    return undefined;
   }
+  return Math.min(1, progress.processedDocuments / total);
+}
+
+/** Collections done over collections. A stopped job without a total shows this. */
+function collectionFractionOf(progress: CopyProgress): number {
   return progress.collectionsTotal === 0 ? 0 : progress.collectionsDone / progress.collectionsTotal;
+}
+
+/**
+ * The document counts of the top line. While the job runs, a live position reads as processed,
+ * with the restored count when it differs. The final line keeps the restored count.
+ */
+function documentsTextOf(progress: CopyProgress, running: boolean): string {
+  const total =
+    progress.totalDocuments === undefined ? '' : ` of ${count(progress.totalDocuments)}`;
+  if (!running) {
+    return `${count(progress.documents)}${total} documents`;
+  }
+  const restored =
+    progress.documents === progress.processedDocuments
+      ? ''
+      : `, ${count(progress.documents)} restored`;
+  return `${count(progress.processedDocuments)}${total} processed${restored}`;
+}
+
+/** A bar with a value. Without one it is animated and has no aria-valuenow. */
+function BarOf({
+  label,
+  percent,
+  size,
+}: {
+  readonly label: string;
+  readonly percent: number | undefined;
+  readonly size: 'sm' | 'md';
+}) {
+  if (percent !== undefined) {
+    return <Progress value={percent} size={size} aria-label={label} />;
+  }
+  return (
+    <Progress.Root size={size} role="progressbar" aria-label={label}>
+      <Progress.Section value={100} striped animated withAria={false} />
+    </Progress.Root>
+  );
 }
 
 function resultTitle(result: CopyProgress): string {
@@ -83,11 +126,14 @@ export function CopyProgressView({ job, onCancel }: CopyProgressViewProps) {
   // The final event carries every note of the job, so it wins over the latest progress event.
   const warnings = result?.notes ?? progress?.notes ?? [];
   const running = result === undefined;
-  let barValue = 0;
+  const fraction = progress === undefined ? undefined : documentFractionOf(progress);
+  let percent: number | undefined = 0;
   if (result !== undefined && result.error === undefined && !isCancelled(result)) {
-    barValue = 100;
+    percent = 100;
+  } else if (running) {
+    percent = fraction === undefined ? undefined : fraction * 100;
   } else if (progress !== undefined) {
-    barValue = fractionOf(progress) * 100;
+    percent = (fraction ?? collectionFractionOf(progress)) * 100;
   }
   return (
     <Stack gap="sm" data-testid="copy-progress">
@@ -96,14 +142,10 @@ export function CopyProgressView({ job, onCancel }: CopyProgressViewProps) {
           {headingOf(job)}
         </Text>
       ) : null}
-      <Progress value={barValue} aria-label="Copy progress" />
+      <BarOf label="Copy progress" percent={percent} size="md" />
       {progress === undefined ? null : (
         <Text size="sm" c="dimmed">
-          {count(progress.documents)}
-          {progress.totalDocuments === undefined
-            ? ''
-            : ` of ${count(progress.totalDocuments)}`}{' '}
-          documents, {count(progress.skippedDocuments)} skipped
+          {documentsTextOf(progress, running)}, {count(progress.skippedDocuments)} skipped
           {progress.failedDocuments > 0 ? `, ${count(progress.failedDocuments)} failed` : ''},{' '}
           {progress.collectionsDone} of {progress.collectionsTotal} collections, elapsed{' '}
           {(progress.elapsedMs / 1000).toFixed(1)} s
@@ -172,9 +214,21 @@ export function CopyProgressView({ job, onCancel }: CopyProgressViewProps) {
   );
 }
 
+/** An item's share of its own documents. The copying item has no value until its total is known. */
+function itemPercentOf(item: CopyItemState): number | undefined {
+  if (item.status === 'done') {
+    return 100;
+  }
+  if (item.status !== 'copying') {
+    return 0;
+  }
+  if (!item.total) {
+    return undefined;
+  }
+  return Math.min(100, (item.processed / item.total) * 100);
+}
+
 function ItemRow({ item }: { readonly item: CopyItemState }) {
-  // The service does not report a total per collection, so a copying item shows an animated bar.
-  const value = item.status === 'done' || item.status === 'copying' ? 100 : 0;
   const name = item.source === item.target ? item.target : `${item.source} to ${item.target}`;
   return (
     <Table.Tr>
@@ -187,13 +241,7 @@ function ItemRow({ item }: { readonly item: CopyItemState }) {
       <Table.Td>{count(item.skipped)}</Table.Td>
       <Table.Td>{STATUS_LABELS[item.status]}</Table.Td>
       <Table.Td>
-        <Progress
-          size="sm"
-          value={value}
-          striped={item.status === 'copying'}
-          animated={item.status === 'copying'}
-          aria-label={`Progress for ${name}`}
-        />
+        <BarOf label={`Progress for ${name}`} percent={itemPercentOf(item)} size="sm" />
       </Table.Td>
     </Table.Tr>
   );

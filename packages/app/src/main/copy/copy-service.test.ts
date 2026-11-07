@@ -1,4 +1,6 @@
+import { randomUUID } from 'node:crypto';
 import { mkdtempSync, readdirSync, rmSync } from 'node:fs';
+import { mkdir, rm } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
@@ -11,6 +13,7 @@ import {
   type CopyOptions,
   type CopyProgress,
   type RpcEvent,
+  parseToolLine,
   type ToolsInstall,
 } from '@mongo-gui/core';
 import type { ToolsEndpoint } from '../backup/endpoint';
@@ -22,9 +25,28 @@ const SOURCE_ID = '3f2b8c1e-5d4a-4b7e-9c1f-2a6d8e0b7f10';
 const TARGET_ID = '7a1d2e3f-4b5c-4d6e-8f70-123456789abc';
 const PASSWORD = 'Sup3r-Secret';
 const VERSION = '100.19.1';
-// Each tool run first starts a real mkfifo process, so the job takes longer under load than
-// vitest's 1 s default wait. Every wait in this file uses this bound.
+// A job needs a few async steps, so it takes longer under load than vitest's 1 s default wait.
+// Every wait in this file uses this bound.
 const WAIT_MS = 10_000;
+
+// The fake tool runs never open the config pipes. A real pipe parks a libuv pool thread in
+// open(path, 'w') until a reader appears. When the pool is busy, dispose() can open and close its
+// reader before the queued writer starts. That writer then stays parked for good. Once the parked
+// threads fill the pool (4 by default), every later fs call in the process hangs, so the job
+// never reaches runTool and the hook then waits 60 s. The stub keeps the folder that the service
+// removes and drops the FIFO. temp-config.test.ts covers the real pipe.
+vi.mock('../backup/temp-config', async (importOriginal) => ({
+  ...(await importOriginal<typeof import('../backup/temp-config')>()),
+  openConfigPipe: async (tmpRoot: string) => {
+    const dir = join(tmpRoot, `tools-${randomUUID()}`);
+    await mkdir(dir, { recursive: true, mode: 0o700 });
+    return {
+      path: join(dir, 'config'),
+      dir,
+      dispose: () => rm(dir, { recursive: true, force: true }),
+    };
+  },
+}));
 
 type Client = ReturnType<CopyServiceDeps['getClient']>;
 type RunToolOptions = Parameters<CopyServiceDeps['runTool']>[0];
@@ -376,7 +398,7 @@ describe('copy service: merge', () => {
     expect(h.runTool).not.toHaveBeenCalled();
     expect(h.merge).toHaveBeenCalledTimes(1);
     expect(h.merge.mock.calls[0]?.[0]).toMatchObject({ filter: { qty: { $gt: 1 } } });
-    expect(final).toMatchObject({ documents: 2, done: true });
+    expect(final).toMatchObject({ documents: 2, done: true, processedDocuments: 2 });
   });
 });
 
@@ -584,6 +606,286 @@ describe('copy service: stops and failures', () => {
     expect(finalProgress(h.events)).toMatchObject({ cancelled: true });
     expect(h.dropIfExists).toHaveBeenCalledTimes(1);
     expect(leftoverConfigs()).toEqual([]);
+  });
+});
+
+/** A mongodump bar line for the fake dump, as the tool prints it while it runs. */
+function barLine(done: number, total: number): string {
+  const filled = Math.round((done / total) * 24);
+  const percent = ((done / total) * 100).toFixed(1);
+  return `[${'#'.repeat(filled)}${'.'.repeat(24 - filled)}]  shop.orders  ${done}/${total}  (${percent}%)`;
+}
+
+/**
+ * A fake tool run: the dump prints its position as the clock moves, and the restore prints the
+ * summary. A filtered dump prints a bare count instead of a bar. The dump runs first, so the
+ * restore prints after the dump lines.
+ */
+function dumpWithBars(
+  clock: { now: number },
+  restoreLine: string,
+  total = 1000,
+  style: 'bar' | 'count' = 'bar',
+) {
+  return (options: RunToolOptions) => {
+    if (!options.binary.endsWith('mongodump')) return succeeded(options, restoreLine);
+    for (const done of [total / 4, total / 2, (3 * total) / 4]) {
+      clock.now += 300;
+      const text =
+        style === 'bar'
+          ? barLine(done, total)
+          : `2026-11-07T12:09:21.300+0100\tshop.orders  ${done}`;
+      options.onLine(parseToolLine(text), text);
+    }
+    clock.now += 300;
+    const dumped = `done dumping \`shop.orders\` (${total} documents)`;
+    options.onLine(parseToolLine(dumped), dumped);
+    return Promise.resolve({ exitCode: 0, signal: null, tail: [] });
+  };
+}
+
+function progressEvents(events: RpcEvent[]): CopyProgress[] {
+  return events.flatMap((event) => (event.type === 'copy:progress' ? [event.progress] : []));
+}
+
+const ORDERS_1000 = [
+  { database: 'shop', collection: 'orders', type: 'collection' as const, documents: 1000 },
+];
+
+describe('copy service: live progress while a tool copies', () => {
+  const cases = [
+    {
+      name: 'replace through a temporary collection',
+      mode: 'replace' as const,
+      restoreLine: '1000 document(s) restored successfully. 0 document(s) failed to restore.',
+      targetNamespaces: [],
+      documents: 1000,
+      skipped: 0,
+    },
+    {
+      name: 'insert only',
+      mode: 'insertOnly' as const,
+      restoreLine: '400 document(s) restored successfully. 600 document(s) failed to restore.',
+      targetNamespaces: [],
+      documents: 400,
+      skipped: 600,
+    },
+    {
+      name: 'replace in place into a time series target',
+      mode: 'replace' as const,
+      restoreLine: '1000 document(s) restored successfully. 0 document(s) failed to restore.',
+      targetNamespaces: [
+        { database: 'archive', collection: 'orders', type: 'timeseries' as const },
+      ],
+      documents: 1000,
+      skipped: 0,
+    },
+  ];
+
+  it.each(cases)(
+    '$name: processedDocuments grows during the dump while documents stays 0',
+    async ({ mode, restoreLine, targetNamespaces, documents, skipped }) => {
+      const clock = { now: 0 };
+      const h = harness({
+        clock,
+        sourceNamespaces: ORDERS_1000,
+        targetNamespaces,
+        restoreLine,
+        runToolImpl: dumpWithBars(clock, restoreLine),
+      });
+      await h.service.start(options({ mode }));
+      const final = await waitForFinal(h.events);
+
+      const beforeRestore = progressEvents(h.events).filter(
+        (progress) => !progress.done && progress.collectionsDone === 0,
+      );
+      expect(beforeRestore.map((progress) => progress.processedDocuments)).toEqual([
+        0, 250, 500, 750, 1000,
+      ]);
+      expect(beforeRestore.map((progress) => progress.documents)).toEqual([0, 0, 0, 0, 0]);
+      expect(beforeRestore.every((progress) => progress.currentTotal === 1000)).toBe(true);
+      expect(beforeRestore.every((progress) => progress.totalDocuments === 1000)).toBe(true);
+      expect(final).toMatchObject({
+        documents,
+        skippedDocuments: skipped,
+        processedDocuments: 1000,
+      });
+    },
+  );
+
+  it('resets the live position for each collection and keeps the job total growing', async () => {
+    const clock = { now: 0 };
+    const restoreLine = '1000 document(s) restored successfully. 0 document(s) failed to restore.';
+    const h = harness({
+      clock,
+      sourceNamespaces: [
+        ...ORDERS_1000,
+        { database: 'shop', collection: 'users', type: 'collection', documents: 1000 },
+      ],
+      restoreLine,
+      runToolImpl: dumpWithBars(clock, restoreLine),
+    });
+    await h.service.start(
+      options({
+        items: [
+          { source: 'orders', target: 'orders' },
+          { source: 'users', target: 'users' },
+        ],
+      }),
+    );
+    await waitForFinal(h.events);
+
+    expect(progressEvents(h.events).map((progress) => progress.processedDocuments)).toEqual([
+      0, 250, 500, 750, 1000, 1000, 1000, 1250, 1500, 1750, 2000, 2000, 2000,
+    ]);
+  });
+
+  it('never lowers processedDocuments when the restore counts fewer documents than the dump', async () => {
+    const clock = { now: 0 };
+    const restoreLine = '900 document(s) restored successfully. 0 document(s) failed to restore.';
+    const h = harness({
+      clock,
+      sourceNamespaces: ORDERS_1000,
+      restoreLine,
+      runToolImpl: dumpWithBars(clock, restoreLine),
+    });
+    await h.service.start(options());
+    const final = await waitForFinal(h.events);
+
+    const processed = progressEvents(h.events).map((progress) => progress.processedDocuments);
+    expect(processed).toEqual([0, 250, 500, 750, 1000, 1000, 1000]);
+    expect(final).toMatchObject({ documents: 900, processedDocuments: 1000 });
+  });
+
+  it('reads the position of a filtered dump, which prints a count with no bar', async () => {
+    const clock = { now: 0 };
+    const restoreLine = '1000 document(s) restored successfully. 0 document(s) failed to restore.';
+    const h = harness({
+      clock,
+      sourceNamespaces: ORDERS_1000,
+      restoreLine,
+      runToolImpl: dumpWithBars(clock, restoreLine, 1000, 'count'),
+    });
+    await h.service.start(
+      options({ items: [{ source: 'orders', target: 'orders', filter: '{"qty":{"$gt":1}}' }] }),
+    );
+    await waitForFinal(h.events);
+
+    const processed = progressEvents(h.events).map((progress) => progress.processedDocuments);
+    expect(processed).toEqual([0, 250, 500, 750, 1000, 1000, 1000]);
+  });
+
+  it('leaves the totals undefined for an item with a filter', async () => {
+    const clock = { now: 0 };
+    const restoreLine = '1000 document(s) restored successfully. 0 document(s) failed to restore.';
+    const h = harness({
+      clock,
+      sourceNamespaces: ORDERS_1000,
+      restoreLine,
+      runToolImpl: dumpWithBars(clock, restoreLine),
+    });
+    await h.service.start(
+      options({ items: [{ source: 'orders', target: 'orders', filter: '{"qty":{"$gt":1}}' }] }),
+    );
+    const final = await waitForFinal(h.events);
+
+    const progress = progressEvents(h.events);
+    expect(progress.every((event) => event.totalDocuments === undefined)).toBe(true);
+    expect(progress.every((event) => event.currentTotal === undefined)).toBe(true);
+    expect(final.processedDocuments).toBe(1000);
+  });
+});
+
+describe('copy service: heartbeat', () => {
+  // Only the interval is faked. The waits use real timers.
+  // Each test sets this to release its pending tool runs and stop its jobs, even when it fails.
+  let cleanup: () => Promise<void> = async () => undefined;
+  beforeEach(() => {
+    vi.useFakeTimers({ toFake: ['setInterval', 'clearInterval'] });
+  });
+  afterEach(async () => {
+    await cleanup();
+    cleanup = async () => undefined;
+    vi.useRealTimers();
+  });
+
+  it('sends an event on each interval while the tools print nothing, then stops the timer', async () => {
+    const clock = { now: 0 };
+    let releaseDump = (): void => undefined;
+    const h = harness({
+      clock,
+      runToolImpl: (options) => {
+        if (!options.binary.endsWith('mongodump')) return succeeded(options, DEFAULT.restoreLine);
+        return new Promise((resolve) => {
+          releaseDump = () => resolve({ exitCode: 0, signal: null, tail: [] });
+        });
+      },
+    });
+    cleanup = async () => {
+      releaseDump();
+      await h.service.dispose();
+    };
+    await h.service.start(options());
+    await vi.waitFor(() => {
+      expect(h.runTool).toHaveBeenCalledTimes(2);
+    }, WAIT_MS);
+    expect(vi.getTimerCount()).toBe(1);
+    expect(h.events).toHaveLength(1);
+
+    clock.now = 1000;
+    vi.advanceTimersByTime(250);
+    expect(h.events).toHaveLength(2);
+    // The restore line printed at the start is buffered, so the heartbeat event carries it.
+    expect(progressEvents(h.events)[1]).toMatchObject({
+      lines: [DEFAULT.restoreLine],
+      elapsedMs: 1000,
+      done: false,
+    });
+
+    releaseDump();
+    await waitForFinal(h.events);
+    expect(vi.getTimerCount()).toBe(0);
+  });
+
+  it('stops the timer when the job is cancelled', async () => {
+    const clock = { now: 0 };
+    const h = harness({ clock, runsUntilAborted: true });
+    cleanup = () => h.service.dispose();
+    await h.service.start(options());
+    await vi.waitFor(() => {
+      expect(h.runTool).toHaveBeenCalledTimes(2);
+    }, WAIT_MS);
+    expect(vi.getTimerCount()).toBe(1);
+
+    h.service.cancelConnection(TARGET_ID);
+    expect(await waitForFinal(h.events)).toMatchObject({ cancelled: true });
+    expect(vi.getTimerCount()).toBe(0);
+  });
+
+  it('stops the timer when the dump fails', async () => {
+    let failDump = (): void => undefined;
+    const h = harness({
+      runToolImpl: (options) => {
+        if (!options.binary.endsWith('mongodump')) return stoppedByCancel(options);
+        return new Promise((_resolve, reject) => {
+          failDump = () =>
+            reject(new AppErrorException(appError('COMMAND_FAILED', 'mongodump failed.')));
+        });
+      },
+    });
+    cleanup = async () => {
+      failDump();
+      await h.service.dispose();
+    };
+    await h.service.start(options());
+    await vi.waitFor(() => {
+      expect(h.runTool).toHaveBeenCalledTimes(2);
+    }, WAIT_MS);
+    expect(vi.getTimerCount()).toBe(1);
+
+    failDump();
+    expect(await waitForFinal(h.events)).toMatchObject({ error: { code: 'COMMAND_FAILED' } });
+    expect(vi.getTimerCount()).toBe(0);
   });
 });
 

@@ -236,6 +236,7 @@ describe('createAppStore copy progress', () => {
     const progress: CopyProgress = {
       phase: 'copying',
       documents: 250,
+      processedDocuments: 250,
       totalDocuments: 1000,
       collectionsDone: 1,
       collectionsTotal: 2,

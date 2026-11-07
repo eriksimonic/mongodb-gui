@@ -21,6 +21,10 @@ export interface CopyItemState {
   readonly documents: number;
   /** Documents skipped for this item. Insert only counts the _id matches here. */
   readonly skipped: number;
+  /** Documents this item handled so far, live while it is dumped. Feeds the item bar. */
+  readonly processed: number;
+  /** The item's own document count, while it is the one being copied and the count is known. */
+  readonly total?: number;
 }
 
 /** The job totals when the service began writing one target collection. */
@@ -28,6 +32,7 @@ export interface CopyItemMark {
   readonly target: string;
   readonly documents: number;
   readonly skipped: number;
+  readonly processed: number;
 }
 
 export interface CopyJob {
@@ -69,6 +74,11 @@ function emptyJob(jobId: string): CopyJob {
   };
 }
 
+/** The documents handled so far, live while a collection is dumped. */
+function processedOf(progress: CopyProgress): number {
+  return progress.processedDocuments;
+}
+
 /** Records the totals when the service names a new target. Each target gets one mark. */
 function marksAfter(marks: readonly CopyItemMark[], progress: CopyProgress): CopyItemMark[] {
   const { current } = progress;
@@ -77,7 +87,12 @@ function marksAfter(marks: readonly CopyItemMark[], progress: CopyProgress): Cop
   }
   return [
     ...marks,
-    { target: current, documents: progress.documents, skipped: progress.skippedDocuments },
+    {
+      target: current,
+      documents: progress.documents,
+      skipped: progress.skippedDocuments,
+      processed: processedOf(progress),
+    },
   ];
 }
 
@@ -89,19 +104,21 @@ function countsOf(
   target: string,
   marks: readonly CopyItemMark[],
   progress: CopyProgress | undefined,
-): Pick<CopyItemState, 'documents' | 'skipped'> {
+): Pick<CopyItemState, 'documents' | 'skipped' | 'processed'> {
   const index = marks.findIndex((mark) => mark.target === target);
   const start = marks[index];
   if (start === undefined || progress === undefined) {
-    return { documents: 0, skipped: 0 };
+    return { documents: 0, skipped: 0, processed: 0 };
   }
   const end = marks[index + 1] ?? {
     documents: progress.documents,
     skipped: progress.skippedDocuments,
+    processed: processedOf(progress),
   };
   return {
     documents: end.documents - start.documents,
     skipped: end.skipped - start.skipped,
+    processed: end.processed - start.processed,
   };
 }
 
@@ -134,12 +151,17 @@ function itemStatesOf(
   progress: CopyProgress | undefined,
   marks: readonly CopyItemMark[],
 ): CopyItemState[] {
-  return items.map((item, index) => ({
-    source: item.source,
-    target: item.target,
-    status: statusOf(index, item, progress),
-    ...countsOf(item.target, marks, progress),
-  }));
+  return items.map((item, index) => {
+    const status = statusOf(index, item, progress);
+    const total = status === 'copying' ? progress?.currentTotal : undefined;
+    return {
+      source: item.source,
+      target: item.target,
+      status,
+      ...countsOf(item.target, marks, progress),
+      ...(total === undefined ? {} : { total }),
+    };
+  });
 }
 
 /** Keeps the derived item states in step with the items, the marks and the latest progress. */

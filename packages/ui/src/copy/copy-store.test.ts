@@ -28,6 +28,7 @@ function progress(overrides: Partial<CopyProgress> = {}): CopyProgress {
   return {
     phase: 'copying',
     documents: 0,
+    processedDocuments: 0,
     collectionsDone: 0,
     collectionsTotal: 2,
     failedDocuments: 0,
@@ -63,8 +64,22 @@ describe('copy store start', () => {
     const job = store.getState().jobs[JOB];
     expect(job?.items).toEqual(TWO_ITEMS.items);
     expect(job?.itemStates).toEqual([
-      { source: 'orders', target: 'orders', status: 'queued', documents: 0, skipped: 0 },
-      { source: 'users', target: 'users', status: 'queued', documents: 0, skipped: 0 },
+      {
+        source: 'orders',
+        target: 'orders',
+        status: 'queued',
+        documents: 0,
+        skipped: 0,
+        processed: 0,
+      },
+      {
+        source: 'users',
+        target: 'users',
+        status: 'queued',
+        documents: 0,
+        skipped: 0,
+        processed: 0,
+      },
     ]);
     expect(job?.progress).toBeUndefined();
   });
@@ -91,6 +106,101 @@ describe('copy store start', () => {
   });
 });
 
+describe('copy store processed progress', () => {
+  it('keeps processed progress that arrived before the start call returned', async () => {
+    const { client } = fakeClient();
+    const store = createCopyStore(client);
+
+    store
+      .getState()
+      .applyProgress(
+        JOB,
+        progress({ current: 'orders', processedDocuments: 0, currentTotal: 1000 }),
+      );
+    store
+      .getState()
+      .applyProgress(
+        JOB,
+        progress({ current: 'orders', processedDocuments: 300, currentTotal: 1000 }),
+      );
+    await store.getState().start(TWO_ITEMS);
+
+    expect(store.getState().jobs[JOB]?.itemStates[0]).toMatchObject({
+      status: 'copying',
+      processed: 300,
+      total: 1000,
+    });
+  });
+
+  it('counts each item processed from its start mark, and gives the copying item its total', async () => {
+    const { client } = fakeClient();
+    const store = createCopyStore(client);
+    await store.getState().start(TWO_ITEMS);
+
+    store.getState().applyProgress(
+      JOB,
+      progress({
+        current: 'orders',
+        processedDocuments: 0,
+        currentTotal: 1000,
+        totalDocuments: 1500,
+      }),
+    );
+    store.getState().applyProgress(
+      JOB,
+      progress({
+        current: 'orders',
+        processedDocuments: 250,
+        currentTotal: 1000,
+        totalDocuments: 1500,
+      }),
+    );
+    store.getState().applyProgress(
+      JOB,
+      progress({
+        current: 'users',
+        collectionsDone: 1,
+        documents: 900,
+        skippedDocuments: 100,
+        processedDocuments: 1000,
+        totalDocuments: 1500,
+      }),
+    );
+    store.getState().applyProgress(
+      JOB,
+      progress({
+        current: 'users',
+        collectionsDone: 1,
+        documents: 900,
+        skippedDocuments: 100,
+        processedDocuments: 1250,
+        currentTotal: 500,
+        totalDocuments: 1500,
+      }),
+    );
+
+    expect(store.getState().jobs[JOB]?.itemStates).toEqual([
+      {
+        source: 'orders',
+        target: 'orders',
+        status: 'done',
+        documents: 900,
+        skipped: 100,
+        processed: 1000,
+      },
+      {
+        source: 'users',
+        target: 'users',
+        status: 'copying',
+        documents: 0,
+        skipped: 0,
+        processed: 250,
+        total: 500,
+      },
+    ]);
+  });
+});
+
 describe('copy store progress', () => {
   it('moves items from queued to copying to done as the events arrive', async () => {
     const { client } = fakeClient();
@@ -112,16 +222,25 @@ describe('copy store progress', () => {
     const store = createCopyStore(client);
     await store.getState().start(TWO_ITEMS);
 
-    store.getState().applyProgress(JOB, progress({ current: 'orders', documents: 0 }));
     store
       .getState()
-      .applyProgress(JOB, progress({ current: 'orders', documents: 30, skippedDocuments: 4 }));
+      .applyProgress(JOB, progress({ current: 'orders', documents: 0, processedDocuments: 0 }));
+    store.getState().applyProgress(
+      JOB,
+      progress({
+        current: 'orders',
+        documents: 30,
+        processedDocuments: 30,
+        skippedDocuments: 4,
+      }),
+    );
     store.getState().applyProgress(
       JOB,
       progress({
         current: 'users',
         collectionsDone: 1,
         documents: 40,
+        processedDocuments: 40,
         skippedDocuments: 5,
       }),
     );
@@ -131,13 +250,28 @@ describe('copy store progress', () => {
         current: 'users',
         collectionsDone: 1,
         documents: 52,
+        processedDocuments: 52,
         skippedDocuments: 6,
       }),
     );
 
     expect(store.getState().jobs[JOB]?.itemStates).toEqual([
-      { source: 'orders', target: 'orders', status: 'done', documents: 40, skipped: 5 },
-      { source: 'users', target: 'users', status: 'copying', documents: 12, skipped: 1 },
+      {
+        source: 'orders',
+        target: 'orders',
+        status: 'done',
+        documents: 40,
+        skipped: 5,
+        processed: 40,
+      },
+      {
+        source: 'users',
+        target: 'users',
+        status: 'copying',
+        documents: 12,
+        skipped: 1,
+        processed: 12,
+      },
     ]);
   });
 
