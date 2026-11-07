@@ -20,16 +20,14 @@ import {
   type CopyFacts,
   type CopyFinding,
   type CopyMode,
-  type Finding,
-  type FindingCode,
   type ToolsListOutput,
 } from '@mongo-gui/core';
 import { useEffect, useState } from 'react';
 import { useUiApi } from '../api/ui-api';
-import { CompatibilityFindings } from '../backup/CompatibilityFindings';
 import { TypedNameConfirm } from '../kit/TypedNameConfirm';
 import { errorText } from '../kit/notify-error';
 import { useAppStore } from '../state/app-store-context';
+import { CopyFindings } from './CopyFindings';
 import { CopyItemsEditor } from './CopyItemsEditor';
 import {
   copyItemsOf,
@@ -137,7 +135,6 @@ function CopyForm({
   const [targetDatabase, setTargetDatabase] = useState(sourceDatabase);
   const [rows, setRows] = useState<readonly CopyRow[]>(() => rowsFor(collections));
   const [mode, setMode] = useState<CopyMode>('replace');
-  const [acknowledged, setAcknowledged] = useState<readonly FindingCode[]>([]);
   const [typedMatch, setTypedMatch] = useState(false);
   const [tools, setTools] = useState<ToolsListOutput | undefined>(undefined);
   const [available, setAvailable] = useState<readonly string[]>([]);
@@ -208,12 +205,10 @@ function CopyForm({
           ),
         };
   const found: CopyFinding[] = facts === undefined ? [] : assessCopy(facts);
-  const unresolved = unresolvedCopyFindings(found, acknowledged);
-  // A copy has no tools version to change, so a Use or Download button would do nothing.
-  const panelFindings = found.map((finding) => ({
-    ...finding,
-    action: undefined,
-  })) as readonly Finding[];
+  // The strong findings are the notes. Start agrees to every note on screen, so all of them are
+  // acknowledged. Only the blocks stay unresolved.
+  const noteCodes = found.filter((item) => item.severity === 'strong').map((item) => item.code);
+  const unresolved = unresolvedCopyFindings(found, noteCodes);
 
   const nameErrors = targetNameErrors(rows);
   const rowFilterErrors = filterErrors(rows);
@@ -257,7 +252,7 @@ function CopyForm({
           targetDatabase,
           rows,
           mode,
-          acknowledged,
+          acknowledged: noteCodes,
           confirmation: production && typedMatch ? targetDatabase : undefined,
         }),
       );
@@ -341,16 +336,7 @@ function CopyForm({
           {waiting}
         </Text>
       ) : null}
-      <CompatibilityFindings
-        findings={panelFindings}
-        acknowledged={acknowledged}
-        onAcknowledge={(code, checked) => {
-          setAcknowledged((current) =>
-            checked ? [...current, code] : current.filter((item) => item !== code),
-          );
-        }}
-        connectionName={targetName}
-      />
+      <CopyFindings findings={found} />
       {loadProblem === undefined ? null : (
         <Alert color="red" role="alert">
           {loadProblem}
@@ -373,7 +359,7 @@ function CopyForm({
               void start();
             }}
           >
-            Start copy
+            {noteCodes.length > 0 ? 'Agree and copy' : 'Start copy'}
           </Button>
         </Tooltip>
       </Group>

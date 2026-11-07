@@ -143,17 +143,46 @@ describe('CopyDialog', () => {
       },
     });
     await chooseTargetConnection('Staging');
-    await waitFor(() => expect(screen.getByRole('button', { name: 'Start copy' })).toBeEnabled());
+    await waitFor(() =>
+      expect(screen.getByRole('button', { name: 'Agree and copy' })).toBeEnabled(),
+    );
     expect(screen.queryByText(OVERLAP)).toBeNull();
 
     const start = vi.spyOn(api.rpc.copy, 'start');
-    fireEvent.click(screen.getByRole('button', { name: 'Start copy' }));
+    fireEvent.click(screen.getByRole('button', { name: 'Agree and copy' }));
     await waitFor(() => expect(onStarted).toHaveBeenCalled());
     expect(start.mock.calls[0]?.[0]).toMatchObject({
       sourceConnectionId: localConnectionId,
       targetConnectionId: stagingConnectionId,
       targetDatabase: 'shop',
+      acknowledged: ['server-version-mismatch'],
     });
+  });
+
+  it('shows a version difference as one calm note with no typed name and no checkbox', async () => {
+    await renderCopy('one', ['orders'], {
+      standalone: {
+        local: { hosts: ['ecd690c7a175:27017'] },
+        staging: { hosts: ['e1585e35625e:27017'] },
+      },
+    });
+    await chooseTargetConnection('Staging');
+    const text = await screen.findByText(
+      'This copy goes from MongoDB 8.0.4 to 7.0.14. Some features may not carry over.',
+    );
+    const note = text.closest('[role="status"]');
+    expect(note).toHaveTextContent('Feature compatibility versions: 8.0 and 7.0.');
+    expect(screen.queryByRole('checkbox', { name: 'I understand' })).toBeNull();
+    expect(screen.queryByRole('textbox', { name: /restore anyway/ })).toBeNull();
+    expect(screen.getByRole('dialog')).not.toHaveTextContent(/backup/i);
+    expect(screen.getByRole('button', { name: 'Agree and copy' })).toBeEnabled();
+  });
+
+  it('says Start copy when no finding needs agreement', async () => {
+    await renderCopy('one', ['orders']);
+    await copyToOtherDatabase();
+    expect(screen.getByRole('button', { name: 'Start copy' })).toBeEnabled();
+    expect(screen.queryByRole('status')).toBeNull();
   });
 
   it('blocks a copy to another connection whose server has the same identity', async () => {
@@ -165,7 +194,7 @@ describe('CopyDialog', () => {
     });
     await chooseTargetConnection('Staging');
     await screen.findByText(OVERLAP);
-    expect(screen.getByRole('button', { name: 'Start copy' })).toBeDisabled();
+    expect(screen.getByRole('button', { name: 'Agree and copy' })).toBeDisabled();
   });
 
   it('copies one collection under its own name when the database changes', async () => {
@@ -305,24 +334,53 @@ describe('CopyDialog', () => {
     expect(screen.getByRole('button', { name: 'Start copy' })).toBeEnabled();
   });
 
-  it('blocks Start on a strong finding until the user ticks the acknowledge box', async () => {
+  it('shows an encryption note and starts with Agree and copy, with no checkbox', async () => {
     const { api, onStarted } = await renderCopy('one', ['orders'], { encryptedSource: true });
     fireEvent.change(screen.getByRole('textbox', { name: 'Target database' }), {
       target: { value: 'shop_copy' },
     });
-    await screen.findByText(/Queryable Encryption/);
-    const start = screen.getByRole('button', { name: 'Start copy' });
-    expect(start).toBeDisabled();
+    const text = await screen.findByText(/Queryable Encryption/);
+    expect(text.closest('[role="status"]')).not.toBeNull();
+    expect(screen.queryByRole('checkbox', { name: 'I understand' })).toBeNull();
 
-    const acknowledge = screen.getByRole('checkbox', { name: 'I understand' });
-    fireEvent.click(acknowledge);
-    await waitFor(() => expect(start).toBeEnabled());
+    const agree = screen.getByRole('button', { name: 'Agree and copy' });
+    await waitFor(() => expect(agree).toBeEnabled());
 
     const copyStart = vi.spyOn(api.rpc.copy, 'start');
-    fireEvent.click(start);
+    fireEvent.click(agree);
     await waitFor(() => expect(onStarted).toHaveBeenCalled());
     expect(copyStart.mock.calls[0]?.[0]).toMatchObject({
       acknowledged: ['encrypted-collections'],
     });
+  });
+
+  it('keeps the typed database name for a production connection with a note', async () => {
+    const { api, onStarted } = await renderCopy('one', ['orders'], {
+      production: true,
+      encryptedSource: true,
+    });
+    fireEvent.change(screen.getByRole('textbox', { name: 'Target database' }), {
+      target: { value: 'shop_copy' },
+    });
+    const typed = await screen.findByRole('textbox', { name: 'Type shop_copy to confirm' });
+    expect(screen.getByRole('button', { name: 'Agree and copy' })).toBeDisabled();
+    fireEvent.change(typed, { target: { value: 'shop_copy' } });
+    await waitFor(() =>
+      expect(screen.getByRole('button', { name: 'Agree and copy' })).toBeEnabled(),
+    );
+
+    const copyStart = vi.spyOn(api.rpc.copy, 'start');
+    fireEvent.click(screen.getByRole('button', { name: 'Agree and copy' }));
+    await waitFor(() => expect(onStarted).toHaveBeenCalled());
+    expect(copyStart.mock.calls[0]?.[0]).toMatchObject({
+      confirmation: 'shop_copy',
+      acknowledged: ['encrypted-collections'],
+    });
+  });
+
+  it('shows a copy stop as a red alert titled Copy cannot start', async () => {
+    await renderCopy('one', ['orders']);
+    const title = await screen.findByText('Copy cannot start');
+    expect(title.closest('[role="alert"]')).toHaveTextContent(OVERLAP);
   });
 });

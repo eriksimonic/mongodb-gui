@@ -222,6 +222,18 @@ describe('mock connections', () => {
     expect((await api.rpc.connections.get({ id: created.id })).production).toBe(false);
   });
 
+  it('connects Staging to an older server than Local dev, so a copy between them shows a notice', async () => {
+    const api = createMockUiApi({ preset: 'unlocked' });
+    await api.rpc.connections.update({
+      id: stagingConnectionId,
+      patch: { uri: 'mongodb://app:secret@localhost:27017/?authSource=admin', production: false },
+    });
+    const local = await api.rpc.connections.connect({ id: localConnectionId });
+    const staging = await api.rpc.connections.connect({ id: stagingConnectionId });
+    expect(local).toMatchObject({ state: 'connected', serverVersion: '8.0.4' });
+    expect(staging).toMatchObject({ state: 'connected', serverVersion: '7.0.14' });
+  });
+
   it('accepts a test for a localhost URI and fails auth for other hosts', async () => {
     const api = createMockUiApi({ preset: 'unlocked' });
     expect(await api.rpc.connections.test(connectionInput)).toEqual({

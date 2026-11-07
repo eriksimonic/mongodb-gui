@@ -1034,7 +1034,8 @@ target list shows connected connections only.
    object in the text box, such as `{"status": "paid"}`. Each row has its own filter. An empty
    filter copies every document. Clear the check box of a row to skip that collection.
 5. Choose the "Copy mode".
-6. Read the findings, then click "Start copy". The button stays off while a red finding applies.
+6. Read the findings, then click "Start copy". When a note applies, the button reads "Agree and
+   copy" instead. The button stays off while a red finding applies.
 
 The modes:
 
@@ -1046,8 +1047,11 @@ The modes:
 - "Insert only": source documents whose `_id` is not in the target are inserted. Existing `_id`
   values are skipped and counted as skipped.
 
-Findings use the colors in [What the findings mean](#what-the-findings-mean). A red finding stops
-the copy. An orange finding needs a tick on "I understand" first.
+A red panel titled "Copy cannot start" lists the findings that stop the copy. A copy between
+servers with different feature compatibility versions shows a blue note with the two versions. For
+example, "This copy goes from MongoDB 7.0.45 to 8.0.17. Some features may
+not carry over." The note needs no typed name and no tick. Clicking "Agree and copy" accepts it and
+starts the copy.
 
 ### Progress and cancel
 
@@ -1063,7 +1067,7 @@ target. A cancelled merge or insert only run leaves the collection it was writin
 1. Check "Production" in the connection dialog. The tree and the tab headers then show a red PROD
    mark.
 2. Before a copy into a production connection, type the target database name in the dialog. The
-   name must match exactly. "Start copy" stays off until it matches.
+   name must match exactly. "Start copy" or "Agree and copy" stays off until it matches.
 3. Before a restore into a production connection, type each database name you restore. A dry run
    does not ask for the names.
 

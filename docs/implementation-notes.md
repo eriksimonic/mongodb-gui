@@ -143,6 +143,12 @@ logs are in git history before commit `e85767f`.
 - Blocking rules live in core: `assessCopy` in `assess.ts`, and `unresolvedCopyFindings` and
   `newestFittingTools` in `start-checks.ts`. The dialog and the service call the same functions, so
   their findings agree.
+- A copy never gets a confirmable finding. The backup and restore rules make `server-version-mismatch`
+  a confirmable block, which asks for the typed connection name. `assessCopy` turns it into a strong
+  finding with copy wording, and `acknowledged` resolves it. The service and the dialog send the
+  codes of every strong finding. The typed database name stays the only typed check, for production.
+  `assessCopy` fixes the dump and restore options, so codes such as `oplog-timeseries-boundary`,
+  `admin-drop` and the sidecar codes never reach a copy. `tools-not-installed` has no rule at all.
 - The dialog hides views and `system.*` (`isCopyable`). It does not list the target connections
   that are not connected. The "Copy to…" menu entries are disabled while the connection is not
   connected.

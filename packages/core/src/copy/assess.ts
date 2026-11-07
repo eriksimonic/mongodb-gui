@@ -7,7 +7,13 @@ import {
   type CompatTools,
   type DumpFacts,
 } from '../backup/compat';
-import { FindingCodeSchema, FindingSchema, type FindingSeverity } from '../backup/findings';
+import {
+  FindingCodeSchema,
+  FindingSchema,
+  type Finding,
+  type FindingCode,
+  type FindingSeverity,
+} from '../backup/findings';
 import { compareVersions, firstToolsFor } from '../backup/versions';
 import type { CopyItem, CopyOptions } from './options';
 
@@ -46,6 +52,29 @@ const TIMESERIES_TOOLS = '100.16.0';
 const SEVERITY_ORDER: readonly FindingSeverity[] = ['block', 'strong', 'warning', 'info'];
 
 const key = (database: string, collection: string): string => `${database}.${collection}`;
+
+// Copy wording for the backup and restore findings that a copy can receive. The codes stay the same.
+const COPY_MESSAGE: Partial<Record<FindingCode, (facts: CopyFacts) => string>> = {
+  'server-version-mismatch': (facts) =>
+    `This copy goes from MongoDB ${facts.source.serverVersion} to ${facts.target.serverVersion}. Some features may not carry over.`,
+  'target-newer': () => 'Copying to a newer server is not the supported upgrade path.',
+};
+
+/**
+ * A backup or restore finding as a copy shows it. A confirmable block asks for a typed connection
+ * name, which a copy does not offer, so it becomes a strong finding that `acknowledged` resolves.
+ */
+function forCopy(item: Finding, facts: CopyFacts): CopyFinding {
+  const severity: FindingSeverity =
+    item.severity === 'block' && item.confirmable ? 'strong' : item.severity;
+  return {
+    code: item.code,
+    severity,
+    confirmable: false,
+    message: COPY_MESSAGE[item.code]?.(facts) ?? item.message,
+    ...(item.detail === undefined ? {} : { detail: item.detail }),
+  };
+}
 
 function finding(
   code: CopyFindingCode,
@@ -89,13 +118,15 @@ export function assessCopy(facts: CopyFacts): CopyFinding[] {
     namespaces: copied,
   };
   const findings: CopyFinding[] = [
-    ...assessBackup({ server: source, namespaces: copied, tools }),
+    ...assessBackup({ server: source, namespaces: copied, tools }).map((item) =>
+      forCopy(item, facts),
+    ),
     ...assessRestore({
       dump,
       target,
       tools,
       options: { include: undefined, drop: false, oplogReplay: false, preserveUUID: false },
-    }),
+    }).map((item) => forCopy(item, facts)),
   ];
 
   const minimums = [source, target]

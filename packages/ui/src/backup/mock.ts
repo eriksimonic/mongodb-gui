@@ -280,9 +280,11 @@ export function createMockBackup(context: MockBackupContext): MockBackup {
       const status = statusOf(connectionId);
       const catalog = catalogOf(connectionId);
       const namespaces = scope === undefined ? [] : namespacesOf(catalog, scope);
+      const serverVersion = status.state === 'connected' ? status.serverVersion : '8.0.4';
       return {
-        serverVersion: status.state === 'connected' ? status.serverVersion : '8.0.4',
-        fcv: '8.0',
+        serverVersion,
+        // A mock server runs the feature compatibility version of its own major.minor.
+        fcv: serverVersion.split('.').slice(0, 2).join('.'),
         storageEngine: 'wiredTiger',
         topology: status.state === 'connected' ? status.topology : 'standalone',
         ...(status.state === 'connected' && status.setName !== undefined

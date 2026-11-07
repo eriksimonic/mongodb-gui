@@ -2,10 +2,10 @@ import {
   CollectionNameSchema,
   CopyModeSchema,
   type CollectionInfo,
+  type CopyFindingCode,
   type CopyItem,
   type CopyMode,
   type CopyOptions,
-  type FindingCode,
 } from '@mongo-gui/core';
 import { checkEjsonObject } from '../transfers';
 
@@ -101,7 +101,7 @@ export interface CopyStartDraft {
   readonly targetDatabase: string;
   readonly rows: readonly CopyRow[];
   readonly mode: CopyMode;
-  readonly acknowledged: readonly FindingCode[];
+  readonly acknowledged: readonly CopyFindingCode[];
   /** The typed target database name. Set only for a production target. */
   readonly confirmation: string | undefined;
 }

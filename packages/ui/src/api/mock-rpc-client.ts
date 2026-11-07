@@ -62,6 +62,7 @@ import {
   fixtureHistory,
   localConnectionId,
   mockMasterPassword,
+  stagingConnectionId,
 } from './mock-fixtures';
 import { createMockShell } from '../editor/mock';
 import { createMockPicks } from './mock-picks';
@@ -167,6 +168,8 @@ const DOCKER_ENGINE_VERSION = '29.8.2';
 const MOCK_DOCKER_PASSWORD = 'secret';
 
 const SERVER_VERSION = '8.0.4';
+// Staging runs an older server, so a copy from Local dev into it shows the version notice.
+const STAGING_SERVER_VERSION = '7.0.14';
 
 const DEVICE_MODE_MESSAGE = 'The vault uses machine encryption and has no master password.';
 const PASSWORD_MODE_MESSAGE = 'The vault uses a master password.';
@@ -315,11 +318,15 @@ function withDirectFlag(status: ConnectionStatus, direct: boolean): ConnectionSt
   return status.state === 'connected' && direct ? { ...status, directConnection: true } : status;
 }
 
+function serverVersionOf(connectionId: string): string {
+  return connectionId === stagingConnectionId ? STAGING_SERVER_VERSION : SERVER_VERSION;
+}
+
 /** The status a connection reports once connected. A replica set reports its name and members. */
-function connectedStatusFor(info: MockReplicaSetInfo): ConnectionStatus {
+function connectedStatusFor(info: MockReplicaSetInfo, serverVersion: string): ConnectionStatus {
   return {
     state: 'connected',
-    serverVersion: SERVER_VERSION,
+    serverVersion,
     topology: info.topology,
     hosts: [...info.hosts],
     ...(info.setName === undefined ? {} : { setName: info.setName }),
@@ -724,12 +731,12 @@ export function createMockUiApi(options: MockUiApiOptions = {}): MockUiApi {
     const info = replication.infoFor(connectionId);
     const direct = isDirectUri(state.connections.find((item) => item.id === connectionId)?.uri);
     if (info.topology !== 'standalone') {
-      return withDirectFlag(connectedStatusFor(info), direct);
+      return withDirectFlag(connectedStatusFor(info, serverVersionOf(connectionId)), direct);
     }
     if (connectionId === localConnectionId && options.sharding === 'cluster') {
       return connectedStatus('sharded');
     }
-    return withDirectFlag(connectedStatusFor(info), direct);
+    return withDirectFlag(connectedStatusFor(info, serverVersionOf(connectionId)), direct);
   }
   if (options.replSetUninitiated === true) {
     replication.setMode(localConnectionId, 'uninitiated');

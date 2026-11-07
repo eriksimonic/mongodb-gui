@@ -60,6 +60,11 @@ interface Fixture {
   readonly targetIdentity?: ServerIdentity;
   readonly sourceNamespaces: BackupServerInfo['namespaces'];
   readonly targetNamespaces: BackupServerInfo['namespaces'];
+  /** The server versions from the server info. Both default to 8.0.4. */
+  readonly sourceVersion?: string;
+  readonly targetVersion?: string;
+  readonly sourceFcv?: string;
+  readonly targetFcv?: string;
   readonly production: boolean;
   readonly restoreLine: string;
   readonly restoreFails: boolean;
@@ -106,9 +111,12 @@ function endpointFor(host: string, profileName: string): ToolsEndpoint {
 function serverInfo(
   identity: ServerIdentity,
   namespaces: BackupServerInfo['namespaces'],
+  serverVersion = '8.0.4',
+  fcv: string | undefined = undefined,
 ): BackupServerInfo {
   return {
-    serverVersion: '8.0.4',
+    serverVersion,
+    ...(fcv === undefined ? {} : { fcv }),
     topology: 'standalone',
     directConnection: true,
     // A standalone server reports no hosts from hello.
@@ -196,8 +204,18 @@ function harness(fixture: Partial<Fixture> = {}) {
       id === SOURCE_ID ? endpointFor(f.sourceHost, 'Source') : endpointFor(f.targetHost, 'Target'),
     readServerInfo: vi.fn(async (client: Client) =>
       client === sourceClient
-        ? serverInfo(f.sourceIdentity ?? { hosts: [f.sourceHost] }, f.sourceNamespaces)
-        : serverInfo(f.targetIdentity ?? { hosts: [f.targetHost] }, f.targetNamespaces),
+        ? serverInfo(
+            f.sourceIdentity ?? { hosts: [f.sourceHost] },
+            f.sourceNamespaces,
+            f.sourceVersion,
+            f.sourceFcv,
+          )
+        : serverInfo(
+            f.targetIdentity ?? { hosts: [f.targetHost] },
+            f.targetNamespaces,
+            f.targetVersion,
+            f.targetFcv,
+          ),
     ) as unknown as CopyServiceDeps['readServerInfo'],
     rename: rename as unknown as CopyServiceDeps['rename'],
     dropIfExists: dropIfExists as unknown as CopyServiceDeps['dropIfExists'],
@@ -502,6 +520,28 @@ describe('copy service: refusals', () => {
     });
     expect(h.merge).not.toHaveBeenCalled();
     expect(h.runTool).not.toHaveBeenCalled();
+  });
+
+  it('refuses a copy to a newer server until the user agrees to the version notice', async () => {
+    const h = harness({
+      sourceVersion: '7.0.45',
+      sourceFcv: '7.0',
+      targetVersion: '8.0.17',
+      targetFcv: '8.0',
+    });
+    await expect(h.service.start(options())).rejects.toMatchObject({
+      error: {
+        code: 'VALIDATION',
+        message: 'This copy goes from MongoDB 7.0.45 to 8.0.17. Some features may not carry over.',
+      },
+    });
+    expect(h.runTool).not.toHaveBeenCalled();
+    expect(h.registry.markInUse).not.toHaveBeenCalled();
+
+    const jobId = await h.service.start(options({ acknowledged: ['server-version-mismatch'] }));
+    const final = await waitForFinal(h.events);
+    expect(jobId).toMatch(/^[0-9a-f-]{36}$/);
+    expect(final.error).toBeUndefined();
   });
 
   it('refuses a strong finding until the user acknowledges it', async () => {
