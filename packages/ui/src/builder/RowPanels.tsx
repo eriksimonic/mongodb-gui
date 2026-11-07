@@ -31,6 +31,7 @@ export function ProjectionPanel({ rows, fields, onChange }: ProjectionPanelProps
       {rows.map((row, index) => (
         <Group key={index} gap="xs" wrap="nowrap" align="flex-start">
           <Checkbox
+            size="xs"
             aria-label="Enable row"
             checked={row.enabled}
             onChange={(event) => replace(index, { ...row, enabled: event.currentTarget.checked })}
@@ -113,6 +114,7 @@ export function SortPanel({ rows, fields, onChange }: SortPanelProps) {
       {rows.map((row, index) => (
         <Group key={index} gap="xs" wrap="nowrap" align="flex-start">
           <Checkbox
+            size="xs"
             aria-label="Enable row"
             checked={row.enabled}
             onChange={(event) => replace(index, { ...row, enabled: event.currentTarget.checked })}
