@@ -131,7 +131,7 @@ function elemMatchGroup(value: Plain): QueryGroup {
   return filterFromEjson(value);
 }
 
-function isPlainObject(value: unknown): value is Plain {
+export function isPlainObject(value: unknown): value is Plain {
   return typeof value === 'object' && value !== null && !Array.isArray(value);
 }
 
