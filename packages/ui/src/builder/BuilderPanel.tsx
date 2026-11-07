@@ -1,4 +1,5 @@
 import { Box, Button, Group, Stack, Text } from '@mantine/core';
+import { IconCodeOff, IconFilter, IconInfoCircle, IconStack2 } from '@tabler/icons-react';
 import {
   type FieldInfo,
   type FindStatement,
@@ -15,6 +16,8 @@ import type { CompletionSource } from '../editor/completion-source';
 import { getFields } from './field-source';
 import { FindBuilder } from './FindBuilder';
 import { StageList } from './StageList';
+import { StatementPreview } from './StatementPreview';
+import './builder.css';
 
 /**
  * Props of the builder panel.
@@ -215,32 +218,41 @@ export function BuilderPanel({
   let body: ReactNode;
   if (view.kind === 'empty') {
     body = (
-      <Stack gap="xs">
+      <div className="mg-qb-empty">
         <Text size="sm" c="dimmed">
           No find or aggregate statement is under the cursor.
         </Text>
         <Group gap="xs">
-          <Button size="xs" variant="default" onClick={() => insertTemplate(emptyFind(name))}>
+          <Button
+            size="xs"
+            variant="default"
+            leftSection={<IconFilter size={14} stroke={1.75} />}
+            onClick={() => insertTemplate(emptyFind(name))}
+          >
             New find
           </Button>
           <Button
             size="xs"
             variant="default"
+            leftSection={<IconStack2 size={14} stroke={1.75} />}
             onClick={() => insertTemplate({ kind: 'aggregate', collection: name, stages: [] })}
           >
             New aggregate
           </Button>
         </Group>
-      </Stack>
+      </div>
     );
   } else if (view.kind === 'unsupported') {
     body = (
-      <Stack gap={2}>
-        <Text size="sm">The builder cannot show this statement. Edit the text.</Text>
-        <Text size="xs" c="dimmed">
-          {view.reason}
-        </Text>
-      </Stack>
+      <div className="mg-qb-unsupported">
+        <span className="mg-qb-unsupported-icon">
+          <IconCodeOff size={18} stroke={1.75} />
+        </span>
+        <div>
+          <Text size="sm">The builder cannot show this statement. Edit the text.</Text>
+          <code>{view.reason}</code>
+        </div>
+      </div>
     );
   } else if (view.statement.kind === 'find') {
     const { range, statement } = view;
@@ -265,7 +277,13 @@ export function BuilderPanel({
   }
 
   return (
-    <Stack gap="xs" px="calc(14px * var(--mg-font-scale, 1))" py="xs" aria-label="Query builder">
+    <Stack
+      gap="xs"
+      px="calc(14px * var(--mg-font-scale, 1))"
+      py="xs"
+      aria-label="Query builder"
+      className="mg-qb"
+    >
       {onRun !== undefined && (
         <Group justify="flex-end">
           <Button size="xs" leftSection={<IconPlayerPlay size={14} />} onClick={onRun}>
@@ -274,11 +292,15 @@ export function BuilderPanel({
         </Group>
       )}
       {basis.notice !== null && (
-        <Text size="xs" c="dimmed" role="status">
+        <div className="mg-qb-notice" role="status">
+          <IconInfoCircle size={14} stroke={1.75} />
           {CLEARED_NOTICE[basis.notice]}
-        </Text>
+        </div>
       )}
       <Box inert={pending}>{body}</Box>
+      {view.kind === 'statement' && (
+        <StatementPreview text={emitBuilderStatement(view.statement)} />
+      )}
     </Stack>
   );
 }

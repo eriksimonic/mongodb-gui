@@ -1,7 +1,9 @@
-import { ActionIcon, Button, Checkbox, Group, Menu, Paper, Stack, Text } from '@mantine/core';
+import { ActionIcon, Button, Menu } from '@mantine/core';
 import { type FieldInfo, isLiveStage, type PipelineStage, type StageBody } from '@mongo-gui/core';
 import { IconArrowDown, IconArrowUp, IconCopy, IconPlus, IconTrash } from '@tabler/icons-react';
-import { Fragment, useState } from 'react';
+import { useState } from 'react';
+import { BuilderCard } from './BuilderCard';
+import { countText, STAGE_ICONS, STAGE_TONES } from './card-kinds';
 import { GroupStageForm } from './stages/GroupStage';
 import { MatchStageForm, ProjectStageForm, SortStageForm } from './stages/RowStages';
 import {
@@ -60,6 +62,34 @@ function movedItem<T>(items: readonly T[], from: number, to: number): T[] {
   return next;
 }
 
+/** One dimmed line for the card header: what the stage does, in a few words. */
+function summaryOf(body: StageBody): string | undefined {
+  switch (body.stage) {
+    case '$match':
+      return body.filter.items.length === 0
+        ? 'Matches every document'
+        : countText(body.filter.items.length, 'condition');
+    case '$project':
+      return body.rows.length === 0 ? 'All fields' : countText(body.rows.length, 'field');
+    case '$sort':
+      return body.rows.length === 0 ? 'No sort fields' : countText(body.rows.length, 'field');
+    case '$limit':
+      return `First ${body.count}`;
+    case '$skip':
+      return `Skips ${body.count}`;
+    case '$count':
+      return body.output === '' ? undefined : `Into ${body.output}`;
+    case '$unwind':
+      return body.path === '' ? 'No array path' : `Splits ${body.path}`;
+    case '$group':
+      return countText(body.accumulators.length, 'accumulator');
+    case '$lookup':
+      return body.from === '' ? 'No collection' : `Joins ${body.from}`;
+    case 'raw':
+      return undefined;
+  }
+}
+
 interface StageFormSwitchProps {
   readonly body: StageBody;
   readonly fields: readonly FieldInfo[];
@@ -111,11 +141,11 @@ export interface StageListProps {
 }
 
 /**
- * The stages of an aggregation pipeline in order, one card each. It is controlled: the parent
- * holds the stages and receives every change as a new list. A disabled stage stays in the list
- * and is left out of the statement text. StageList creates its card keys once at mount. The parent
- * (BuilderPanel, task U7) must remount this component with a `key` when the stages change from
- * outside.
+ * The stages of an aggregation pipeline in order, one card each on a numbered rail. It is
+ * controlled: the parent holds the stages and receives every change as a new list. A disabled
+ * stage stays in the list and is left out of the statement text. StageList creates its card keys
+ * once at mount. The parent (BuilderPanel, task U7) must remount this component with a `key` when
+ * the stages change from outside.
  */
 export function StageList({ stages, fields, onChange }: StageListProps) {
   // Each card keeps a key, so a form keeps its own draft text when the cards before it move.
@@ -173,34 +203,33 @@ export function StageList({ stages, fields, onChange }: StageListProps) {
   };
 
   return (
-    <Stack gap="xs">
-      {stages.length === 0 && (
-        <Text size="sm" c="dimmed">
-          The pipeline has no stages.
-        </Text>
-      )}
-      {stages.map((stage, index) => (
-        <Fragment key={keyAt(index)}>
-          <Paper withBorder p="xs" opacity={stage.enabled ? 1 : 0.6}>
-            <Stack gap="xs">
-              <Group justify="space-between" wrap="nowrap">
-                <Group gap="xs" wrap="nowrap">
-                  <Checkbox
-                    size="xs"
-                    aria-label="Enable stage"
-                    checked={stage.enabled}
-                    onChange={(event) => setEnabled(index, event.currentTarget.checked)}
-                  />
-                  <Text size="sm" fw={600} ff="monospace">
-                    {stage.stage === 'raw' ? stage.name : STAGE_LABELS[stage.stage]}
-                  </Text>
-                  {stage.enabled && !isLiveStage(stage) && (
-                    <Text size="xs" c="dimmed">
-                      Not in the query yet
-                    </Text>
-                  )}
-                </Group>
-                <Group gap={4} wrap="nowrap">
+    <ol className="mg-qb-pipeline">
+      {stages.map((stage, index) => {
+        const body = bodyOf(stage);
+        const title = stage.stage === 'raw' ? stage.name : STAGE_LABELS[stage.stage];
+        return (
+          <li
+            className="mg-qb-stage mg-qb-row"
+            key={keyAt(index)}
+            data-tone={STAGE_TONES[stage.stage]}
+            data-enabled={stage.enabled}
+          >
+            <span className="mg-qb-stage-node" aria-hidden="true">
+              {index + 1}
+            </span>
+            <BuilderCard
+              title={title}
+              code
+              icon={STAGE_ICONS[stage.stage]}
+              tone={STAGE_TONES[stage.stage]}
+              summary={summaryOf(body)}
+              note={
+                stage.enabled && !isLiveStage(stage) ? (
+                  <span className="mg-qb-stage-note">Not in the query yet</span>
+                ) : undefined
+              }
+              actions={
+                <>
                   <ActionIcon
                     variant="subtle"
                     size="input-xs"
@@ -236,18 +265,22 @@ export function StageList({ stages, fields, onChange }: StageListProps) {
                   >
                     <IconTrash size={14} />
                   </ActionIcon>
-                </Group>
-              </Group>
-              <StageForm
-                body={bodyOf(stage)}
-                fields={fields}
-                onChange={(body) => setBody(index, body)}
-              />
-            </Stack>
-          </Paper>
-        </Fragment>
-      ))}
-      <Group>
+                </>
+              }
+              enabled={stage.enabled}
+              toggleLabel="Enable stage"
+              onToggle={(enabled) => setEnabled(index, enabled)}
+              ariaLabel={`Stage ${index + 1}, ${title}`}
+            >
+              <StageForm body={body} fields={fields} onChange={(next) => setBody(index, next)} />
+            </BuilderCard>
+          </li>
+        );
+      })}
+      <li className="mg-qb-pipeline-foot">
+        <span className="mg-qb-stage-node" aria-hidden="true">
+          <IconPlus size={12} />
+        </span>
         <Menu position="bottom-start" shadow="md">
           <Menu.Target>
             <Button size="xs" variant="default" leftSection={<IconPlus size={14} />}>
@@ -255,14 +288,26 @@ export function StageList({ stages, fields, onChange }: StageListProps) {
             </Button>
           </Menu.Target>
           <Menu.Dropdown>
-            {STAGE_KINDS.map((kind) => (
-              <Menu.Item key={kind} onClick={() => add(kind)}>
-                {STAGE_LABELS[kind]}
-              </Menu.Item>
-            ))}
+            {STAGE_KINDS.map((kind) => {
+              const Icon = STAGE_ICONS[kind];
+              return (
+                <Menu.Item
+                  key={kind}
+                  onClick={() => add(kind)}
+                  leftSection={
+                    <span className="mg-qb-card-icon" data-tone={STAGE_TONES[kind]}>
+                      <Icon size={14} stroke={1.75} />
+                    </span>
+                  }
+                >
+                  {STAGE_LABELS[kind]}
+                </Menu.Item>
+              );
+            })}
           </Menu.Dropdown>
         </Menu>
-      </Group>
-    </Stack>
+        {stages.length === 0 && <span className="mg-qb-hint">The pipeline has no stages.</span>}
+      </li>
+    </ol>
   );
 }

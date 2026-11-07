@@ -119,8 +119,7 @@ describe('MatchStageForm', () => {
       />,
     );
 
-    fireEvent.click(screen.getByRole('textbox', { name: 'Group operator' }));
-    fireEvent.click(screen.getByRole('option', { name: 'OR' }));
+    fireEvent.click(screen.getByRole('radio', { name: 'OR' }));
 
     expect(onChange.mock.lastCall?.[0].filter.operator).toBe('or');
   });

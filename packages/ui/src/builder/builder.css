@@ -1,0 +1,582 @@
+/*
+ * Query builder. One idea carries the dialog: a rail on the left. In a find it is the group
+ * connector, in an aggregate it is the pipeline. Colours come from the --mg-* tokens, so both
+ * schemes work. Pixel gaps stay fixed; widths that hold text scale in the markup.
+ */
+
+.mg-qb {
+  --mg-qb-rail: var(--mg-border-strong);
+  --mg-qb-motion: 140ms;
+  --mg-qb-tone: var(--mg-text-muted);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .mg-qb {
+    --mg-qb-motion: 0ms;
+  }
+}
+
+/* Card shell, shared by the find panels and the stage cards. */
+
+.mg-qb-card {
+  position: relative;
+  border: 1px solid var(--mg-border);
+  border-radius: var(--mantine-radius-md);
+  background: var(--mg-surface-1);
+  transition: border-color var(--mg-qb-motion) ease-out;
+}
+
+.mg-qb-card:hover,
+.mg-qb-card:focus-within {
+  border-color: var(--mg-border-strong);
+}
+
+.mg-qb-card[data-enabled='false'] {
+  border-style: dashed;
+}
+
+.mg-qb-card-head {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-height: 36px;
+  padding: 4px 8px 4px 10px;
+  border-bottom: 1px solid var(--mg-border);
+}
+
+.mg-qb-card-icon {
+  display: inline-flex;
+  flex: none;
+  color: var(--mg-qb-tone);
+}
+
+.mg-qb-card-title {
+  flex: none;
+  font-weight: 600;
+  font-size: calc(13px * var(--mg-font-scale, 1));
+  color: var(--mg-text-strong);
+}
+
+.mg-qb-card-title[data-code='true'] {
+  font-family: var(--mantine-font-family-monospace);
+}
+
+.mg-qb-card-summary {
+  flex: 1 1 auto;
+  min-width: 0;
+  overflow: hidden;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+  font-size: calc(12px * var(--mg-font-scale, 1));
+  color: var(--mg-text-muted);
+}
+
+.mg-qb-card-actions {
+  display: flex;
+  flex: none;
+  align-items: center;
+  gap: 2px;
+}
+
+.mg-qb-card-head > .mantine-Switch-root {
+  flex: none;
+  margin-left: auto;
+}
+
+.mg-qb-card-summary + .mg-qb-card-actions,
+.mg-qb-card-summary + .mantine-Switch-root,
+.mg-qb-card-summary + .mg-qb-stage-note {
+  margin-left: 0;
+}
+
+.mg-qb-card-body {
+  padding: 10px;
+  transition: opacity 160ms ease-out;
+}
+
+.mg-qb-card[data-enabled='false'] .mg-qb-card-body {
+  opacity: 0.45;
+}
+
+.mg-qb-chip {
+  flex: none;
+  padding: 1px 6px;
+  border-radius: 999px;
+  font-size: calc(11px * var(--mg-font-scale, 1));
+  font-weight: 500;
+  color: var(--mg-accent-text);
+  background: color-mix(in srgb, var(--mg-accent) 16%, transparent);
+}
+
+/* Group connector rail. The pill sits on it, each item hangs off it with a tick. */
+
+.mg-qb-group {
+  position: relative;
+  padding-left: 18px;
+}
+
+.mg-qb-group[data-operator='and'] {
+  --mg-qb-rail: color-mix(in srgb, var(--mg-accent) 60%, var(--mg-border));
+}
+
+.mg-qb-group[data-operator='or'] {
+  --mg-qb-rail: color-mix(in srgb, var(--mg-link) 60%, var(--mg-border));
+}
+
+.mg-qb-group[data-operator='nor'] {
+  --mg-qb-rail: color-mix(in srgb, var(--mg-danger) 60%, var(--mg-border));
+}
+
+.mg-qb-group::before {
+  content: '';
+  position: absolute;
+  top: 13px;
+  bottom: 15px;
+  left: 7px;
+  width: 2px;
+  border-radius: 1px;
+  background: var(--mg-qb-rail);
+}
+
+/* A group with no items has nothing to connect. */
+.mg-qb-group:has(> .mg-qb-group-items:empty)::before {
+  display: none;
+}
+
+.mg-qb-group-head {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  margin-left: -18px;
+  margin-bottom: 8px;
+}
+
+.mg-qb-group-items {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  overflow-x: auto;
+}
+
+.mg-qb-group-items:empty {
+  display: none;
+}
+
+.mg-qb-item {
+  position: relative;
+}
+
+.mg-qb-item::before {
+  content: '';
+  position: absolute;
+  top: 14px;
+  left: -11px;
+  width: 11px;
+  height: 2px;
+  background: var(--mg-qb-rail);
+}
+
+.mg-qb-group-foot {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+  margin-top: 8px;
+}
+
+.mg-qb-group-items + .mg-qb-group-foot {
+  margin-top: 8px;
+}
+
+.mg-qb-group-foot .mantine-Button-root {
+  position: relative;
+}
+
+.mg-qb-group-foot .mantine-Button-root:first-child {
+  margin-left: -18px;
+}
+
+.mg-qb-hint {
+  font-size: calc(12px * var(--mg-font-scale, 1));
+  color: var(--mg-text-muted);
+}
+
+.mg-qb-hint code {
+  padding: 0 4px;
+  border-radius: var(--mantine-radius-sm);
+  font-family: var(--mantine-font-family-monospace);
+  font-size: calc(11px * var(--mg-font-scale, 1));
+  color: var(--mg-text);
+  background: var(--mg-surface-3);
+}
+
+/* Rows. A new row fades and slides in. Removal has no exit, React unmounts it. */
+
+.mg-qb-row {
+  animation: mg-qb-enter var(--mg-qb-motion) ease-out;
+}
+
+@keyframes mg-qb-enter {
+  from {
+    opacity: 0;
+    transform: translateY(-3px);
+  }
+
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+
+.mg-qb-row .mantine-Checkbox-root {
+  padding-top: 7px;
+}
+
+.mg-qb-nested {
+  margin-top: 8px;
+  padding-left: 24px;
+}
+
+/* Type chip on the value input. The colour is the same as the results table. */
+
+.mg-qb-type {
+  --mg-qb-type: var(--mg-text-muted);
+
+  display: inline-flex;
+  flex: none;
+  align-items: center;
+  gap: 4px;
+  height: 30px;
+  padding: 0 8px;
+  border: 0;
+  border-radius: 999px;
+  font-family: var(--mantine-font-family);
+  font-size: calc(11px * var(--mg-font-scale, 1));
+  font-weight: 600;
+  letter-spacing: 0.01em;
+  color: var(--mg-qb-type);
+  background: color-mix(in srgb, var(--mg-qb-type) 14%, transparent);
+  cursor: pointer;
+  transition: background-color var(--mg-qb-motion) ease-out;
+}
+
+.mg-qb-type:hover {
+  background: color-mix(in srgb, var(--mg-qb-type) 24%, transparent);
+}
+
+.mg-qb-type:focus-visible {
+  outline: 2px solid var(--mg-accent);
+  outline-offset: 1px;
+}
+
+.mg-qb-type::before {
+  content: '';
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: var(--mg-qb-type);
+}
+
+.mg-qb-type[data-type='String'] {
+  --mg-qb-type: var(--mg-ok);
+}
+
+.mg-qb-type[data-type='Number'] {
+  --mg-qb-type: var(--mg-warn);
+}
+
+.mg-qb-type[data-type='Boolean'] {
+  --mg-qb-type: var(--mg-series-5);
+}
+
+.mg-qb-type[data-type='Null'] {
+  --mg-qb-type: var(--mg-text-faint);
+}
+
+.mg-qb-type[data-type='Date'] {
+  --mg-qb-type: var(--mg-danger);
+}
+
+.mg-qb-type[data-type='ObjectId'] {
+  --mg-qb-type: var(--mg-series-4);
+}
+
+.mg-qb-type[data-type='Regex'] {
+  --mg-qb-type: var(--mg-accent-text);
+}
+
+.mg-qb-type[data-type='List'] {
+  --mg-qb-type: var(--mg-link);
+}
+
+.mg-qb-type-dot {
+  --mg-qb-type: var(--mg-text-muted);
+
+  display: inline-block;
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: var(--mg-qb-type);
+}
+
+.mg-qb-type-dot[data-type='String'] {
+  --mg-qb-type: var(--mg-ok);
+}
+
+.mg-qb-type-dot[data-type='Number'] {
+  --mg-qb-type: var(--mg-warn);
+}
+
+.mg-qb-type-dot[data-type='Boolean'] {
+  --mg-qb-type: var(--mg-series-5);
+}
+
+.mg-qb-type-dot[data-type='Null'] {
+  --mg-qb-type: var(--mg-text-faint);
+}
+
+.mg-qb-type-dot[data-type='Date'] {
+  --mg-qb-type: var(--mg-danger);
+}
+
+.mg-qb-type-dot[data-type='ObjectId'] {
+  --mg-qb-type: var(--mg-series-4);
+}
+
+.mg-qb-type-dot[data-type='Regex'] {
+  --mg-qb-type: var(--mg-accent-text);
+}
+
+.mg-qb-type-dot[data-type='List'] {
+  --mg-qb-type: var(--mg-link);
+}
+
+.mg-qb-null {
+  display: inline-flex;
+  align-items: center;
+  height: 30px;
+  font-family: var(--mantine-font-family-monospace);
+  font-size: calc(12px * var(--mg-font-scale, 1));
+  color: var(--mg-text-faint);
+}
+
+/* Pipeline. Each stage is a numbered node on a rail, in the colour of its kind. */
+
+.mg-qb-pipeline {
+  position: relative;
+  margin: 0;
+  padding: 0 0 0 30px;
+  list-style: none;
+}
+
+.mg-qb-pipeline::before {
+  content: '';
+  position: absolute;
+  top: 12px;
+  bottom: 14px;
+  left: 10px;
+  width: 2px;
+  border-radius: 1px;
+  background: var(--mg-border-strong);
+}
+
+.mg-qb-stage {
+  position: relative;
+  margin-bottom: 12px;
+}
+
+.mg-qb-stage-node {
+  position: absolute;
+  top: 8px;
+  left: -30px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 22px;
+  height: 22px;
+  border-radius: 50%;
+  font-size: 11px;
+  font-weight: 600;
+  font-variant-numeric: tabular-nums;
+  color: var(--mg-surface-1);
+  background: var(--mg-qb-tone);
+  box-shadow: 0 0 0 3px var(--mg-surface-1);
+}
+
+.mg-qb-stage[data-enabled='false'] .mg-qb-stage-node {
+  color: var(--mg-qb-tone);
+  background: var(--mg-surface-1);
+  box-shadow:
+    inset 0 0 0 2px var(--mg-qb-tone),
+    0 0 0 3px var(--mg-surface-1);
+}
+
+.mg-qb-pipeline-foot {
+  position: relative;
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+}
+
+.mg-qb-pipeline-foot .mg-qb-stage-node {
+  top: 4px;
+  color: var(--mg-text-muted);
+  background: var(--mg-surface-1);
+  box-shadow:
+    inset 0 0 0 2px var(--mg-border-strong),
+    0 0 0 3px var(--mg-surface-1);
+}
+
+.mg-qb-stage-note {
+  flex: none;
+  padding: 1px 6px;
+  border-radius: 999px;
+  font-size: calc(11px * var(--mg-font-scale, 1));
+  color: var(--mg-accent-text);
+  background: color-mix(in srgb, var(--mg-accent) 16%, transparent);
+}
+
+/* Tone of each kind. The find panels Query, Projection and Sort use the stage tones. */
+
+[data-tone='match'] {
+  --mg-qb-tone: var(--mg-link);
+}
+
+[data-tone='project'] {
+  --mg-qb-tone: var(--mg-ok);
+}
+
+[data-tone='sort'] {
+  --mg-qb-tone: var(--mg-warn);
+}
+
+[data-tone='group'] {
+  --mg-qb-tone: var(--mg-series-4);
+}
+
+[data-tone='lookup'] {
+  --mg-qb-tone: var(--mg-accent-text);
+}
+
+[data-tone='unwind'] {
+  --mg-qb-tone: var(--mg-series-5);
+}
+
+[data-tone='count'] {
+  --mg-qb-tone: var(--mg-text-muted);
+}
+
+[data-tone='raw'] {
+  --mg-qb-tone: var(--mg-text-faint);
+}
+
+/* Empty, unsupported and notice states. */
+
+.mg-qb-empty {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 10px;
+  padding: 18px 4px;
+}
+
+.mg-qb-unsupported {
+  display: flex;
+  gap: 12px;
+  align-items: flex-start;
+  padding: 14px 4px;
+}
+
+.mg-qb-unsupported-icon {
+  display: inline-flex;
+  flex: none;
+  align-items: center;
+  justify-content: center;
+  width: 34px;
+  height: 34px;
+  border-radius: 50%;
+  color: var(--mg-text-muted);
+  background: var(--mg-surface-3);
+}
+
+.mg-qb-unsupported code {
+  display: block;
+  margin-top: 4px;
+  font-family: var(--mantine-font-family-monospace);
+  font-size: calc(12px * var(--mg-font-scale, 1));
+  color: var(--mg-text-muted);
+}
+
+.mg-qb-notice {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 5px 10px;
+  border-left: 3px solid var(--mg-accent);
+  border-radius: var(--mantine-radius-sm);
+  font-size: calc(12px * var(--mg-font-scale, 1));
+  color: var(--mg-text);
+  background: color-mix(in srgb, var(--mg-accent) 10%, transparent);
+}
+
+/* Preview strip. It stays at the bottom of the scroll box. */
+
+/* Form labels stay in the UI font when the input is in the code font. */
+.mg-qb .mantine-InputWrapper-label {
+  font-family: var(--mantine-font-family);
+}
+
+.mg-qb-preview {
+  position: sticky;
+  bottom: 0;
+  /* Above the segmented controls, which raise their own indicator. */
+  z-index: 5;
+  margin-top: 4px;
+  border: 1px solid var(--mg-border);
+  border-radius: var(--mantine-radius-md);
+  background: var(--mg-bg-sunken);
+}
+
+.mg-qb-preview-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  padding: 2px 4px 2px 10px;
+  border-bottom: 1px solid var(--mg-border);
+  font-size: calc(11px * var(--mg-font-scale, 1));
+  color: var(--mg-text-muted);
+}
+
+.mg-qb-preview pre {
+  max-height: min(calc(5 * 1.5 * 12px * var(--mg-font-scale, 1) + 16px), 28vh);
+  margin: 0;
+  padding: 8px 10px;
+  overflow: auto;
+  font-family: var(--mantine-font-family-monospace);
+  font-size: calc(12px * var(--mg-font-scale, 1));
+  line-height: 1.5;
+  color: var(--mg-text);
+  white-space: pre;
+}
+
+.mg-qb-preview [data-token='string'] {
+  color: var(--mg-code-string);
+}
+
+.mg-qb-preview [data-token='number'] {
+  color: var(--mg-code-number);
+}
+
+.mg-qb-preview [data-token='keyword'] {
+  color: var(--mg-code-keyword);
+}
+
+.mg-qb-preview [data-token='function'] {
+  color: var(--mg-code-function);
+}
+
+.mg-qb-preview [data-token='key'] {
+  color: var(--mg-code-key);
+}

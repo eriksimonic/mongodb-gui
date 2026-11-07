@@ -77,7 +77,7 @@ describe('FindBuilder', () => {
   it('disables the sort panel, keeps its rows, and leaves the sort out of the text', () => {
     const { lastStatement } = renderFind();
 
-    fireEvent.click(screen.getByRole('checkbox', { name: 'Enable sort' }));
+    fireEvent.click(screen.getByRole('switch', { name: 'Enable sort' }));
 
     expect(lastStatement()).toEqual({ ...base, sortEnabled: false });
     expect(lastStatement()?.sort).toEqual(base.sort);
@@ -89,7 +89,7 @@ describe('FindBuilder', () => {
   it('enables a disabled panel again and drops the flag', () => {
     const { lastStatement } = renderFind({ ...base, sortEnabled: false });
 
-    fireEvent.click(screen.getByRole('checkbox', { name: 'Enable sort' }));
+    fireEvent.click(screen.getByRole('switch', { name: 'Enable sort' }));
 
     expect(lastStatement()).toEqual(base);
   });
@@ -97,7 +97,7 @@ describe('FindBuilder', () => {
   it('disables the Query panel and writes the projection alone', () => {
     const { lastStatement } = renderFind({ ...base, projection: [] });
 
-    fireEvent.click(screen.getByRole('checkbox', { name: 'Enable query' }));
+    fireEvent.click(screen.getByRole('switch', { name: 'Enable query' }));
 
     expect(lastStatement()).toEqual({ ...base, filterEnabled: false });
     expect(emitBuilderStatement(lastStatement() as FindStatement)).toBe(
@@ -155,7 +155,7 @@ describe('FindBuilder', () => {
     const projection = [{ kind: 'field', enabled: true, field: 'name', include: true }] as const;
     const { lastStatement } = renderFind({ ...base, projection });
 
-    fireEvent.click(screen.getByRole('checkbox', { name: 'Enable projection' }));
+    fireEvent.click(screen.getByRole('switch', { name: 'Enable projection' }));
 
     expect(lastStatement()).toEqual({ ...base, projection, projectionEnabled: false });
     expect(emitBuilderStatement(lastStatement() as FindStatement)).toBe(

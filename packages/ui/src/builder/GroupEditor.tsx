@@ -1,4 +1,4 @@
-import { ActionIcon, Box, Button, Group, Paper, Select, Stack } from '@mantine/core';
+import { ActionIcon, Button, SegmentedControl } from '@mantine/core';
 import {
   type ConditionOperator,
   type FieldInfo,
@@ -8,11 +8,13 @@ import {
   type QueryItem,
 } from '@mongo-gui/core';
 import { IconFolderPlus, IconPlus, IconTrash } from '@tabler/icons-react';
-import { Fragment, useState } from 'react';
+import { type ReactNode, useState } from 'react';
 import { ConditionRow, RawItemRow } from './ConditionRow';
 import { elemMatchScope, newCondition } from './condition-model';
 
 const GROUP_LABELS: Record<GroupOperator, string> = { and: 'AND', or: 'OR', nor: 'NOR' };
+/** The Mantine colour of the operator pill. The rail in `builder.css` uses the matching token. */
+const GROUP_COLORS: Record<GroupOperator, string> = { and: 'brand', or: 'blue', nor: 'red' };
 
 let lastKey = 0;
 
@@ -112,7 +114,7 @@ export function GroupEditor({
         ? elemMatchScope(fields, item.field, item.group.items)
         : undefined;
     return (
-      <Stack gap="xs">
+      <>
         <ConditionRow
           item={item}
           fields={fields}
@@ -123,85 +125,94 @@ export function GroupEditor({
           onDelete={remove}
         />
         {item.operator === 'elemMatch' && scope !== undefined && (
-          <Box pl="md">
+          <div className="mg-qb-nested">
             <GroupEditor
               group={item.group}
               fields={scope.fields}
               scalarElement={scope.scalarElement}
               onChange={(next) => replace({ ...item, group: next })}
             />
-          </Box>
+          </div>
         )}
-      </Stack>
+      </>
     );
   };
 
+  const nested = onDelete !== undefined;
+  let hint: ReactNode = null;
+  if (group.items.length === 0) {
+    hint = nested ? (
+      <span className="mg-qb-hint">No conditions in this group.</span>
+    ) : (
+      <span className="mg-qb-hint">
+        No conditions. Every document matches. Try <code>status</code> equals <code>"paid"</code>.
+      </span>
+    );
+  }
+
   return (
-    <Paper withBorder p="xs">
-      <Stack gap="xs">
-        {/* A scalar $elemMatch body is always AND, so it has no operator menu. */}
+    <div className="mg-qb-group" data-operator={scalarElement ? 'and' : group.operator}>
+      {/* A scalar $elemMatch body is always AND, so it has no operator pill. */}
+      {!scalarElement && (
+        <div className="mg-qb-group-head">
+          <SegmentedControl
+            size="xs"
+            radius="xl"
+            aria-label="Group operator"
+            color={GROUP_COLORS[group.operator]}
+            data={GROUP_OPERATORS.map((operator) => ({
+              value: operator,
+              label: GROUP_LABELS[operator],
+            }))}
+            value={group.operator}
+            onChange={(value) => onChange({ ...group, operator: value as GroupOperator })}
+          />
+          {nested && (
+            <ActionIcon
+              variant="subtle"
+              color="red"
+              size="input-xs"
+              aria-label="Delete group"
+              onClick={onDelete}
+            >
+              <IconTrash size={14} />
+            </ActionIcon>
+          )}
+        </div>
+      )}
+      <div className="mg-qb-group-items">
+        {group.items.map((item, index) => (
+          <div className="mg-qb-item mg-qb-row" key={keyAt(index)}>
+            {renderItem(item, index)}
+          </div>
+        ))}
+      </div>
+      <div className="mg-qb-group-foot">
+        <Button
+          size="xs"
+          variant="default"
+          leftSection={<IconPlus size={14} />}
+          disabled={nextCondition === undefined}
+          onClick={() => {
+            if (nextCondition !== undefined) {
+              add(nextCondition);
+            }
+          }}
+        >
+          Add condition
+        </Button>
         {!scalarElement && (
-          <Group justify="space-between">
-            <Select
-              size="xs"
-              aria-label="Group operator"
-              allowDeselect={false}
-              data={GROUP_OPERATORS.map((operator) => ({
-                value: operator,
-                label: GROUP_LABELS[operator],
-              }))}
-              value={group.operator}
-              onChange={(value) => {
-                if (value !== null) {
-                  onChange({ ...group, operator: value as GroupOperator });
-                }
-              }}
-              w="calc(100px * var(--mg-font-scale, 1))"
-            />
-            {onDelete !== undefined && (
-              <ActionIcon
-                variant="subtle"
-                color="red"
-                size="input-xs"
-                aria-label="Delete group"
-                onClick={onDelete}
-              >
-                <IconTrash size={14} />
-              </ActionIcon>
-            )}
-          </Group>
-        )}
-        <Stack gap="xs">
-          {group.items.map((item, index) => (
-            <Fragment key={keyAt(index)}>{renderItem(item, index)}</Fragment>
-          ))}
-        </Stack>
-        <Group gap="xs">
           <Button
             size="xs"
             variant="default"
-            leftSection={<IconPlus size={14} />}
-            disabled={nextCondition === undefined}
-            onClick={() => {
-              if (nextCondition !== undefined) {
-                add(nextCondition);
-              }
-            }}
+            leftSection={<IconFolderPlus size={14} />}
+            onClick={() => add({ kind: 'group', operator: 'and', items: [] })}
           >
-            Add condition
+            Add group
           </Button>
-          {!scalarElement && (
-            <Button
-              size="xs"
-              variant="default"
-              leftSection={<IconFolderPlus size={14} />}
-              onClick={() => add({ kind: 'group', operator: 'and', items: [] })}
-            >
-              Add group
-            </Button>
-          )}
-        </Group>
-      </Stack>
-    </Paper>
+        )}
+        {hint}
+      </div>
+    </div>
   );
 }

@@ -128,7 +128,7 @@ export function ConditionRow({
   };
 
   return (
-    <Group gap="xs" wrap="nowrap" align="flex-start">
+    <Group gap={6} wrap="nowrap" align="flex-start">
       <Checkbox
         size="xs"
         aria-label="Enable condition"
@@ -136,7 +136,7 @@ export function ConditionRow({
         onChange={(event) => onChange({ ...item, enabled: event.currentTarget.checked })}
       />
       {scalarElement ? (
-        <Text size="xs" ff="monospace" w="calc(200px * var(--mg-font-scale, 1))">
+        <Text size="xs" ff="monospace" c="dimmed" pt={7} w="calc(200px * var(--mg-font-scale, 1))">
           {ARRAY_ELEMENT_FIELD}
         </Text>
       ) : (
@@ -277,14 +277,21 @@ export function RawItemRow({
   };
 
   return (
-    <Group gap="xs" wrap="nowrap" align="flex-start">
+    <Group gap={6} wrap="nowrap" align="flex-start">
       <Checkbox
         size="xs"
         aria-label="Enable raw item"
         checked={item.enabled}
         onChange={(event) => onChange({ ...item, enabled: event.currentTarget.checked })}
       />
-      <Text size="xs" ff="monospace" truncate="end" w="calc(180px * var(--mg-font-scale, 1))">
+      <Text
+        size="xs"
+        ff="monospace"
+        truncate="end"
+        pt={7}
+        w="calc(180px * var(--mg-font-scale, 1))"
+        title={label}
+      >
         {label}
       </Text>
       <RawText

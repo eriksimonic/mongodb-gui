@@ -114,8 +114,7 @@ describe('GroupEditor', () => {
     expect(lastGroup()?.items).toEqual([{ kind: 'group', operator: 'and', items: [] }]);
     expect(screen.getAllByRole('button', { name: 'Delete group' })).toHaveLength(1);
 
-    fireEvent.click(screen.getAllByRole('textbox', { name: 'Group operator' })[1] as HTMLElement);
-    fireEvent.click(screen.getByRole('option', { name: 'NOR' }));
+    fireEvent.click(screen.getAllByRole('radio', { name: 'NOR' })[1] as HTMLElement);
     expect(lastGroup()?.items).toEqual([{ kind: 'group', operator: 'nor', items: [] }]);
   });
 
@@ -306,7 +305,7 @@ describe('GroupEditor', () => {
       fields: [{ path: ARRAY_ELEMENT_FIELD, types: ['String'] }],
     });
 
-    expect(screen.queryByRole('textbox', { name: 'Group operator' })).not.toBeInTheDocument();
+    expect(screen.queryByRole('radiogroup', { name: 'Group operator' })).not.toBeInTheDocument();
     expect(screen.getByRole('button', { name: 'Add condition' })).toBeEnabled();
   });
 

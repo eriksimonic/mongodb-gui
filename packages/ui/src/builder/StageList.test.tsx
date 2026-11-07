@@ -40,7 +40,7 @@ function renderList(initial: readonly PipelineStage[]): ReturnType<typeof vi.fn>
 }
 
 /** The element at `index` among those with the role and name. Fails the test when there is none. */
-function nthNamed(role: 'button' | 'checkbox', name: string, index: number): HTMLElement {
+function nthNamed(role: 'button' | 'switch', name: string, index: number): HTMLElement {
   const found = screen.getAllByRole(role, { name }).at(index);
   if (found === undefined) {
     throw new Error(`no ${role} named ${name} at ${index}`);
@@ -77,23 +77,23 @@ describe('StageList', () => {
   it('keeps the card order on screen after a move', () => {
     renderList([limit, skip, count]);
     fireEvent.click(nthNamed('button', 'Move stage down', 0));
-    expect(screen.getAllByRole('checkbox', { name: 'Enable stage' })).toHaveLength(3);
+    expect(screen.getAllByRole('switch', { name: 'Enable stage' })).toHaveLength(3);
     expect(screen.getAllByLabelText('Count')[0]).toHaveValue('2');
     expect(screen.getAllByLabelText('Count')[1]).toHaveValue('5');
   });
 
   it('disables a stage and keeps it in the list', () => {
     const onChange = renderList([limit, skip, count]);
-    fireEvent.click(nthNamed('checkbox', 'Enable stage', 1));
+    fireEvent.click(nthNamed('switch', 'Enable stage', 1));
     expect(onChange).toHaveBeenLastCalledWith([limit, { ...skip, enabled: false }, count]);
-    expect(screen.getAllByRole('checkbox', { name: 'Enable stage' })).toHaveLength(3);
+    expect(screen.getAllByRole('switch', { name: 'Enable stage' })).toHaveLength(3);
   });
 
   it('deletes a stage', () => {
     const onChange = renderList([limit, skip, count]);
     fireEvent.click(nthNamed('button', 'Delete stage', 0));
     expect(onChange).toHaveBeenLastCalledWith([skip, count]);
-    expect(screen.getAllByRole('checkbox', { name: 'Enable stage' })).toHaveLength(2);
+    expect(screen.getAllByRole('switch', { name: 'Enable stage' })).toHaveLength(2);
   });
 
   it('copies a stage after itself', () => {

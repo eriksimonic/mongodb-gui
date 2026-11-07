@@ -1,4 +1,4 @@
-import { Checkbox, NumberInput, Stack, TextInput } from '@mantine/core';
+import { Checkbox, Group, NumberInput, Stack, TextInput } from '@mantine/core';
 import { type EjsonValue, type FieldInfo, type StageBody } from '@mongo-gui/core';
 import { isRecord, mongoshText } from '../condition-model';
 import { FieldPicker } from '../FieldPicker';
@@ -82,7 +82,7 @@ export function UnwindStage({ body, fields, onChange }: StageFormProps<StageOf<'
 /** The four fields of `$lookup`. The model keeps them without a `$`, so they are plain text. */
 export function LookupStage({ body, onChange }: StageFormProps<StageOf<'$lookup'>>) {
   return (
-    <Stack gap="xs">
+    <Group gap="xs" align="flex-end">
       <TextInput
         size="xs"
         label="From collection"
@@ -115,7 +115,7 @@ export function LookupStage({ body, onChange }: StageFormProps<StageOf<'$lookup'
         onChange={(event) => onChange({ ...body, as: event.currentTarget.value })}
         w="calc(200px * var(--mg-font-scale, 1))"
       />
-    </Stack>
+    </Group>
   );
 }
 

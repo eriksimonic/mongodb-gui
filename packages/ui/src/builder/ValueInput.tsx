@@ -1,4 +1,4 @@
-import { Badge, Group, Menu, SegmentedControl, Text, TextInput } from '@mantine/core';
+import { Group, Menu, SegmentedControl, TextInput } from '@mantine/core';
 import { IconChevronDown } from '@tabler/icons-react';
 import { type ReactNode, useState } from 'react';
 import { isRecord } from './condition-model';
@@ -169,11 +169,7 @@ export function ValueInput({
 
   let input: ReactNode;
   if (draft.type === 'Null') {
-    input = (
-      <Text size="xs" c="dimmed" ff="monospace">
-        null
-      </Text>
-    );
+    input = <span className="mg-qb-null">null</span>;
   } else if (draft.type === 'Boolean') {
     input = (
       <SegmentedControl
@@ -201,24 +197,27 @@ export function ValueInput({
   }
 
   return (
-    <Group gap="xs" wrap="nowrap" align="flex-start">
+    <Group gap={6} wrap="nowrap" align="flex-start">
       <Menu>
         <Menu.Target>
-          <Badge
-            component="button"
+          <button
             type="button"
-            size="sm"
-            variant="light"
-            color="gray"
+            className="mg-qb-type"
+            data-type={draft.type}
             aria-label="Value type"
-            rightSection={<IconChevronDown size={10} />}
+            title={`Value type: ${draft.type}`}
           >
             {draft.type}
-          </Badge>
+            <IconChevronDown size={10} />
+          </button>
         </Menu.Target>
         <Menu.Dropdown>
           {VALUE_TYPES.map((type) => (
-            <Menu.Item key={type} onClick={() => chooseType(type)}>
+            <Menu.Item
+              key={type}
+              onClick={() => chooseType(type)}
+              leftSection={<span className="mg-qb-type-dot" data-type={type} />}
+            >
               {type}
             </Menu.Item>
           ))}

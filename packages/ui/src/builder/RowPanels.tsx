@@ -29,7 +29,7 @@ export function ProjectionPanel({ rows, fields, onChange }: ProjectionPanelProps
   return (
     <Stack gap="xs">
       {rows.map((row, index) => (
-        <Group key={index} gap="xs" wrap="nowrap" align="flex-start">
+        <Group key={index} className="mg-qb-row" gap={6} wrap="nowrap" align="flex-start">
           <Checkbox
             size="xs"
             aria-label="Enable row"
@@ -66,7 +66,8 @@ export function ProjectionPanel({ rows, fields, onChange }: ProjectionPanelProps
           )}
           <ActionIcon
             size="input-xs"
-            variant="default"
+            variant="subtle"
+            color="red"
             aria-label="Remove row"
             onClick={() => remove(index)}
           >
@@ -74,7 +75,7 @@ export function ProjectionPanel({ rows, fields, onChange }: ProjectionPanelProps
           </ActionIcon>
         </Group>
       ))}
-      <Group>
+      <Group gap="xs">
         <Button
           size="xs"
           variant="default"
@@ -85,6 +86,11 @@ export function ProjectionPanel({ rows, fields, onChange }: ProjectionPanelProps
         >
           Add field
         </Button>
+        {rows.length === 0 && (
+          <span className="mg-qb-hint">
+            Every field is returned. Add one to include or exclude it.
+          </span>
+        )}
       </Group>
     </Stack>
   );
@@ -112,7 +118,7 @@ export function SortPanel({ rows, fields, onChange }: SortPanelProps) {
   return (
     <Stack gap="xs">
       {rows.map((row, index) => (
-        <Group key={index} gap="xs" wrap="nowrap" align="flex-start">
+        <Group key={index} className="mg-qb-row" gap={6} wrap="nowrap" align="flex-start">
           <Checkbox
             size="xs"
             aria-label="Enable row"
@@ -136,7 +142,7 @@ export function SortPanel({ rows, fields, onChange }: SortPanelProps) {
           />
           <ActionIcon
             size="input-xs"
-            variant="default"
+            variant="subtle"
             aria-label="Move up"
             disabled={index === 0}
             onClick={() => move(index, index - 1)}
@@ -145,7 +151,7 @@ export function SortPanel({ rows, fields, onChange }: SortPanelProps) {
           </ActionIcon>
           <ActionIcon
             size="input-xs"
-            variant="default"
+            variant="subtle"
             aria-label="Move down"
             disabled={index === rows.length - 1}
             onClick={() => move(index, index + 1)}
@@ -154,7 +160,8 @@ export function SortPanel({ rows, fields, onChange }: SortPanelProps) {
           </ActionIcon>
           <ActionIcon
             size="input-xs"
-            variant="default"
+            variant="subtle"
+            color="red"
             aria-label="Remove row"
             onClick={() => remove(index)}
           >
@@ -162,7 +169,7 @@ export function SortPanel({ rows, fields, onChange }: SortPanelProps) {
           </ActionIcon>
         </Group>
       ))}
-      <Group>
+      <Group gap="xs">
         <Button
           size="xs"
           variant="default"
@@ -171,6 +178,11 @@ export function SortPanel({ rows, fields, onChange }: SortPanelProps) {
         >
           Add sort field
         </Button>
+        {rows.length === 0 && (
+          <span className="mg-qb-hint">
+            Documents come in natural order. The first row sorts first.
+          </span>
+        )}
       </Group>
     </Stack>
   );
@@ -188,10 +200,11 @@ export interface SkipLimitRowProps {
 /** Skip and limit. An empty box, or 0, means the value is not set. */
 export function SkipLimitRow({ skip, limit, onChange }: SkipLimitRowProps) {
   return (
-    <Group gap="xs" align="flex-end">
+    <Group gap="xs" align="flex-end" className="mg-qb-skip-limit">
       <NumberInput
         size="xs"
         label="Skip"
+        placeholder="0"
         min={0}
         allowDecimal={false}
         value={skip ?? ''}
@@ -201,6 +214,7 @@ export function SkipLimitRow({ skip, limit, onChange }: SkipLimitRowProps) {
       <NumberInput
         size="xs"
         label="Limit"
+        placeholder="No limit"
         min={0}
         allowDecimal={false}
         value={limit ?? ''}
