@@ -54,14 +54,37 @@ function keyItems(key: string, value: unknown): QueryItem[] {
   if (operator !== undefined && isObjectArray(value)) {
     // The emitter splits the items of an AND group into `$and` arrays, so `$and` children join
     // the enclosing group.
-    return operator === 'and'
-      ? value.flatMap(filterItems)
-      : [{ kind: 'group', operator, items: value.map(filterFromEjson) }];
+    return operator === 'and' ? value.flatMap(filterItems) : [logicalGroup(operator, value)];
   }
   if (key.startsWith('$')) {
     return [{ kind: 'rawFragment', enabled: true, key, value }];
   }
   return fieldItems(key, value);
+}
+
+/** A group from an `$or` or `$nor` array. Each element is one group. */
+function logicalGroup(operator: GroupOperator, elements: readonly Plain[]): QueryGroup {
+  return { kind: 'group', operator, items: elements.map(elementGroup) };
+}
+
+/**
+ * One element of an `$or` or `$nor` array. An element whose only key is `$or` or `$nor` is that
+ * group itself, so the emitter's `{ $or: [{ $or: [...] }] }` reads back without an AND wrapper.
+ * Any other element is an AND group of its keys.
+ */
+function elementGroup(element: Plain): QueryGroup {
+  const entries = Object.entries(element);
+  const [only] = entries;
+  if (entries.length === 1 && only !== undefined) {
+    const [key, value] = only;
+    const operator = groupOperatorOf(key);
+    if (operator === 'or' || operator === 'nor') {
+      if (isObjectArray(value)) {
+        return logicalGroup(operator, value);
+      }
+    }
+  }
+  return filterFromEjson(element);
 }
 
 function groupOperatorOf(key: string): GroupOperator | undefined {

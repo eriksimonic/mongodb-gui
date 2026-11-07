@@ -361,6 +361,80 @@ describe('filterFromEjson', () => {
       ]);
     });
 
+    it('reads an $or element with only an $or key as that group, without an AND wrapper', () => {
+      expect(itemsOf({ $or: [{ $or: [{ a: 1 }] }] })).toEqual([
+        {
+          kind: 'group',
+          operator: 'or',
+          items: [
+            {
+              kind: 'group',
+              operator: 'or',
+              items: [{ kind: 'group', operator: 'and', items: [eq('a', 1)] }],
+            },
+          ],
+        },
+      ]);
+    });
+
+    it('reads a $nor element under $or as a nor group', () => {
+      expect(itemsOf({ $or: [{ $nor: [{ a: 1 }] }] })).toEqual([
+        {
+          kind: 'group',
+          operator: 'or',
+          items: [
+            {
+              kind: 'group',
+              operator: 'nor',
+              items: [{ kind: 'group', operator: 'and', items: [eq('a', 1)] }],
+            },
+          ],
+        },
+      ]);
+    });
+
+    it('reads an $or element under $nor as an or group', () => {
+      expect(itemsOf({ $nor: [{ $or: [{ a: 1 }] }] })).toEqual([
+        {
+          kind: 'group',
+          operator: 'nor',
+          items: [
+            {
+              kind: 'group',
+              operator: 'or',
+              items: [{ kind: 'group', operator: 'and', items: [eq('a', 1)] }],
+            },
+          ],
+        },
+      ]);
+    });
+
+    it('keeps an element with a field and an $or key as an AND group', () => {
+      expect(itemsOf({ $or: [{ a: 1, $or: [{ b: 1 }, { c: 1 }] }] })).toEqual([
+        {
+          kind: 'group',
+          operator: 'or',
+          items: [
+            {
+              kind: 'group',
+              operator: 'and',
+              items: [
+                eq('a', 1),
+                {
+                  kind: 'group',
+                  operator: 'or',
+                  items: [
+                    { kind: 'group', operator: 'and', items: [eq('b', 1)] },
+                    { kind: 'group', operator: 'and', items: [eq('c', 1)] },
+                  ],
+                },
+              ],
+            },
+          ],
+        },
+      ]);
+    });
+
     it('keeps the order of top-level keys', () => {
       expect(itemsOf({ $expr: { $gt: ['$a', '$b'] }, a: 1, $or: [{ b: 1 }] })).toEqual([
         { kind: 'rawFragment', enabled: true, key: '$expr', value: { $gt: ['$a', '$b'] } },
