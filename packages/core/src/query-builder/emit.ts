@@ -92,18 +92,28 @@ export function emitStatement(statement: QueryStatement): string {
 
 function aggregateText(access: string, stages: readonly PipelineStage[]): string {
   const pipeline = stages
-    .filter((stage) => stage.enabled && !hasNoLiveRows(stage))
+    .filter((stage) => stage.enabled && !isUnfinished(stage))
     .map((stage) => stageToEjson(stage));
   return `${access}.aggregate(${mongoshText(pipeline)})`;
 }
 
-/** True for a `$project` or `$sort` with no live row. MongoDB rejects it, so it is dropped. */
-function hasNoLiveRows(stage: StageBody): boolean {
+/**
+ * True for a stage MongoDB rejects while a field of it is empty: a `$project` or `$sort` with no
+ * live row, an `$unwind` with no path, a `$count` with no name, or a `$lookup` with an empty field.
+ * A new stage starts this way, so the emitter drops it until the user fills it in.
+ */
+function isUnfinished(stage: StageBody): boolean {
   switch (stage.stage) {
     case '$project':
       return !hasKeys(projectionToEjson(stage.rows));
     case '$sort':
       return !hasKeys(sortToEjson(stage.rows));
+    case '$unwind':
+      return stage.path === '';
+    case '$count':
+      return stage.output === '';
+    case '$lookup':
+      return [stage.from, stage.localField, stage.foreignField, stage.as].includes('');
     default:
       return false;
   }

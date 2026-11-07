@@ -355,6 +355,54 @@ describe('emitStatement, aggregate', () => {
     expect(emitStatement(statement)).toBe('db.orders.aggregate([\n  {\n    $limit: 1\n  }\n])');
   });
 
+  it('drops an $unwind with no path and keeps one with a path', () => {
+    const statement = aggregate([
+      stage({ stage: '$unwind', path: '', preserveEmpty: false }),
+      stage({ stage: '$unwind', path: 'items', preserveEmpty: true }),
+      stage({ stage: '$limit', count: 1 }),
+    ]);
+
+    expect(emitStatement(statement)).toBe(
+      'db.orders.aggregate([\n  {\n    $unwind: {\n      path: "$items",\n      preserveNullAndEmptyArrays: true\n    }\n  },\n  {\n    $limit: 1\n  }\n])',
+    );
+  });
+
+  it('drops a $count with no name', () => {
+    const statement = aggregate([
+      stage({ stage: '$count', output: '' }),
+      stage({ stage: '$limit', count: 1 }),
+    ]);
+
+    expect(emitStatement(statement)).toBe('db.orders.aggregate([\n  {\n    $limit: 1\n  }\n])');
+  });
+
+  it.each(['from', 'localField', 'foreignField', 'as'] as const)(
+    'drops a $lookup whose %s is empty',
+    (emptied) => {
+      const lookup = { from: 'users', localField: 'userId', foreignField: '_id', as: 'user' };
+      const statement = aggregate([
+        stage({ stage: '$lookup', ...lookup, [emptied]: '' }),
+        stage({ stage: '$limit', count: 1 }),
+      ]);
+
+      expect(emitStatement(statement)).toBe('db.orders.aggregate([\n  {\n    $limit: 1\n  }\n])');
+    },
+  );
+
+  it('writes a $lookup whose four fields are all set', () => {
+    const statement = aggregate([
+      stage({
+        stage: '$lookup',
+        from: 'users',
+        localField: 'userId',
+        foreignField: '_id',
+        as: 'user',
+      }),
+    ]);
+
+    expect(emitStatement(statement)).toContain('$lookup');
+  });
+
   it('skips a $group accumulator with no output name', () => {
     const statement = aggregate([
       stage({
