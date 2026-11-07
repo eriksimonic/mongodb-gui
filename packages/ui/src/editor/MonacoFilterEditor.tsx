@@ -146,36 +146,28 @@ export function MonacoFilterEditor({
 
   // Mantine closes a modal on Escape from a capture listener on the window, before any element sees
   // the key. Mantine skips that close when the event target has data-mantine-stop-propagation="true".
-  // The attribute is set while the suggestion list is open, so Escape closes the list only.
+  // The attribute stays on the focus targets while the editor exists, so Escape never closes the
+  // dialog from the editor. Monaco can replace its edit context node, so the guard also goes on a
+  // focus target when it takes focus.
   useEffect(() => {
-    if (mounted === undefined) {
+    const editorDom = mounted?.editor.getDomNode();
+    if (editorDom === undefined || editorDom === null) {
       return undefined;
     }
-    const editorDom = mounted.editor.getDomNode();
-    const sync = () => {
-      const open = overflow.querySelector('.suggest-widget.visible') !== null;
+    const guard = () => {
       for (const input of keyboardTargetsOf(editorDom)) {
-        if (open) {
-          input.setAttribute(MANTINE_STOP_ATTRIBUTE, 'true');
-        } else {
-          input.removeAttribute(MANTINE_STOP_ATTRIBUTE);
-        }
+        input.setAttribute(MANTINE_STOP_ATTRIBUTE, 'true');
       }
     };
-    const observer = new MutationObserver(sync);
-    observer.observe(overflow, {
-      subtree: true,
-      childList: true,
-      attributes: true,
-      attributeFilter: ['class'],
-    });
+    guard();
+    editorDom.addEventListener('focusin', guard);
     return () => {
-      observer.disconnect();
+      editorDom.removeEventListener('focusin', guard);
       for (const input of keyboardTargetsOf(editorDom)) {
         input.removeAttribute(MANTINE_STOP_ATTRIBUTE);
       }
     };
-  }, [mounted, overflow]);
+  }, [mounted]);
 
   const lines = Math.min(MAX_LINES, Math.max(MIN_LINES, value.split('\n').length));
   const options = useMemo(

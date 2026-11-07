@@ -71,6 +71,9 @@ function field(path: string): SchemaField {
 
 const SCOPE = { connectionId: localConnectionId, database: 'shop', collection: 'orders' };
 
+/** The attribute that tells Mantine's modal not to close on Escape. */
+const GUARD = 'data-mantine-stop-propagation';
+
 describe('FilterEditor', () => {
   it('shows a loader named after the editor until Monaco loads', async () => {
     renderWithApp(<FilterEditor value="{}" onChange={() => undefined} ariaLabel="Filter" />);
@@ -158,7 +161,79 @@ describe('FilterEditor', () => {
     expect(node?.isConnected).toBe(false);
   });
 
-  it('holds the Escape guard while a suggestion list is open', async () => {
+  it('marks both focus targets with the Escape guard as soon as the editor mounts', async () => {
+    renderWithApp(<FilterEditor value="{}" onChange={() => undefined} ariaLabel="Filter" />);
+    await waitFor(() => expect(monaco.props).toBeDefined());
+    const { dom, editor } = fakeEditor('inmemory://filter-guard-mount');
+    act(() => {
+      monaco.props?.onMount(editor, fakeMonacoApi().api);
+    });
+
+    expect(dom.querySelector('[role="textbox"]')?.getAttribute(GUARD)).toBe('true');
+    expect(dom.querySelector('textarea')?.getAttribute(GUARD)).toBe('true');
+  });
+
+  it('removes the Escape guard from the focus targets on unmount', async () => {
+    const { unmount } = renderWithApp(
+      <FilterEditor value="{}" onChange={() => undefined} ariaLabel="Filter" />,
+    );
+    await waitFor(() => expect(monaco.props).toBeDefined());
+    const { dom, editor } = fakeEditor('inmemory://filter-guard-unmount');
+    act(() => {
+      monaco.props?.onMount(editor, fakeMonacoApi().api);
+    });
+    const textbox = dom.querySelector('[role="textbox"]');
+    const textarea = dom.querySelector('textarea');
+
+    unmount();
+
+    expect(textbox?.hasAttribute(GUARD)).toBe(false);
+    expect(textarea?.hasAttribute(GUARD)).toBe(false);
+  });
+
+  it('creates no MutationObserver for the Escape guard', async () => {
+    const created = vi.fn();
+    class CountingObserver extends MutationObserver {
+      constructor(callback: MutationCallback) {
+        super(callback);
+        created();
+      }
+    }
+    renderWithApp(<FilterEditor value="{}" onChange={() => undefined} ariaLabel="Filter" />);
+    await waitFor(() => expect(monaco.props).toBeDefined());
+    // Mantine's own hooks create observers while the app renders, so the count starts at the mount.
+    vi.stubGlobal('MutationObserver', CountingObserver);
+    try {
+      const { editor } = fakeEditor('inmemory://filter-guard-observer');
+      act(() => {
+        monaco.props?.onMount(editor, fakeMonacoApi().api);
+      });
+
+      expect(created).not.toHaveBeenCalled();
+    } finally {
+      vi.unstubAllGlobals();
+    }
+  });
+
+  it('guards a focus target that Monaco creates after mount, once it takes focus', async () => {
+    renderWithApp(<FilterEditor value="{}" onChange={() => undefined} ariaLabel="Filter" />);
+    await waitFor(() => expect(monaco.props).toBeDefined());
+    const { dom, editor } = fakeEditor('inmemory://filter-guard-replaced');
+    act(() => {
+      monaco.props?.onMount(editor, fakeMonacoApi().api);
+    });
+
+    // Monaco replaces its edit context node. The new node takes focus before it gets a key press.
+    dom.querySelector('[role="textbox"]')?.remove();
+    const replacement = document.createElement('div');
+    replacement.setAttribute('role', 'textbox');
+    dom.prepend(replacement);
+    replacement.dispatchEvent(new FocusEvent('focusin', { bubbles: true }));
+
+    expect(replacement.getAttribute(GUARD)).toBe('true');
+  });
+
+  it('keeps Escape from closing the modal while the suggestion list opens and closes', async () => {
     renderWithApp(<FilterEditor value="{}" onChange={() => undefined} ariaLabel="Filter" />);
     await waitFor(() => expect(monaco.props).toBeDefined());
     const node = monaco.props?.options.overflowWidgetsDomNode as HTMLElement;
@@ -166,17 +241,41 @@ describe('FilterEditor', () => {
     act(() => {
       monaco.props?.onMount(editor, fakeMonacoApi().api);
     });
-    const textbox = dom.querySelector('[role="textbox"]');
-    const guard = 'data-mantine-stop-propagation';
+    document.body.append(dom);
+    const textbox = dom.querySelector('[role="textbox"]') as HTMLElement;
 
-    const list = document.createElement('div');
-    list.className = 'suggest-widget';
-    node.append(list);
-    list.classList.add('visible');
-    await waitFor(() => expect(textbox?.getAttribute(guard)).toBe('true'));
+    // Mantine closes its modal from a window capture listener unless the target has the guard.
+    const closeModal = vi.fn();
+    const onWindowKeydown = (event: KeyboardEvent) => {
+      if (event.key === 'Escape' && (event.target as Element).getAttribute(GUARD) !== 'true') {
+        closeModal();
+      }
+    };
+    window.addEventListener('keydown', onWindowKeydown, { capture: true });
+    const pressEscape = (target: Element) =>
+      target.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape', bubbles: true }));
+    try {
+      // The control shows that the listener sees Escape on an element without the guard.
+      const control = document.createElement('input');
+      document.body.append(control);
+      pressEscape(control);
+      expect(closeModal).toHaveBeenCalledTimes(1);
+      control.remove();
+      closeModal.mockClear();
 
-    list.classList.remove('visible');
-    await waitFor(() => expect(textbox?.hasAttribute(guard)).toBe(false));
+      const list = document.createElement('div');
+      list.className = 'suggest-widget';
+      node.append(list);
+      list.classList.add('visible');
+      pressEscape(textbox);
+      list.classList.remove('visible');
+      pressEscape(textbox);
+
+      expect(closeModal).not.toHaveBeenCalled();
+    } finally {
+      window.removeEventListener('keydown', onWindowKeydown, { capture: true });
+      dom.remove();
+    }
   });
 
   it('registers its model, and completes the fields of its collection', async () => {

@@ -30,8 +30,8 @@ const FALLBACK_HEIGHT_PX = 72;
 
 /**
  * A compact Extended JSON editor for a filter. Typing a key offers the fields of `fields`, and
- * typing a value offers the Extended JSON forms. Tab leaves the field, and Escape closes a
- * suggestion list before it reaches a surrounding modal.
+ * typing a value offers the Extended JSON forms. Tab leaves the field. Escape in the editor never
+ * closes the dialog: it closes an open suggestion list, or does nothing.
  */
 export function FilterEditor({
   value,
