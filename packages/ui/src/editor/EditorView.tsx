@@ -1,8 +1,10 @@
 import {
   ActionIcon,
   Badge,
+  Box,
   Button,
   Group,
+  Modal,
   SegmentedControl,
   Select,
   Stack,
@@ -47,15 +49,6 @@ const MIN_EDITOR_SHARE = 0.15;
 const MAX_EDITOR_SHARE = 0.8;
 const DEFAULT_EDITOR_SHARE = 0.3;
 const SHARE_STEP = 0.05;
-const DEFAULT_BUILDER_HEIGHT = 260;
-const MIN_BUILDER_HEIGHT = 160;
-const MAX_BUILDER_HEIGHT = 480;
-const BUILDER_HEIGHT_STEP = 20;
-
-function clampBuilderHeight(height: number): number {
-  return Math.min(MAX_BUILDER_HEIGHT, Math.max(MIN_BUILDER_HEIGHT, height));
-}
-
 /** Stands in for the completion source while the tab has none. The run then has no type hints. */
 const NO_SAMPLER: SqlSampler = { fieldsOf: () => Promise.resolve([]) };
 
@@ -142,7 +135,6 @@ export function EditorView({ tabId }: EditorViewProps) {
   const connectionId = tab?.connectionId;
   const [hasSelection, setHasSelection] = useState(false);
   const [builderOpen, setBuilderOpen] = useState(false);
-  const [builderHeight, setBuilderHeight] = useState(DEFAULT_BUILDER_HEIGHT);
   const [cursor, setCursor] = useState(0);
   const replaceRef = useRef<ReplaceRange | undefined>(undefined);
 
@@ -330,25 +322,6 @@ export function EditorView({ tabId }: EditorViewProps) {
   function replaceInEditor(range: TextRange, replacement: string) {
     replaceRef.current?.(range, replacement);
     setCursor(range.start);
-  }
-
-  function resizeBuilderWithKeys(event: KeyboardEvent<HTMLDivElement>) {
-    if (event.key === 'ArrowUp') {
-      setBuilderHeight((value) => clampBuilderHeight(value - BUILDER_HEIGHT_STEP));
-    } else if (event.key === 'ArrowDown') {
-      setBuilderHeight((value) => clampBuilderHeight(value + BUILDER_HEIGHT_STEP));
-    } else {
-      return;
-    }
-    event.preventDefault();
-  }
-
-  function dragBuilder(event: PointerEvent<HTMLDivElement>) {
-    const box = split.current?.getBoundingClientRect();
-    if (box === undefined) {
-      return;
-    }
-    setBuilderHeight(clampBuilderHeight(event.clientY - box.top));
   }
 
   function dragSplit(event: PointerEvent<HTMLDivElement>) {
@@ -540,54 +513,6 @@ export function EditorView({ tabId }: EditorViewProps) {
         )}
       </Group>
       <div ref={split} style={{ flex: 1, minHeight: 0, display: 'flex', flexDirection: 'column' }}>
-        {builderShown && source !== undefined ? (
-          <>
-            <div
-              data-testid="query-builder-region"
-              style={{
-                height: builderHeight,
-                flex: '0 0 auto',
-                overflow: 'auto',
-                borderBottom: '1px solid var(--mg-border)',
-              }}
-            >
-              <BuilderPanel
-                text={current.text}
-                cursor={cursor}
-                onReplace={replaceInEditor}
-                connectionId={current.connectionId}
-                database={current.database}
-                source={source}
-                defaultCollection={current.result?.collection ?? ''}
-              />
-            </div>
-            <div
-              role="separator"
-              aria-orientation="horizontal"
-              aria-label="Resize the query builder"
-              aria-valuemin={MIN_BUILDER_HEIGHT}
-              aria-valuemax={MAX_BUILDER_HEIGHT}
-              aria-valuenow={builderHeight}
-              tabIndex={0}
-              onKeyDown={resizeBuilderWithKeys}
-              onPointerDown={(event) => {
-                event.currentTarget.setPointerCapture(event.pointerId);
-                dragBuilder(event);
-              }}
-              onPointerMove={(event) => {
-                if (event.currentTarget.hasPointerCapture(event.pointerId)) {
-                  dragBuilder(event);
-                }
-              }}
-              style={{
-                height: 6,
-                cursor: 'row-resize',
-                background: 'var(--mg-border-strong)',
-                flex: '0 0 auto',
-              }}
-            />
-          </>
-        ) : null}
         <div style={{ height: `${share * 100}%`, minHeight: 80, padding: '8px 10px 0' }}>
           <div style={{ display: 'flex', gap: 8, height: '100%' }}>
             <div style={{ flex: 1, minWidth: 0 }}>
@@ -690,6 +615,35 @@ export function EditorView({ tabId }: EditorViewProps) {
           />
         </div>
       </div>
+      {/* Mantine would return focus to the icon. The editor takes focus after the exit instead. */}
+      {source !== undefined ? (
+        <Modal
+          opened={builderShown}
+          onClose={() => setBuilderOpen(false)}
+          title="Query builder"
+          centered
+          size="min(calc(1100px * var(--mg-font-scale, 1)), 94vw)"
+          returnFocus={false}
+          onExitTransitionEnd={() => editorUiEvents.emit({ type: 'editor:focus', tabId })}
+        >
+          <Stack gap="xs">
+            <Text size="xs" c="dimmed">
+              {connectionName ?? 'Connection'}, {current.database}
+            </Text>
+            <Box mah="80vh" style={{ overflowY: 'auto' }}>
+              <BuilderPanel
+                text={current.text}
+                cursor={cursor}
+                onReplace={replaceInEditor}
+                connectionId={current.connectionId}
+                database={current.database}
+                source={source}
+                defaultCollection={current.result?.collection ?? ''}
+              />
+            </Box>
+          </Stack>
+        </Modal>
+      ) : null}
       {saveOpen ? (
         <SaveFavouriteDialog
           code={current.text}

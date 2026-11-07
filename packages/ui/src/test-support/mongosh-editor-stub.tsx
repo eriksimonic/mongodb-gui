@@ -50,6 +50,10 @@ export function MongoshEditor({
         if (event.tabId !== tabId || element === null) {
           return;
         }
+        if (event.type === 'editor:focus') {
+          element.focus();
+          return;
+        }
         if (event.type === 'editor:command') {
           if (event.command === 'runAll') {
             onRunAll(element.value);

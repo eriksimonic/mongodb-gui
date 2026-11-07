@@ -135,13 +135,13 @@ describe('EditorView query builder', () => {
     return screen.getByRole('button', { name: 'Query builder' }) as HTMLButtonElement;
   }
 
-  it('opens the builder above the editor from the lightning icon', async () => {
+  it('opens the builder in a dialog from the lightning icon', async () => {
     await openEditor('db.orders.find({})');
-    expect(screen.queryByTestId('query-builder-region')).not.toBeInTheDocument();
+    expect(screen.queryByRole('dialog', { name: 'Query builder' })).not.toBeInTheDocument();
 
     fireEvent.click(builderButton());
 
-    expect(await screen.findByTestId('query-builder-region')).toBeInTheDocument();
+    expect(await screen.findByRole('dialog', { name: 'Query builder' })).toBeInTheDocument();
     expect(builderButton()).toHaveAttribute('aria-pressed', 'true');
   });
 
@@ -156,16 +156,25 @@ describe('EditorView query builder', () => {
     await waitFor(() => expect(editor().value).toBe('db.orders.find().limit(5)'));
   });
 
-  it('closes the builder and disables the icon in SQL mode', async () => {
+  it('closes the dialog on Escape and returns focus to the editor', async () => {
     await openEditor('db.orders.find({})');
     fireEvent.click(builderButton());
-    await screen.findByTestId('query-builder-region');
+    fireEvent.keyDown(await screen.findByRole('dialog', { name: 'Query builder' }), {
+      key: 'Escape',
+    });
+
+    await waitFor(() => expect(screen.queryByRole('dialog')).not.toBeInTheDocument());
+    await waitFor(() => expect(editor()).toHaveFocus());
+  });
+
+  it('closes the dialog and disables the icon in SQL mode', async () => {
+    await openEditor('db.orders.find({})');
+    fireEvent.click(builderButton());
+    await screen.findByRole('dialog', { name: 'Query builder' });
 
     fireEvent.click(screen.getByRole('radio', { name: 'SQL' }));
 
-    await waitFor(() =>
-      expect(screen.queryByTestId('query-builder-region')).not.toBeInTheDocument(),
-    );
+    await waitFor(() => expect(screen.queryByRole('dialog')).not.toBeInTheDocument());
     expect(builderButton()).toBeDisabled();
   });
 });
