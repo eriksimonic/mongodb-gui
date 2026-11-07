@@ -267,6 +267,27 @@ describe.each(MONGO_IMAGES)('copy helpers on %s', (image) => {
     );
 
     it(
+      'names a standalone server by its serverStatus host and the port the client connected to',
+      async () => {
+        const uri = requireDefined(mongo, 'the server').rootUri;
+        const seen = await withClient(uri, async (client) => {
+          const status = (await client.db('admin').command({ serverStatus: 1 })) as {
+            host: string;
+          };
+          return {
+            identity: await serverIdentity(client),
+            serverHost: status.host,
+            port: client.options.hosts[0]?.port,
+          };
+        });
+
+        expect(seen.serverHost).not.toMatch(/:\d+$/);
+        expect(seen.identity).toEqual({ hosts: [`${seen.serverHost}:${seen.port}`] });
+      },
+      TEST_TIMEOUT_MS,
+    );
+
+    it(
       'falls back to the connection host list when the user cannot run serverStatus',
       async () => {
         await connected()

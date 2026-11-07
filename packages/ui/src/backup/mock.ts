@@ -13,6 +13,7 @@ import {
   type ConnectionStatus,
   type RestoreStartInput,
   type RpcEvent,
+  type ServerIdentity,
 } from '@mongo-gui/core';
 import type { MockDatabase } from '../api/mock-catalog';
 import { fixtureInspection } from './mock-fixtures';
@@ -62,6 +63,22 @@ interface MockJob {
   timer: ReturnType<typeof setTimeout> | undefined;
   /** Ends the job with the progress it has. */
   finish: () => void;
+}
+
+/**
+ * The identity a mock connection reports, as the real server does. A replica set reports its
+ * members and name. A standalone server reports its own address, which is derived from the
+ * connection id, so each connection is a different server. A connection that is not connected
+ * reports no hosts, which means unknown.
+ */
+function identityOf(connectionId: string, status: ConnectionStatus): ServerIdentity {
+  if (status.state !== 'connected') {
+    return { hosts: [] };
+  }
+  if (status.setName !== undefined) {
+    return { hosts: [...status.hosts], setName: status.setName };
+  }
+  return { hosts: [`${connectionId.replaceAll('-', '').slice(0, 12)}:27017`] };
 }
 
 function stamp(): string {
@@ -273,6 +290,7 @@ export function createMockBackup(context: MockBackupContext): MockBackup {
           : {}),
         directConnection: status.state === 'connected' && status.directConnection === true,
         hosts: status.state === 'connected' ? [...status.hosts] : [],
+        identity: identityOf(connectionId, status),
         databases: catalog.map((database) => database.name),
         namespaces,
         namespacesTruncated: false,

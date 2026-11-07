@@ -3,7 +3,7 @@ import { DumpOptionsSchema, RestoreOptionsSchema, type RpcEvent } from '@mongo-g
 import { createMockBackup } from './mock';
 import { fixtureCatalog } from '../api/mock-catalog';
 import { createMockPicks } from '../api/mock-picks';
-import { localConnectionId } from '../api/mock-fixtures';
+import { localConnectionId, stagingConnectionId } from '../api/mock-fixtures';
 
 const FOLDER = '/mock/backups';
 
@@ -53,6 +53,16 @@ describe('mock backup', () => {
 
   afterEach(() => {
     vi.useRealTimers();
+  });
+
+  it('gives each mock connection its own identity and the same one each time', () => {
+    const { backup } = setup();
+    const local = backup.describeServer(localConnectionId, undefined).identity;
+    const staging = backup.describeServer(stagingConnectionId, undefined).identity;
+    expect(local.hosts).toHaveLength(1);
+    expect(staging.hosts).toHaveLength(1);
+    expect(staging.hosts).not.toEqual(local.hosts);
+    expect(backup.describeServer(localConnectionId, undefined).identity).toEqual(local);
   });
 
   it('describes the server and the namespaces of a database scope', () => {

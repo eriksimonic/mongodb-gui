@@ -7,6 +7,7 @@ import type {
 } from '@mongo-gui/core';
 import { listCollections, listDatabases } from '../catalog';
 import { definedEntry, hasKey, readRecord, readString } from '../documents';
+import { serverIdentity } from '../copy/identity';
 import { readServerInfo } from '../server-info';
 
 export const MAX_BACKUP_NAMESPACES = 5000;
@@ -22,8 +23,9 @@ export async function readBackupServerInfo(
   client: MongoClient,
   scope?: BackupScope,
 ): Promise<BackupServerInfo> {
-  const [info, fcv, storageEngine, databases] = await Promise.all([
+  const [info, identity, fcv, storageEngine, databases] = await Promise.all([
     readServerInfo(client),
+    serverIdentity(client),
     readFeatureCompatibilityVersion(client),
     readStorageEngine(client),
     listDatabases(client),
@@ -38,6 +40,7 @@ export async function readBackupServerInfo(
     ...definedEntry('setName', info.setName),
     directConnection: info.directConnection === true,
     hosts: info.hosts,
+    identity,
     databases: databaseNames,
     namespaces,
     namespacesTruncated: truncated,

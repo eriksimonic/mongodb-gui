@@ -1,6 +1,7 @@
 import { z } from 'zod';
 import { DatabaseNameSchema } from '../management/types';
 import { ClusterTopologySchema } from '../schemas/connection';
+import { ServerIdentitySchema } from '../copy/server-identity';
 import { BackupScopeSchema } from './options';
 
 export const BackupNamespaceInfoSchema = z.object({
@@ -26,8 +27,10 @@ export const BackupServerInfoSchema = z.object({
   topology: ClusterTopologySchema,
   setName: z.string().max(255).optional(),
   directConnection: z.boolean(),
-  // host:port, no credentials.
+  // host:port, no credentials. Empty for a standalone server.
   hosts: z.array(z.string().max(300)).max(100),
+  // Who the server is, for sameServer(). Read with serverIdentity().
+  identity: ServerIdentitySchema,
   databases: z.array(DatabaseNameSchema),
   // Only for the given scope.
   namespaces: z.array(BackupNamespaceInfoSchema).max(5000),

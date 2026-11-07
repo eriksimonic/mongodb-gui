@@ -16,7 +16,6 @@ import {
   mergeCollection,
   readBackupServerInfo,
   renameCollection,
-  serverIdentity,
 } from '@mongo-gui/mongo-adapter';
 import type { ToolsEndpoint } from '../backup/endpoint';
 import { runTool } from '../backup/tool-process';
@@ -209,7 +208,6 @@ describe.skipIf(!PERF)('copy performance on the copy-perf fixture', () => {
       },
       endpoint: async (id) => endpoints[id] as ToolsEndpoint,
       readServerInfo: readBackupServerInfo,
-      identify: serverIdentity,
       rename: renameCollection,
       dropIfExists: dropCollectionIfExists,
       merge: mergeCollection,

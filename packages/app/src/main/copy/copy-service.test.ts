@@ -14,6 +14,7 @@ import {
   type CopyProgress,
   type RpcEvent,
   parseToolLine,
+  type ServerIdentity,
   type ToolsInstall,
 } from '@mongo-gui/core';
 import type { ToolsEndpoint } from '../backup/endpoint';
@@ -54,6 +55,9 @@ type RunToolOptions = Parameters<CopyServiceDeps['runTool']>[0];
 interface Fixture {
   readonly sourceHost: string;
   readonly targetHost: string;
+  /** The identity from the server info. Defaults to the host. */
+  readonly sourceIdentity?: ServerIdentity;
+  readonly targetIdentity?: ServerIdentity;
   readonly sourceNamespaces: BackupServerInfo['namespaces'];
   readonly targetNamespaces: BackupServerInfo['namespaces'];
   readonly production: boolean;
@@ -99,12 +103,17 @@ function endpointFor(host: string, profileName: string): ToolsEndpoint {
   };
 }
 
-function serverInfo(host: string, namespaces: BackupServerInfo['namespaces']): BackupServerInfo {
+function serverInfo(
+  identity: ServerIdentity,
+  namespaces: BackupServerInfo['namespaces'],
+): BackupServerInfo {
   return {
     serverVersion: '8.0.4',
     topology: 'standalone',
     directConnection: true,
-    hosts: [host],
+    // A standalone server reports no hosts from hello.
+    hosts: [],
+    identity,
     databases: ['shop', 'archive'],
     namespaces,
     namespacesTruncated: false,
@@ -187,13 +196,9 @@ function harness(fixture: Partial<Fixture> = {}) {
       id === SOURCE_ID ? endpointFor(f.sourceHost, 'Source') : endpointFor(f.targetHost, 'Target'),
     readServerInfo: vi.fn(async (client: Client) =>
       client === sourceClient
-        ? serverInfo(f.sourceHost, f.sourceNamespaces)
-        : serverInfo(f.targetHost, f.targetNamespaces),
+        ? serverInfo(f.sourceIdentity ?? { hosts: [f.sourceHost] }, f.sourceNamespaces)
+        : serverInfo(f.targetIdentity ?? { hosts: [f.targetHost] }, f.targetNamespaces),
     ) as unknown as CopyServiceDeps['readServerInfo'],
-    identify: vi.fn(async (client: Client) => ({
-      hosts: [(client as unknown as { host: string }).host],
-      setName: undefined,
-    })) as unknown as CopyServiceDeps['identify'],
     rename: rename as unknown as CopyServiceDeps['rename'],
     dropIfExists: dropIfExists as unknown as CopyServiceDeps['dropIfExists'],
     merge: merge as unknown as CopyServiceDeps['merge'],
@@ -418,6 +423,38 @@ describe('copy service: refusals', () => {
 
   it('refuses a blocking finding and starts no job', async () => {
     const h = harness({ sourceHost: 'db1:27017', targetHost: 'db1:27017' });
+    await expect(
+      h.service.start(options({ sourceDatabase: 'shop', targetDatabase: 'shop' })),
+    ).rejects.toMatchObject({
+      error: { code: 'VALIDATION', message: expect.stringContaining('also reads') },
+    });
+    expect(h.runTool).not.toHaveBeenCalled();
+    expect(h.registry.markInUse).not.toHaveBeenCalled();
+  });
+
+  it('accepts a copy to another standalone server that reports no hosts', async () => {
+    // Both servers report the same host, so only the identity tells them apart.
+    const h = harness({
+      sourceHost: 'db1:27017',
+      targetHost: 'db1:27017',
+      sourceIdentity: { hosts: ['ecd690c7a175:27017'] },
+      targetIdentity: { hosts: ['e1585e35625e:27017'] },
+    });
+    const jobId = await h.service.start(
+      options({ sourceDatabase: 'shop', targetDatabase: 'shop' }),
+    );
+    const final = await waitForFinal(h.events);
+
+    expect(jobId).toMatch(/^[0-9a-f-]{36}$/);
+    expect(final.error).toBeUndefined();
+  });
+
+  it('refuses a copy to a server with the same identity when the hosts are empty', async () => {
+    // The hosts differ, so only the identity tells the servers are the same.
+    const h = harness({
+      sourceIdentity: { hosts: ['ecd690c7a175:27017'] },
+      targetIdentity: { hosts: ['ecd690c7a175:27017'] },
+    });
     await expect(
       h.service.start(options({ sourceDatabase: 'shop', targetDatabase: 'shop' })),
     ).rejects.toMatchObject({

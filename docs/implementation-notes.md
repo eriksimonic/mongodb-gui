@@ -133,9 +133,11 @@ logs are in git history before commit `e85767f`.
 - A direct connection copies the `production` flag from its parent
   (`packages/app/src/main/rpc/connections.ts`).
 - `serverIdentity` reads `hosts` from `hello`, which a replica set returns. A standalone server or
-  `mongos` returns no hosts, so it uses `serverStatus.host`. If `serverStatus` is denied too, it
-  falls back to the connected host list. Two connection strings for one server then look like two
-  servers.
+  `mongos` returns no hosts, so its identity is `serverStatus.host` (the hostname, no port) plus the
+  port the client connected to. Two `mongod` processes on one machine differ by port. The limit: one
+  server reached through two ports (for example a proxy) counts as two servers. If `serverStatus` is
+  denied too, it falls back to the connected host list. Two connection strings for one server then
+  look like two servers.
 - Renderer reset, vault lock and connection loss cancel copy jobs (`router.ts`). Job ids are UUIDs
   from `crypto.randomUUID`.
 - Blocking rules live in core: `assessCopy` in `assess.ts`, and `unresolvedCopyFindings` and

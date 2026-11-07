@@ -48,6 +48,7 @@ const SERVER_INFO: BackupServerInfo = {
   topology: 'standalone',
   directConnection: false,
   hosts: ['localhost:27017'],
+  identity: { hosts: ['localhost:27017'] },
   databases: ['shop'],
   namespaces: [],
   namespacesTruncated: false,

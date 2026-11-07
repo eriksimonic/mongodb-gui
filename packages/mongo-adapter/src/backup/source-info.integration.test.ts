@@ -1,7 +1,7 @@
 import { randomUUID } from 'node:crypto';
 import { MongoClient } from 'mongodb';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
-import { readBackupServerInfo } from '../index';
+import { readBackupServerInfo, serverIdentity } from '../index';
 import {
   CONTAINER_STARTUP_TIMEOUT_MS,
   startMongo,
@@ -53,6 +53,20 @@ describe.each(['mongo:4.4', 'mongo:8.0.17'] as const)('MongoDB %s backup server 
       expect(info.databases).toContain(db);
       expect(info.namespaces).toEqual([]);
       expect(info.namespacesTruncated).toBe(false);
+    },
+    TEST_TIMEOUT_MS,
+  );
+
+  it(
+    'reports the server identity, which a standalone server gets from serverStatus',
+    async () => {
+      const info = await readBackupServerInfo(client);
+      expect(info.topology).toBe('standalone');
+      expect(info.hosts).toEqual([]);
+      expect(info.identity.hosts).toHaveLength(1);
+      expect(info.identity.hosts[0]).toMatch(/:\d+$/);
+      expect(info.identity.setName).toBeUndefined();
+      expect(info.identity).toEqual(await serverIdentity(client));
     },
     TEST_TIMEOUT_MS,
   );

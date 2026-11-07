@@ -28,7 +28,6 @@ import {
   parseCommandEjson,
   readBackupServerInfo,
   renameCollection,
-  serverIdentity,
   type ConnectionManager,
 } from '@mongo-gui/mongo-adapter';
 import type { CopyService } from '../rpc/copy';
@@ -75,7 +74,6 @@ export interface CopyServiceDeps {
   /** resolveToolsEndpoint with its dependencies bound. */
   readonly endpoint: (connectionId: string) => Promise<ToolsEndpoint>;
   readonly readServerInfo: typeof readBackupServerInfo;
-  readonly identify: typeof serverIdentity;
   readonly rename: typeof renameCollection;
   readonly dropIfExists: typeof dropCollectionIfExists;
   readonly merge: typeof mergeCollection;
@@ -224,9 +222,6 @@ export function createCopyService(deps: CopyServiceDeps): CopyJobs {
         deps.readServerInfo(targetClient, { kind: 'database', database: options.targetDatabase }),
       ]),
     );
-    const [sourceId, targetId] = await masked(secrets, () =>
-      Promise.all([deps.identify(sourceClient), deps.identify(targetClient)]),
-    );
     const { tools, installed } = await chooseTools(deps.registry, [
       sourceInfo.serverVersion,
       targetInfo.serverVersion,
@@ -235,7 +230,7 @@ export function createCopyService(deps: CopyServiceDeps): CopyJobs {
       source: sourceInfo,
       target: targetInfo,
       tools: { selected: tools.install.version, installed, available: [] },
-      sameServer: sameServer(sourceId, targetId),
+      sameServer: sameServer(sourceInfo.identity, targetInfo.identity),
       options: {
         sourceDatabase: options.sourceDatabase,
         targetDatabase: options.targetDatabase,

@@ -9,7 +9,6 @@ import {
   readArchivePrelude,
   readBackupServerInfo,
   renameCollection,
-  serverIdentity,
 } from '@mongo-gui/mongo-adapter';
 import {
   createDockerEngineClient,
@@ -351,7 +350,6 @@ function createBackupToolsFactory(
         getProfile: (id) => deps.repos().connections.get(id),
         endpoint: (connectionId) => resolveToolsEndpoint(endpointDeps, connectionId),
         readServerInfo: readBackupServerInfo,
-        identify: serverIdentity,
         rename: renameCollection,
         dropIfExists: dropCollectionIfExists,
         merge: mergeCollection,

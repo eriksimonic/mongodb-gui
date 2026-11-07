@@ -18,7 +18,6 @@ import {
   mergeCollection,
   readBackupServerInfo,
   renameCollection,
-  serverIdentity,
 } from '@mongo-gui/mongo-adapter';
 import {
   CONTAINER_STARTUP_TIMEOUT_MS,
@@ -240,7 +239,6 @@ describe.skipIf(!hasTools)('copy with the real tools on two servers', () => {
       },
       endpoint: async (id) => endpoints[id] as ToolsEndpoint,
       readServerInfo: readBackupServerInfo,
-      identify: serverIdentity,
       rename: renameCollection,
       dropIfExists: dropCollectionIfExists,
       merge: mergeCollection,

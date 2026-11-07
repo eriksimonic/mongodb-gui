@@ -92,6 +92,7 @@ function serverInfo(overrides: Partial<BackupServerInfo> = {}): BackupServerInfo
     setName: 'rs0',
     directConnection: false,
     hosts: ['db1:27017'],
+    identity: { hosts: ['db1:27017'], setName: 'rs0' },
     databases: ['shop', 'crm'],
     namespaces: [
       { database: 'shop', collection: 'orders', type: 'collection', documents: 2 },

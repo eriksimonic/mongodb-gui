@@ -198,7 +198,7 @@ function CopyForm({
           source: source.info,
           target: target.info,
           tools: { selected, installed, available: [...available] },
-          sameServer: sameServer(source.info, target.info),
+          sameServer: sameServer(source.info.identity, target.info.identity),
           options: { sourceDatabase, targetDatabase, items, mode },
           sourceNamespaces: source.info.namespaces.filter(
             (item) => item.database === sourceDatabase,
