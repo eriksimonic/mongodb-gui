@@ -1,10 +1,14 @@
-import { Button, Checkbox, Group, Stack, TextInput, Textarea } from '@mantine/core';
+import { Button, Checkbox, Group, Input, Stack, TextInput } from '@mantine/core';
 import { useId, useState } from 'react';
+import { FilterEditor } from '../editor/FilterEditor';
 import type { CopyRow, CopyVariant } from './copy-model';
 
 export interface CopyItemsEditorProps {
   readonly variant: CopyVariant;
   readonly rows: readonly CopyRow[];
+  /** The connection the source collections live on. The filter completes their fields. */
+  readonly sourceConnectionId: string;
+  readonly sourceDatabase: string;
   /** The target name error of each row, in the order of `rows`. */
   readonly nameErrors: readonly (string | undefined)[];
   /** The filter error of each row, in the order of `rows`. */
@@ -16,6 +20,8 @@ export interface CopyItemsEditorProps {
 export function CopyItemsEditor({
   variant,
   rows,
+  sourceConnectionId,
+  sourceDatabase,
   nameErrors,
   filterErrors,
   onChange,
@@ -78,20 +84,25 @@ export function CopyItemsEditor({
               </Button>
             </Group>
             {open ? (
-              <Textarea
-                id={filterId}
-                aria-label={`Extended JSON filter for ${row.source}`}
-                placeholder='{"status": "paid"}'
-                description="Extended JSON object. Empty copies every document."
-                autosize
-                minRows={2}
-                value={row.filter}
-                disabled={!row.included}
-                error={filterError}
-                onChange={(event) => {
-                  onChange(index, { filter: event.currentTarget.value });
-                }}
-              />
+              <Stack gap={4} id={filterId}>
+                <Input.Description>
+                  Extended JSON object. Empty copies every document.
+                </Input.Description>
+                <FilterEditor
+                  ariaLabel={`Extended JSON filter for ${row.source}`}
+                  value={row.filter}
+                  readOnly={!row.included}
+                  error={filterError}
+                  fields={{
+                    connectionId: sourceConnectionId,
+                    database: sourceDatabase,
+                    collection: row.source,
+                  }}
+                  onChange={(filter) => {
+                    onChange(index, { filter });
+                  }}
+                />
+              </Stack>
             ) : null}
           </Stack>
         );

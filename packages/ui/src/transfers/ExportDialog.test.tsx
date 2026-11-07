@@ -8,6 +8,8 @@ import type { UiApi } from '../api/ui-api';
 import { renderWithApp } from '../test-support/render';
 import { ExportDialogBody } from './ExportDialog';
 
+vi.mock('../editor/FilterEditor', () => import('../test-support/filter-editor-stub'));
+
 /** The save dialog returns the default NDJSON file for the default format. */
 const MOCK_DIALOG_PATH = mockSavePath('ndjson');
 

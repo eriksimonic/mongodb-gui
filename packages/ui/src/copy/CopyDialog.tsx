@@ -317,6 +317,8 @@ function CopyForm({
       <CopyItemsEditor
         variant={variant}
         rows={rows}
+        sourceConnectionId={sourceConnectionId}
+        sourceDatabase={sourceDatabase}
         nameErrors={nameErrors}
         filterErrors={rowFilterErrors}
         onChange={patchRow}

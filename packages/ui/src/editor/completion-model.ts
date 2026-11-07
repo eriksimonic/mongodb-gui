@@ -1,5 +1,5 @@
 import type { CompletionItem, CompletionKind, SchemaField } from '@mongo-gui/core';
-import { BSON_CONSTRUCTORS, CURSOR_METHODS, QUERY_OPERATORS } from './operators';
+import { ALL_OPERATORS, BSON_CONSTRUCTORS, CURSOR_METHODS } from './operators';
 import { statementAt } from './statements';
 
 /** An item the editor shows. The provider maps `kind` to the Monaco icon. */
@@ -221,7 +221,7 @@ function pathDepth(path: string): number {
  * key starts. Elsewhere they are noise.
  */
 export function operatorCompletions(): EditorCompletion[] {
-  return QUERY_OPERATORS.map((operator) => ({
+  return ALL_OPERATORS.map((operator) => ({
     label: operator.name,
     kind: 'operator',
     doc: operator.doc,

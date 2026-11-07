@@ -7,6 +7,8 @@ import type { UiApi } from '../api/ui-api';
 import { renderWithApp } from '../test-support/render';
 import { BackupDialogBody } from './BackupDialog';
 
+vi.mock('../editor/FilterEditor', () => import('../test-support/filter-editor-stub'));
+
 async function renderDialog(
   props: { database?: string; collection?: string } = { database: 'shop' },
   mock: MockUiApiOptions = { preset: 'unlocked' },

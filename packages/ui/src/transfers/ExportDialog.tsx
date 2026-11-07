@@ -2,6 +2,7 @@ import {
   Alert,
   Button,
   Group,
+  Input,
   Modal,
   SegmentedControl,
   Select,
@@ -24,6 +25,7 @@ import { useUiApi } from '../api/ui-api';
 import { useAppStore } from '../state/app-store-context';
 import { TipLabel } from '../kit/InfoTip';
 import { errorText } from '../kit/notify-error';
+import { FilterEditor } from '../editor/FilterEditor';
 import { TransferProgressView } from './TransferProgressView';
 import {
   DEFAULT_EXPORT_DRAFT,
@@ -207,19 +209,23 @@ export function ExportDialogBody({
           onChange={(value) => patch({ ejsonMode: value as ExportDraft['ejsonMode'] })}
         />
       )}
-      <TextInput
+      <Input.Wrapper
         label={
           <TipLabel
             label="Filter"
             tip="Only documents matching this Extended JSON query are exported."
           />
         }
-        placeholder='{"status": "paid"}'
         description="Extended JSON. Empty exports every document."
-        value={draft.filter}
-        error={fieldError(problems, 'filter')}
-        onChange={(event) => patch({ filter: event.currentTarget.value })}
-      />
+      >
+        <FilterEditor
+          ariaLabel="Filter"
+          value={draft.filter}
+          error={fieldError(problems, 'filter')}
+          fields={{ connectionId, database, collection }}
+          onChange={(filter) => patch({ filter })}
+        />
+      </Input.Wrapper>
       <TextInput
         label={
           <TipLabel

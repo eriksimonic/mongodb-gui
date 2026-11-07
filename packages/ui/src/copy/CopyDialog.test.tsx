@@ -8,6 +8,8 @@ import { renderWithApp } from '../test-support/render';
 import { CopyDialog } from './CopyDialog';
 import type { CopyVariant } from './copy-model';
 
+vi.mock('../editor/FilterEditor', () => import('../test-support/filter-editor-stub'));
+
 const OVERLAP = 'The copy writes to a collection it also reads, on the same server.';
 
 interface Rendered {

@@ -4,6 +4,7 @@ import {
   Button,
   Checkbox,
   Group,
+  Input,
   Modal,
   MultiSelect,
   NumberInput,
@@ -12,7 +13,6 @@ import {
   Stack,
   TagsInput,
   Text,
-  Textarea,
   TextInput,
   Tooltip,
 } from '@mantine/core';
@@ -33,6 +33,7 @@ import { TipLabel } from '../kit/InfoTip';
 import { useUiApi } from '../api/ui-api';
 import { useAppStore } from '../state/app-store-context';
 import { errorText, runReported } from '../kit/notify-error';
+import { FilterEditor } from '../editor/FilterEditor';
 import { ToolsVersionSelect } from '../tools';
 import { BackupProgressView } from './BackupProgressView';
 import { CompatibilityFindings } from './CompatibilityFindings';
@@ -287,6 +288,11 @@ export function BackupDialogBody({
   // The exclude fields and the query are hidden for other scopes. The draft keeps their values
   // in case the user switches back, but they are not sent.
   const collectionTarget = draft.target === 'collection';
+  // The query filters the one collection the draft names, so only that collection's fields apply.
+  const queryFields =
+    collectionTarget && firstName !== undefined && draft.collection !== ''
+      ? { connectionId, database: firstName, collection: draft.collection }
+      : undefined;
   const effective = useMemo<BackupDraft>(
     () => ({
       ...draft,
@@ -592,7 +598,7 @@ export function BackupDialogBody({
         </>
       ) : null}
       {draft.target === 'collection' ? (
-        <Textarea
+        <Input.Wrapper
           label={
             <TipLabel
               label="Query"
@@ -600,15 +606,17 @@ export function BackupDialogBody({
             />
           }
           description="Extended JSON. Empty backs up every document."
-          placeholder='{"status": "paid"}'
-          autosize
-          minRows={2}
-          value={draft.query}
-          error={fieldError(problems, 'query')}
-          onChange={(event) => {
-            patch({ query: event.currentTarget.value });
-          }}
-        />
+        >
+          <FilterEditor
+            ariaLabel="Query"
+            value={draft.query}
+            error={fieldError(problems, 'query')}
+            fields={queryFields}
+            onChange={(query) => {
+              patch({ query });
+            }}
+          />
+        </Input.Wrapper>
       ) : null}
       <Group align="flex-start" wrap="nowrap">
         <TextInput

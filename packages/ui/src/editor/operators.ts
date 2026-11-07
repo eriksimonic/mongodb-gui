@@ -19,7 +19,7 @@ export interface MethodEntry {
   readonly doc: string;
 }
 
-/** Query, update and aggregation operators. Each name starts with `$`. */
+/** Query operators, the ones a filter takes. Each name starts with `$`. */
 export const QUERY_OPERATORS: readonly OperatorEntry[] = [
   { name: '$eq', doc: 'Matches values equal to the given value.' },
   { name: '$ne', doc: 'Matches values not equal to the given value.' },
@@ -43,6 +43,10 @@ export const QUERY_OPERATORS: readonly OperatorEntry[] = [
   { name: '$mod', doc: 'Matches numbers whose remainder on division equals the given value.' },
   { name: '$text', doc: 'Performs a text search on fields with a text index.' },
   { name: '$where', doc: 'Matches with a JavaScript expression. It is slow, so avoid it.' },
+];
+
+/** Update, pipeline and expression operators. A filter does not take these. */
+const NON_QUERY_OPERATORS: readonly OperatorEntry[] = [
   {
     name: '$set',
     doc: 'Sets the value of a field. In an aggregation, adds fields, like $addFields.',
@@ -113,6 +117,9 @@ export const QUERY_OPERATORS: readonly OperatorEntry[] = [
   { name: '$toObjectId', doc: 'Expression. Converts a value to an ObjectId.' },
   { name: '$literal', doc: 'Expression. Returns the value without parsing it as an expression.' },
 ];
+
+/** Every operator the editor knows: the query ones, then the rest. */
+export const ALL_OPERATORS: readonly OperatorEntry[] = [...QUERY_OPERATORS, ...NON_QUERY_OPERATORS];
 
 const FILTER: ParameterEntry = { name: 'filter' };
 const OPTIONS: ParameterEntry = { name: 'options', optional: true };
@@ -226,7 +233,7 @@ export function findMethod(name: string): MethodEntry | undefined {
 
 /** The operator with this name, or undefined when the table does not describe it. */
 export function findOperator(name: string): OperatorEntry | undefined {
-  return QUERY_OPERATORS.find((operator) => operator.name === name);
+  return ALL_OPERATORS.find((operator) => operator.name === name);
 }
 
 /** The parameter list as shown in signature help, for example `find(filter, [projection])`. */
