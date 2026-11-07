@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { valueTypeOf } from './value-types';
+import { defaultValueOf, valueTypeOf, VALUE_TYPES } from './value-types';
 
 describe('valueTypeOf', () => {
   it.each([
@@ -27,5 +27,31 @@ describe('valueTypeOf', () => {
     expect(valueTypeOf(['Binary', 'Date'])).toBe('Date');
     expect(valueTypeOf(['Array', 'String'])).toBe('List');
     expect(valueTypeOf(['String', 'Array'])).toBe('String');
+  });
+
+  it('gives a nullable field the type of its value, not Null', () => {
+    expect(valueTypeOf(['Null', 'String'])).toBe('String');
+    expect(valueTypeOf(['String', 'Null'])).toBe('String');
+    expect(valueTypeOf(['Null', 'Array'])).toBe('List');
+  });
+
+  it('gives Null only when the field has no other typed name', () => {
+    expect(valueTypeOf(['Null'])).toBe('Null');
+    expect(valueTypeOf(['Null', 'Object'])).toBe('Null');
+  });
+});
+
+describe('defaultValueOf', () => {
+  it('gives a value of the type for every value type', () => {
+    expect(VALUE_TYPES.map((type) => defaultValueOf(type))).toEqual([
+      '',
+      0,
+      false,
+      null,
+      { $date: expect.any(String) },
+      { $oid: '000000000000000000000000' },
+      { $regularExpression: { pattern: '(?:)', options: '' } },
+      [],
+    ]);
   });
 });

@@ -1,6 +1,7 @@
 import { Badge, Group, Menu, SegmentedControl, Text, TextInput } from '@mantine/core';
 import { IconChevronDown } from '@tabler/icons-react';
 import { type ReactNode, useState } from 'react';
+import { isRecord } from './condition-model';
 import { VALUE_TYPES, type ValueType } from './value-types';
 
 const NUMBER_TEXT = /^[+-]?(\d+\.?\d*|\.\d+)(e[+-]?\d+)?$/i;
@@ -14,10 +15,6 @@ interface Draft {
 }
 
 type Parsed = { readonly value: unknown } | { readonly error: string };
-
-function isRecord(value: unknown): value is Record<string, unknown> {
-  return typeof value === 'object' && value !== null && !Array.isArray(value);
-}
 
 function pad(part: number): string {
   return String(part).padStart(2, '0');

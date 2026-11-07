@@ -6,18 +6,12 @@ import {
   NumberInput,
   SegmentedControl,
   Stack,
-  TextInput,
 } from '@mantine/core';
-import {
-  type FieldInfo,
-  formatMongoshSyntax,
-  type ProjectionRow,
-  parseValueText,
-  type SortRow,
-} from '@mongo-gui/core';
+import { type FieldInfo, type ProjectionRow, type SortRow } from '@mongo-gui/core';
 import { IconArrowDown, IconArrowUp, IconPlus, IconTrash } from '@tabler/icons-react';
-import { useState } from 'react';
+import { mongoshText } from './condition-model';
 import { FieldPicker } from './FieldPicker';
+import { RawText } from './RawText';
 
 export interface ProjectionPanelProps {
   readonly rows: readonly ProjectionRow[];
@@ -58,10 +52,15 @@ export function ProjectionPanel({ rows, fields, onChange }: ProjectionPanelProps
               onChange={(value) => replace(index, { ...row, include: value === 'include' })}
             />
           ) : (
-            <RawValue
-              key={valueText(row.value)}
+            <RawText
+              key={mongoshText(row.value)}
               value={row.value}
-              onChange={(value) => replace(index, { ...row, value })}
+              ariaLabel="Raw value"
+              width="calc(240px * var(--mg-font-scale, 1))"
+              onCommit={(value) => {
+                replace(index, { ...row, value });
+                return undefined;
+              }}
             />
           )}
           <ActionIcon
@@ -87,52 +86,6 @@ export function ProjectionPanel({ rows, fields, onChange }: ProjectionPanelProps
         </Button>
       </Group>
     </Stack>
-  );
-}
-
-/** A stored value as mongosh text on one line, such as `{ $slice: 5 }`. */
-function valueText(value: unknown): string {
-  return formatMongoshSyntax(JSON.stringify(value), { indent: 0 });
-}
-
-/**
- * A raw projection value as mongosh text. The text is read again when the box loses focus. Text
- * that does not parse keeps the stored value and shows red. The parent remounts this box when the
- * stored value changes, so a draft never shows on another row.
- */
-function RawValue({
-  value,
-  onChange,
-}: {
-  readonly value: unknown;
-  readonly onChange: (value: unknown) => void;
-}) {
-  const [draft, setDraft] = useState<string | null>(null);
-  const [error, setError] = useState<string | null>(null);
-
-  const commit = () => {
-    if (draft === null) return;
-    const parsed = parseValueText(draft);
-    if ('unsupported' in parsed) {
-      setError(parsed.unsupported);
-      return;
-    }
-    onChange(parsed.value);
-    setDraft(null);
-    setError(null);
-  };
-
-  return (
-    <TextInput
-      size="xs"
-      aria-label="Raw value"
-      ff="monospace"
-      value={draft ?? valueText(value)}
-      error={error}
-      onChange={(event) => setDraft(event.currentTarget.value)}
-      onBlur={commit}
-      w="calc(240px * var(--mg-font-scale, 1))"
-    />
   );
 }
 

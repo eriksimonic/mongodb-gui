@@ -348,6 +348,23 @@ describe('filterToEjson', () => {
     expect(filterToEjson(filter)).toEqual({});
   });
 
+  it('leaves out a condition with no field yet, so no empty key is written', () => {
+    const filter = group('and', cond('', 'eq', ''), cond('b', 'eq', 2));
+
+    expect(filterToEjson(filter)).toEqual({ b: 2 });
+  });
+
+  it('leaves out a condition with no field from an OR group, and a group that has only that', () => {
+    const filter = group(
+      'or',
+      cond('', 'eq', ''),
+      group('and', cond('', 'gt', 1)),
+      cond('b', 'eq', 2),
+    );
+
+    expect(filterToEjson(filter)).toEqual({ $or: [{ b: 2 }] });
+  });
+
   it('leaves out a disabled condition inside an OR group', () => {
     const filter = group('or', cond('a', 'eq', 1, false), cond('b', 'eq', 2));
 

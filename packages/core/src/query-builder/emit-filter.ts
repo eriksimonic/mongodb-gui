@@ -32,9 +32,13 @@ export function emitFilter(group: QueryGroup): string {
   return formatMongoshSyntax(JSON.stringify(filterToEjson(group)), { indent: 2 });
 }
 
-/** True when the item is enabled, or a group with at least one enabled item. */
+/**
+ * True when the item is enabled, or a group with at least one enabled item. A condition with no
+ * field yet is not live, so a new row never writes an empty key.
+ */
 function hasLive(item: QueryItem): boolean {
-  return item.kind === 'group' ? item.items.some(hasLive) : item.enabled;
+  if (item.kind === 'group') return item.items.some(hasLive);
+  return item.enabled && !(item.kind === 'condition' && item.field === '');
 }
 
 /** The live items joined by AND. A nested `and` group is flattened into its parent. */

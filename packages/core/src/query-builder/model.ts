@@ -177,7 +177,7 @@ export type QueryStatement = FindStatement | AggregateStatement;
 
 /** A field of a collection with the BSON type names seen for it, such as `String` or `Array`. */
 export interface FieldInfo {
-  /** Dot path. Array elements appear as `path[]`, as in the schema sample. */
+  /** Dot path, such as `items.sku`. Array elements have no `[]` marker in the path. */
   readonly path: string;
   readonly types: readonly string[];
 }
