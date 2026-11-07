@@ -1,7 +1,7 @@
 /**
  * Turns a statement of the query builder into mongosh text: `db.<name>.find(...)` with its chain,
- * or `db.<name>.aggregate([...])`. Disabled parts and stages are left out. The helpers that turn one
- * part into canonical EJSON are exported, so the parser can invert them.
+ * or `db.<name>.aggregate([...])`. Disabled parts, find panels and stages are left out. The helpers
+ * that turn one part into canonical EJSON are exported, so the parser can invert them.
  */
 
 import { formatMongoshSyntax } from '../ejson/format';
@@ -11,6 +11,7 @@ import type {
   FindStatement,
   PipelineStage,
   ProjectionRow,
+  QueryGroup,
   QueryStatement,
   SortRow,
   StageBody,
@@ -19,18 +20,21 @@ import type {
 type Plain = Record<string, unknown>;
 
 // Known limit: a field named like an integer, such as "2", moves first in sort and projection.
-/** The projection as canonical EJSON: `1` or `0` for a field row, the value for a raw row. */
+/**
+ * The projection as canonical EJSON: `1` or `0` for a field row, the value for a raw row. A field
+ * row with no field name, such as a new row the user has not filled in, is left out.
+ */
 export function projectionToEjson(rows: readonly ProjectionRow[]): Plain {
   const pairs: [string, unknown][] = rows
-    .filter((row) => row.enabled)
+    .filter((row) => row.enabled && !(row.kind === 'field' && row.field === ''))
     .map((row) => [row.field, row.kind === 'field' ? (row.include ? 1 : 0) : row.value]);
   return Object.fromEntries(pairs);
 }
 
-/** The sort as canonical EJSON, `{ field: 1 }` or `{ field: -1 }`. */
+/** The sort as canonical EJSON, `{ field: 1 }` or `{ field: -1 }`. A row with no field is left out. */
 export function sortToEjson(rows: readonly SortRow[]): Plain {
   const pairs: [string, number][] = rows
-    .filter((row) => row.enabled)
+    .filter((row) => row.enabled && row.field !== '')
     .map((row) => [row.field, row.direction]);
   return Object.fromEntries(pairs);
 }
@@ -58,10 +62,9 @@ export function stageToEjson(stage: StageBody): Plain {
     case '$group': {
       const pairs: [string, unknown][] = [
         ['_id', stage.id],
-        ...stage.accumulators.map((row): [string, unknown] => [
-          row.output,
-          { [row.accumulator]: row.expression },
-        ]),
+        ...stage.accumulators
+          .filter((row) => row.output !== '')
+          .map((row): [string, unknown] => [row.output, { [row.accumulator]: row.expression }]),
       ];
       return { $group: Object.fromEntries(pairs) };
     }
@@ -94,25 +97,35 @@ function aggregateText(access: string, stages: readonly PipelineStage[]): string
   return `${access}.aggregate(${mongoshText(pipeline)})`;
 }
 
-/** True for a `$project` or `$sort` with no enabled row. MongoDB rejects it, so it is dropped. */
+/** True for a `$project` or `$sort` with no live row. MongoDB rejects it, so it is dropped. */
 function hasNoLiveRows(stage: StageBody): boolean {
-  if (stage.stage !== '$project' && stage.stage !== '$sort') {
-    return false;
+  switch (stage.stage) {
+    case '$project':
+      return !hasKeys(projectionToEjson(stage.rows));
+    case '$sort':
+      return !hasKeys(sortToEjson(stage.rows));
+    default:
+      return false;
   }
-  const rows: readonly { readonly enabled: boolean }[] = stage.rows;
-  return rows.every((row) => !row.enabled);
 }
 
+/** The filter of a disabled Query panel. */
+const EMPTY_FILTER: QueryGroup = { kind: 'group', operator: 'and', items: [] };
+
+/** A disabled find panel has no rows in the text. Its rows stay in the model. */
 function findText(access: string, statement: FindStatement): string {
-  const filter = filterToEjson(statement.filter);
-  const projection = projectionToEjson(statement.projection);
-  const sort = sortToEjson(statement.sort);
+  const filter = statement.filterEnabled === false ? EMPTY_FILTER : statement.filter;
+  const projectionRows = statement.projectionEnabled === false ? [] : statement.projection;
+  const sortRows = statement.sortEnabled === false ? [] : statement.sort;
+  const projection = projectionToEjson(projectionRows);
+  const sort = sortToEjson(sortRows);
+  const filterJson = filterToEjson(filter);
 
   // An empty filter is left out unless a projection follows it.
   const args = hasKeys(projection)
-    ? [emitFilter(statement.filter), mongoshText(projection)]
-    : hasKeys(filter)
-      ? [emitFilter(statement.filter)]
+    ? [emitFilter(filter), mongoshText(projection)]
+    : hasKeys(filterJson)
+      ? [emitFilter(filter)]
       : [];
 
   let text = `${access}.find(${args.join(', ')})`;

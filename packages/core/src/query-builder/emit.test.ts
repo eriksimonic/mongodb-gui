@@ -76,6 +76,21 @@ describe('emitStatement, find', () => {
     expect(emitStatement(find())).toBe('db.orders.find()');
   });
 
+  it('leaves out projection and sort rows with no field', () => {
+    expect(emitStatement(find({ projection: [field('', true)], sort: [sort('', -1)] }))).toBe(
+      'db.orders.find()',
+    );
+    expect(
+      emitStatement(
+        find({
+          filter: group('and', eq('a', 1)),
+          projection: [field('', true)],
+          sort: [sort('', 1)],
+        }),
+      ),
+    ).toBe('db.orders.find({\n  a: 1\n})');
+  });
+
   it('writes no arguments for a find whose only filter item is disabled', () => {
     expect(emitStatement(find({ filter: group('and', eq('a', 1, false)) }))).toBe(
       'db.orders.find()',
@@ -97,6 +112,57 @@ describe('emitStatement, find', () => {
     });
 
     expect(emitStatement(statement)).toBe('db.orders.find({\n  b: 2\n}).skip(3)');
+  });
+
+  it('keeps every part when each panel flag is true', () => {
+    const statement = find({
+      filter: group('and', eq('a', 1)),
+      projection: [field('name', true)],
+      sort: [sort('total', -1)],
+      skip: 2,
+    });
+
+    expect(
+      emitStatement({
+        ...statement,
+        filterEnabled: true,
+        projectionEnabled: true,
+        sortEnabled: true,
+      }),
+    ).toBe(emitStatement(statement));
+  });
+
+  it('leaves out a disabled Query panel but keeps the projection', () => {
+    const statement = find({
+      filter: group('and', eq('a', 1)),
+      projection: [field('name', true)],
+      filterEnabled: false,
+    });
+
+    expect(emitStatement(statement)).toBe('db.orders.find({}, {\n  name: 1\n})');
+  });
+
+  it('writes no arguments when only the Query panel is disabled', () => {
+    expect(emitStatement(find({ filter: group('and', eq('a', 1)), filterEnabled: false }))).toBe(
+      'db.orders.find()',
+    );
+  });
+
+  it('leaves out a disabled Projection panel and keeps its rows in the statement', () => {
+    const statement = find({
+      filter: group('and', eq('a', 1)),
+      projection: [field('name', true)],
+      projectionEnabled: false,
+    });
+
+    expect(emitStatement(statement)).toBe('db.orders.find({\n  a: 1\n})');
+    expect(statement.projection).toEqual([field('name', true)]);
+  });
+
+  it('leaves out a disabled Sort panel and keeps its skip', () => {
+    const statement = find({ sort: [sort('total', -1)], sortEnabled: false, skip: 1 });
+
+    expect(emitStatement(statement)).toBe('db.orders.find().skip(1)');
   });
 
   it('writes a collection name that is not an identifier with getCollection', () => {
@@ -121,11 +187,21 @@ describe('projectionToEjson and sortToEjson', () => {
     expect(projectionToEjson([field('name', true, false)])).toEqual({});
   });
 
+  it('drops a projection row with no field, alone or next to other rows', () => {
+    expect(projectionToEjson([field('', true)])).toEqual({});
+    expect(projectionToEjson([field('', true), field('name', true)])).toEqual({ name: 1 });
+  });
+
   it('writes the sort direction and drops disabled rows', () => {
     expect(sortToEjson([sort('total', -1), sort('name', 1, false), sort('a', 1)])).toEqual({
       total: -1,
       a: 1,
     });
+  });
+
+  it('drops a sort row with no field, alone or next to other rows', () => {
+    expect(sortToEjson([sort('', 1)])).toEqual({});
+    expect(sortToEjson([sort('', 1), sort('total', -1)])).toEqual({ total: -1 });
   });
 });
 
@@ -267,6 +343,47 @@ describe('emitStatement, aggregate', () => {
     ]);
 
     expect(emitStatement(statement)).toBe('db.orders.aggregate([\n  {\n    $limit: 1\n  }\n])');
+  });
+
+  it('drops a $project or $sort stage whose only row has no field', () => {
+    const statement = aggregate([
+      stage({ stage: '$project', rows: [field('', true)] }),
+      stage({ stage: '$sort', rows: [sort('', 1)] }),
+      stage({ stage: '$limit', count: 1 }),
+    ]);
+
+    expect(emitStatement(statement)).toBe('db.orders.aggregate([\n  {\n    $limit: 1\n  }\n])');
+  });
+
+  it('skips a $group accumulator with no output name', () => {
+    const statement = aggregate([
+      stage({
+        stage: '$group',
+        id: '$customer',
+        accumulators: [
+          { output: '', accumulator: '$sum', expression: null },
+          { output: 'sum', accumulator: '$sum', expression: '$total' },
+        ],
+      }),
+    ]);
+
+    expect(emitStatement(statement)).toBe(
+      'db.orders.aggregate([\n  {\n    $group: {\n      _id: "$customer",\n      sum: {\n        $sum: "$total"\n      }\n    }\n  }\n])',
+    );
+  });
+
+  it('keeps a $group stage with only _id when every accumulator has no output name', () => {
+    const statement = aggregate([
+      stage({
+        stage: '$group',
+        id: '$customer',
+        accumulators: [{ output: '', accumulator: '$sum', expression: null }],
+      }),
+    ]);
+
+    expect(emitStatement(statement)).toBe(
+      'db.orders.aggregate([\n  {\n    $group: {\n      _id: "$customer"\n    }\n  }\n])',
+    );
   });
 
   it('keeps an empty $match stage', () => {

@@ -165,6 +165,14 @@ export interface FindStatement {
   readonly sort: readonly SortRow[];
   readonly skip: number | null;
   readonly limit: number | null;
+  /**
+   * The panel switches. A disabled panel keeps its rows, and the emitter leaves the part out. A
+   * missing flag means the panel is enabled. The parser sets no flags, because disabled parts are
+   * not in the text.
+   */
+  readonly filterEnabled?: boolean | undefined;
+  readonly projectionEnabled?: boolean | undefined;
+  readonly sortEnabled?: boolean | undefined;
 }
 
 export interface AggregateStatement {
