@@ -2,6 +2,26 @@
 
 All notable changes to Mongo GUI are listed here, newest first.
 
+## 0.6.0 - 2026-11-07
+
+### Added
+
+- Copy collections and databases. Right-click a collection or a database and choose "Copy to…" to
+  copy it to the same server or to another connection, with a new name, a filter per collection,
+  and the modes "Drop and replace", "Merge" and "Insert only". A progress window shows the copy,
+  with a cancel button. Drop and replace keeps the old data when you cancel.
+- A "Production" setting on a connection. Production connections show a PROD mark in the tree and
+  on their tabs, and a copy or a restore into one asks for the typed database name first.
+- Autocomplete for filters in the copy dialog, the export dialog and the backup query. It suggests
+  the field names of a sample of the collection, the query operators and Extended JSON values, and
+  underlines invalid JSON.
+- A copy between servers of different versions shows a short note and an "Agree and copy" button.
+
+### Fixed
+
+- A backup tool that failed to start, or a backup cancelled right away, could leave the app unable
+  to read or write files until you restarted it.
+
 ## 0.5.0 - 2026-10-27
 
 ### Added
