@@ -13,7 +13,7 @@ import { MONGOSH_LANGUAGE } from '../kit/code/mongosh-tokens';
 import { registerSqlLanguage, SQL_LANGUAGE } from './sql-language';
 import { useEditorFontSize } from '../kit/code/use-editor-font-size';
 import type { CompletionSource } from './completion-source';
-import type { MongoshEditorProps, RunRequest } from './MongoshEditor';
+import type { MongoshEditorProps, ReplaceRange, RunRequest } from './MongoshEditor';
 import { CODE_FONT } from '../theme/theme';
 
 /** The owner of the error markers the run flow sets, so clearing them leaves other owners alone. */
@@ -68,17 +68,19 @@ export function MongoshMonaco({
   onRun,
   onRunAll,
   onExplain,
+  onCursor,
+  replaceRef,
 }: MongoshEditorProps) {
   const scheme = useComputedColorScheme('dark');
   const fontSize = useEditorFontSize();
   // Handlers read the latest props, because Monaco keeps the callbacks it got on mount.
-  const latest = useRef({ onRun, onRunAll, onExplain, source, value });
+  const latest = useRef({ onRun, onRunAll, onExplain, onCursor, source, value });
   const modelUri = useRef<string | undefined>(undefined);
   // A layout effect, so the ref is current before the editor swaps models in its own effect. The
   // swap reads the ref to give the new model the tab's text.
   useLayoutEffect(() => {
-    latest.current = { onRun, onRunAll, onExplain, source, value };
-  }, [onRun, onRunAll, onExplain, source, value]);
+    latest.current = { onRun, onRunAll, onExplain, onCursor, source, value };
+  }, [onRun, onRunAll, onExplain, onCursor, source, value]);
 
   // Keeps the editor's completion source in the registry. The registry reads the ref on each call.
   useEffect(() => {
@@ -129,6 +131,34 @@ export function MongoshMonaco({
         selected: !change.selection.isEmpty(),
       });
     });
+    // The query builder reads the cursor offset to pick the statement it shows.
+    const reportCursor = () => {
+      const current = editor.getModel();
+      const position = editor.getPosition();
+      if (current !== null && position !== null) {
+        latest.current.onCursor?.(current.getOffsetAt(position));
+      }
+    };
+    editor.onDidChangeCursorPosition(reportCursor);
+    reportCursor();
+    // One pushUndoStop before and after keeps the write a single undo step, apart from typing.
+    const replaceRange: ReplaceRange = (range, replacement) => {
+      const current = editor.getModel();
+      if (current === null) {
+        return;
+      }
+      const from = current.getPositionAt(range.start);
+      const to = current.getPositionAt(range.end);
+      editor.pushUndoStop();
+      editor.executeEdits('query-builder', [
+        { range: monaco.Range.fromPositions(from, to), text: replacement, forceMoveMarkers: true },
+      ]);
+      editor.pushUndoStop();
+      editor.setPosition(from);
+    };
+    if (replaceRef !== undefined) {
+      replaceRef.current = replaceRange;
+    }
     const runAt = (
       request: (value: string, cursor: number, selection: RunRequest['selection']) => void,
     ) => {
@@ -219,7 +249,12 @@ export function MongoshMonaco({
       }
       editor.focus();
     });
-    editor.onDidDispose(() => subscription());
+    editor.onDidDispose(() => {
+      subscription();
+      if (replaceRef !== undefined) {
+        replaceRef.current = undefined;
+      }
+    });
   };
 
   return (

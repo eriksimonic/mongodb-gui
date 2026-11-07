@@ -11,11 +11,23 @@ import {
 } from '@mantine/core';
 import { modals } from '@mantine/modals';
 import { notifications } from '@mantine/notifications';
-import { IconBookmark, IconPlayerPlay, IconPlayerStop, IconWand } from '@tabler/icons-react';
-import { appError, type EditorLanguage, type ShellRuntimeState } from '@mongo-gui/core';
+import {
+  IconBolt,
+  IconBookmark,
+  IconPlayerPlay,
+  IconPlayerStop,
+  IconWand,
+} from '@tabler/icons-react';
+import {
+  appError,
+  type EditorLanguage,
+  type ShellRuntimeState,
+  type TextRange,
+} from '@mongo-gui/core';
 import { useEffect, useMemo, useRef, useState, type KeyboardEvent, type PointerEvent } from 'react';
 import { useUiApi } from '../api/ui-api';
-import { MongoshEditor, type RunRequest } from './MongoshEditor';
+import { BuilderPanel } from '../builder/BuilderPanel';
+import { MongoshEditor, type ReplaceRange, type RunRequest } from './MongoshEditor';
 import { createCompletionSource } from './completion-source';
 import { formatMongoshCode } from './format';
 import { runTargetFor, type RunTarget } from './statements';
@@ -35,6 +47,14 @@ const MIN_EDITOR_SHARE = 0.15;
 const MAX_EDITOR_SHARE = 0.8;
 const DEFAULT_EDITOR_SHARE = 0.3;
 const SHARE_STEP = 0.05;
+const DEFAULT_BUILDER_HEIGHT = 260;
+const MIN_BUILDER_HEIGHT = 160;
+const MAX_BUILDER_HEIGHT = 480;
+const BUILDER_HEIGHT_STEP = 20;
+
+function clampBuilderHeight(height: number): number {
+  return Math.min(MAX_BUILDER_HEIGHT, Math.max(MIN_BUILDER_HEIGHT, height));
+}
 
 /** Stands in for the completion source while the tab has none. The run then has no type hints. */
 const NO_SAMPLER: SqlSampler = { fieldsOf: () => Promise.resolve([]) };
@@ -121,6 +141,10 @@ export function EditorView({ tabId }: EditorViewProps) {
   const split = useRef<HTMLDivElement>(null);
   const connectionId = tab?.connectionId;
   const [hasSelection, setHasSelection] = useState(false);
+  const [builderOpen, setBuilderOpen] = useState(false);
+  const [builderHeight, setBuilderHeight] = useState(DEFAULT_BUILDER_HEIGHT);
+  const [cursor, setCursor] = useState(0);
+  const replaceRef = useRef<ReplaceRange | undefined>(undefined);
 
   useEffect(
     () =>
@@ -205,6 +229,7 @@ export function EditorView({ tabId }: EditorViewProps) {
         };
 
   const isSql = current.language === 'sql';
+  const builderShown = builderOpen && !isSql && source !== undefined;
 
   /**
    * Translates SQL for a run. A failure underlines the clause and shows the message on the tab.
@@ -301,6 +326,31 @@ export function EditorView({ tabId }: EditorViewProps) {
     event.preventDefault();
   }
 
+  /** The builder writes a statement back through the editor, then the cursor moves to its start. */
+  function replaceInEditor(range: TextRange, replacement: string) {
+    replaceRef.current?.(range, replacement);
+    setCursor(range.start);
+  }
+
+  function resizeBuilderWithKeys(event: KeyboardEvent<HTMLDivElement>) {
+    if (event.key === 'ArrowUp') {
+      setBuilderHeight((value) => clampBuilderHeight(value - BUILDER_HEIGHT_STEP));
+    } else if (event.key === 'ArrowDown') {
+      setBuilderHeight((value) => clampBuilderHeight(value + BUILDER_HEIGHT_STEP));
+    } else {
+      return;
+    }
+    event.preventDefault();
+  }
+
+  function dragBuilder(event: PointerEvent<HTMLDivElement>) {
+    const box = split.current?.getBoundingClientRect();
+    if (box === undefined) {
+      return;
+    }
+    setBuilderHeight(clampBuilderHeight(event.clientY - box.top));
+  }
+
   function dragSplit(event: PointerEvent<HTMLDivElement>) {
     const box = split.current?.getBoundingClientRect();
     if (box === undefined || box.height === 0) {
@@ -367,6 +417,10 @@ export function EditorView({ tabId }: EditorViewProps) {
           onChange={(value) => {
             const language = LANGUAGE_OPTIONS.find((option) => option.value === value)?.value;
             if (language !== undefined && language !== current.language) {
+              // The query builder reads Mongo statements only. Switching to SQL closes it.
+              if (language === 'sql') {
+                setBuilderOpen(false);
+              }
               // Each language keeps its own text. Nothing translates on the switch.
               void api.setEditorLanguage(tabId, language);
             }
@@ -437,6 +491,21 @@ export function EditorView({ tabId }: EditorViewProps) {
             }
           }}
         />
+        {/* A span keeps the tooltip when the button is disabled in SQL mode. */}
+        <Tooltip label={isSql ? 'Switch to Mongo to use the builder' : 'Query builder'} withArrow>
+          <span>
+            <ActionIcon
+              size="input-xs"
+              variant={builderShown ? 'light' : 'default'}
+              aria-label="Query builder"
+              aria-pressed={builderShown}
+              disabled={isSql}
+              onClick={() => setBuilderOpen((open) => !open)}
+            >
+              <IconBolt size={14} />
+            </ActionIcon>
+          </span>
+        </Tooltip>
         <Tooltip label="Format" withArrow>
           <ActionIcon size="input-xs" variant="default" aria-label="Format" onClick={format}>
             <IconWand size={14} />
@@ -471,6 +540,54 @@ export function EditorView({ tabId }: EditorViewProps) {
         )}
       </Group>
       <div ref={split} style={{ flex: 1, minHeight: 0, display: 'flex', flexDirection: 'column' }}>
+        {builderShown && source !== undefined ? (
+          <>
+            <div
+              data-testid="query-builder-region"
+              style={{
+                height: builderHeight,
+                flex: '0 0 auto',
+                overflow: 'auto',
+                borderBottom: '1px solid var(--mg-border)',
+              }}
+            >
+              <BuilderPanel
+                text={current.text}
+                cursor={cursor}
+                onReplace={replaceInEditor}
+                connectionId={current.connectionId}
+                database={current.database}
+                source={source}
+                defaultCollection={current.result?.collection ?? ''}
+              />
+            </div>
+            <div
+              role="separator"
+              aria-orientation="horizontal"
+              aria-label="Resize the query builder"
+              aria-valuemin={MIN_BUILDER_HEIGHT}
+              aria-valuemax={MAX_BUILDER_HEIGHT}
+              aria-valuenow={builderHeight}
+              tabIndex={0}
+              onKeyDown={resizeBuilderWithKeys}
+              onPointerDown={(event) => {
+                event.currentTarget.setPointerCapture(event.pointerId);
+                dragBuilder(event);
+              }}
+              onPointerMove={(event) => {
+                if (event.currentTarget.hasPointerCapture(event.pointerId)) {
+                  dragBuilder(event);
+                }
+              }}
+              style={{
+                height: 6,
+                cursor: 'row-resize',
+                background: 'var(--mg-border-strong)',
+                flex: '0 0 auto',
+              }}
+            />
+          </>
+        ) : null}
         <div style={{ height: `${share * 100}%`, minHeight: 80, padding: '8px 10px 0' }}>
           <div style={{ display: 'flex', gap: 8, height: '100%' }}>
             <div style={{ flex: 1, minWidth: 0 }}>
@@ -484,6 +601,8 @@ export function EditorView({ tabId }: EditorViewProps) {
                 onRun={run}
                 onRunAll={runAll}
                 onExplain={explain}
+                onCursor={setCursor}
+                replaceRef={replaceRef}
               />
             </div>
             {isSql ? (

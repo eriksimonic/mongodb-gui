@@ -130,6 +130,46 @@ describe('EditorView run', () => {
   });
 });
 
+describe('EditorView query builder', () => {
+  function builderButton(): HTMLButtonElement {
+    return screen.getByRole('button', { name: 'Query builder' }) as HTMLButtonElement;
+  }
+
+  it('opens the builder above the editor from the lightning icon', async () => {
+    await openEditor('db.orders.find({})');
+    expect(screen.queryByTestId('query-builder-region')).not.toBeInTheDocument();
+
+    fireEvent.click(builderButton());
+
+    expect(await screen.findByTestId('query-builder-region')).toBeInTheDocument();
+    expect(builderButton()).toHaveAttribute('aria-pressed', 'true');
+  });
+
+  it('writes a builder change into the editor text', async () => {
+    await openEditor('db.orders.find({})');
+    fireEvent.click(builderButton());
+
+    fireEvent.change(await screen.findByRole('textbox', { name: 'Limit' }), {
+      target: { value: '5' },
+    });
+
+    await waitFor(() => expect(editor().value).toBe('db.orders.find().limit(5)'));
+  });
+
+  it('closes the builder and disables the icon in SQL mode', async () => {
+    await openEditor('db.orders.find({})');
+    fireEvent.click(builderButton());
+    await screen.findByTestId('query-builder-region');
+
+    fireEvent.click(screen.getByRole('radio', { name: 'SQL' }));
+
+    await waitFor(() =>
+      expect(screen.queryByTestId('query-builder-region')).not.toBeInTheDocument(),
+    );
+    expect(builderButton()).toBeDisabled();
+  });
+});
+
 describe('EditorView results', () => {
   it('switches between the table and tree views', async () => {
     await openEditor('db.bson_samples.find()');

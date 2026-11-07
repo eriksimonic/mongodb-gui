@@ -26,8 +26,23 @@ export function MongoshEditor({
   onRun,
   onRunAll,
   onExplain,
+  onCursor,
+  replaceRef,
 }: MongoshEditorProps) {
   const area = useRef<HTMLTextAreaElement>(null);
+  // Replaces a range the way the Monaco edit does: one change, then the cursor at the range start.
+  useEffect(() => {
+    if (replaceRef === undefined) {
+      return undefined;
+    }
+    replaceRef.current = (range, replacement) => {
+      onChange(`${value.slice(0, range.start)}${replacement}${value.slice(range.end)}`);
+      onCursor?.(range.start);
+    };
+    return () => {
+      replaceRef.current = undefined;
+    };
+  }, [replaceRef, value, onChange, onCursor]);
   useEffect(
     () =>
       editorUiEvents.subscribe((event) => {
@@ -59,6 +74,7 @@ export function MongoshEditor({
       aria-label={label}
       value={value}
       onChange={(event) => onChange(event.currentTarget.value)}
+      onSelect={(event) => onCursor?.(event.currentTarget.selectionStart)}
       onKeyDown={(event) => {
         if (event.key !== 'Enter' || !(event.ctrlKey || event.metaKey)) {
           return;

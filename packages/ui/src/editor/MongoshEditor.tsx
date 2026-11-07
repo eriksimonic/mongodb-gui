@@ -1,4 +1,4 @@
-import type { EditorLanguage } from '@mongo-gui/core';
+import type { EditorLanguage, TextRange } from '@mongo-gui/core';
 import { Box, Loader } from '@mantine/core';
 import { lazy, Suspense } from 'react';
 import type { CompletionSource } from './completion-source';
@@ -10,6 +10,9 @@ export interface RunRequest {
   readonly cursor: number;
   readonly selection: Selection | undefined;
 }
+
+/** Replaces a range of the text as one undo step, and puts the cursor at the start of the range. */
+export type ReplaceRange = (range: TextRange, replacement: string) => void;
 
 export interface MongoshEditorProps {
   /** Names the tab. The insert events of the Output and history panels reach the tab by this id. */
@@ -24,6 +27,10 @@ export interface MongoshEditorProps {
   readonly onRunAll: (code: string) => void;
   /** Explains the statement under the cursor, or the selection. */
   readonly onExplain: (request: RunRequest) => void;
+  /** Reports the cursor offset on mount and after each cursor move. */
+  readonly onCursor?: (offset: number) => void;
+  /** Gets the replace function on mount, and loses it when the editor is disposed. */
+  readonly replaceRef?: { current: ReplaceRange | undefined };
 }
 
 // Monaco is large and touches the DOM when it loads, so it loads on first use.

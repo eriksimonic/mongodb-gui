@@ -5,7 +5,7 @@ import { useEffect, useRef, useState } from 'react';
 import { afterEach, beforeAll, describe, expect, it, vi } from 'vitest';
 import { act } from '@testing-library/react';
 import { renderWithApp } from '../test-support/render';
-import type { MongoshEditorProps } from './MongoshEditor';
+import type { MongoshEditorProps, ReplaceRange } from './MongoshEditor';
 
 // Monaco needs a real layout engine, so the editor component is replaced by one that hands the
 // props and a recording editor to the code under test. The Monaco namespace is the real one, so
@@ -61,6 +61,10 @@ interface RecordedAction {
 
 let monaco: typeof Monaco;
 const actions: RecordedAction[] = [];
+/** The editor calls the replace function makes, in order, for the undo-step test. */
+const replaceCalls: string[] = [];
+const replaceEdits: unknown[] = [];
+const replacePositions: unknown[] = [];
 
 /** An editor that holds `text` and reports the given selection and cursor. */
 function fakeEditor(
@@ -73,6 +77,7 @@ function fakeEditor(
     uri: { toString: () => 'inmemory://mongo-gui/t1.mongosh' },
     getValue: () => text,
     getOffsetAt: (position: { offset: number }) => position.offset,
+    getPositionAt: (offset: number) => ({ lineNumber: 1, column: offset + 1 }),
     setValue,
   };
   const point = (offset: number) => ({ offset });
@@ -87,7 +92,21 @@ function fakeEditor(
       return { dispose: () => undefined };
     },
     onDidChangeCursorSelection: () => ({ dispose: () => undefined }),
+    onDidChangeCursorPosition: () => ({ dispose: () => undefined }),
     onDidDispose: () => undefined,
+    pushUndoStop: () => {
+      replaceCalls.push('stop');
+      return true;
+    },
+    executeEdits: (source: string, edits: unknown[]) => {
+      replaceCalls.push('edit');
+      replaceEdits.push({ source, edits });
+      return true;
+    },
+    setPosition: (position: unknown) => {
+      replaceCalls.push('position');
+      replacePositions.push(position);
+    },
     getPosition: () => point(cursor),
     getSelection: () =>
       selection === undefined
@@ -126,6 +145,9 @@ afterEach(() => {
   captured.order.length = 0;
   captured.props = undefined;
   captured.modelChanged = undefined;
+  replaceCalls.length = 0;
+  replaceEdits.length = 0;
+  replacePositions.length = 0;
 });
 
 async function mount(overrides: Partial<MongoshEditorProps> = {}, editor = fakeEditor('', 0)) {
@@ -220,6 +242,37 @@ describe('MongoshMonaco language switch', () => {
     act(() => switchTo('sql', 'SELECT * FROM a'));
 
     expect(setValue).toHaveBeenCalledWith('SELECT * FROM a');
+  });
+});
+
+describe('MongoshMonaco query builder', () => {
+  it('reports the cursor offset on mount', async () => {
+    const onCursor = vi.fn();
+    await mount({ onCursor }, fakeEditor('db.a.find()', 5));
+    expect(onCursor).toHaveBeenCalledWith(5);
+  });
+
+  it('replaces a range in one edit between two undo stops, then moves the cursor to its start', async () => {
+    const replaceRef: { current: ReplaceRange | undefined } = { current: undefined };
+    await mount({ replaceRef }, fakeEditor('db.a.find({})', 0));
+    expect(replaceRef.current).toBeTypeOf('function');
+
+    replaceRef.current?.({ start: 3, end: 6 }, 'b.c');
+
+    expect(replaceCalls).toEqual(['stop', 'edit', 'stop', 'position']);
+    expect(replaceEdits).toEqual([
+      {
+        source: 'query-builder',
+        edits: [
+          {
+            range: { startLineNumber: 1, startColumn: 4, endLineNumber: 1, endColumn: 7 },
+            text: 'b.c',
+            forceMoveMarkers: true,
+          },
+        ],
+      },
+    ]);
+    expect(replacePositions).toEqual([{ lineNumber: 1, column: 4 }]);
   });
 });
 
