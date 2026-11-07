@@ -1,7 +1,7 @@
 import { execFile } from 'node:child_process';
 import { randomUUID } from 'node:crypto';
-import { closeSync, constants, openSync } from 'node:fs';
-import { mkdir, open, readdir, rm } from 'node:fs/promises';
+import { closeSync, constants, openSync, writeSync } from 'node:fs';
+import { mkdir, readdir, rm } from 'node:fs/promises';
 import net from 'node:net';
 import { join } from 'node:path';
 import { promisify } from 'node:util';
@@ -58,18 +58,74 @@ export async function openConfigPipe(tmpRoot: string, yaml: string): Promise<Con
   };
 }
 
-/** Opening a FIFO for writing waits for a reader. Returns a function that frees a stuck writer. */
+// Pause between attempts to open the FIFO for writing.
+const RETRY_MS = 25;
+// Attempts stop after this long. Every caller disposes the pipe, so this only bounds a pipe that never is.
+const GIVE_UP_MS = 10 * 60_000;
+
+/**
+ * Writes the YAML once a reader has the FIFO open. A blocking open for writing would park a
+ * libuv thread until a reader came. This opens without blocking, so each attempt returns at once:
+ * with no reader the open fails with ENXIO, and the next attempt runs RETRY_MS later. Returns a
+ * function that stops the attempts and closes the FIFO.
+ */
 function feedFifo(path: string, yaml: string): () => void {
-  void open(path, 'w')
-    .then((handle) => handle.writeFile(yaml, 'utf8').finally(() => handle.close()))
-    .catch(() => undefined);
-  return () => {
+  const data = Buffer.from(yaml, 'utf8');
+  const deadline = Date.now() + GIVE_UP_MS;
+  let fd: number | undefined;
+  let offset = 0;
+  let timer: NodeJS.Timeout | undefined;
+  let stopped = false;
+
+  const later = (task: () => void): void => {
+    timer = setTimeout(task, RETRY_MS);
+    timer.unref();
+  };
+  const close = (): void => {
+    if (fd === undefined) return;
     try {
-      // A reader that opens and closes lets a writer that never found one finish.
-      closeSync(openSync(path, constants.O_RDONLY | constants.O_NONBLOCK));
+      closeSync(fd);
     } catch {
-      // The FIFO is gone or nobody waits on it.
+      // Already closed.
     }
+    fd = undefined;
+  };
+  const write = (): void => {
+    timer = undefined;
+    if (stopped || fd === undefined) return;
+    try {
+      while (offset < data.length) {
+        offset += writeSync(fd, data, offset, data.length - offset);
+      }
+    } catch (error) {
+      // EAGAIN: the reader has not drained a full pipe yet. Any other error, such as EPIPE
+      // from a reader that exited, ends the write. The tool reports the missing config itself.
+      if ((error as NodeJS.ErrnoException).code === 'EAGAIN') {
+        later(write);
+        return;
+      }
+    }
+    close();
+  };
+  const attempt = (): void => {
+    timer = undefined;
+    if (stopped) return;
+    try {
+      fd = openSync(path, constants.O_WRONLY | constants.O_NONBLOCK);
+    } catch (error) {
+      if ((error as NodeJS.ErrnoException).code === 'ENXIO' && Date.now() < deadline) {
+        later(attempt);
+      }
+      return;
+    }
+    write();
+  };
+
+  attempt();
+  return () => {
+    stopped = true;
+    clearTimeout(timer);
+    close();
   };
 }
 
