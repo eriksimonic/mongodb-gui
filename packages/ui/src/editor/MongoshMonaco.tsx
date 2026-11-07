@@ -284,6 +284,9 @@ export function MongoshMonaco({
         wordBasedSuggestions: 'off',
         // The list opens over the results instead of being cut at the editor's edge.
         fixedOverflowWidgets: true,
+        // Monaco draws the context menu in a shadow root, which gets no theme colors. Without this
+        // the menu is transparent with black text.
+        useShadowDOM: false,
       }}
     />
   );
