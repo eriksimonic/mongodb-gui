@@ -111,3 +111,4 @@ export * from './transfer/infer';
 export * from './transfer/types';
 export * from './shell/collection-access';
 export * from './sql/index';
+export * from './query-builder/index';
