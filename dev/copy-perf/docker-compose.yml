@@ -1,0 +1,50 @@
+name: mongo-gui-copyperf
+
+# Two standalone servers for copy performance checks. Data lives in tmpfs, so writes run at RAM speed.
+# The data is lost on `docker compose down` (down.sh uses -v). No CPU or memory limits are set.
+services:
+  mongo-a:
+    image: mongo:8.0.17
+    restart: unless-stopped
+    command:
+      - mongod
+      - --port
+      - '27017'
+      - --bind_ip_all
+      - --wiredTigerCacheSizeGB
+      - '8'
+      - --setParameter
+      - diagnosticDataCollectionEnabled=false
+    tmpfs:
+      - /data/db:size=8g
+    ports:
+      - '127.0.0.1:27217:27017'
+    healthcheck:
+      test: ['CMD-SHELL', 'bash -c ":> /dev/tcp/127.0.0.1/27017" || exit 1']
+      interval: 2s
+      timeout: 3s
+      retries: 30
+      start_period: 5s
+
+  mongo-b:
+    image: mongo:8.0.17
+    restart: unless-stopped
+    command:
+      - mongod
+      - --port
+      - '27017'
+      - --bind_ip_all
+      - --wiredTigerCacheSizeGB
+      - '8'
+      - --setParameter
+      - diagnosticDataCollectionEnabled=false
+    tmpfs:
+      - /data/db:size=8g
+    ports:
+      - '127.0.0.1:27218:27017'
+    healthcheck:
+      test: ['CMD-SHELL', 'bash -c ":> /dev/tcp/127.0.0.1/27017" || exit 1']
+      interval: 2s
+      timeout: 3s
+      retries: 30
+      start_period: 5s
