@@ -222,9 +222,16 @@ The release workflow in `.github/workflows/release.yml` builds the installers. S
   in the target database. Decide whether to list and drop these at startup.
 - Copy: merge into a collection that does not exist creates it without indexes. Decide whether
   to restore the source indexes in that case.
-- Copy: `sameServer` in `packages/core/src/copy/server-identity.ts` compares the host list and the
-  replica set name. Two `mongos` hosts of one sharded cluster count as two servers, so the
-  same-server overlap block can miss a copy onto itself.
+- Copy: `sameServer` in `packages/core/src/copy/server-identity.ts` compares the identity that
+  `serverIdentity` returns: the member list of a replica set, or the hostname plus the connected
+  port of a standalone server or `mongos`. Two `mongos` hosts of one sharded cluster, or one
+  server reached through two ports (a proxy), count as two servers, so the same-server overlap
+  block can miss a copy onto itself. Two servers on unix sockets on one machine, and a standalone
+  server reached over `mongodb+srv` with `serverStatus` denied, are also not told apart correctly.
+- Backup: a config pipe serves one reader, but `backup-service.ts` opens it once and runs one
+  `mongodump` per database. A backup of several databases (`scope.kind === 'databases'`) probably
+  hangs on its second dump. Not reproduced with the real tool. Open one pipe per tool run, as the
+  copy service does.
 - Copy: replace over a sharded target and `renameCollection` on sharded targets are not verified
   on a real cluster.
 - Copy: the counts of a cancelled job include documents that the cancel rolled back. The progress
