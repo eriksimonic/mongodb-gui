@@ -30,6 +30,9 @@ const ISO_DATE = /^\d{4}-\d{2}-\d{2}(T\d{2}:\d{2}(:\d{2}(\.\d+)?)?(Z|[+-]\d{2}:?
 const ZONE_SUFFIX = /(Z|[+-]\d{2}:?\d{2})$/;
 const INT32 = { min: -(2n ** 31n), max: 2n ** 31n - 1n };
 const INT64 = { min: -(2n ** 63n), max: 2n ** 63n - 1n };
+// The range of a JavaScript Date, in milliseconds either side of the epoch. Same as ejson/format.ts.
+const MAX_DATE_MILLIS = 8.64e15;
+const MAX_ISO_YEAR = 9999;
 
 export function parseLiteral(node: Expression): LiteralResult {
   switch (node.type) {
@@ -180,10 +183,15 @@ function callValue(node: CallExpression): LiteralResult {
   }
 }
 
-// Only `new Date("...")` is a literal. Other constructors are refused.
+// Only `new Date("...")` and `new Date(ms)` are literals. Other constructors are refused.
+// `new Date(ms)` is how the formatter writes a date outside years 0 to 9999.
 function newValue(node: NewExpression): LiteralResult {
   if (node.callee.type !== 'Identifier' || node.callee.name !== 'Date') {
     return refuse('constructor call');
+  }
+  const millis = numberArgument(node.arguments);
+  if (millis !== undefined) {
+    return dateValue(millis);
   }
   const text = stringArgument(node.arguments);
   if (text === undefined) {
@@ -237,10 +245,25 @@ function isoDateValue(text: string | undefined): LiteralResult {
   return dateValue(Date.parse(zoned));
 }
 
+function numberArgument(args: Array<Expression | SpreadElement>): number | undefined {
+  const arg = singleArgument(args);
+  if (arg === undefined) {
+    return undefined;
+  }
+  const parsed = parseLiteral(arg);
+  return 'value' in parsed && typeof parsed.value === 'number' ? parsed.value : undefined;
+}
+
+// Years 0 to 9999 read as an ISO string, the form the UI writes. Other years keep milliseconds.
 function dateValue(millis: number): LiteralResult {
-  return Number.isFinite(millis)
-    ? { value: { $date: { $numberLong: String(millis) } } }
-    : refuse('invalid date');
+  if (!Number.isInteger(millis) || Math.abs(millis) > MAX_DATE_MILLIS) {
+    return refuse('invalid date');
+  }
+  const date = new Date(millis);
+  const year = date.getUTCFullYear();
+  return year >= 0 && year <= MAX_ISO_YEAR
+    ? { value: { $date: date.toISOString() } }
+    : { value: { $date: { $numberLong: String(millis) } } };
 }
 
 function integerValue(
