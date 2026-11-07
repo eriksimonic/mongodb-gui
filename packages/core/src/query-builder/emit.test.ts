@@ -481,6 +481,10 @@ describe('hasDroppedItems', () => {
     expect(hasDroppedItems(aggregate([]))).toBe(false);
   });
 
+  it('is false for a find whose filter holds an empty OR group the user added', () => {
+    expect(hasDroppedItems(find({ filter: group('and', group('or')) }))).toBe(false);
+  });
+
   it.each<[string, QueryStatement]>([
     ['a disabled condition', find({ filter: group('and', eq('a', 1, false)) })],
     [

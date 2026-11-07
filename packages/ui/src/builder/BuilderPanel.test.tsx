@@ -6,7 +6,8 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { renderWithApp } from '../test-support/render';
 import { BuilderPanel } from './BuilderPanel';
 
-const NOTICE = 'Disabled items were cleared because the text changed.';
+const TEXT_NOTICE = 'Disabled items were cleared because the text changed.';
+const MOVE_NOTICE = 'Disabled items were cleared because you moved to another statement.';
 const fieldSource = {
   fieldsOf: () => Promise.resolve([{ path: 'status', types: ['String'], presence: 1 }]),
 };
@@ -205,7 +206,7 @@ describe('BuilderPanel', () => {
       advance(1000);
 
       expect(screen.getByLabelText('Enable projection')).not.toBeChecked();
-      expect(screen.queryByText(NOTICE)).toBeNull();
+      expect(screen.queryByText(TEXT_NOTICE)).toBeNull();
     } finally {
       vi.useRealTimers();
     }
@@ -231,7 +232,7 @@ describe('BuilderPanel', () => {
 
       advance(1000);
       expect(screen.getByLabelText('Enable projection')).not.toBeChecked();
-      expect(screen.queryByText(NOTICE)).toBeNull();
+      expect(screen.queryByText(TEXT_NOTICE)).toBeNull();
     });
 
     it('clears disabled items after an outside change, shows the notice and remounts the form', () => {
@@ -243,13 +244,13 @@ describe('BuilderPanel', () => {
       act(() => control.setText?.('db.orders.find({ status: "x" })'));
       advance(299);
       expect(screen.getByLabelText('Enable projection')).toBe(before);
-      expect(screen.queryByText(NOTICE)).toBeNull();
+      expect(screen.queryByText(TEXT_NOTICE)).toBeNull();
 
       advance(1);
       const after = screen.getByLabelText('Enable projection');
       expect(after).not.toBe(before);
       expect(after).toBeChecked();
-      expect(screen.getByText(NOTICE)).toBeVisible();
+      expect(screen.getByText(TEXT_NOTICE)).toBeVisible();
     });
 
     it.each([
@@ -290,7 +291,7 @@ describe('BuilderPanel', () => {
       act(() => control.setText?.(outside));
       advance(300);
 
-      expect(screen.getByText(NOTICE)).toBeVisible();
+      expect(screen.getByText(TEXT_NOTICE)).toBeVisible();
     });
 
     it('shows the notice when an outside change clears an unfinished stage', () => {
@@ -301,7 +302,7 @@ describe('BuilderPanel', () => {
       act(() => control.setText?.('db.orders.aggregate([{ $skip: 2 }])'));
       advance(300);
 
-      expect(screen.getByText(NOTICE)).toBeVisible();
+      expect(screen.getByText(TEXT_NOTICE)).toBeVisible();
     });
 
     it('shows no notice when an outside change clears nothing', () => {
@@ -311,7 +312,7 @@ describe('BuilderPanel', () => {
       advance(300);
 
       expect(screen.getByLabelText('Limit')).toHaveDisplayValue('');
-      expect(screen.queryByText(NOTICE)).toBeNull();
+      expect(screen.queryByText(TEXT_NOTICE)).toBeNull();
     });
 
     it('restarts the 300 ms wait on each outside change', () => {
@@ -325,6 +326,20 @@ describe('BuilderPanel', () => {
 
       advance(1);
       expect(screen.getByLabelText('Limit')).toHaveDisplayValue('3');
+    });
+
+    it('uses the latest cursor and text when the cursor moves while an outside change waits', () => {
+      const { control } = mount('db.a.find({}).limit(1);\ndb.b.find({}).limit(7)');
+
+      act(() => control.setText?.('db.a.find({}).limit(2);\ndb.b.find({}).limit(9)'));
+      advance(100);
+      act(() => control.setCursor?.(30));
+      advance(299);
+      expect(screen.getByLabelText('Limit')).toHaveDisplayValue('1');
+
+      advance(1);
+      expect(screen.getByLabelText('Limit')).toHaveDisplayValue('9');
+      expect(screen.queryByText(MOVE_NOTICE)).toBeNull();
     });
 
     it('switches to the statement under the cursor when the cursor moves to another one', () => {
@@ -343,7 +358,7 @@ describe('BuilderPanel', () => {
       act(() => control.setCursor?.(10));
 
       expect(screen.getByLabelText('Enable projection')).not.toBeChecked();
-      expect(screen.queryByText(NOTICE)).toBeNull();
+      expect(screen.queryByText(MOVE_NOTICE)).toBeNull();
     });
 
     it('clears dropped items when the cursor moves away, shows the notice, and loses them on the way back', () => {
@@ -351,12 +366,13 @@ describe('BuilderPanel', () => {
       fireEvent.click(screen.getByLabelText('Enable projection'));
 
       act(() => control.setCursor?.(20));
-      expect(screen.getByText(NOTICE)).toBeVisible();
+      expect(screen.getByText(MOVE_NOTICE)).toBeVisible();
+      expect(screen.queryByText(TEXT_NOTICE)).toBeNull();
       expect(screen.getByLabelText('Enable projection')).toBeChecked();
 
       act(() => control.setCursor?.(2));
       expect(screen.getByLabelText('Enable projection')).toBeChecked();
-      expect(screen.queryByText(NOTICE)).toBeNull();
+      expect(screen.queryByText(MOVE_NOTICE)).toBeNull();
     });
 
     it('shows no notice when the cursor moves to another statement and nothing is dropped', () => {
@@ -365,7 +381,7 @@ describe('BuilderPanel', () => {
       act(() => control.setCursor?.(35));
 
       expect(screen.getByLabelText('Enable query')).toBeChecked();
-      expect(screen.queryByText(NOTICE)).toBeNull();
+      expect(screen.queryByText(MOVE_NOTICE)).toBeNull();
     });
   });
 });

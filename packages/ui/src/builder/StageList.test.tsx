@@ -131,6 +131,23 @@ describe('StageList', () => {
     ).toBeInTheDocument();
     expect(kindsOf(onChange)).toEqual(['$addFields']);
   });
+
+  it('shows the not-in-query cue on a fresh $unwind card and removes it when a path is typed', () => {
+    renderList([]);
+    fireEvent.click(screen.getByRole('button', { name: 'Add stage' }));
+    fireEvent.click(screen.getByRole('menuitem', { name: '$unwind' }));
+    expect(screen.getByText('Not in the query yet')).toBeVisible();
+
+    fireEvent.change(screen.getByRole('textbox', { name: 'Array path' }), {
+      target: { value: '$items' },
+    });
+    expect(screen.queryByText('Not in the query yet')).toBeNull();
+  });
+
+  it('shows no not-in-query cue on a disabled unfinished stage', () => {
+    renderList([{ stage: '$unwind', path: '', preserveEmpty: false, enabled: false }]);
+    expect(screen.queryByText('Not in the query yet')).toBeNull();
+  });
 });
 
 describe('StageList with the $match, $project, $sort and $group forms', () => {

@@ -9,6 +9,7 @@ export { projectionFromEjson, sortFromEjson, stageFromEjson } from './parse-part
 export {
   emitStatement as emitBuilderStatement,
   hasDroppedItems,
+  isLiveStage,
   projectionToEjson,
   sortToEjson,
   stageToEjson,

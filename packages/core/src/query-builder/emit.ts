@@ -112,7 +112,7 @@ function aggregateText(access: string, stages: readonly PipelineStage[]): string
 }
 
 /** True for a stage the emitter writes: enabled and not unfinished. */
-function isLiveStage(stage: PipelineStage): boolean {
+export function isLiveStage(stage: PipelineStage): boolean {
   return stage.enabled && !isUnfinished(stage);
 }
 

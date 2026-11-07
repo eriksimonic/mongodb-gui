@@ -1,5 +1,5 @@
 import { ActionIcon, Button, Checkbox, Group, Menu, Paper, Stack, Text } from '@mantine/core';
-import type { FieldInfo, PipelineStage, StageBody } from '@mongo-gui/core';
+import { type FieldInfo, isLiveStage, type PipelineStage, type StageBody } from '@mongo-gui/core';
 import { IconArrowDown, IconArrowUp, IconCopy, IconPlus, IconTrash } from '@tabler/icons-react';
 import { Fragment, useState } from 'react';
 import { GroupStageForm } from './stages/GroupStage';
@@ -194,6 +194,11 @@ export function StageList({ stages, fields, onChange }: StageListProps) {
                   <Text size="sm" fw={600} ff="monospace">
                     {stage.stage === 'raw' ? stage.name : STAGE_LABELS[stage.stage]}
                   </Text>
+                  {stage.enabled && !isLiveStage(stage) && (
+                    <Text size="xs" c="dimmed">
+                      Not in the query yet
+                    </Text>
+                  )}
                 </Group>
                 <Group gap={4} wrap="nowrap">
                   <ActionIcon

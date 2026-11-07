@@ -50,18 +50,24 @@ type View =
   | { readonly kind: 'unsupported'; readonly range: TextRange; readonly reason: string }
   | { readonly kind: 'statement'; readonly range: TextRange; readonly statement: QueryStatement };
 
+/** What made a re-parse clear items: a text change from outside, or a cursor move to another statement. */
+type ClearReason = 'text' | 'move';
+
 /** The text a view was read from, or written by the panel. The view keeps its disabled items. */
 interface Basis {
   readonly text: string;
   readonly view: View;
   /** Changes on every re-parse, so the forms read the statement again. */
   readonly generation: number;
-  /** True when the last re-parse dropped disabled or unfinished items. */
-  readonly notice: boolean;
+  /** The reason the last re-parse dropped disabled or unfinished items. Null when it dropped none. */
+  readonly notice: ClearReason | null;
 }
 
 const DEBOUNCE_MS = 300;
-const CLEARED_NOTICE = 'Disabled items were cleared because the text changed.';
+const CLEARED_NOTICE: Record<ClearReason, string> = {
+  text: 'Disabled items were cleared because the text changed.',
+  move: 'Disabled items were cleared because you moved to another statement.',
+};
 const NO_FIELDS: readonly FieldInfo[] = [];
 
 function viewAt(text: string, offset: number): View {
@@ -117,7 +123,7 @@ export function BuilderPanel({
     text,
     view: viewAt(text, cursor),
     generation: 0,
-    notice: false,
+    notice: null,
   }));
   const [cursorSeen, setCursorSeen] = useState(cursor);
   const [loaded, setLoaded] = useState<{ collection: string; fields: FieldInfo[] }>();
@@ -139,7 +145,7 @@ export function BuilderPanel({
           text,
           view: next,
           generation: basis.generation + 1,
-          notice: clearsItems(view),
+          notice: clearsItems(view) ? 'move' : null,
         });
       }
     }
@@ -155,7 +161,7 @@ export function BuilderPanel({
         text,
         view: viewAt(text, cursor),
         generation: basis.generation + 1,
-        notice: clearsItems(view),
+        notice: clearsItems(view) ? 'text' : null,
       });
     }, DEBOUNCE_MS);
     return () => window.clearTimeout(timer);
@@ -196,7 +202,7 @@ export function BuilderPanel({
       text: doc.slice(0, range.start) + out + doc.slice(range.end),
       view: next,
       generation: basis.generation,
-      notice: false,
+      notice: null,
     });
   }
 
@@ -267,9 +273,9 @@ export function BuilderPanel({
           </Button>
         </Group>
       )}
-      {basis.notice && (
+      {basis.notice !== null && (
         <Text size="xs" c="dimmed" role="status">
-          {CLEARED_NOTICE}
+          {CLEARED_NOTICE[basis.notice]}
         </Text>
       )}
       <Box inert={pending}>{body}</Box>
