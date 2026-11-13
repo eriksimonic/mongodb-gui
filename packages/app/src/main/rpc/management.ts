@@ -7,6 +7,7 @@ import {
   createDatabase,
   createIndex,
   databaseStats,
+  deleteDocuments,
   dropCollection,
   dropDatabase,
   dropIndex,
@@ -128,6 +129,12 @@ export function managementOperations(deps: ManagementDeps): [string, Operation][
       'management.updateDocumentFields',
       m.updateDocumentFields,
       (client, input) => updateDocumentFields(client, input),
+      (input) => ({ database: input.database, collection: input.collection }),
+    ),
+    managed(
+      'management.deleteDocuments',
+      m.deleteDocuments,
+      (client, input) => deleteDocuments(client, input),
       (input) => ({ database: input.database, collection: input.collection }),
     ),
     readOnly('management.findDocumentById', m.findDocumentById, (client, input) =>

@@ -43,6 +43,8 @@ import {
   type BsonType,
   type ColumnDef,
   type JsonObject,
+  deleteLabel,
+  deleteTargets,
 } from './result-model';
 import { typeBucket, typeColor } from '../schema';
 import { valueColor } from './value-color';
@@ -84,6 +86,12 @@ export interface TableViewProps {
   /** Reads the full text of a previewed document. */
   readonly readFull: (ref: string) => Promise<string>;
   readonly onSelectionChange: (documentIndexes: readonly number[]) => void;
+  /**
+   * Asks to delete documents, after a confirmation. Resolves true once they are deleted, so the
+   * grid clears its selection. Unset when the result cannot be edited.
+   */
+  readonly onDeleteDocuments?:
+    ((documentIndexes: readonly number[]) => Promise<boolean>) | undefined;
   /** Called when the user scrolls near the last loaded row. */
   readonly onNearEnd?: (() => void) | undefined;
 }
@@ -95,6 +103,10 @@ interface CellMenuState {
   readonly value: unknown;
   readonly doc: JsonObject;
   readonly index: number;
+  /** The rows a delete from this menu removes: the selection when the clicked row is in it. */
+  readonly deleteIndexes: readonly number[];
+  /** Clears the grid's selection once a delete went through, since the row ids shift. */
+  readonly clearSelection: () => void;
 }
 
 /** A cell is edited in place when the result is editable and it holds a scalar. `_id` is fixed. */
@@ -132,13 +144,17 @@ async function copyValue(
   }
 }
 
-/** The entries of a cell's menu. It opens the document or copies one piece of the clicked cell. */
+/**
+ * The entries of a cell's menu. It opens the document, copies one piece of the clicked cell, or
+ * deletes the clicked row, or every selected row when the clicked row is selected.
+ */
 function cellMenuEntries(
   cell: Omit<CellMenuState, 'position'>,
   editable: boolean,
   readFull: (ref: string) => Promise<string>,
   onView: () => void,
   onOpen: () => void,
+  onDelete: (() => void) | undefined,
 ): TreeMenuEntry[] {
   return [
     { kind: 'item', label: editable ? 'Edit document' : 'View document', onSelect: onOpen },
@@ -161,6 +177,15 @@ function cellMenuEntries(
       kind: 'item',
       label: 'Copy document',
       onSelect: () => void copyDocument(cell.doc, readFull),
+    },
+    { kind: 'divider' },
+    {
+      kind: 'item',
+      label: deleteLabel(cell.deleteIndexes.length),
+      color: 'red',
+      disabled: onDelete === undefined,
+      reason: onDelete === undefined ? 'read only' : undefined,
+      onSelect: () => onDelete?.(),
     },
   ];
 }
@@ -292,7 +317,8 @@ export function ReadOnlyBadge({ note }: { readonly note: string }) {
  * The documents as a grid. Each field path is a column, discovered from the loaded pages. The
  * column chooser hides and shows columns. Double-clicking, F2 or Enter edits a scalar cell in place
  * when the result is editable. Double-clicking any other cell opens the whole document. A
- * right-click on a cell offers to edit the document, or to copy its value, its key or its document.
+ * right-click on a cell offers to edit the document, to copy its value, its key or its document,
+ * or to delete the row, or all selected rows when the clicked row is selected.
  */
 export function TableView({
   documents,
@@ -303,6 +329,7 @@ export function TableView({
   onSetField,
   readFull,
   onSelectionChange,
+  onDeleteDocuments,
   onNearEnd,
 }: TableViewProps) {
   const [cellMenu, setCellMenu] = useState<CellMenuState | undefined>(undefined);
@@ -369,6 +396,11 @@ export function TableView({
               value: event.value,
               doc: event.data.doc,
               index: event.data.index,
+              deleteIndexes: deleteTargets(
+                event.data.index,
+                event.api.getSelectedRows().map((row: Row) => row.index),
+              ),
+              clearSelection: () => event.api.deselectAll(),
             });
           }}
           onCellDoubleClicked={(event: CellDoubleClickedEvent<Row>) => {
@@ -400,6 +432,14 @@ export function TableView({
                 load: () => fullValueText(cellMenu.doc, cellMenu.path, cellMenu.value, readFull),
               }),
             () => onOpenDocument(cellMenu.index),
+            onDeleteDocuments === undefined
+              ? undefined
+              : () =>
+                  void onDeleteDocuments(cellMenu.deleteIndexes).then((deleted) => {
+                    if (deleted) {
+                      cellMenu.clearSelection();
+                    }
+                  }),
           )}
           position={cellMenu.position}
           onClose={() => setCellMenu(undefined)}

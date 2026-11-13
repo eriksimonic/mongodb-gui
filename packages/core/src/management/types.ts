@@ -219,6 +219,17 @@ export const FindDocumentByIdInputSchema = DocumentTargetSchema.extend({
   idEjson: z.string(),
 });
 
+/** The most documents one delete removes. It matches the most rows a result loads. */
+export const DELETE_DOCUMENTS_MAX = 5000;
+
+export const DeleteDocumentsInputSchema = DocumentTargetSchema.extend({
+  idsEjson: z.array(z.string()).min(1).max(DELETE_DOCUMENTS_MAX),
+});
+
+export const DeleteDocumentsResultSchema = z.object({
+  deletedCount: z.number().int().nonnegative(),
+});
+
 export type ValidationLevel = z.infer<typeof ValidationLevelSchema>;
 export type ValidationAction = z.infer<typeof ValidationActionSchema>;
 export type CreateCollectionInput = z.infer<typeof CreateCollectionInputSchema>;
@@ -238,6 +249,8 @@ export type IndexBuildProgress = z.infer<typeof IndexBuildProgressSchema>;
 export type ReplaceDocumentInput = z.infer<typeof ReplaceDocumentInputSchema>;
 export type UpdateDocumentFieldsInput = z.infer<typeof UpdateDocumentFieldsInputSchema>;
 export type FindDocumentByIdInput = z.infer<typeof FindDocumentByIdInputSchema>;
+export type DeleteDocumentsInput = z.infer<typeof DeleteDocumentsInputSchema>;
+export type DeleteDocumentsResult = z.infer<typeof DeleteDocumentsResultSchema>;
 export type NamespaceTarget = z.infer<typeof NamespaceSchema>;
 
 // Read inputs. Sample sizes match the adapter: validation checks take at most 10,000 documents

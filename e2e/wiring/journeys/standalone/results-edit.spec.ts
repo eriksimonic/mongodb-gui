@@ -64,6 +64,17 @@ test('edit a field in the tree view and the whole document in the dialog', async
     await expect
       .poll(async () => (await items.findOne({ _id: insertedId }))?.['status'])
       .toBe('replaced');
+
+    // management.deleteDocuments: the row menu deletes the right-clicked document after a confirm.
+    await page
+      .getByRole('gridcell', { name: insertedId.toHexString(), exact: true })
+      .click({ button: 'right' });
+    await page.getByRole('menuitem', { name: 'Delete document', exact: true }).click();
+    const confirm = page.getByRole('dialog', { name: 'Delete document', exact: true });
+    await confirm.getByRole('button', { name: 'Delete', exact: true }).click();
+    await expect(confirm).toBeHidden();
+    await expect.poll(async () => items.countDocuments({ _id: insertedId })).toBe(0);
+    await expect(page.getByText('No documents', { exact: true }).first()).toBeVisible();
   } finally {
     await client.db(DATABASE).dropDatabase();
     await client.close();

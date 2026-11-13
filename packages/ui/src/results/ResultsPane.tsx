@@ -1,5 +1,6 @@
 import { Alert, Badge, Button, Group, Modal, SegmentedControl, Stack, Text } from '@mantine/core';
 import { modals } from '@mantine/modals';
+import { notifications } from '@mantine/notifications';
 import { IconCopy } from '@tabler/icons-react';
 import { useEffect, useMemo, useState } from 'react';
 import { editableValue, isUnkeptPreview, previewInfo, type AppError } from '@mongo-gui/core';
@@ -51,6 +52,10 @@ export interface ResultsPaneProps {
   readonly readFull: (ref: string) => Promise<string>;
   readonly onSetField: (edit: TreeEdit) => Promise<void>;
   readonly onUnsetField: (documentIndex: number, path: string) => Promise<void>;
+  /** Deletes loaded documents on the server and drops them from the result. */
+  readonly onDeleteDocuments: (
+    documentIndexes: readonly number[],
+  ) => Promise<{ readonly requested: number; readonly deleted: number }>;
   readonly onExport: (format: ExportFormat) => void;
 }
 
@@ -88,6 +93,7 @@ export function ResultsPane({
   readFull,
   onSetField,
   onUnsetField,
+  onDeleteDocuments,
   onExport,
 }: ResultsPaneProps) {
   const [hidden, setHidden] = useState<readonly string[]>([]);
@@ -176,6 +182,66 @@ export function ResultsPane({
       setNotice(errorText(failure));
     } finally {
       setOpening(false);
+    }
+  }
+
+  /**
+   * Asks before it deletes, then shows progress and the outcome in one notification. Resolves true
+   * when the documents were deleted, and false on cancel or failure.
+   */
+  function confirmDelete(indexes: readonly number[]): Promise<boolean> {
+    if (target === undefined || indexes.length === 0) {
+      return Promise.resolve(false);
+    }
+    const { collection } = target;
+    const what = indexes.length === 1 ? 'this document' : `these ${indexes.length} documents`;
+    return new Promise((resolve) => {
+      modals.openConfirmModal({
+        title: indexes.length === 1 ? 'Delete document' : `Delete ${indexes.length} documents`,
+        centered: true,
+        children: (
+          <Text size="sm">
+            Delete {what} from {collection}? This cannot be undone.
+          </Text>
+        ),
+        labels: { confirm: 'Delete', cancel: 'Cancel' },
+        confirmProps: { color: 'red' },
+        onCancel: () => resolve(false),
+        onConfirm: () => void runDelete(indexes).then(resolve),
+      });
+    });
+  }
+
+  async function runDelete(indexes: readonly number[]): Promise<boolean> {
+    const id = `delete-documents-${Date.now()}`;
+    notifications.show({
+      id,
+      loading: true,
+      title: 'Deleting documents',
+      message: `Deleting ${indexes.length} from ${target?.collection ?? 'the collection'}.`,
+      autoClose: false,
+      withCloseButton: false,
+    });
+    try {
+      const { requested, deleted } = await onDeleteDocuments(indexes);
+      const gone = requested - deleted;
+      notifications.update({
+        id,
+        loading: false,
+        color: gone === 0 ? 'blue' : 'yellow',
+        title: deleted === 1 ? 'Document deleted' : `${deleted} documents deleted`,
+        message:
+          gone === 0
+            ? `Deleted from ${target?.collection ?? 'the collection'}.`
+            : `${gone} ${gone === 1 ? 'was' : 'were'} already gone from the server.`,
+        autoClose: 5000,
+        withCloseButton: true,
+      });
+      return true;
+    } catch (failure) {
+      notifications.hide(id);
+      notifyError(failure, 'Delete failed');
+      return false;
     }
   }
 
@@ -364,6 +430,7 @@ export function ResultsPane({
               onSetField={onSetField}
               readFull={readFull}
               onSelectionChange={setSelected}
+              onDeleteDocuments={editable ? confirmDelete : undefined}
               onNearEnd={loadMoreOnScroll}
             />
           ) : effectiveView === 'tree' ? (

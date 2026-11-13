@@ -44,6 +44,7 @@ import {
   appendPrint,
   beginRun,
   patchDocument,
+  removeDocuments,
   bumpListRevision,
   closeTab,
   convertTabToMongosh,
@@ -658,6 +659,51 @@ export function createEditorActions(access: EditorStoreAccess) {
           ),
         ),
       );
+    },
+
+    /**
+     * Deletes loaded documents by their _id with one deleteMany, then drops them from the loaded
+     * copy. Returns how many the server deleted, which is lower when some were already gone. Throws
+     * when the result is not a plain find on one collection, or a document has no whole _id.
+     */
+    async deleteLoadedDocuments(
+      tabId: string,
+      documentIndexes: readonly number[],
+    ): Promise<{ readonly requested: number; readonly deleted: number }> {
+      const tab = access.get().editors.tabs[tabId];
+      const result = tab?.result;
+      if (tab === undefined || result?.collection === undefined) {
+        throw new AppErrorException(appError('VALIDATION', 'This result cannot be edited.'));
+      }
+      const indexes = [...new Set(documentIndexes)];
+      const idsEjson = indexes.map((index) => {
+        const document = result.documents[index];
+        // A marker for _id means the preview cut it, and a delete by it could miss or hit another document.
+        if (
+          document === undefined ||
+          !('_id' in document) ||
+          nestedMarker(document._id) !== undefined
+        ) {
+          throw new AppErrorException(
+            appError(
+              'VALIDATION',
+              'A selected document has no whole _id, so it cannot be deleted.',
+            ),
+          );
+        }
+        return JSON.stringify(document._id);
+      });
+      if (idsEjson.length === 0) {
+        return { requested: 0, deleted: 0 };
+      }
+      const { deletedCount } = await rpc.management.deleteDocuments({
+        connectionId: tab.connectionId,
+        database: result.database,
+        collection: result.collection,
+        idsEjson,
+      });
+      update((state) => removeDocuments(state, tabId, indexes));
+      return { requested: idsEjson.length, deleted: deletedCount };
     },
 
     /** Replaces a loaded document with the EJSON the editor dialog saved. */

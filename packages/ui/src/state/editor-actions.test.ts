@@ -149,6 +149,39 @@ describe('editor actions: field edits', () => {
     expect(store.getState().editors.tabs[id]?.result?.documents[0]).not.toHaveProperty('note');
   });
 
+  it('deletes the chosen documents by _id and drops them from the loaded copy', async () => {
+    const api = await connectedMockApi();
+    const remove = vi.spyOn(api.rpc.management, 'deleteDocuments');
+    const store = await storeOn(api);
+    const id = store.getState().openEditor({ connectionId: localConnectionId, database: 'shop' });
+    await store.getState().runEditor(id, 'db.orders.find()');
+    const before = store.getState().editors.tabs[id]?.result?.documents ?? [];
+    const kept = before[1];
+
+    const outcome = await store.getState().deleteLoadedDocuments(id, [0, 2, 2]);
+
+    expect(remove.mock.calls[0]?.[0]).toMatchObject({
+      database: 'shop',
+      collection: 'orders',
+      idsEjson: [JSON.stringify(before[0]?._id), JSON.stringify(before[2]?._id)],
+    });
+    expect(outcome).toEqual({ requested: 2, deleted: 2 });
+    const after = store.getState().editors.tabs[id]?.result?.documents ?? [];
+    expect(after).toHaveLength(before.length - 2);
+    expect(after[0]).toEqual(kept);
+  });
+
+  it('refuses a delete on a result that is not a plain find', async () => {
+    const api = await connectedMockApi();
+    const store = await storeOn(api);
+    const id = store.getState().openEditor({ connectionId: localConnectionId, database: 'shop' });
+    await store.getState().runEditor(id, 'db.orders.aggregate([])');
+
+    await expect(store.getState().deleteLoadedDocuments(id, [0])).rejects.toBeInstanceOf(
+      AppErrorException,
+    );
+  });
+
   it('refuses an edit on a result that is not a plain find', async () => {
     const api = await connectedMockApi();
     const store = await storeOn(api);
