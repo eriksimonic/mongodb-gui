@@ -1,6 +1,7 @@
 export const mongoAdapterPackageName = '@mongo-gui/mongo-adapter';
 
 export { buildClientOptions } from './client-options';
+export { withoutInsecureTls } from './insecure-tls';
 export { ConnectionManager, type StatusListener } from './connection-manager';
 export {
   collectionStats,

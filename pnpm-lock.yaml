@@ -213,13 +213,6 @@ importers:
         version: 5.0.3(@types/node@24.19.1)(jsdom@30.1.2(@noble/hashes@2.4.0))(vite@7.3.7(@types/node@24.19.1)(jiti@2.7.0)(lightningcss@1.33.0)(sugarss@5.0.2(postcss@8.5.29))(yaml@2.9.1))
 
   packages/app:
-    dependencies:
-      electron-updater:
-        specifier: ^6.8.9
-        version: 6.8.9(supports-color@7.2.0)
-      mongodb-connection-string-url:
-        specifier: ^7.0.2
-        version: 7.0.2
     devDependencies:
       '@mongo-gui/core':
         specifier: workspace:*
@@ -254,6 +247,9 @@ importers:
       electron-builder:
         specifier: ^26.15.3
         version: 26.15.3(electron-builder-squirrel-windows@26.15.3)(supports-color@7.2.0)
+      electron-updater:
+        specifier: ^6.8.9
+        version: 6.8.9(supports-color@7.2.0)
       electron-vite:
         specifier: ^5.0.0
         version: 5.0.0(supports-color@7.2.0)(vite@7.3.7(@types/node@24.19.1)(jiti@2.7.0)(lightningcss@1.33.0)(sugarss@5.0.2(postcss@8.5.29))(yaml@2.9.1))
@@ -300,6 +296,9 @@ importers:
       mongodb:
         specifier: ^7.7.0
         version: 7.7.0(@aws-sdk/credential-providers@3.1148.0)(gcp-metadata@7.0.1(supports-color@7.2.0))(kerberos@7.0.0)(mongodb-client-encryption@7.2.1)(socks@2.8.10)
+      mongodb-connection-string-url:
+        specifier: ^7.0.2
+        version: 7.0.2
     devDependencies:
       testcontainers:
         specifier: ^12.2.0
