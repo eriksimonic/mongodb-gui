@@ -798,3 +798,13 @@ export function editTypeOf(value: unknown): EditType | undefined {
       return undefined;
   }
 }
+
+/** The rows a delete acts on: every selected row when the clicked row is one of them, else the clicked row. */
+export function deleteTargets(clicked: number, selected: readonly number[]): readonly number[] {
+  return selected.includes(clicked) ? [...selected].sort((a, b) => a - b) : [clicked];
+}
+
+/** "Delete document" or "Delete 3 documents". */
+export function deleteLabel(count: number): string {
+  return count === 1 ? 'Delete document' : `Delete ${count} documents`;
+}

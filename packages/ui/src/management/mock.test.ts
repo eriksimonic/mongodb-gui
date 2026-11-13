@@ -244,6 +244,13 @@ describe('mock management calls', () => {
     });
     const replaced = await api.rpc.management.findDocumentById({ ...base, idEjson });
     expect(replaced).not.toContain('"tier"');
+
+    const deleted = await api.rpc.management.deleteDocuments({
+      ...base,
+      idsEjson: [idEjson, '"missing"'],
+    });
+    expect(deleted).toEqual({ deletedCount: 1 });
+    expect(await api.rpc.management.findDocumentById({ ...base, idEjson })).toBeNull();
   });
 
   it('samples the first documents as JSON text up to the limit', async () => {

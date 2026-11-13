@@ -35,6 +35,7 @@ vi.mock('@mongo-gui/mongo-adapter', async (importOriginal) => {
     setValidation: vi.fn(),
     checkDocumentsAgainstValidator: vi.fn(),
     replaceDocument: vi.fn(),
+    deleteDocuments: vi.fn(),
     updateDocumentFields: vi.fn(),
     findDocumentById: vi.fn(),
     sampleDocuments: vi.fn(),
@@ -253,6 +254,29 @@ describe('management calls through the router', () => {
       }),
     );
 
+    expect(events).toEqual([
+      {
+        type: 'catalog:changed',
+        connectionId: CONNECTION_ID,
+        database: 'probe',
+        collection: 'items',
+      },
+    ]);
+  });
+
+  it('returns the count and emits a change for the collection after deleteDocuments', async () => {
+    vi.mocked(adapter.deleteDocuments).mockResolvedValue({ deletedCount: 2 });
+
+    const result = value(
+      await router.handle('management.deleteDocuments', {
+        connectionId: CONNECTION_ID,
+        database: 'probe',
+        collection: 'items',
+        idsEjson: ['{"$oid":"64b7f0f0e4b0a1b2c3d4e5f6"}', '7'],
+      }),
+    );
+
+    expect(result).toEqual({ deletedCount: 2 });
     expect(events).toEqual([
       {
         type: 'catalog:changed',

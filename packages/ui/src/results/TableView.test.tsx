@@ -7,7 +7,7 @@ import { bsonSampleDocuments } from '../api/mock-bson-fixtures';
 import { AppProviders } from '../theme/AppProviders';
 import { compareCells } from './cell-order';
 import { TableView } from './TableView';
-import { discoverColumns, type JsonObject } from './result-model';
+import { deleteLabel, deleteTargets, discoverColumns, type JsonObject } from './result-model';
 
 const DOCUMENTS = bsonSampleDocuments(3) as JsonObject[];
 
@@ -21,6 +21,7 @@ function renderTable(
     path: string;
     value: unknown;
   }) => Promise<void> = () => Promise.resolve(),
+  onDeleteDocuments?: (documentIndexes: readonly number[]) => Promise<boolean>,
 ) {
   return render(
     <AppProviders>
@@ -34,6 +35,7 @@ function renderTable(
           onSetField={onSetField}
           readFull={readFull}
           onSelectionChange={() => undefined}
+          onDeleteDocuments={onDeleteDocuments}
         />
       </div>
     </AppProviders>,
@@ -110,6 +112,29 @@ describe('TableView', () => {
     fireEvent.click(await screen.findByText('Edit document'));
 
     expect(onOpen).toHaveBeenCalledWith(index);
+  });
+
+  it('deletes the right-clicked row when it is not selected', async () => {
+    const onDelete = vi.fn().mockResolvedValue(true);
+    renderTable(vi.fn(), true, DOCUMENTS, undefined, undefined, onDelete);
+    const index = DOCUMENTS.findIndex(
+      (document) => (document.customer as { name: string }).name === 'Customer 2',
+    );
+
+    fireEvent.contextMenu(await customerCell(), { clientX: 40, clientY: 50 });
+    fireEvent.click(await screen.findByText('Delete document'));
+
+    await waitFor(() => expect(onDelete).toHaveBeenCalledWith([index]));
+  });
+
+  it('shows delete as off when the result cannot be edited', async () => {
+    renderTable(vi.fn(), false);
+
+    fireEvent.contextMenu(await customerCell(), { clientX: 40, clientY: 50 });
+
+    const item = (await screen.findByText('Delete document')).closest('button');
+    expect(item).toBeDisabled();
+    expect(screen.getByText('read only')).toBeInTheDocument();
   });
 
   it('copies the value in mongosh form and the whole document as JSON', async () => {
@@ -264,6 +289,22 @@ describe('TableView shortened values', () => {
       expect(writeText).toHaveBeenLastCalledWith(JSON.stringify([FULL], null, 2)),
     );
     expect(readFull).toHaveBeenCalledWith(REF);
+  });
+});
+
+describe('deleteTargets', () => {
+  it('deletes the whole selection, in row order, when the clicked row is in it', () => {
+    expect(deleteTargets(2, [4, 2, 0])).toEqual([0, 2, 4]);
+  });
+
+  it('deletes only the clicked row when it is outside the selection', () => {
+    expect(deleteTargets(3, [0, 1])).toEqual([3]);
+    expect(deleteTargets(3, [])).toEqual([3]);
+  });
+
+  it('counts the documents in the label', () => {
+    expect(deleteLabel(1)).toBe('Delete document');
+    expect(deleteLabel(3)).toBe('Delete 3 documents');
   });
 });
 

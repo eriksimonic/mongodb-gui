@@ -59,6 +59,7 @@ async function renderPane(props: Partial<ResultsPaneProps> & { readonly result: 
         readFull={() => Promise.reject(new Error('no read'))}
         onSetField={() => Promise.resolve()}
         onUnsetField={() => Promise.resolve()}
+        onDeleteDocuments={() => Promise.resolve({ requested: 0, deleted: 0 })}
         onExport={() => undefined}
         {...props}
       />

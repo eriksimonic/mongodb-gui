@@ -442,6 +442,23 @@ export function patchDocument(
   });
 }
 
+/** Drops documents from a tab's loaded result, after they were deleted on the server. */
+export function removeDocuments(
+  state: EditorsState,
+  id: string,
+  indexes: readonly number[],
+): EditorsState {
+  return updateTab(state, id, (tab) => {
+    const result = tab.result;
+    if (result === undefined || indexes.length === 0) {
+      return tab;
+    }
+    const gone = new Set(indexes);
+    const documents = result.documents.filter((_, position) => !gone.has(position));
+    return { ...tab, result: { ...result, documents } };
+  });
+}
+
 /** Shows an error that happened after the first page, such as a failed "Load more". */
 export function setTabError(
   state: EditorsState,

@@ -2,10 +2,13 @@ import type { Document, MongoClient } from 'mongodb';
 import {
   AppErrorException,
   appError,
+  DeleteDocumentsInputSchema,
   FindDocumentByIdInputSchema,
   ReplaceDocumentInputSchema,
   SampleDocumentsInputSchema,
   UpdateDocumentFieldsInputSchema,
+  type DeleteDocumentsInput,
+  type DeleteDocumentsResult,
   type FindDocumentByIdInput,
   type ReplaceDocumentInput,
   type SampleDocumentsInput,
@@ -48,6 +51,25 @@ export async function updateDocumentFields(client: MongoClient, input: unknown):
     if (result.matchedCount === 0) {
       throw notFound();
     }
+  } catch (error) {
+    throw toAppException(error);
+  }
+}
+
+// Deletes the documents with the given _id values in one deleteMany. An _id that matches no
+// document is skipped, so the count can be lower than the number of ids.
+export async function deleteDocuments(
+  client: MongoClient,
+  input: unknown,
+): Promise<DeleteDocumentsResult> {
+  const parsed = parseInput<DeleteDocumentsInput>(DeleteDocumentsInputSchema, input);
+  const ids = parsed.idsEjson.map((idEjson) => parseEjson(idEjson, ID_LABEL));
+  try {
+    const result = await client
+      .db(parsed.database)
+      .collection<PlainObject>(parsed.collection)
+      .deleteMany({ _id: { $in: ids } } as Document);
+    return { deletedCount: result.deletedCount };
   } catch (error) {
     throw toAppException(error);
   }

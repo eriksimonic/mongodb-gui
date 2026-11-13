@@ -23,7 +23,12 @@ import {
   dropDatabase,
   renameCollection,
 } from './collections';
-import { findDocumentById, replaceDocument, updateDocumentFields } from './documents';
+import {
+  deleteDocuments,
+  findDocumentById,
+  replaceDocument,
+  updateDocumentFields,
+} from './documents';
 import { createIndex, dropIndex, listIndexBuilds, setIndexHidden } from './indexes';
 import { checkDocumentsAgainstValidator, getValidation, setValidation } from './validation';
 
@@ -775,6 +780,28 @@ describe.each(MONGO_IMAGES)('management on %s', (image) => {
           idEjson: '"o-2"',
           setEjson: '{}',
         }),
+      );
+      expect(empty.code).toBe('VALIDATION');
+    });
+
+    it('deletes only the documents with the given _id values', async () => {
+      const database = uniqueDatabase();
+      const orders = client.db(database).collection<Fixture>('orders');
+      await orders.insertMany([
+        { _id: 'o-1', status: 'open' },
+        { _id: 'o-2', status: 'open' },
+        { _id: 'o-3', status: 'open' },
+      ]);
+      const result = await deleteDocuments(client, {
+        database,
+        collection: 'orders',
+        idsEjson: ['"o-1"', '"o-3"', '"missing"'],
+      });
+      expect(result).toEqual({ deletedCount: 2 });
+      expect(await orders.find({}).toArray()).toEqual([{ _id: 'o-2', status: 'open' }]);
+
+      const empty = await captureError(() =>
+        deleteDocuments(client, { database, collection: 'orders', idsEjson: [] }),
       );
       expect(empty.code).toBe('VALIDATION');
     });

@@ -68,6 +68,7 @@ export const coverageMap: Readonly<Record<string, Coverage>> = {
   'management.checkValidation': { excluded: 'no journey planned yet' },
   'management.replaceDocument': { journey: 'results-edit.spec.ts' },
   'management.updateDocumentFields': { journey: 'results-edit.spec.ts' },
+  'management.deleteDocuments': { journey: 'results-edit.spec.ts' },
   'management.findDocumentById': { excluded: 'no journey planned yet' },
   'management.sampleDocuments': { journey: 'indexes.spec.ts' },
 

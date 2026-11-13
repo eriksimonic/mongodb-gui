@@ -466,6 +466,23 @@ export function createManagementCalls(context: MockManagementContext): RpcClient
       changed(input.connectionId, { database: input.database, collection: input.collection });
     }),
 
+    deleteDocuments: method(calls.deleteDocuments, latencyMs, (input) => {
+      context.guard(input.connectionId);
+      const collection = requireCollection(
+        context,
+        input.connectionId,
+        input.database,
+        input.collection,
+      );
+      const keys = new Set(input.idsEjson.map((idText) => idKey(parseText(idText, 'The _id'))));
+      const before = collection.documents.length;
+      collection.documents = collection.documents.filter(
+        (document) => !keys.has(idKey(document._id)),
+      );
+      changed(input.connectionId, { database: input.database, collection: input.collection });
+      return { deletedCount: before - collection.documents.length };
+    }),
+
     updateDocumentFields: method(calls.updateDocumentFields, latencyMs, (input) => {
       context.guard(input.connectionId);
       const collection = requireCollection(

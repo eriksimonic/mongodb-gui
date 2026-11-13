@@ -327,6 +327,11 @@ The results pane shows the documents of the last run. Switch between three views
   Right-click a cell for "Copy value", "Copy key" and
   "Copy document". The value copies in mongosh form, the key is the dotted field path, and the
   document copies as canonical JSON.
+  The same menu has "Delete document". If you right-click a row that is part of a selection, the
+  item reads "Delete 3 documents" and deletes every selected row. If the row is not selected, it
+  deletes only that row. The app asks before it deletes, removes the documents by `_id` in one
+  `deleteMany`, and drops them from the loaded result. Delete works only in a plain find on one
+  collection.
 
 - Tree view shows each document as an expandable tree. Each value has a type badge. "Collapse
   all" folds the tree. Each row has "Copy path" and "Copy value" buttons. Double-click the

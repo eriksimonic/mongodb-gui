@@ -535,6 +535,7 @@ export function EditorView({ tabId }: EditorViewProps) {
             onDocumentSaved={(index, documentEjson) =>
               api.replaceLoadedDocument(tabId, index, documentEjson)
             }
+            onDeleteDocuments={(indexes) => api.deleteLoadedDocuments(tabId, indexes)}
             result={current.result}
             error={current.error}
             running={current.running}
