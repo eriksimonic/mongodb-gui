@@ -2,6 +2,15 @@
 
 All notable changes to Mongo GUI are listed here, newest first.
 
+## 0.6.1 - 2026-11-13
+
+### Added
+
+- Delete documents from the results table. Right-click a row and choose "Delete document", or
+  select several rows and right-click one of them to choose "Delete N documents". The app asks
+  before it deletes, and the rows leave the loaded result. It works for a plain find on one
+  collection.
+
 ## 0.6.0 - 2026-11-07
 
 ### Added
