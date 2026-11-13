@@ -2,6 +2,18 @@
 
 All notable changes to Mongo GUI are listed here, newest first.
 
+## 0.6.3 - 2026-11-13
+
+### Fixed
+
+- No connection could connect in 0.6.2. The app showed "connecting" or failed with an error for
+  every server. The main process is now built as one file, so the connections work again.
+
+### Changed
+
+- The main process is built as one file with its dependencies inside it. The build fails when
+  that file loads any module other than Electron and the Node built-ins.
+
 ## 0.6.2 - 2026-11-13
 
 ### Fixed
