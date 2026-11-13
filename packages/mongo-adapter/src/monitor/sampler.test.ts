@@ -1,30 +1,50 @@
-import type { MongoClient } from 'mongodb';
+import { MongoOperationTimeoutError, type MongoClient } from 'mongodb';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import type { MonitorSample } from '@mongo-gui/core';
 import { Sampler } from './sampler';
 
-type Handler = (command: Record<string, unknown>) => Promise<unknown>;
+interface CommandOptions {
+  timeoutMS?: number;
+}
+
+type Handler = (command: Record<string, unknown>, options?: CommandOptions) => Promise<unknown>;
 
 const INTERVAL_MS = 1000;
+const SERVER_SELECTION_TIMEOUT_MS = 10_000;
 
-// Minimal stand-in for the parts of MongoClient the sampler touches.
-function stubClient(handler: Handler): { client: MongoClient; calls: Record<string, unknown>[] } {
+// Minimal stand-in for the parts of MongoClient the sampler touches. oplogRead answers the oplog
+// find, and receives the options the sampler passed to find.
+function stubClient(
+  handler: Handler,
+  oplogRead: (options?: CommandOptions) => Promise<unknown[]> = () => Promise.resolve([]),
+): { client: MongoClient; calls: Record<string, unknown>[] } {
   const calls: Record<string, unknown>[] = [];
   const admin = {
-    command: (command: Record<string, unknown>) => {
+    command: (command: Record<string, unknown>, options?: CommandOptions) => {
       calls.push(command);
-      return handler(command);
+      return handler(command, options);
     },
   };
   const local = {
     collection: () => ({
-      find: () => ({
-        sort: () => ({ limit: () => ({ toArray: () => Promise.resolve([]) }) }),
+      find: (_filter: unknown, options?: CommandOptions) => ({
+        sort: () => ({ limit: () => ({ toArray: () => oplogRead(options) }) }),
       }),
     }),
   };
-  const client = { db: (name: string) => (name === 'local' ? local : admin) };
+  const client = {
+    options: { serverSelectionTimeoutMS: SERVER_SELECTION_TIMEOUT_MS },
+    db: (name: string) => (name === 'local' ? local : admin),
+  };
   return { client: client as unknown as MongoClient, calls };
+}
+
+// A server that never answers. A command with a timeoutMS fails the way the driver fails it.
+function silentUnlessBounded(options?: CommandOptions): Promise<never> {
+  if (options?.timeoutMS === undefined) {
+    return new Promise<never>(() => undefined);
+  }
+  return Promise.reject(new MongoOperationTimeoutError('Operation timed out'));
 }
 
 function serverStatus(insert: number): unknown {
@@ -198,6 +218,41 @@ describe('Sampler scheduling', () => {
     await vi.advanceTimersByTimeAsync(0);
     const restarted: MonitorSample | undefined = sampler.samples().at(-1);
     expect(restarted?.opcounters.insert).toBe(0);
+
+    sampler.stop();
+  });
+
+  it('ends a hung sampling command with an error and schedules the next tick', async () => {
+    const { client } = stubClient((_command, options) => silentUnlessBounded(options));
+    const sampler = new Sampler({ client, config: config() });
+    let errors = 0;
+    sampler.onError(() => {
+      errors += 1;
+    });
+
+    // The first tick fails at 0 s, then the ticks at 1 s and 2 s fail the same way.
+    sampler.start();
+    await vi.advanceTimersByTimeAsync(2 * INTERVAL_MS);
+    expect(errors).toBe(3);
+    expect(sampler.isRunning()).toBe(true);
+
+    sampler.stop();
+  });
+
+  it('ends a hung oplog read and still records the sample', async () => {
+    const { client } = stubClient(
+      (command) =>
+        'hello' in command
+          ? Promise.resolve({ setName: 'rs0' })
+          : Promise.resolve(command.serverStatus === undefined ? {} : serverStatus(0)),
+      silentUnlessBounded,
+    );
+    const sampler = new Sampler({ client, config: config() });
+
+    // The oplog window is left out of each sample, and the samples keep coming every second.
+    sampler.start();
+    await vi.advanceTimersByTimeAsync(2 * INTERVAL_MS);
+    expect(sampler.samples()).toHaveLength(3);
 
     sampler.stop();
   });

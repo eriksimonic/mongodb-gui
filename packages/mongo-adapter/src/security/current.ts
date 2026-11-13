@@ -7,6 +7,7 @@ import {
   type UserManagementCapabilities,
 } from '@mongo-gui/core';
 import { readArray, readField, readString } from '../documents';
+import { commandTimeoutMs } from '../client-options';
 import { parseInput } from '../management/errors';
 import { parseServerRecord, runSecurityCommand } from './errors';
 import { toPrivileges, toRoleRefs } from './mapping';
@@ -25,7 +26,12 @@ const MANAGE_ROLE_ACTIONS: ReadonlySet<string> = new Set(['createRole', 'dropRol
 // Returns the users authenticated on this connection, with their roles and privileges.
 export async function connectionStatus(client: MongoClient): Promise<AuthStatus> {
   return runSecurityCommand([], async () => {
-    const reply = await client.db('admin').command({ connectionStatus: 1, showPrivileges: true });
+    const reply = await client
+      .db('admin')
+      .command(
+        { connectionStatus: 1, showPrivileges: true },
+        { timeoutMS: commandTimeoutMs(client) },
+      );
     const authInfo = readField(reply, 'authInfo');
     const candidate = {
       authenticatedUsers: readArray(authInfo, 'authenticatedUsers').flatMap((item) => {

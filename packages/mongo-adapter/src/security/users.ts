@@ -21,6 +21,7 @@ import {
   type UserRef,
 } from '@mongo-gui/core';
 import { definedEntry, readArray, readField, readString, readStringArray } from '../documents';
+import { commandTimeoutMs } from '../client-options';
 import { parseInput } from '../management/errors';
 import { mapWithConcurrency } from './concurrency';
 import { parseServerRecord, runSecurityCommand } from './errors';
@@ -34,14 +35,15 @@ const DETAIL_CONCURRENCY = 8;
 // then read again with its exact name. Credentials are never requested.
 export async function listUsers(client: MongoClient, db?: string): Promise<UserInfo[]> {
   return runSecurityCommand([], async () => {
+    const bound = { timeoutMS: commandTimeoutMs(client) };
     const reply =
       db === undefined
         ? await client
             .db('admin')
-            .command({ usersInfo: { forAllDBs: true }, showCredentials: false })
+            .command({ usersInfo: { forAllDBs: true }, showCredentials: false }, bound)
         : await client
             .db(parseInput(UserDatabaseSchema, db))
-            .command({ usersInfo: 1, showCredentials: false });
+            .command({ usersInfo: 1, showCredentials: false }, bound);
     const listed = readArray(reply, 'users').map((source) => toUserInfo(source));
     return mapWithConcurrency(listed, DETAIL_CONCURRENCY, async (user) => {
       return (await readUserDetail(client, user.db, user.user)) ?? user;
@@ -126,12 +128,15 @@ async function readUserDetail(
   db: string,
   user: string,
 ): Promise<UserInfo | null> {
-  const reply = await client.db(db).command({
-    usersInfo: { user, db },
-    showCredentials: false,
-    showPrivileges: true,
-    showAuthenticationRestrictions: true,
-  });
+  const reply = await client.db(db).command(
+    {
+      usersInfo: { user, db },
+      showCredentials: false,
+      showPrivileges: true,
+      showAuthenticationRestrictions: true,
+    },
+    { timeoutMS: commandTimeoutMs(client) },
+  );
   const source = readArray(reply, 'users')[0];
   return source === undefined ? null : toUserInfo(source);
 }

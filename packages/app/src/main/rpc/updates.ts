@@ -15,6 +15,8 @@ export interface UpdaterRuntime {
   readonly platform: string;
   readonly isPackaged: boolean;
   readonly appVersion: string;
+  readonly releaseInstanceLock: () => void;
+  readonly reacquireInstanceLock: () => boolean;
 }
 
 /** The updater plus a subscription for its state changes. Same shape as the router's UpdatesService. */
@@ -78,6 +80,8 @@ export function createUpdatesService(
     platform: runtime?.platform ?? process.platform,
     isPackaged: runtime?.isPackaged ?? false,
     appVersion: runtime?.appVersion ?? '0.0.0',
+    releaseInstanceLock: runtime?.releaseInstanceLock ?? (() => undefined),
+    reacquireInstanceLock: runtime?.reacquireInstanceLock ?? (() => true),
   });
   return {
     ...updater,

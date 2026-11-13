@@ -3,6 +3,7 @@ import {
   MongoNetworkError,
   MongoNetworkTimeoutError,
   MongoServerError,
+  MongoOperationTimeoutError,
   MongoServerSelectionError,
   type TopologyDescription,
 } from 'mongodb';
@@ -25,6 +26,15 @@ function selectionError(message: string, serverErrors: Error[] = []): MongoServe
 }
 
 describe('mapDriverError', () => {
+  it('maps a command the server never answered in time to CONNECTION_TIMEOUT', () => {
+    const error = new MongoOperationTimeoutError('Operation timed out');
+    expect(mapDriverError(error)).toEqual({
+      code: 'CONNECTION_TIMEOUT',
+      message: 'The server did not answer in time',
+      detail: 'Operation timed out',
+    });
+  });
+
   it('maps a server selection timeout with no server errors to CONNECTION_TIMEOUT', () => {
     const error = selectionError('Server selection timed out after 2000 ms');
     expect(mapDriverError(error)).toEqual({

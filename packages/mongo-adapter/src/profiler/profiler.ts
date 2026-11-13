@@ -18,6 +18,7 @@ import {
 } from '@mongo-gui/core';
 import { definedEntry, readNumber, readRecord } from '../documents';
 import { mapDriverError } from '../errors';
+import { commandTimeoutMs } from '../client-options';
 
 export interface ProfileCollectionInfo {
   readonly exists: boolean;
@@ -55,7 +56,9 @@ const ALL_COMMAND_NAMES = Object.values(COMMAND_NAMES_BY_OP).flatMap((names) => 
 
 export async function getProfilingLevel(client: MongoClient, db: string): Promise<ProfilingLevel> {
   try {
-    const reply: unknown = await client.db(db).command({ profile: -1, comment: PROFILER_COMMENT });
+    const reply: unknown = await client
+      .db(db)
+      .command({ profile: -1, comment: PROFILER_COMMENT }, { timeoutMS: commandTimeoutMs(client) });
     return toProfilingLevel(reply);
   } catch (error) {
     throw toException(error);

@@ -1,5 +1,5 @@
 import type { ConnectionProfileInput } from '@mongo-gui/core';
-import type { MongoClientOptions } from 'mongodb';
+import type { MongoClient, MongoClientOptions } from 'mongodb';
 
 const DEFAULT_TIMEOUT_MS = 10_000;
 const APP_NAME = 'mongo-gui';
@@ -34,6 +34,16 @@ export function buildClientOptions(profile: ConnectionProfileInput): ClientConfi
   // The declaration build rejects a partially filled MongoClientOptions because the driver
   // types TLS socket fields as required. Every key set above is optional in the driver API.
   return { uri: profile.uri, options: options as MongoClientOptions };
+}
+
+// The timeoutMS for a command that must not wait forever on a server that accepts the socket and
+// never answers. It is the server selection timeout the profile sets. A URI can set that to 0, which
+// the driver reads as no limit, so the default applies then. Pass it per command. Do not set it on
+// the client: a client-wide socket timeout would also cut off long queries, shell sessions and change
+// streams.
+export function commandTimeoutMs(client: Pick<MongoClient, 'options'>): number {
+  const selection = client.options.serverSelectionTimeoutMS;
+  return selection > 0 ? Math.max(selection, DEFAULT_TIMEOUT_MS) : DEFAULT_TIMEOUT_MS;
 }
 
 function applyTls(options: Partial<MongoClientOptions>, tls: TlsProfile): void {

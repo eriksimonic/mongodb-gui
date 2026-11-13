@@ -26,6 +26,7 @@ import {
 } from '@mongo-gui/core';
 import { mapDriverError } from '../errors';
 import { readField, readRecord } from '../documents';
+import { commandTimeoutMs } from '../client-options';
 import { parseOperationTime, parsePipeline, parseResumeToken, toChangeEvent } from './helpers';
 
 // Error code 286: the resume token is older than the oplog window. A resume from it can fail the
@@ -298,11 +299,12 @@ export function openChangeWatch(
 
   // Marks the watch finished and closes the driver stream. The driver's close does not send
   // killCursors while a getMore is pending, so the read loop is awaited first: its getMore ends
-  // within maxAwaitTimeMs. The server cursor is then killed explicitly, so it does not stay idle.
+  // within maxAwaitTimeMs. A getMore that the server never answers would hold that wait forever, so
+  // the wait is bounded. The server cursor is then killed explicitly, so it does not stay idle.
   async function close(): Promise<void> {
     finish('closed');
     await closeStream();
-    await pumping;
+    await settleWithin(pumping, commandTimeoutMs(client));
     // Read at call time: the driver replaces its cursor when it resumes on its own.
     await killCursor(client, stream === undefined ? undefined : cursorOf(stream));
   }
@@ -355,8 +357,20 @@ function isCursorHandle(value: unknown): value is CursorHandle {
   return typeof value === 'object' && value !== null && 'id' in value && 'namespace' in value;
 }
 
+// Resolves when the promise settles or when ms has passed, whichever comes first. Never rejects.
+function settleWithin(promise: Promise<unknown>, ms: number): Promise<void> {
+  return new Promise((resolve) => {
+    const timer = setTimeout(resolve, ms);
+    const done = () => {
+      clearTimeout(timer);
+      resolve();
+    };
+    promise.then(done, done);
+  });
+}
+
 // Kills the server cursor with killCursors. Errors are ignored: the cursor may already be gone,
-// and close must not fail for it.
+// and close must not fail for it. The command is bounded, so a silent server cannot hold close.
 async function killCursor(client: MongoClient, cursor: CursorHandle | undefined): Promise<void> {
   const id = cursor?.id;
   if (cursor === undefined || id === undefined || id.isZero()) {
@@ -365,7 +379,7 @@ async function killCursor(client: MongoClient, cursor: CursorHandle | undefined)
   const collection = cursor.namespace.collection ?? AGGREGATE_COMMAND_COLLECTION;
   await client
     .db(cursor.namespace.db)
-    .command({ killCursors: collection, cursors: [id] })
+    .command({ killCursors: collection, cursors: [id] }, { timeoutMS: commandTimeoutMs(client) })
     .catch(() => undefined);
 }
 

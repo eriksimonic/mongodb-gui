@@ -3,6 +3,8 @@ import { z } from 'zod';
 import { AppErrorException, appError } from '@mongo-gui/core';
 
 export const DEFAULT_DOCKER_TIMEOUT_MS = 5_000;
+const DEFAULT_PULL_TIMEOUT_MS = 5 * 60_000;
+const MAX_PULL_LINE_LENGTH = 1024 * 1024;
 const LINUX_SOCKET = '/var/run/docker.sock';
 const WINDOWS_PIPE = '//./pipe/docker_engine';
 const UNIX_PREFIX = 'unix://';
@@ -45,6 +47,8 @@ export interface DockerEngineClientOptions {
   readonly socketPath: string;
   /** Maximum silence on the socket before a request fails. Defaults to 5 seconds. */
   readonly timeoutMs?: number;
+  /** Maximum total time for an image pull, however much progress it reports. Defaults to 5 minutes. */
+  readonly pullTimeoutMs?: number;
 }
 
 /** One entry of `GET /containers/json`, reduced to the fields discovery uses. */
@@ -139,6 +143,7 @@ interface CallOptions {
 export function createDockerEngineClient(options: DockerEngineClientOptions): DockerEngineClient {
   const { socketPath } = options;
   const timeoutMs = options.timeoutMs ?? DEFAULT_DOCKER_TIMEOUT_MS;
+  const pullTimeoutMs = options.pullTimeoutMs ?? DEFAULT_PULL_TIMEOUT_MS;
 
   const send = async (
     method: string,
@@ -252,12 +257,21 @@ export function createDockerEngineClient(options: DockerEngineClientOptions): Do
         throw httpError(status, await readText(response));
       }
       let failure: string | undefined;
-      await readLines(response, (line) => {
-        const parsed = PullLineSchema.safeParse(parseJsonOrUndefined(line));
-        if (parsed.success && parsed.data.error !== undefined && failure === undefined) {
-          failure = parsed.data.error;
-        }
-      });
+      // The idle timer in exchange resets on every progress line, so only this deadline ends a
+      // pull that keeps sending lines. It starts once the headers arrive.
+      const deadline = setTimeout(() => {
+        response.destroy(new TimeoutSignal());
+      }, pullTimeoutMs);
+      try {
+        await readLines(response, (line) => {
+          const parsed = PullLineSchema.safeParse(parseJsonOrUndefined(line));
+          if (parsed.success && parsed.data.error !== undefined && failure === undefined) {
+            failure = parsed.data.error;
+          }
+        });
+      } finally {
+        clearTimeout(deadline);
+      }
       if (failure !== undefined) {
         throw new DockerEngineError('Docker could not pull the image.', truncate(failure));
       }
@@ -320,7 +334,10 @@ function readText(response: IncomingMessage): Promise<string> {
   });
 }
 
-/** Calls onLine for each complete line as the body arrives. Resolves when the body ends. */
+/**
+ * Calls onLine for each complete line as the body arrives. Resolves when the body ends. Rejects,
+ * and stops the body, when a line is longer than MAX_PULL_LINE_LENGTH characters.
+ */
 function readLines(response: IncomingMessage, onLine: (line: string) => void): Promise<void> {
   let pending = '';
   return new Promise<void>((resolve, reject) => {
@@ -329,6 +346,19 @@ function readLines(response: IncomingMessage, onLine: (line: string) => void): P
       pending += chunk;
       const lines = pending.split('\n');
       pending = lines.pop() ?? '';
+      if (
+        pending.length > MAX_PULL_LINE_LENGTH ||
+        lines.some((line) => line.length > MAX_PULL_LINE_LENGTH)
+      ) {
+        response.destroy();
+        reject(
+          new DockerEngineError(
+            'Docker returned an unexpected response.',
+            'pull progress line too long',
+          ),
+        );
+        return;
+      }
       for (const line of lines) {
         if (line.trim() !== '') {
           onLine(line);

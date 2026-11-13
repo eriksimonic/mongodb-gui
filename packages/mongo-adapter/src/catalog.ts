@@ -20,6 +20,7 @@ import {
   type PlainObject,
 } from './documents';
 import { stringifyEjson } from './ejson';
+import { commandTimeoutMs } from './client-options';
 
 export interface ListCollectionsOptions {
   readonly includeSystem?: boolean;
@@ -32,7 +33,9 @@ type IndexUsage = NonNullable<IndexInfo['usage']>;
 const SYSTEM_PREFIX = 'system.';
 
 export async function listDatabases(client: MongoClient): Promise<DatabaseInfo[]> {
-  const reply: unknown = await client.db('admin').command({ listDatabases: 1 });
+  const reply: unknown = await client
+    .db('admin')
+    .command({ listDatabases: 1 }, { timeoutMS: commandTimeoutMs(client) });
   return readArray(reply, 'databases').flatMap(toDatabaseInfo).sort(byName);
 }
 

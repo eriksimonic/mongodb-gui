@@ -10,6 +10,7 @@ import {
   readString,
 } from '../documents';
 import { mapDriverError } from '../errors';
+import { commandTimeoutMs } from '../client-options';
 
 export interface ListOperationsOptions {
   readonly includeIdle?: boolean;
@@ -26,6 +27,8 @@ export async function listOperations(
   const includeIdle = options.includeIdle === true;
   const includeSystem = options.includeSystem === true;
   let rows: unknown[];
+  // Not bounded: a timeoutMS on a non-tailable cursor covers the whole toArray, and a busy server
+  // can take longer than the bound to list its operations.
   try {
     rows = await client
       .db('admin')
@@ -53,7 +56,9 @@ export async function listOperations(
 
 export async function killOperation(client: MongoClient, opid: string | number): Promise<void> {
   try {
-    await client.db('admin').command({ killOp: 1, op: opid });
+    await client
+      .db('admin')
+      .command({ killOp: 1, op: opid }, { timeoutMS: commandTimeoutMs(client) });
   } catch (error) {
     throw new AppErrorException(mapDriverError(error));
   }

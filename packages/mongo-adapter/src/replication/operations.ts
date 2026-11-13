@@ -12,10 +12,13 @@ import {
 import { parseInput } from '../management/errors';
 import { readString } from '../documents';
 import { mapDriverError } from '../errors';
+import { commandTimeoutMs } from '../client-options';
 
 const NEW_PRIMARY_TIMEOUT_MS = 30_000;
 const NEW_PRIMARY_POLL_MS = 500;
 const DEFAULT_PRIORITY = 1;
+// The server's default secondaryCatchUpPeriodSecs, which applies when the request does not set it.
+const SERVER_CATCH_UP_DEFAULT_SECONDS = 10;
 
 // Steps the primary down and waits for another member to take over. Returns the new primary's
 // name as the set reports it. The server closes client connections on a step-down, so a dropped
@@ -33,8 +36,12 @@ export async function stepDown(client: MongoClient, input: unknown): Promise<str
       : { secondaryCatchUpPeriodSecs: request.secondaryCatchUpSeconds }),
     ...(request.force === true ? { force: true } : {}),
   };
+  // The server waits up to the catch-up period before it steps down, so the bound allows that wait.
+  const catchUpSeconds = request.secondaryCatchUpSeconds ?? SERVER_CATCH_UP_DEFAULT_SECONDS;
   try {
-    await admin.command(command);
+    await admin.command(command, {
+      timeoutMS: commandTimeoutMs(client) + catchUpSeconds * 1000,
+    });
   } catch (error) {
     if (!(error instanceof MongoNetworkError)) {
       throw new AppErrorException(mapDriverError(error));
@@ -49,7 +56,9 @@ export async function stepDown(client: MongoClient, input: unknown): Promise<str
 export async function freeze(client: MongoClient, seconds: number): Promise<void> {
   const parsed = parseInput<FreezeInput>(FreezeInputSchema, { seconds });
   try {
-    await client.db('admin').command({ replSetFreeze: parsed.seconds });
+    await client
+      .db('admin')
+      .command({ replSetFreeze: parsed.seconds }, { timeoutMS: commandTimeoutMs(client) });
   } catch (error) {
     throw new AppErrorException(mapDriverError(error));
   }
@@ -76,7 +85,9 @@ export async function initiate(client: MongoClient, input: unknown): Promise<voi
 
 async function currentPrimary(client: MongoClient): Promise<string | undefined> {
   try {
-    const hello: unknown = await client.db('admin').command({ hello: 1 });
+    const hello: unknown = await client
+      .db('admin')
+      .command({ hello: 1 }, { timeoutMS: commandTimeoutMs(client) });
     return readString(hello, 'primary');
   } catch (error) {
     throw new AppErrorException(mapDriverError(error));
@@ -85,9 +96,14 @@ async function currentPrimary(client: MongoClient): Promise<string | undefined> 
 
 async function awaitNewPrimary(client: MongoClient, previous: string | undefined): Promise<string> {
   const deadline = Date.now() + NEW_PRIMARY_TIMEOUT_MS;
-  while (Date.now() < deadline) {
+  const timeoutMS = commandTimeoutMs(client);
+  // The time left is read once per attempt. The loop ends at 0 or less, because the driver reads a
+  // bound of 0 as no limit.
+  for (let left = deadline - Date.now(); left > 0; left = deadline - Date.now()) {
     try {
-      const hello: unknown = await client.db('admin').command({ hello: 1 });
+      const hello: unknown = await client
+        .db('admin')
+        .command({ hello: 1 }, { timeoutMS: Math.min(timeoutMS, left) });
       const primary = readString(hello, 'primary');
       if (primary !== undefined && primary !== previous) {
         return primary;

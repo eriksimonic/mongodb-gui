@@ -14,6 +14,7 @@ import {
 } from '@mongo-gui/core';
 import { readString } from '../documents';
 import { mapDriverError } from '../errors';
+import { commandTimeoutMs } from '../client-options';
 
 export type SampleListener = (sample: MonitorSample) => void;
 export type SampleErrorListener = (error: AppError) => void;
@@ -182,18 +183,22 @@ export class Sampler {
     }
   }
 
-  // Never rejects. A failed sample is reported to error listeners and the sampler keeps going.
+  // Never rejects. A failed sample is reported to error listeners and the sampler keeps going. Each
+  // command has a timeoutMS, so a server that never answers ends the sample with an error.
   private async sampleOnce(): Promise<void> {
     const epoch = this.epoch;
+    const timeoutMS = commandTimeoutMs(this.client);
     try {
       const admin = this.client.db('admin');
-      const replicaSet = await this.isReplicaSet(admin);
-      const serverStatus = withoutCommandMetrics(await admin.command(SERVER_STATUS_COMMAND));
+      const replicaSet = await this.isReplicaSet(admin, timeoutMS);
+      const serverStatus = withoutCommandMetrics(
+        await admin.command(SERVER_STATUS_COMMAND, { timeoutMS }),
+      );
       const replSetStatus: unknown = replicaSet
-        ? await admin.command(REPL_SET_STATUS_COMMAND)
+        ? await admin.command(REPL_SET_STATUS_COMMAND, { timeoutMS })
         : undefined;
-      const oplogFirst = replicaSet ? await this.readOplogEdge(ASCENDING) : undefined;
-      const oplogLast = replicaSet ? await this.readOplogEdge(DESCENDING) : undefined;
+      const oplogFirst = replicaSet ? await this.readOplogEdge(ASCENDING, timeoutMS) : undefined;
+      const oplogLast = replicaSet ? await this.readOplogEdge(DESCENDING, timeoutMS) : undefined;
       const current: RawServerSnapshot = {
         at: this.now(),
         serverStatus,
@@ -215,21 +220,21 @@ export class Sampler {
     }
   }
 
-  private async isReplicaSet(admin: Database): Promise<boolean> {
+  private async isReplicaSet(admin: Database, timeoutMS: number): Promise<boolean> {
     if (this.replicaSet === undefined) {
-      const hello: unknown = await admin.command(HELLO_COMMAND);
+      const hello: unknown = await admin.command(HELLO_COMMAND, { timeoutMS });
       this.replicaSet = readString(hello, 'setName') !== undefined;
     }
     return this.replicaSet;
   }
 
   // Reads the first or last oplog entry. A failed read leaves the window undefined for this tick.
-  private async readOplogEdge(direction: 1 | -1): Promise<unknown> {
+  private async readOplogEdge(direction: 1 | -1, timeoutMS: number): Promise<unknown> {
     try {
       const rows = await this.client
         .db('local')
         .collection('oplog.rs')
-        .find({}, { projection: { ts: 1 } })
+        .find({}, { projection: { ts: 1 }, timeoutMS })
         .sort({ $natural: direction })
         .limit(1)
         .toArray();

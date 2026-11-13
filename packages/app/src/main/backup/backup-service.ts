@@ -247,6 +247,8 @@ function dumpedDatabases(
 export function createBackupService<Client>(deps: BackupServiceDeps<Client>): BackupService {
   const jobs = new Map<string, Job>();
   const wrote = new Set<string>();
+  // Output paths that a start or a running job holds. startDump takes them before its first await.
+  const reserved = new Set<string>();
   const logger = deps.log ?? defaultLog;
   const interval = deps.progressIntervalMs ?? BACKUP_PROGRESS_INTERVAL_MS;
   const env = deps.env ?? toolEnv(process.env, deps.platform);
@@ -510,7 +512,7 @@ export function createBackupService<Client>(deps: BackupServiceDeps<Client>): Ba
           message: `The backup finished at ${plan.outputPath}, but its description file could not be written: ${error.message}`,
         };
       } else {
-        // The output did not exist at start, so whatever is there now is this job's.
+        // startDump found these paths free and reserved them, so whatever is there now is this job's.
         await rm(partialPath, { force: true }).catch(() => undefined);
         await rm(plan.outputPath, { recursive: true, force: true }).catch(() => undefined);
         if (archive) await rm(plan.sidecarPath, { force: true }).catch(() => undefined);
@@ -664,45 +666,70 @@ export function createBackupService<Client>(deps: BackupServiceDeps<Client>): Ba
       if (problem !== undefined) throw invalid(problem.message);
       const outputPath = join(input.folder, backupFileName(input.name, input.options));
       const sidecarPath = sidecarPathFor(outputPath, input.options.output);
+      // The check and the reservation run before the first await. A second start for the same path fails here.
       if (
         existsSync(outputPath) ||
         existsSync(sidecarPath) ||
-        existsSync(`${outputPath}.partial`)
+        existsSync(`${outputPath}.partial`) ||
+        reserved.has(outputPath)
       ) {
         throw new AppErrorException(
           appError('ALREADY_EXISTS', 'A backup with this name already exists in the folder.'),
         );
       }
-      const readPreference = input.options.readPreference;
-      const endpoint = await deps.endpoint(
-        input.connectionId,
-        readPreference === undefined ? {} : { readPreference },
-      );
-      const { secrets } = endpoint;
-      const tools = await deps.registry.resolve(input.toolsVersion);
-      const server = await masked(secrets, async () =>
-        deps.readServerInfo(deps.getClient(input.connectionId), input.scope),
-      );
-      const serverProblem = dumpOptionProblems(input.scope, input.options, server)[0];
-      if (serverProblem !== undefined) throw invalid(serverProblem.message);
-      const findings = assessBackup({
-        server,
-        namespaces: server.namespaces,
-        tools: {
-          selected: tools.install.version,
-          installed: await installedVersions(deps.registry),
-          available: [],
-        },
-      });
-      refuseUnresolved(
-        unresolvedFindings(findings, input.acknowledged, undefined, endpoint.profileName),
-      );
+      reserved.add(outputPath);
+      let launched = false;
+      try {
+        const readPreference = input.options.readPreference;
+        const endpoint = await deps.endpoint(
+          input.connectionId,
+          readPreference === undefined ? {} : { readPreference },
+        );
+        const { secrets } = endpoint;
+        const tools = await deps.registry.resolve(input.toolsVersion);
+        const server = await masked(secrets, async () =>
+          deps.readServerInfo(deps.getClient(input.connectionId), input.scope),
+        );
+        const serverProblem = dumpOptionProblems(input.scope, input.options, server)[0];
+        if (serverProblem !== undefined) throw invalid(serverProblem.message);
+        const findings = assessBackup({
+          server,
+          namespaces: server.namespaces,
+          tools: {
+            selected: tools.install.version,
+            installed: await installedVersions(deps.registry),
+            available: [],
+          },
+        });
+        refuseUnresolved(
+          unresolvedFindings(findings, input.acknowledged, undefined, endpoint.profileName),
+        );
 
-      const job = register(input.connectionId, 'dump', tools.install.version);
-      const release = deps.registry.markInUse(tools.install.version);
-      const plan: DumpPlan = { input, endpoint, tools, server, findings, outputPath, sidecarPath };
-      launch(job, () => runDump(job, plan), release);
-      return job.jobId;
+        const job = register(input.connectionId, 'dump', tools.install.version);
+        const release = deps.registry.markInUse(tools.install.version);
+        const plan: DumpPlan = {
+          input,
+          endpoint,
+          tools,
+          server,
+          findings,
+          outputPath,
+          sidecarPath,
+        };
+        // The path stays reserved until the job ends, so a later start sees the files or the job.
+        launch(
+          job,
+          () => runDump(job, plan),
+          () => {
+            release();
+            reserved.delete(outputPath);
+          },
+        );
+        launched = true;
+        return job.jobId;
+      } finally {
+        if (!launched) reserved.delete(outputPath);
+      }
     },
 
     async startRestore(input) {

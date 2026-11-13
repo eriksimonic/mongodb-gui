@@ -6,13 +6,14 @@ import {
   type Document,
   type MongoClient,
 } from 'mongodb';
-import { describe, expect, it } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import type { ChangeEvent, ChangeWatchState } from '@mongo-gui/core';
 import { openChangeWatch, type ChangeWatch } from './watcher';
 
 // A scripted stand-in for the driver's ChangeStream. Each open takes the next script. A script
-// step is a document, or an error thrown by tryNext. An exhausted script idles until close.
-type Step = { readonly doc: Document } | { readonly error: unknown };
+// step is a document, an error thrown by tryNext, or a hang: a getMore the server never answers,
+// which close does not release. An exhausted script idles until close.
+type Step = { readonly doc: Document } | { readonly error: unknown } | { readonly hang: true };
 
 interface FakeCursor {
   id: Long;
@@ -52,6 +53,9 @@ class FakeStream extends EventEmitter {
     if ('error' in step) {
       throw step.error;
     }
+    if ('hang' in step) {
+      return new Promise<Document | null>(() => undefined);
+    }
     return step.doc;
   }
 
@@ -90,7 +94,9 @@ function fakeDriver(openings: Step[][]): FakeDriver {
     commands.push(document);
     return Promise.resolve({ ok: 1 });
   };
+  // The bound on a hung getMore is the server selection timeout, with a floor of 10 s.
   const client = {
+    options: { serverSelectionTimeoutMS: 10_000 },
     watch,
     db: () => ({ watch, collection: () => ({ watch }), command }),
   } as unknown as MongoClient;
@@ -314,5 +320,30 @@ describe('openChangeWatch phases and pause (fake driver)', () => {
     expect(delivered.map((event) => event.id)).toEqual(['1', '2', '3']);
     expect(watch.state().phase).toBe('live');
     await watch.close();
+  });
+});
+
+describe('openChangeWatch close (fake driver)', () => {
+  beforeEach(() => {
+    vi.useFakeTimers();
+  });
+
+  afterEach(() => {
+    vi.useRealTimers();
+  });
+
+  it('settles when a getMore never answers, and kills the cursor anyway', async () => {
+    const { driver, watch } = run([[{ hang: true }]]);
+    expect(watch.state().phase).toBe('live');
+
+    let settled = false;
+    void watch.close().then(() => {
+      settled = true;
+    });
+    // The wait ends at the bound, which is 10 s here.
+    await vi.advanceTimersByTimeAsync(10_000);
+
+    expect(settled).toBe(true);
+    expect(killedIds(driver.commands)).toEqual([1]);
   });
 });

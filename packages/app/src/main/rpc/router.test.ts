@@ -1935,6 +1935,147 @@ describe('connection files', { timeout: 30_000 }, () => {
     );
   });
 
+  it('imports a file profile with certificate checks off as a copy with them on', async () => {
+    const { router } = await setUp();
+    const insecure = expectValue(
+      await router.handle('connections.create', {
+        name: 'Insecure',
+        uri: 'mongodb://insecure.example.com:27017/?TLSInsecure=true&tlsAllowInvalidHostnames=true&tlsAllowInvalidCertificates=true&replicaSet=rs0',
+        tls: { enabled: true, allowInvalidCertificates: true },
+      }),
+    ) as { id: string };
+    const written = await exportTo(router, [insecure.id]);
+    await pickOpen(router, written);
+
+    expectValue(
+      await router.handle('connections.importFromFile', {
+        path: written,
+        passphrase: PASSPHRASE,
+        mode: 'rename',
+      }),
+    );
+    const listed = expectValue(await router.handle('connections.list', undefined)) as {
+      id: string;
+      name: string;
+      uriRedacted: string;
+      tls?: { allowInvalidCertificates?: boolean };
+    }[];
+    const original = listed.find((item) => item.id === insecure.id);
+    const copy = listed.find((item) => item.name === 'Insecure (2)');
+
+    expect(original?.tls?.allowInvalidCertificates).toBe(true);
+    expect(copy?.tls?.allowInvalidCertificates).not.toBe(true);
+    expect(copy?.uriRedacted).toContain('replicaSet=rs0');
+    expect(copy?.uriRedacted).not.toMatch(/tlsinsecure|tlsallowinvalid/i);
+  });
+
+  describe('imported certificate options', () => {
+    // Each case imports one URI with the certificate flag set and checks the stored copy.
+    const cases: { name: string; uri: string; base: string; kept: Record<string, string> }[] = [
+      {
+        name: 'an @ in a query value',
+        uri: 'mongodb://u:p@h/?tls=true&tlsInsecure=true&appName=a@b',
+        base: 'mongodb://u:p@h/',
+        kept: { tls: 'true', appName: 'a@b' },
+      },
+      {
+        name: 'a percent-encoded option name',
+        uri: 'mongodb://h/?tls%49nsecure=true&replicaSet=rs0',
+        base: 'mongodb://h/',
+        kept: { replicaSet: 'rs0' },
+      },
+      {
+        name: 'mixed-case option names',
+        uri: 'mongodb://h/?TLSInsecure=true&tlsallowinvalidhostnames=true&TLSALLOWINVALIDCERTIFICATES=true&replicaSet=rs0',
+        base: 'mongodb://h/',
+        kept: { replicaSet: 'rs0' },
+      },
+      {
+        name: 'mongodb+srv',
+        uri: 'mongodb+srv://u:p@cluster.example.com/?retryWrites=true&tlsInsecure=true',
+        base: 'mongodb+srv://u:p@cluster.example.com/',
+        kept: { retryWrites: 'true' },
+      },
+      {
+        name: 'several hosts',
+        uri: 'mongodb://h1:27017,h2:27017/?replicaSet=rs0&tlsAllowInvalidHostnames=true',
+        base: 'mongodb://h1:27017,h2:27017/',
+        kept: { replicaSet: 'rs0' },
+      },
+      {
+        name: 'an encoded password',
+        uri: 'mongodb://app:p%3F%40%26%25@h/?tlsInsecure=true&replicaSet=rs0',
+        base: 'mongodb://app:p%3F%40%26%25@h/',
+        kept: { replicaSet: 'rs0' },
+      },
+      {
+        name: 'no query',
+        uri: 'mongodb://h1:27017/shop',
+        base: 'mongodb://h1:27017/shop',
+        kept: {},
+      },
+    ];
+
+    it.each(cases)('drops the certificate options from a URI with $name', async (item) => {
+      const { router } = await setUp();
+      const created = expectValue(
+        await router.handle('connections.create', {
+          name: 'Insecure',
+          uri: item.uri,
+          tls: { enabled: true, allowInvalidCertificates: true },
+        }),
+      ) as { id: string };
+      const written = await exportTo(router, [created.id]);
+      await pickOpen(router, written);
+      expectValue(
+        await router.handle('connections.importFromFile', {
+          path: written,
+          passphrase: PASSPHRASE,
+          mode: 'rename',
+        }),
+      );
+      const listed = expectValue(await router.handle('connections.list', undefined)) as {
+        id: string;
+        name: string;
+      }[];
+      const copyId = listed.find((entry) => entry.name === 'Insecure (2)')?.id ?? '';
+      const copy = expectValue(await router.handle('connections.get', { id: copyId })) as {
+        uri: string;
+        tls?: { allowInvalidCertificates?: boolean };
+      };
+
+      expect(copy.tls?.allowInvalidCertificates).not.toBe(true);
+      expect(copy.uri.split('?')[0]).toBe(item.base);
+      expect(Object.fromEntries(new URLSearchParams(copy.uri.split('?')[1] ?? ''))).toEqual(
+        item.kept,
+      );
+    });
+  });
+
+  it('names the connection, and not its URI, when a URI cannot be read on import', async () => {
+    const { router } = await setUp();
+    const broken = expectValue(
+      await router.handle('connections.create', {
+        name: 'Broken copy',
+        uri: 'MONGODB://app:hunter2@h',
+      }),
+    ) as { id: string };
+    const written = await exportTo(router, [broken.id]);
+    await pickOpen(router, written);
+
+    const failed = expectError(
+      await router.handle('connections.importFromFile', {
+        path: written,
+        passphrase: PASSPHRASE,
+        mode: 'rename',
+      }),
+      'VALIDATION',
+    );
+    expect(failed.message).toContain('Broken copy');
+    expect(JSON.stringify(failed)).not.toContain('hunter2');
+    expect(JSON.stringify(failed)).not.toContain('MONGODB://');
+  });
+
   it('keeps the pick after a failed passphrase so the import can be retried', async () => {
     const { router, localId } = await setUp();
     const written = await exportTo(router, [localId]);

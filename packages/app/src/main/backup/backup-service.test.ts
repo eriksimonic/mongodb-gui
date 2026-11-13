@@ -511,6 +511,41 @@ describe('backup service dump', () => {
     expect(t.spawn).not.toHaveBeenCalled();
   });
 
+  it('refuses a second start for an output path a running job holds, and keeps the first dump', async () => {
+    let letFirstFinish!: () => void;
+    const gate = new Promise<void>((resolve) => {
+      letFirstFinish = resolve;
+    });
+    const t = setup(async (child) => {
+      await gate;
+      archiveDump(child);
+    });
+    const first = t.service.startDump(dumpInput());
+    await expect(t.service.startDump(dumpInput())).rejects.toMatchObject({
+      error: { code: 'ALREADY_EXISTS' },
+    });
+    letFirstFinish();
+    await first;
+    const last = await t.finalEvent();
+
+    expect(last).toMatchObject({ done: true, cancelled: false });
+    expect(last.error).toBeUndefined();
+    expect(readFileSync(join(folder, 'shop-backup.archive.gz'))).toEqual(ARCHIVE_BYTES);
+    expect(t.children).toHaveLength(1);
+  });
+
+  it('frees the output path when a start fails before the job runs', async () => {
+    const t = setup(archiveDump, {
+      readServerInfo: vi
+        .fn()
+        .mockRejectedValueOnce(new Error('server down'))
+        .mockResolvedValue(serverInfo()),
+    });
+    await expect(t.service.startDump(dumpInput())).rejects.toBeDefined();
+    await expect(t.service.startDump(dumpInput())).resolves.toEqual(expect.any(String));
+    await t.finalEvent();
+  });
+
   it('refuses several databases with the archive format', async () => {
     const t = setup(archiveDump);
     await expect(

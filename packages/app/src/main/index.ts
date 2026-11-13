@@ -29,6 +29,7 @@ import { createAppServices, type AppServices } from './rpc/app-services';
 import { createSafeStorageDeviceKey } from './device-key';
 import { registerIpc, sendEvent } from './rpc/ipc';
 import { utilityFork } from './shell/utility-fork';
+import { forwarderTlsRoot, sweepStaleForwarderDirs } from './docker/runtime';
 import { readStartupSettings, writeStartupSettings } from './startup-settings';
 
 const preloadPath = join(import.meta.dirname, '../preload/index.cjs');
@@ -40,6 +41,24 @@ const userDataOverride = app.isPackaged ? undefined : process.env['MONGO_GUI_USE
 if (userDataOverride !== undefined && userDataOverride !== '') {
   app.setPath('userData', userDataOverride);
 }
+
+// The profile folder allows one running instance. A second start gives up here, and the first
+// instance brings its window forward.
+const hasInstanceLock = app.requestSingleInstanceLock();
+if (!hasInstanceLock) {
+  app.quit();
+}
+app.on('second-instance', () => {
+  const window = mainWindow ?? BrowserWindow.getAllWindows()[0];
+  if (window === undefined || window.isDestroyed()) {
+    return;
+  }
+  if (window.isMinimized()) {
+    window.restore();
+  }
+  window.show();
+  window.focus();
+});
 
 // The e2e tests read this trace to see which RPC calls reached the router. A packaged app never writes it.
 const rpcTracePath = app.isPackaged ? undefined : process.env['MONGO_GUI_RPC_TRACE'];
@@ -389,7 +408,12 @@ app.on('web-contents-created', (_event, contents) => {
 app
   .whenReady()
   .then(() => {
+    if (!hasInstanceLock) {
+      return;
+    }
     installContentSecurityPolicy();
+    // Runs under the profile lock, before any forwarder exists. Forwarders start after the vault unlocks.
+    sweepStaleForwarderDirs(forwarderTlsRoot(app.getPath('userData')));
     const appServices = createAppServices({
       userDataDir: app.getPath('userData'),
       deviceKey: createSafeStorageDeviceKey(safeStorage, process.platform),
@@ -401,6 +425,10 @@ app
         platform: process.platform,
         isPackaged: app.isPackaged,
         appVersion: app.getVersion(),
+        releaseInstanceLock: () => {
+          app.releaseSingleInstanceLock();
+        },
+        reacquireInstanceLock: () => app.requestSingleInstanceLock(),
       },
       tools: {
         isPackaged: app.isPackaged,
@@ -440,6 +468,8 @@ app
         restart: () => {
           // An AppImage runs from a temporary mount, so it has to relaunch the image file itself.
           const appImage = process.env['APPIMAGE'];
+          // The new process must get the profile lock, so this one lets go of it before the relaunch.
+          app.releaseSingleInstanceLock();
           app.relaunch(
             appImage === undefined
               ? undefined

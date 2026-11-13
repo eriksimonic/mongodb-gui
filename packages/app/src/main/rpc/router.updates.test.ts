@@ -219,7 +219,14 @@ describe('createAppServices with an updater', () => {
       userDataDir: dir,
       kdf: FAST_KDF,
       failureDelayMs: 0,
-      updates: { autoUpdater: backend, platform: 'linux', isPackaged: true, appVersion: '0.1.0' },
+      updates: {
+        autoUpdater: backend,
+        platform: 'linux',
+        isPackaged: true,
+        appVersion: '0.1.0',
+        releaseInstanceLock: () => undefined,
+        reacquireInstanceLock: () => true,
+      },
     });
     const router = createRouter({
       ...services,
@@ -253,7 +260,14 @@ describe('createAppServices with an updater', () => {
       userDataDir: dir,
       kdf: FAST_KDF,
       failureDelayMs: 0,
-      updates: { autoUpdater: backend, platform: 'linux', isPackaged: true, appVersion: '0.1.0' },
+      updates: {
+        autoUpdater: backend,
+        platform: 'linux',
+        isPackaged: true,
+        appVersion: '0.1.0',
+        releaseInstanceLock: () => undefined,
+        reacquireInstanceLock: () => true,
+      },
     });
     const firstRouter = createRouter({ ...first, onEvent: () => undefined });
     expectValue(await firstRouter.handle('vault.initialise', { password: PASSWORD }));
@@ -264,7 +278,14 @@ describe('createAppServices with an updater', () => {
       userDataDir: dir,
       kdf: FAST_KDF,
       failureDelayMs: 0,
-      updates: { autoUpdater: backend, platform: 'linux', isPackaged: true, appVersion: '0.1.0' },
+      updates: {
+        autoUpdater: backend,
+        platform: 'linux',
+        isPackaged: true,
+        appVersion: '0.1.0',
+        releaseInstanceLock: () => undefined,
+        reacquireInstanceLock: () => true,
+      },
     });
     services.updates.start();
     await vi.advanceTimersByTimeAsync(CHECK_INTERVAL_MS);

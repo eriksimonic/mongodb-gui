@@ -52,6 +52,8 @@ interface Harness {
   readonly states: UpdateState[];
   readonly log: { info: Mock; warn: Mock; error: Mock };
   readonly setting: { value: boolean | undefined };
+  readonly releaseInstanceLock: Mock<() => void>;
+  readonly reacquireInstanceLock: Mock<() => boolean>;
 }
 
 interface HarnessOptions {
@@ -69,6 +71,8 @@ function harness(options: HarnessOptions = {}): Harness {
   const setting: { value: boolean | undefined } = {
     value: 'enabled' in options ? options.enabled : true,
   };
+  const releaseInstanceLock = vi.fn<() => void>();
+  const reacquireInstanceLock = vi.fn<() => boolean>(() => true);
   const updater = createUpdater({
     log: options.logger ?? log,
     settings: { readCheckForUpdates: () => setting.value },
@@ -81,8 +85,10 @@ function harness(options: HarnessOptions = {}): Harness {
     appVersion: '0.1.0',
     env: options.env ?? { APPIMAGE: '/opt/Mongo GUI.AppImage' },
     now: () => NOW,
+    releaseInstanceLock,
+    reacquireInstanceLock,
   });
-  return { updater, backend, states, log, setting };
+  return { updater, backend, states, log, setting, releaseInstanceLock, reacquireInstanceLock };
 }
 
 function latest(states: readonly UpdateState[]): UpdateState {
@@ -356,6 +362,79 @@ describe('phase transitions', () => {
       error: { code: 'VALIDATION' },
     });
     expect(backend.downloadUpdate).not.toHaveBeenCalled();
+  });
+
+  it('releases the instance lock before quitAndInstall starts the new AppImage', async () => {
+    const { updater, backend, releaseInstanceLock, reacquireInstanceLock } = harness({
+      env: { APPIMAGE: '/a.AppImage' },
+    });
+    backend.checkForUpdates.mockImplementation(() => {
+      backend.emit('update-available', availableInfo());
+      return Promise.resolve(null);
+    });
+    await updater.check();
+    await updater.download();
+    backend.emit('update-downloaded', availableInfo());
+
+    updater.install();
+
+    expect(releaseInstanceLock).toHaveBeenCalledTimes(1);
+    expect(backend.quitAndInstall).toHaveBeenCalledTimes(1);
+    expect(releaseInstanceLock.mock.invocationCallOrder[0]).toBeLessThan(
+      backend.quitAndInstall.mock.invocationCallOrder[0] ?? 0,
+    );
+    // The install starts a quit, so the lock stays released.
+    expect(reacquireInstanceLock).not.toHaveBeenCalled();
+  });
+
+  it('takes the instance lock back when the install fails after quitAndInstall', async () => {
+    const { updater, backend, releaseInstanceLock, reacquireInstanceLock } = harness({
+      env: { APPIMAGE: '/a.AppImage' },
+    });
+    // electron-updater reports a failed install through the error event, and no quit follows.
+    backend.quitAndInstall.mockImplementation(() => {
+      backend.emit('error', new Error('EACCES: permission denied, unlink'));
+    });
+    backend.checkForUpdates.mockImplementation(() => {
+      backend.emit('update-available', availableInfo());
+      return Promise.resolve(null);
+    });
+    await updater.check();
+    await updater.download();
+    backend.emit('update-downloaded', availableInfo());
+
+    updater.install();
+
+    expect(releaseInstanceLock).toHaveBeenCalledTimes(1);
+    expect(reacquireInstanceLock).toHaveBeenCalledTimes(1);
+    expect(reacquireInstanceLock.mock.invocationCallOrder[0]).toBeGreaterThan(
+      releaseInstanceLock.mock.invocationCallOrder[0] ?? Infinity,
+    );
+  });
+
+  it('takes the instance lock back when quitAndInstall throws', async () => {
+    const { updater, backend, reacquireInstanceLock } = harness({
+      env: { APPIMAGE: '/a.AppImage' },
+    });
+    backend.quitAndInstall.mockImplementation(() => {
+      throw new Error('boom');
+    });
+    backend.checkForUpdates.mockImplementation(() => {
+      backend.emit('update-available', availableInfo());
+      return Promise.resolve(null);
+    });
+    await updater.check();
+    await updater.download();
+    backend.emit('update-downloaded', availableInfo());
+
+    expect(() => updater.install()).toThrow('boom');
+    expect(reacquireInstanceLock).toHaveBeenCalledTimes(1);
+  });
+
+  it('does not release the instance lock when nothing is downloaded', () => {
+    const { updater, releaseInstanceLock } = harness();
+    expect(() => updater.install()).toThrow('No downloaded update is ready to install.');
+    expect(releaseInstanceLock).not.toHaveBeenCalled();
   });
 
   it('refuses to install when nothing is downloaded', () => {

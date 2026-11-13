@@ -30,7 +30,7 @@ import {
   type KdfParams,
   type VaultOptions,
 } from '@mongo-gui/storage';
-import { createDockerRuntime, type DockerRuntime } from '../docker/runtime';
+import { createDockerRuntime, forwarderTlsRoot, type DockerRuntime } from '../docker/runtime';
 import { log } from '../log';
 import type { ForkFunction } from '../shell/child';
 import { RuntimeSupervisor } from '../shell/supervisor';
@@ -67,6 +67,8 @@ export interface UpdatesRuntime {
   readonly platform: string;
   readonly isPackaged: boolean;
   readonly appVersion: string;
+  readonly releaseInstanceLock: () => void;
+  readonly reacquireInstanceLock: () => boolean;
 }
 
 export interface AppServicesOptions {
@@ -171,6 +173,7 @@ export function createAppServices(options: AppServicesOptions): AppServices {
   const engine = createDockerEngineClient({ socketPath });
   const docker = createDockerRuntime({
     engine,
+    tlsRoot: forwarderTlsRoot(options.userDataDir),
     socketPath,
     forwarders: createForwarderManager({ client: engine }),
     connections,

@@ -1,6 +1,17 @@
 packages:
   - 'packages/*'
 
+overrides:
+  # Packages with advisories in `pnpm audit --prod`, moved to the first patched release.
+  # zod is limited to 4.x: @mongosh/arg-parser needs zod 3, which has no patched release, and it
+  # only parses the shell arguments the app builds.
+  # basic-ftp moves from 5 to 6 for get-uri (via pac-proxy-agent), because 5.x has no patched
+  # release. get-uri only calls access, lastMod, list, downloadTo and close, which 6.x keeps.
+  'dompurify@<3.4.17': '^3.4.17'
+  'zod@>=4.0.0 <4.6.6': '^4.6.6'
+  'basic-ftp@<6.2.4': '^6.2.4'
+  'body-parser@>=2.0.0 <2.4.0': '^2.4.0'
+
 allowBuilds:
   electron: true
   esbuild: true

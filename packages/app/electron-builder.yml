@@ -8,6 +8,15 @@ files:
   - out/**
   - package.json
 asar: true
+# Electron fuses. enableNodeCliInspectArguments is left at its default: Playwright starts the
+# packaged app with --inspect=0 (E2E_PACKAGED_EXECUTABLE in release.yml), and the fuse would
+# stop that. enableEmbeddedAsarIntegrityValidation is checked on macOS and Windows.
+electronFuses:
+  runAsNode: false
+  enableNodeOptionsEnvironmentVariable: false
+  onlyLoadAppFromAsar: true
+  enableEmbeddedAsarIntegrityValidation: true
+  enableCookieEncryption: true
 # No native modules: SQLite, AES and scrypt come from Node 24, so there is nothing to rebuild.
 npmRebuild: false
 artifactName: ${productName}-${version}-${os}-${arch}.${ext}

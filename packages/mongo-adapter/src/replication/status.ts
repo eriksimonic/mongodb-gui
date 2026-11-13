@@ -9,6 +9,7 @@ import {
 } from '@mongo-gui/core';
 import { readString } from '../documents';
 import { mapDriverError } from '../errors';
+import { commandTimeoutMs } from '../client-options';
 
 const OPLOG_DATABASE = 'local';
 const OPLOG_COLLECTION = 'oplog.rs';
@@ -18,9 +19,12 @@ const DESCENDING = -1;
 // Driver values such as ObjectId become their canonical EJSON form, which core keeps as a string.
 const serialise: EjsonSerialiser = (value) => BSON.EJSON.stringify(value, { relaxed: false });
 
+// Each read here has a bound, so a server that never answers ends the read with an error.
 export async function isReplicaSet(client: MongoClient): Promise<boolean> {
   try {
-    const hello: unknown = await client.db('admin').command({ hello: 1 });
+    const hello: unknown = await client
+      .db('admin')
+      .command({ hello: 1 }, { timeoutMS: commandTimeoutMs(client) });
     return readString(hello, 'setName') !== undefined;
   } catch (error) {
     throw new AppErrorException(mapDriverError(error));
@@ -30,10 +34,11 @@ export async function isReplicaSet(client: MongoClient): Promise<boolean> {
 export async function getReplicaSetStatus(client: MongoClient): Promise<ReplicaSetStatus> {
   try {
     const admin = client.db('admin');
+    const bound = { timeoutMS: commandTimeoutMs(client) };
     // The configuration supplies the priority, votes, hidden flag, delay and tags of each member,
     // which replSetGetStatus does not report.
-    const status: unknown = await admin.command({ replSetGetStatus: 1 });
-    const config: unknown = await admin.command({ replSetGetConfig: 1 });
+    const status: unknown = await admin.command({ replSetGetStatus: 1 }, bound);
+    const config: unknown = await admin.command({ replSetGetConfig: 1 }, bound);
     const [oplogFirst, oplogLast, oplogStats] = await Promise.all([
       readOplogEdge(client, ASCENDING),
       readOplogEdge(client, DESCENDING),
@@ -54,7 +59,9 @@ export async function getReplicaSetStatus(client: MongoClient): Promise<ReplicaS
 
 export async function getReplicaSetConfig(client: MongoClient): Promise<ReplicaSetConfig> {
   try {
-    const reply: unknown = await client.db('admin').command({ replSetGetConfig: 1 });
+    const reply: unknown = await client
+      .db('admin')
+      .command({ replSetGetConfig: 1 }, { timeoutMS: commandTimeoutMs(client) });
     return normaliseReplicaSetConfig(reply, serialise);
   } catch (error) {
     throw new AppErrorException(mapDriverError(error));
@@ -65,7 +72,9 @@ export async function getReplicaSetConfig(client: MongoClient): Promise<ReplicaS
 // behind a port mapping reports the address it listens on, so this can differ from the URI.
 export async function getSelfHost(client: MongoClient): Promise<string | undefined> {
   try {
-    const hello: unknown = await client.db('admin').command({ hello: 1 });
+    const hello: unknown = await client
+      .db('admin')
+      .command({ hello: 1 }, { timeoutMS: commandTimeoutMs(client) });
     return readString(hello, 'me');
   } catch (error) {
     throw new AppErrorException(mapDriverError(error));
@@ -78,7 +87,7 @@ async function readOplogEdge(client: MongoClient, direction: 1 | -1): Promise<un
     const rows = await client
       .db(OPLOG_DATABASE)
       .collection(OPLOG_COLLECTION)
-      .find({}, { projection: { ts: 1 } })
+      .find({}, { projection: { ts: 1 }, timeoutMS: commandTimeoutMs(client) })
       .sort({ $natural: direction })
       .limit(1)
       .toArray();
@@ -90,7 +99,9 @@ async function readOplogEdge(client: MongoClient, direction: 1 | -1): Promise<un
 
 async function readOplogStats(client: MongoClient): Promise<unknown> {
   try {
-    return await client.db(OPLOG_DATABASE).command({ collStats: OPLOG_COLLECTION });
+    return await client
+      .db(OPLOG_DATABASE)
+      .command({ collStats: OPLOG_COLLECTION }, { timeoutMS: commandTimeoutMs(client) });
   } catch {
     return undefined;
   }

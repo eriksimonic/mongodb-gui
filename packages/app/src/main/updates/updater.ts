@@ -89,6 +89,16 @@ export interface UpdaterOptions {
   readonly env?: Readonly<Record<string, string | undefined>>;
   /** Defaults to the system clock. Tests inject one. */
   readonly now?: () => Date;
+  /**
+   * Lets go of the single-instance lock of the profile. The AppImage updater starts the new process
+   * before this one quits, and the new process must find the lock free.
+   */
+  readonly releaseInstanceLock: () => void;
+  /**
+   * Takes the lock back when the install does not start a quit. Returns false when another instance
+   * holds it now.
+   */
+  readonly reacquireInstanceLock: () => boolean;
 }
 
 export interface Updater {
@@ -132,7 +142,15 @@ export function canInstallUpdates(
  * autoUpdater, so `pnpm dev` never contacts GitHub.
  */
 export function createUpdater(options: UpdaterOptions): Updater {
-  const { log, settings, autoUpdater, isPackaged, appVersion } = options;
+  const {
+    log,
+    settings,
+    autoUpdater,
+    isPackaged,
+    appVersion,
+    releaseInstanceLock,
+    reacquireInstanceLock,
+  } = options;
   const now = options.now ?? (() => new Date());
   const canInstall = canInstallUpdates(options.platform, options.env ?? process.env);
 
@@ -140,8 +158,16 @@ export function createUpdater(options: UpdaterOptions): Updater {
   let timer: ReturnType<typeof setTimeout> | undefined;
   let started = false;
   let manualCheck = false;
+  // True while quitAndInstall runs. A failed install reports through the error event inside that call.
+  let installing = false;
   let checkOutcomes = 0;
   let dismissedVersion: string | undefined;
+
+  function takeInstanceLockBack(): void {
+    if (!reacquireInstanceLock()) {
+      log.warn('Another instance holds the profile lock after a failed install.');
+    }
+  }
 
   function initialPhase(): UpdatePhase {
     return settings.readCheckForUpdates() === false ? 'disabled' : 'idle';
@@ -243,6 +269,10 @@ export function createUpdater(options: UpdaterOptions): Updater {
       publish({ ...only('downloaded'), available });
     });
     autoUpdater.on('error', (error) => {
+      // A failed install starts no quit, so this process keeps running and needs the lock back.
+      if (installing) {
+        takeInstanceLockBack();
+      }
       handleError(error);
     });
   }
@@ -397,7 +427,16 @@ export function createUpdater(options: UpdaterOptions): Updater {
           appError('VALIDATION', 'No downloaded update is ready to install.'),
         );
       }
-      autoUpdater.quitAndInstall(false, true);
+      releaseInstanceLock();
+      installing = true;
+      try {
+        autoUpdater.quitAndInstall(false, true);
+      } catch (error) {
+        takeInstanceLockBack();
+        throw error;
+      } finally {
+        installing = false;
+      }
     },
 
     dismiss(version) {

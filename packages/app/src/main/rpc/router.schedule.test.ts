@@ -41,7 +41,14 @@ describe('the first scheduled check when the app starts locked', () => {
       userDataDir: dir,
       kdf: FAST_KDF,
       failureDelayMs: 0,
-      updates: { autoUpdater: backend, platform: 'linux', isPackaged: true, appVersion: '0.1.0' },
+      updates: {
+        autoUpdater: backend,
+        platform: 'linux',
+        isPackaged: true,
+        appVersion: '0.1.0',
+        releaseInstanceLock: () => undefined,
+        reacquireInstanceLock: () => true,
+      },
     });
     const router = createRouter({ ...services, onEvent: () => undefined });
 

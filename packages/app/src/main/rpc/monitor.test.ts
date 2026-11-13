@@ -135,7 +135,9 @@ function buildHarness(): Harness & { readonly dir: string } {
   const statusListeners = new Set<(connectionId: string, status: ConnectionStatus) => void>();
 
   // The admin database answers $currentOp with operationRows and records every command.
+  // The options hold the server selection timeout that the bounded commands read.
   const client = {
+    options: { serverSelectionTimeoutMS: 10_000 },
     db: () => ({
       aggregate: () => ({ toArray: async () => operationRows }),
       command: async (command: unknown) => {

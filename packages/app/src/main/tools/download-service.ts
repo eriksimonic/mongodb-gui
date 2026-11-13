@@ -21,6 +21,8 @@ import type { ToolsRegistry } from './registry';
 
 const SIZE_CAP = 300 * 1024 * 1024;
 const EVENT_INTERVAL_MS = 250;
+// A download that gets no bytes for this long fails. Each chunk restarts the wait.
+const DOWNLOAD_IDLE_MS = 30_000;
 const ALLOWED_HOSTS = new Set(['fastdl.mongodb.org', 'downloads.mongodb.org']);
 
 export interface ToolsDownloadsDeps {
@@ -115,7 +117,7 @@ export function createToolsDownloads(deps: ToolsDownloadsDeps): ToolsDownloads {
         deps.fetchImpl,
         download.url,
         partial,
-        controller.signal,
+        controller,
         (bytes, length) => {
           transferred = bytes;
           total = length;
@@ -195,7 +197,9 @@ export function createToolsDownloads(deps: ToolsDownloadsDeps): ToolsDownloads {
       phase('done');
     } catch (error) {
       let failure: AppError = toAppError(error);
-      if (cancelled() || failure.code === 'CANCELLED') {
+      // A stall aborts the job too. It is a failure with its own message, not a cancel.
+      const stalled = controller.signal.reason instanceof AppErrorException;
+      if (!stalled && (cancelled() || failure.code === 'CANCELLED')) {
         send({ phase: 'cancelled', transferred });
         return;
       }
@@ -241,62 +245,98 @@ async function hashFile(path: string): Promise<string> {
 }
 
 // Streams the response body into a file while hashing it. Returns the sha256 in hex.
+// The job aborts when no bytes arrive for DOWNLOAD_IDLE_MS. The abort reason is then the timeout error.
 async function streamToFile(
   fetchImpl: typeof fetch,
   url: string,
   path: string,
-  signal: AbortSignal,
+  controller: AbortController,
   onProgress: (bytes: number, total: number | undefined) => void,
 ): Promise<string> {
-  const response = await fetchImpl(url, { signal });
-  if (response.url) {
-    const final = new URL(response.url);
-    if (final.protocol !== 'https:' || !ALLOWED_HOSTS.has(final.hostname)) {
+  const signal = controller.signal;
+  let idleTimer: ReturnType<typeof setTimeout> | undefined;
+  const armIdle = (): void => {
+    clearTimeout(idleTimer);
+    idleTimer = setTimeout(() => controller.abort(stallError()), DOWNLOAD_IDLE_MS);
+  };
+  // Rejects on abort, so a fetch, a read or a drain that never returns cannot hold the job.
+  const stopped = new Promise<never>((_resolve, reject) => {
+    signal.addEventListener('abort', () => reject(stopReason(signal)), { once: true });
+  });
+  stopped.catch(() => undefined);
+  armIdle();
+  try {
+    const response = await Promise.race([fetchImpl(url, { signal }), stopped]);
+    if (response.url) {
+      const final = new URL(response.url);
+      if (final.protocol !== 'https:' || !ALLOWED_HOSTS.has(final.hostname)) {
+        throw new AppErrorException(
+          appError('VALIDATION', 'The download was redirected to a host that is not trusted.'),
+        );
+      }
+    }
+    if (!response.ok || !response.body) {
       throw new AppErrorException(
-        appError('VALIDATION', 'The download was redirected to a host that is not trusted.'),
+        appError('CONNECTION_FAILED', `MongoDB's download server answered ${response.status}.`),
       );
     }
-  }
-  if (!response.ok || !response.body) {
-    throw new AppErrorException(
-      appError('CONNECTION_FAILED', `MongoDB's download server answered ${response.status}.`),
-    );
-  }
-  const length = Number(response.headers.get('content-length'));
-  const total = Number.isFinite(length) && length > 0 ? length : undefined;
-  if (total !== undefined && total > SIZE_CAP) throw tooLarge();
-  const out = createWriteStream(path, { mode: 0o600 });
-  // Listens from the start: an open or write error (ENOSPC, EACCES) can come while the loop
-  // waits for the body or for 'drain', and an 'error' with no listener crashes main.
-  const failed = new Promise<never>((_resolve, reject) => out.once('error', reject));
-  failed.catch(() => undefined);
-  const hash = createHash('sha256');
-  const reader = response.body.getReader();
-  let bytes = 0;
-  try {
-    for (;;) {
-      const { done, value } = await Promise.race([reader.read(), failed]);
-      if (done) break;
-      if (signal.aborted) throw cancelError();
-      bytes += value.byteLength;
-      if (bytes > SIZE_CAP) throw tooLarge();
-      hash.update(value);
-      if (!out.write(value)) {
-        await Promise.race([new Promise<void>((resolve) => out.once('drain', resolve)), failed]);
+    const length = Number(response.headers.get('content-length'));
+    const total = Number.isFinite(length) && length > 0 ? length : undefined;
+    if (total !== undefined && total > SIZE_CAP) throw tooLarge();
+    const out = createWriteStream(path, { mode: 0o600 });
+    // Listens from the start: an open or write error (ENOSPC, EACCES) can come while the loop
+    // waits for the body or for 'drain', and an 'error' with no listener crashes main.
+    const failed = new Promise<never>((_resolve, reject) => out.once('error', reject));
+    failed.catch(() => undefined);
+    const hash = createHash('sha256');
+    const reader = response.body.getReader();
+    let bytes = 0;
+    try {
+      for (;;) {
+        const { done, value } = await Promise.race([reader.read(), failed, stopped]);
+        armIdle();
+        if (done) break;
+        if (signal.aborted) throw stopReason(signal);
+        bytes += value.byteLength;
+        if (bytes > SIZE_CAP) throw tooLarge();
+        hash.update(value);
+        if (!out.write(value)) {
+          await Promise.race([
+            new Promise<void>((resolve) => out.once('drain', resolve)),
+            failed,
+            stopped,
+          ]);
+        }
+        onProgress(bytes, total);
       }
-      onProgress(bytes, total);
+      await Promise.race([new Promise<void>((resolve) => out.end(resolve)), failed, stopped]);
+    } catch (error) {
+      out.destroy();
+      await reader.cancel().catch(() => undefined);
+      throw error;
     }
-    await Promise.race([new Promise<void>((resolve) => out.end(resolve)), failed]);
-  } catch (error) {
-    out.destroy();
-    await reader.cancel().catch(() => undefined);
-    throw error;
+    return hash.digest('hex');
+  } finally {
+    clearTimeout(idleTimer);
   }
-  return hash.digest('hex');
 }
 
 function tooLarge(): AppErrorException {
   return new AppErrorException(
     appError('VALIDATION', 'The download is larger than the 300 MB limit.'),
   );
+}
+
+function stallError(): AppErrorException {
+  return new AppErrorException(
+    appError(
+      'CONNECTION_TIMEOUT',
+      `The download stopped. No data arrived for ${DOWNLOAD_IDLE_MS / 1000} seconds.`,
+    ),
+  );
+}
+
+// The error that ends the job: the stall error when the timer aborted it, otherwise a cancel.
+function stopReason(signal: AbortSignal): AppErrorException {
+  return signal.reason instanceof AppErrorException ? signal.reason : cancelError();
 }

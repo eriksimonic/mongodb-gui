@@ -20,6 +20,7 @@ import {
 import { parseInput } from '../management/errors';
 import { readBoolean, readNumber, readString } from '../documents';
 import { mapDriverError } from '../errors';
+import { commandTimeoutMs } from '../client-options';
 import { getReplicaSetConfig, getReplicaSetStatus } from './status';
 
 export interface ApplyOptions {
@@ -429,7 +430,9 @@ async function secondaryDelayField(
   client: MongoClient,
 ): Promise<'secondaryDelaySecs' | 'slaveDelay'> {
   try {
-    const hello: unknown = await client.db('admin').command({ hello: 1 });
+    const hello: unknown = await client
+      .db('admin')
+      .command({ hello: 1 }, { timeoutMS: commandTimeoutMs(client) });
     const wire = readNumber(hello, 'maxWireVersion');
     return wire !== undefined && wire < WIRE_VERSION_WITH_SECONDARY_DELAY
       ? 'slaveDelay'
@@ -485,11 +488,15 @@ async function sendReconfig(
   force: boolean,
 ): Promise<void> {
   const deadline = Date.now() + RECONFIG_RETRY_TIMEOUT_MS;
+  // From MongoDB 4.4, a non-force replSetReconfig returns once a majority of the voting members
+  // install the config. It gets the commit wait on top of the client bound. The bound stays at the
+  // client bound for a force reconfigure, which does not wait for the majority.
+  const timeoutMS = force ? commandTimeoutMs(client) : COMMIT_TIMEOUT_MS + commandTimeoutMs(client);
   for (;;) {
     try {
       await client
         .db('admin')
-        .command({ replSetReconfig: config, ...(force ? { force: true } : {}) });
+        .command({ replSetReconfig: config, ...(force ? { force: true } : {}) }, { timeoutMS });
       return;
     } catch (error) {
       if (!isConfigurationInProgress(error) || Date.now() >= deadline) {
@@ -504,14 +511,21 @@ function isConfigurationInProgress(error: unknown): boolean {
   return readString(error, 'codeName') === 'ConfigurationInProgress';
 }
 
-// Polls until the server reports the new configuration as committed, or the timeout passes.
+// Polls until the server reports the new configuration as committed, or the timeout passes. Each poll
+// is bounded by the time left, so a poll that never answers cannot hold the wait past the deadline.
 async function waitForCommitment(client: MongoClient): Promise<void> {
   const deadline = Date.now() + COMMIT_TIMEOUT_MS;
-  while (Date.now() < deadline) {
+  const timeoutMS = commandTimeoutMs(client);
+  // The time left is read once per attempt. The loop ends at 0 or less, because the driver reads a
+  // bound of 0 as no limit.
+  for (let left = deadline - Date.now(); left > 0; left = deadline - Date.now()) {
     try {
       const reply: unknown = await client
         .db('admin')
-        .command({ replSetGetConfig: 1, commitmentStatus: true });
+        .command(
+          { replSetGetConfig: 1, commitmentStatus: true },
+          { timeoutMS: Math.min(timeoutMS, left) },
+        );
       if (readBoolean(reply, 'commitmentStatus') === true) {
         return;
       }

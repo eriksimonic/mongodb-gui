@@ -1,5 +1,6 @@
 import type { MongoClient } from 'mongodb';
 import { listDatabases } from '../catalog';
+import { commandTimeoutMs } from '../client-options';
 import { runHello } from '../server-info';
 import {
   definedEntry,
@@ -129,7 +130,9 @@ function toShardedDatabase(raw: unknown, major: number): ShardedDatabase[] {
 }
 
 async function readMajorVersion(client: MongoClient): Promise<number> {
-  const build: unknown = await client.db('admin').command({ buildInfo: 1 });
+  const build: unknown = await client
+    .db('admin')
+    .command({ buildInfo: 1 }, { timeoutMS: commandTimeoutMs(client) });
   const fromArray = readArray(build, 'versionArray')[0];
   if (typeof fromArray === 'number') {
     return fromArray;

@@ -249,4 +249,83 @@ describe('createToolsDownloads', () => {
     await settle();
     expect(last()).toMatchObject({ phase: 'error', error: { code: 'CONNECTION_FAILED' } });
   });
+
+  describe('idle timeout', () => {
+    afterEach(() => vi.useRealTimers());
+
+    // A body that never sends a byte. The read waits until the job aborts it.
+    const silentBody = (data: Buffer): Response => {
+      const res = new Response(new ReadableStream<Uint8Array>(), {
+        headers: { 'content-length': String(data.length) },
+      });
+      Object.defineProperty(res, 'url', { value: URL_ });
+      return res;
+    };
+
+    it('fails a download that sends no bytes for 30 seconds, and frees the slot', async () => {
+      vi.useFakeTimers({ toFake: ['setTimeout', 'clearTimeout'] });
+      const downloads = make(() => silentBody(archive()));
+      await downloads.start(VERSION);
+      // The idle timer starts when the body is read, after the folder is made.
+      await vi.waitFor(() => expect(last()?.phase).toBe('downloading'));
+      await vi.advanceTimersByTimeAsync(30_000);
+      await settle();
+      expect(last()).toMatchObject({ phase: 'error', error: { code: 'CONNECTION_TIMEOUT' } });
+      expect(last()?.error?.message).toContain('30 seconds');
+
+      await vi.waitFor(async () => {
+        expect(await downloads.start(VERSION)).toEqual({ downloadId: expect.any(String) });
+      });
+      downloads.cancelAll();
+    });
+
+    it('fails a download whose body stalls after a chunk', async () => {
+      vi.useFakeTimers({ toFake: ['setTimeout', 'clearTimeout'] });
+      const data = archive();
+      const [first] = split(data);
+      let push!: (chunk: Uint8Array) => void;
+      const body = new ReadableStream<Uint8Array>({
+        start(controller) {
+          push = (chunk) => controller.enqueue(chunk);
+        },
+      });
+      const res = new Response(body, { headers: { 'content-length': String(data.length) } });
+      Object.defineProperty(res, 'url', { value: URL_ });
+      const downloads = make(() => res, { data });
+      await downloads.start(VERSION);
+      await vi.waitFor(() => expect(last()?.phase).toBe('downloading'));
+      await vi.advanceTimersByTimeAsync(10_000);
+      push(new Uint8Array(first ?? []));
+      await vi.advanceTimersByTimeAsync(30_000);
+      await settle();
+      expect(last()).toMatchObject({ phase: 'error', error: { code: 'CONNECTION_TIMEOUT' } });
+    });
+
+    it('keeps a download alive while each chunk arrives within the idle window', async () => {
+      vi.useFakeTimers({ toFake: ['setTimeout', 'clearTimeout'] });
+      const data = archive();
+      const [first, second] = split(data);
+      let push!: (chunk: Uint8Array) => void;
+      let close!: () => void;
+      const body = new ReadableStream<Uint8Array>({
+        start(controller) {
+          push = (chunk) => controller.enqueue(chunk);
+          close = () => controller.close();
+        },
+      });
+      const res = new Response(body, { headers: { 'content-length': String(data.length) } });
+      Object.defineProperty(res, 'url', { value: URL_ });
+      const downloads = make(() => res, { data });
+      await downloads.start(VERSION);
+      await vi.waitFor(() => expect(last()?.phase).toBe('downloading'));
+      // 40 seconds in total, but no gap longer than 20 seconds.
+      await vi.advanceTimersByTimeAsync(20_000);
+      push(new Uint8Array(first ?? []));
+      await vi.advanceTimersByTimeAsync(20_000);
+      push(new Uint8Array(second ?? []));
+      close();
+      await settle();
+      expect(last()?.phase).toBe('done');
+    });
+  });
 });

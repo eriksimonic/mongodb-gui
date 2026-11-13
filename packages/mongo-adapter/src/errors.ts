@@ -1,4 +1,9 @@
-import { MongoNetworkTimeoutError, MongoServerError, MongoServerSelectionError } from 'mongodb';
+import {
+  MongoNetworkTimeoutError,
+  MongoOperationTimeoutError,
+  MongoServerError,
+  MongoServerSelectionError,
+} from 'mongodb';
 import { AppErrorException, appError, redactUri, type AppError } from '@mongo-gui/core';
 import { readField } from './documents';
 
@@ -23,6 +28,10 @@ export function mapDriverError(error: unknown): AppError {
   }
   if (failures.some(isRefused)) {
     return appError('CONNECTION_FAILED', 'Could not connect to the server', detail);
+  }
+  // A command whose timeoutMS ran out. The server accepted the connection but did not answer.
+  if (error instanceof MongoOperationTimeoutError) {
+    return appError('CONNECTION_TIMEOUT', 'The server did not answer in time', detail);
   }
   if (isTimeout(error, serverErrors)) {
     return appError('CONNECTION_TIMEOUT', 'Connection timed out', detail);

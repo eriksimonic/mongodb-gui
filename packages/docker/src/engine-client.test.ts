@@ -323,6 +323,44 @@ describe('DockerEngineClient against a fake engine', () => {
     });
   });
 
+  it('fails with a timeout when a pull keeps sending progress lines past the deadline', async () => {
+    await startServer((_request, response) => {
+      response.writeHead(200, { 'content-type': 'application/json' });
+      // Each line resets the socket idle timer, so only the overall pull deadline can stop this.
+      const progress = setInterval(() => {
+        if (response.destroyed) return;
+        response.write('{"status":"Downloading"}\n');
+      }, 20);
+      response.once('close', () => {
+        clearInterval(progress);
+      });
+    });
+
+    const client = createDockerEngineClient({ socketPath, pullTimeoutMs: 200 });
+    await expect(client.pullImage('alpine/socat:latest')).rejects.toMatchObject({
+      error: { message: 'Docker did not respond in time.', detail: 'timeout' },
+    });
+  });
+
+  it.each([
+    ['an unterminated line', ''],
+    ['a complete line', '\n'],
+  ])('rejects a pull when a progress line over the cap is %s', async (_label, terminator) => {
+    await startServer((_request, response) => {
+      response.writeHead(200, { 'content-type': 'application/json' });
+      // The line is longer than the 1 MiB cap.
+      response.end(`{"status":"${'x'.repeat(1024 * 1024)}"}${terminator}`);
+    });
+
+    await expect(clientWith().pullImage('alpine/socat:latest')).rejects.toMatchObject({
+      error: {
+        code: 'INTERNAL',
+        message: 'Docker returned an unexpected response.',
+        detail: 'pull progress line too long',
+      },
+    });
+  });
+
   it('fails with a timeout when the engine stays silent', async () => {
     await startServer(() => {
       // Never answers.

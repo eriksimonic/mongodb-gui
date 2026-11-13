@@ -1,5 +1,7 @@
-import { describe, expect, it } from 'vitest';
+import { MongoOperationTimeoutError, type MongoClient } from 'mongodb';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import {
+  AppErrorException,
   ReconfigPlanSchema,
   ReplicaSetConfigSchema,
   type ReconfigChange,
@@ -7,7 +9,7 @@ import {
   type ReplicaSetMemberConfig,
   type ReplicaSetStatus,
 } from '@mongo-gui/core';
-import { planReconfig } from './reconfig';
+import { applyReconfig, planReconfig } from './reconfig';
 
 type MemberOverrides = Partial<Omit<ReplicaSetMemberConfig, 'id'>>;
 
@@ -860,5 +862,163 @@ describe('planReconfig: the healthy and primary views', () => {
     const status: ReplicaSetStatus = { setName: 'rs0', myState: 1, members: healthyThree.members };
     const plan = planWith(configOf(threeVoters), { kind: 'remove', memberId: 0 }, status);
     expect(plan.refused).toContain('is the primary');
+  });
+});
+
+// The commitment wait polls for 30 s. The timers are faked so the test does not sleep.
+const COMMIT_WAIT_MS = 30_000;
+
+interface PollCall {
+  readonly timeoutMS: number | undefined;
+  readonly at: number;
+}
+
+// A command that never answers unless it has a timeoutMS. The driver fails a command that outlives
+// its timeoutMS.
+function silentUnlessBounded(options?: { timeoutMS?: number }): Promise<never> {
+  if (options?.timeoutMS === undefined) {
+    return new Promise<never>(() => undefined);
+  }
+  return Promise.reject(new MongoOperationTimeoutError('Operation timed out'));
+}
+
+// A client that accepts the change at the planned version. Each commitment poll goes to
+// commitmentPoll and is recorded in polls. silentCommand names one command that never answers
+// unless it has a timeoutMS. The timeoutMS of each replSetReconfig is recorded in reconfigBounds.
+function reconfigClient(
+  commitmentPoll: (options?: { timeoutMS?: number }) => Promise<unknown>,
+  silentCommand?: 'hello' | 'replSetReconfig',
+): {
+  client: MongoClient;
+  polls: PollCall[];
+  reconfigBounds: Array<number | undefined>;
+} {
+  const polls: PollCall[] = [];
+  const reconfigBounds: Array<number | undefined> = [];
+  const liveConfig = {
+    config: {
+      _id: 'rs0',
+      version: 3,
+      members: [0, 1, 2].map((id) => ({
+        _id: id,
+        host: `mongo${id}:27017`,
+        priority: 1,
+        votes: 1,
+        hidden: false,
+        arbiterOnly: false,
+        buildIndexes: true,
+        secondaryDelaySecs: 0,
+        tags: {},
+      })),
+    },
+  };
+  const db = {
+    command: (document: Record<string, unknown>, options?: { timeoutMS?: number }) => {
+      if ('replSetReconfig' in document) {
+        reconfigBounds.push(options?.timeoutMS);
+      }
+      if (silentCommand !== undefined && silentCommand in document) {
+        return silentUnlessBounded(options);
+      }
+      if ('commitmentStatus' in document) {
+        polls.push({ timeoutMS: options?.timeoutMS, at: Date.now() });
+        return commitmentPoll(options);
+      }
+      if ('replSetGetConfig' in document) {
+        return Promise.resolve(liveConfig);
+      }
+      if ('hello' in document) {
+        return Promise.resolve({ maxWireVersion: 21 });
+      }
+      return Promise.resolve({ ok: 1 });
+    },
+  };
+  const client = { options: { serverSelectionTimeoutMS: 10_000 }, db: () => db };
+  return { client: client as unknown as MongoClient, polls, reconfigBounds };
+}
+
+describe('applyReconfig: commands that must not hang', () => {
+  beforeEach(() => {
+    vi.useFakeTimers();
+  });
+
+  afterEach(() => {
+    vi.useRealTimers();
+  });
+
+  it.each(['hello', 'replSetReconfig'] as const)(
+    'ends with an error when %s never answers',
+    async (command) => {
+      const { client } = reconfigClient(silentUnlessBounded, command);
+      const plan = planWith(configOf(threeVoters), add({ host: 'mongo3:27017' }), healthyThree);
+      let outcome: unknown = 'pending';
+      void applyReconfig(client, plan).then(
+        () => {
+          outcome = 'resolved';
+        },
+        (error: unknown) => {
+          outcome = error;
+        },
+      );
+
+      await vi.advanceTimersByTimeAsync(1000);
+
+      expect(outcome).toBeInstanceOf(AppErrorException);
+    },
+  );
+
+  it('bounds a non-force replSetReconfig past the majority wait of the server', async () => {
+    const { client, reconfigBounds } = reconfigClient(silentUnlessBounded, 'replSetReconfig');
+    const plan = planWith(configOf(threeVoters), add({ host: 'mongo3:27017' }), healthyThree);
+    void applyReconfig(client, plan).catch(() => undefined);
+
+    await vi.advanceTimersByTimeAsync(1000);
+
+    // A non-force replSetReconfig returns once a majority of voting members install the config.
+    expect(reconfigBounds).toEqual([COMMIT_WAIT_MS + 10_000]);
+  });
+});
+
+describe('applyReconfig: the commitment wait', () => {
+  beforeEach(() => {
+    vi.useFakeTimers();
+  });
+
+  afterEach(() => {
+    vi.useRealTimers();
+  });
+
+  it('ends the wait with an error when a commitment poll never answers', async () => {
+    const { client } = reconfigClient(silentUnlessBounded);
+    const plan = planWith(configOf(threeVoters), add({ host: 'mongo3:27017' }), healthyThree);
+    let outcome: unknown = 'pending';
+    void applyReconfig(client, plan).then(
+      () => {
+        outcome = 'resolved';
+      },
+      (error: unknown) => {
+        outcome = error;
+      },
+    );
+
+    await vi.advanceTimersByTimeAsync(COMMIT_WAIT_MS + 1000);
+
+    expect(outcome).toBeInstanceOf(AppErrorException);
+  });
+
+  it('bounds each commitment poll by the time left before the deadline', async () => {
+    const start = Date.now();
+    const { client, polls } = reconfigClient(silentUnlessBounded);
+    const plan = planWith(configOf(threeVoters), add({ host: 'mongo3:27017' }), healthyThree);
+    void applyReconfig(client, plan).catch(() => undefined);
+
+    await vi.advanceTimersByTimeAsync(COMMIT_WAIT_MS + 1000);
+
+    expect(polls.length).toBeGreaterThan(1);
+    for (const poll of polls) {
+      expect(poll.timeoutMS).toBeDefined();
+      expect(poll.timeoutMS).toBeGreaterThan(0);
+      expect(poll.timeoutMS).toBeLessThanOrEqual(start + COMMIT_WAIT_MS - poll.at);
+    }
   });
 });
