@@ -2,6 +2,45 @@
 
 All notable changes to Mongo GUI are listed here, newest first.
 
+## 0.6.2 - 2026-11-13
+
+### Fixed
+
+- Connecting to a Docker container with no published port no longer hangs on "connecting" the
+  first time. Two connects for one container could overlap while the app downloaded the
+  forwarder image, and the first one removed the forwarder the second one used. Connects,
+  credential connects and disconnects for one container now run one after another.
+- Disconnecting a Docker container no longer waits for a connect that is stuck. A quick
+  reconnect after a disconnect keeps its new forwarder.
+- A failed connect with wrong credentials no longer deletes the certificate files of a
+  connection that is still open.
+- The server information check after connecting now times out instead of waiting forever on a
+  server that accepts the connection but never answers.
+- Admin commands on a server that stops answering now end with "The server did not answer in
+  time" after at least 10 seconds. This covers the monitor, closing a change stream, replica set
+  status, reconfig, step down and freeze, the database list, the profiler level, and user reads.
+  Queries, the shell, change stream reads, exports and copies keep running without a limit.
+- Pulling the Docker forwarder image stops after 5 minutes instead of waiting forever.
+- Starting a second backup to the same file is refused. Before, the second backup could delete
+  the dump of the first one while it was still running.
+- The MongoDB Tools download fails after 30 seconds without data instead of hanging, so a new
+  download can start.
+- Importing connections from a file turns off "allow invalid certificates" and removes the
+  tlsInsecure, tlsAllowInvalidCertificates and tlsAllowInvalidHostnames options from the
+  imported connection strings. An import file can no longer turn off certificate checks.
+- The certificate files of Docker forwarders now live in the app's own data folder, and the app
+  removes the ones a crash left behind at the next start.
+
+### Changed
+
+- Only one Mongo GUI window runs per profile. Starting the app again brings the open window to
+  the front.
+- The packaged app turns on Electron's security fuses: no run-as-Node mode, no NODE_OPTIONS,
+  the app loads only from its archive, the archive is checked for changes, and cookies are
+  encrypted.
+- Updated dompurify, zod, basic-ftp and body-parser to releases that fix published security
+  advisories.
+
 ## 0.6.1 - 2026-11-13
 
 ### Added
