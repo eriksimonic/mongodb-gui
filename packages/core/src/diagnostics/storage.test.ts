@@ -1,5 +1,9 @@
 import { describe, expect, it } from 'vitest';
-import { StorageCollectionSchema, StorageCollectionsSchema, StorageDatabasesSchema } from './storage';
+import {
+  StorageCollectionSchema,
+  StorageCollectionsSchema,
+  StorageDatabasesSchema,
+} from './storage';
 
 const collection = {
   name: 'orders',
@@ -64,9 +68,9 @@ describe('StorageCollectionsSchema', () => {
   });
 
   it('rejects a negative size and a missing name', () => {
-    expect(
-      StorageCollectionSchema.safeParse({ ...collection, storageSize: -5 }).success,
-    ).toBe(false);
+    expect(StorageCollectionSchema.safeParse({ ...collection, storageSize: -5 }).success).toBe(
+      false,
+    );
     const withoutName: Record<string, unknown> = { ...collection };
     delete withoutName.name;
     expect(StorageCollectionSchema.safeParse(withoutName).success).toBe(false);

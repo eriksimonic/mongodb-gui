@@ -26,7 +26,10 @@ test('storage: the panel lists a database, and drilling in lists its collections
     await client
       .db(DATABASE)
       .collection('orders')
-      .insertMany([{ sku: 'a', qty: 1 }, { sku: 'b', qty: 2 }]);
+      .insertMany([
+        { sku: 'a', qty: 1 },
+        { sku: 'b', qty: 2 },
+      ]);
   } finally {
     await client.close();
   }

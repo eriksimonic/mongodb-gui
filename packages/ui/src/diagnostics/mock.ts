@@ -149,14 +149,18 @@ export function createDiagnosticsCalls(context: MockDiagnosticsContext): RpcClie
       context.guard(connectionId);
       return mockStorageDatabases();
     }),
-    storageCollections: method(calls.storageCollections, latencyMs, ({ connectionId, database }) => {
-      context.guard(connectionId);
-      const found = mockStorageCollections(database);
-      if (found === undefined) {
-        throw fail('COMMAND_FAILED', 'Database not found', database);
-      }
-      return found;
-    }),
+    storageCollections: method(
+      calls.storageCollections,
+      latencyMs,
+      ({ connectionId, database }) => {
+        context.guard(connectionId);
+        const found = mockStorageCollections(database);
+        if (found === undefined) {
+          throw fail('COMMAND_FAILED', 'Database not found', database);
+        }
+        return found;
+      },
+    ),
     connPoolStats: method(calls.connPoolStats, latencyMs, ({ connectionId }) => {
       context.guard(connectionId);
       return fixtureConnPool();

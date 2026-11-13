@@ -84,10 +84,9 @@ describe('computeInsights', () => {
         indexes: [{ name: 'by_email', size: 5, ops: 0, since: null }],
       }),
     ]);
-    expect(result.unusedIndexes.items.map((i) => `${i.database}.${i.collection}.${i.name}`)).toEqual([
-      'shop.orders.by_customer',
-      'analytics.users.by_email',
-    ]);
+    expect(
+      result.unusedIndexes.items.map((i) => `${i.database}.${i.collection}.${i.name}`),
+    ).toEqual(['shop.orders.by_customer', 'analytics.users.by_email']);
     expect(result.unusedIndexes.totalSize).toBe(35);
   });
 

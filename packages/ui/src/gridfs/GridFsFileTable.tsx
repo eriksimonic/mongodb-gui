@@ -68,11 +68,7 @@ export function GridFsFileTable({
       aria-rowcount={files.length + 1}
       className="mg-gridfs-table"
     >
-      <div
-        role="row"
-        className="mg-gridfs-head"
-        style={{ gridTemplateColumns: GRID_COLUMNS }}
-      >
+      <div role="row" className="mg-gridfs-head" style={{ gridTemplateColumns: GRID_COLUMNS }}>
         <div role="columnheader">
           <Checkbox
             aria-label="Select all files"

@@ -16,4 +16,3 @@ export function fillFor(item: { tone: SegmentTone }, position: number, hover: bo
   const base = item.tone === 'data' ? 34 : 44 - (position % 4) * 7;
   return `color-mix(in srgb, ${color} ${base + (hover ? 12 : 0)}%, var(--mg-surface-1))`;
 }
-

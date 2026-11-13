@@ -31,9 +31,7 @@ export function computeInsights(collections: TaggedCollection[]): StorageInsight
     .filter((size): size is number => size !== null);
 
   return {
-    topCollections: [...collections]
-      .sort((a, b) => b.storageSize - a.storageSize)
-      .slice(0, TOP_N),
+    topCollections: [...collections].sort((a, b) => b.storageSize - a.storageSize).slice(0, TOP_N),
     topIndexes: [...allIndexes].sort((a, b) => b.size - a.size).slice(0, TOP_N),
     unusedIndexes: {
       items: unused,
