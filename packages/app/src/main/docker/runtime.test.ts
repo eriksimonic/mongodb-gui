@@ -1,4 +1,13 @@
-import { existsSync, mkdtempSync, readFileSync, rmSync, statSync } from 'node:fs';
+import {
+  existsSync,
+  mkdirSync,
+  mkdtempSync,
+  readdirSync,
+  readFileSync,
+  rmSync,
+  statSync,
+  writeFileSync,
+} from 'node:fs';
 import { tmpdir } from 'node:os';
 import { dirname, join } from 'node:path';
 import { afterEach, describe, expect, it, vi } from 'vitest';
@@ -21,6 +30,7 @@ import type { Logger } from '../log';
 import {
   buildUri,
   createDockerRuntime,
+  sweepStaleForwarderDirs,
   type DockerConnectedResult,
   type DockerConnectResult,
   type DockerConnections,
@@ -173,6 +183,8 @@ interface FakeConnections extends DockerConnections {
   readonly connected: string[];
   readonly disconnected: string[];
   readonly tested: string[];
+  /** The last status of each profile id. A disconnect sets it to disconnected, as ConnectionManager does. */
+  readonly statuses: Map<string, ConnectionStatus>;
   nextStatus: ConnectionStatus;
   nextTest: ConnectionTestResult;
   failure: Error | undefined;
@@ -183,6 +195,7 @@ function fakeConnections(): FakeConnections {
     connected: [],
     disconnected: [],
     tested: [],
+    statuses: new Map(),
     nextStatus: CONNECTED,
     nextTest: { ok: true, serverVersion: '8.0.17', topology: 'standalone' },
     failure: undefined,
@@ -191,14 +204,19 @@ function fakeConnections(): FakeConnections {
       if (connections.failure !== undefined) {
         throw connections.failure;
       }
+      connections.statuses.set(profile.id, connections.nextStatus);
       return connections.nextStatus;
     },
     async disconnect(connectionId: string) {
       connections.disconnected.push(connectionId);
+      connections.statuses.set(connectionId, { state: 'disconnected' });
     },
     async test(profile: ConnectionProfileInput) {
       connections.tested.push(profile.uri);
       return connections.nextTest;
+    },
+    status(connectionId: string) {
+      return connections.statuses.get(connectionId) ?? { state: 'disconnected' };
     },
   };
   return connections;
@@ -234,6 +252,7 @@ function buildHarness(
   const connections = fakeConnections();
   const runtime = createDockerRuntime({
     engine: engine.client,
+    tlsRoot: join(dir, 'forwarder-tls'),
     socketPath: SOCKET,
     forwarders,
     connections,
@@ -575,6 +594,360 @@ describe('createDockerRuntime failure after the forwarder starts', () => {
   });
 });
 
+interface PendingAttempt {
+  readonly result: Promise<ConnectionStatus>;
+  settle(status: ConnectionStatus): void;
+}
+
+function pendingAttempt(): PendingAttempt {
+  let settle: (status: ConnectionStatus) => void = () => undefined;
+  const result = new Promise<ConnectionStatus>((resolve) => {
+    settle = resolve;
+  });
+  return { result, settle };
+}
+
+/**
+ * Models ConnectionManager.connect. A new attempt for a profile supersedes the pending one, and the
+ * superseded attempt resolves with the current status, `connecting`. The new attempt connects.
+ */
+function supersedingConnections(connections: FakeConnections): void {
+  const open = new Map<string, PendingAttempt>();
+  connections.connect = async (profile: ConnectionProfile) => {
+    connections.connected.push(profile.uri);
+    open.get(profile.id)?.settle({ state: 'connecting' });
+    const attempt = pendingAttempt();
+    open.set(profile.id, attempt);
+    setTimeout(() => {
+      if (open.get(profile.id) === attempt) {
+        open.delete(profile.id);
+      }
+      attempt.settle(CONNECTED);
+    }, 10);
+    return attempt.result;
+  };
+}
+
+describe('createDockerRuntime concurrent connects', () => {
+  it('two concurrent connects share one forwarder, and neither releases it', async () => {
+    const harness = buildHarness({
+      [PLAIN_ID]: inspectOf({ id: PLAIN_ID, name: 'orders-mongo' }),
+    });
+    supersedingConnections(harness.connections);
+
+    const [first, second] = await Promise.all([
+      harness.runtime.connect(PLAIN_ID),
+      harness.runtime.connect(PLAIN_ID),
+    ]);
+
+    expect(connectedOf(first).status).toEqual(CONNECTED);
+    expect(connectedOf(second).status).toEqual(CONNECTED);
+    expect(connectedOf(first).connectionId).toBe(connectedOf(second).connectionId);
+    expect(harness.forwarders.released).toEqual([]);
+  });
+
+  it('a connect and a connectWithCredentials for one container, connect first, neither releases it', async () => {
+    const harness = buildHarness({
+      [PLAIN_ID]: inspectOf({ id: PLAIN_ID, name: 'orders-mongo' }),
+    });
+    supersedingConnections(harness.connections);
+
+    const [viaConnect, viaCredentials] = await Promise.all([
+      harness.runtime.connect(PLAIN_ID),
+      harness.runtime.connectWithCredentials({
+        containerId: PLAIN_ID,
+        username: 'app',
+        password: 'hunter2',
+        authSource: 'admin',
+      }),
+    ]);
+
+    expect(connectedOf(viaConnect).status).toEqual(CONNECTED);
+    expect(viaCredentials.status).toEqual(CONNECTED);
+    expect(harness.forwarders.released).toEqual([]);
+  });
+
+  it('a connectWithCredentials and a connect for one container, credentials first, neither releases it', async () => {
+    const harness = buildHarness({
+      [PLAIN_ID]: inspectOf({ id: PLAIN_ID, name: 'orders-mongo' }),
+    });
+    supersedingConnections(harness.connections);
+
+    const [viaCredentials, viaConnect] = await Promise.all([
+      harness.runtime.connectWithCredentials({
+        containerId: PLAIN_ID,
+        username: 'app',
+        password: 'hunter2',
+        authSource: 'admin',
+      }),
+      harness.runtime.connect(PLAIN_ID),
+    ]);
+
+    expect(viaCredentials.status).toEqual(CONNECTED);
+    expect(connectedOf(viaConnect).status).toEqual(CONNECTED);
+    expect(harness.forwarders.released).toEqual([]);
+  });
+
+  it('a connecting status from a superseded attempt does not release the forwarder', async () => {
+    const harness = buildHarness({
+      [PLAIN_ID]: inspectOf({ id: PLAIN_ID, name: 'orders-mongo' }),
+    });
+    harness.connections.nextStatus = { state: 'connecting' };
+
+    const result = await harness.runtime.connect(PLAIN_ID);
+
+    expect(result).toMatchObject({ status: { state: 'connecting' } });
+    expect(harness.forwarders.released).toEqual([]);
+  });
+
+  it('an error status from connectWithCredentials still releases the forwarder', async () => {
+    const harness = buildHarness({
+      [PLAIN_ID]: inspectOf({ id: PLAIN_ID, name: 'orders-mongo' }),
+    });
+    harness.connections.nextStatus = {
+      state: 'error',
+      error: { code: 'CONNECTION_FAILED', message: 'Could not connect to the server' },
+    };
+
+    const result = await harness.runtime.connectWithCredentials({
+      containerId: PLAIN_ID,
+      username: 'app',
+      password: 'hunter2',
+      authSource: 'admin',
+    });
+
+    expect(result).toMatchObject({ status: { state: 'error' } });
+    expect(harness.forwarders.released).toEqual([PLAIN_ID]);
+  });
+
+  it('a disconnect during a connect that never settles resolves and releases the forwarder', async () => {
+    const harness = buildHarness({
+      [PLAIN_ID]: inspectOf({ id: PLAIN_ID, name: 'orders-mongo' }),
+    });
+    harness.connections.connect = async (profile) => {
+      harness.connections.connected.push(profile.uri);
+      return new Promise<ConnectionStatus>(() => undefined);
+    };
+
+    const connecting = harness.runtime.connect(PLAIN_ID);
+    await vi.waitFor(() => expect(harness.connections.connected).toHaveLength(1));
+    await withinMs(harness.runtime.disconnect(PLAIN_ID), 2_000);
+
+    expect(connectedOf(await withinMs(connecting, 2_000)).status).toEqual({
+      state: 'disconnected',
+    });
+    expect(harness.connections.disconnected).toHaveLength(1);
+    expect(harness.forwarders.released).toEqual([PLAIN_ID]);
+  });
+
+  it('a disconnect during the forwarder start ends the connect before it reaches the connection manager', async () => {
+    const harness = buildHarness({
+      [PLAIN_ID]: inspectOf({ id: PLAIN_ID, name: 'orders-mongo' }),
+    });
+    const gate = holdForwarderStart(harness.forwarders);
+
+    const connecting = harness.runtime.connect(PLAIN_ID);
+    await vi.waitFor(() => expect(gate.reached()).toBe(1));
+    const disconnecting = harness.runtime.disconnect(PLAIN_ID);
+    gate.open();
+
+    const result = await connecting;
+    await disconnecting;
+
+    expect(connectedOf(result).status).toEqual({ state: 'disconnected' });
+    expect(harness.connections.connected).toEqual([]);
+    expect(harness.forwarders.ensured).toEqual([PLAIN_ID]);
+    expect(harness.forwarders.released).toEqual([PLAIN_ID]);
+  });
+
+  it('a connect queued behind another one checks the container when its turn comes', async () => {
+    const harness = buildHarness({
+      [PLAIN_ID]: inspectOf({ id: PLAIN_ID, name: 'orders-mongo' }),
+    });
+    const gate = holdForwarderStart(harness.forwarders);
+
+    const first = harness.runtime.connect(PLAIN_ID);
+    await vi.waitFor(() => expect(gate.reached()).toBe(1));
+    const second = harness.runtime.connect(PLAIN_ID).catch((error: unknown) => error);
+    harness.engine.inspects.set(
+      PLAIN_ID,
+      inspectOf({ id: PLAIN_ID, name: 'orders-mongo', status: 'exited' }),
+    );
+    gate.open();
+
+    await first;
+    expect(await second).toMatchObject({ error: { code: 'VALIDATION' } });
+    expect(harness.forwarders.ensured).toEqual([PLAIN_ID]);
+  });
+
+  it('a connect queued behind another one gets COMMAND_FAILED when the container is paused by its turn', async () => {
+    const harness = buildHarness({
+      [PLAIN_ID]: inspectOf({ id: PLAIN_ID, name: 'orders-mongo' }),
+    });
+    const gate = holdForwarderStart(harness.forwarders);
+
+    const first = harness.runtime.connect(PLAIN_ID);
+    await vi.waitFor(() => expect(gate.reached()).toBe(1));
+    const second = harness.runtime.connect(PLAIN_ID).catch((error: unknown) => error);
+    // The list still reports the container as running. Its inspect reads paused.
+    const inspect = harness.engine.client.inspectContainer;
+    harness.engine.client.inspectContainer = async (id) => {
+      const json = (await inspect(id)) as Record<string, unknown>;
+      return { ...json, State: { Status: 'paused' } };
+    };
+    gate.open();
+
+    await first;
+    expect(await second).toMatchObject({ error: { code: 'COMMAND_FAILED' } });
+  });
+
+  it('a connect that arrives while a disconnect is still closing waits for the forwarder release', async () => {
+    const harness = buildHarness({
+      [PLAIN_ID]: inspectOf({ id: PLAIN_ID, name: 'orders-mongo' }),
+    });
+    await harness.runtime.connect(PLAIN_ID);
+    expect(harness.forwarders.released).toEqual([]);
+
+    // The close takes time. The connection manager changes the status at once, then closes.
+    let openClose: () => void = () => undefined;
+    const closeGate = new Promise<void>((resolve) => {
+      openClose = resolve;
+    });
+    const disconnectNow = harness.connections.disconnect;
+    harness.connections.disconnect = async (connectionId) => {
+      const changed = disconnectNow(connectionId);
+      await closeGate;
+      await changed;
+    };
+
+    const disconnecting = harness.runtime.disconnect(PLAIN_ID);
+    const reconnected = await harness.runtime.connect(PLAIN_ID);
+    const { caFile, certFile } = savedTlsFiles(harness);
+
+    expect(connectedOf(reconnected).status).toEqual(CONNECTED);
+    expect(harness.forwarders.released).toEqual([PLAIN_ID]);
+    expect(existsSync(caFile)).toBe(true);
+    expect(existsSync(certFile)).toBe(true);
+
+    openClose();
+    await disconnecting;
+  });
+
+  it('a connect that rejects does not block the next connect for the same container', async () => {
+    const harness = buildHarness({
+      [PLAIN_ID]: inspectOf({ id: PLAIN_ID, name: 'orders-mongo' }),
+    });
+    const ensure = harness.forwarders.ensure;
+    let starts = 0;
+    harness.forwarders.ensure = async (target) => {
+      starts += 1;
+      if (starts === 1) {
+        throw new Error('forwarder did not start');
+      }
+      return ensure(target);
+    };
+
+    const [failed, next] = await Promise.allSettled([
+      harness.runtime.connect(PLAIN_ID),
+      harness.runtime.connect(PLAIN_ID),
+    ]);
+
+    expect(failed.status).toBe('rejected');
+    expect(next).toMatchObject({ status: 'fulfilled', value: { status: CONNECTED } });
+  });
+
+  it('a failed connectWithCredentials keeps the forwarder while the container profile is connected', async () => {
+    const harness = buildHarness({
+      [PLAIN_ID]: inspectOf({ id: PLAIN_ID, name: 'orders-mongo' }),
+    });
+    await harness.runtime.connect(PLAIN_ID);
+    harness.connections.nextTest = {
+      ok: false,
+      error: { code: 'AUTH_FAILED', message: 'Authentication failed' },
+    };
+
+    await expect(
+      harness.runtime.connectWithCredentials({
+        containerId: PLAIN_ID,
+        username: 'app',
+        password: 'wrong',
+        authSource: 'admin',
+      }),
+    ).rejects.toMatchObject({ error: { code: 'AUTH_FAILED' } });
+    expect(harness.forwarders.released).toEqual([]);
+  });
+
+  it('a failed connectWithCredentials keeps the certificate files of the connected profile', async () => {
+    const harness = buildHarness({
+      [PLAIN_ID]: inspectOf({ id: PLAIN_ID, name: 'orders-mongo' }),
+    });
+    await harness.runtime.connect(PLAIN_ID);
+    const { caFile, certFile } = savedTlsFiles(harness);
+    harness.connections.nextTest = {
+      ok: false,
+      error: { code: 'AUTH_FAILED', message: 'Authentication failed' },
+    };
+
+    await expect(
+      harness.runtime.connectWithCredentials({
+        containerId: PLAIN_ID,
+        username: 'app',
+        password: 'wrong',
+        authSource: 'admin',
+      }),
+    ).rejects.toMatchObject({ error: { code: 'AUTH_FAILED' } });
+    expect(readFileSync(caFile, 'utf8')).toBe('CA-PEM');
+    expect(readFileSync(certFile, 'utf8')).toBe('CLIENT-PEM');
+  });
+
+  it('a failed connect keeps the forwarder while the container profile is connected', async () => {
+    const harness = buildHarness({
+      [PLAIN_ID]: inspectOf({ id: PLAIN_ID, name: 'orders-mongo' }),
+    });
+    await harness.runtime.connect(PLAIN_ID);
+    harness.connections.failure = new Error('socket reset');
+
+    await expect(harness.runtime.connect(PLAIN_ID)).rejects.toThrow('socket reset');
+    expect(harness.forwarders.released).toEqual([]);
+  });
+});
+
+/** Rejects when `work` does not settle within `ms`, so a hang fails the test at once. */
+function withinMs<T>(work: Promise<T>, ms: number): Promise<T> {
+  let timer: ReturnType<typeof setTimeout> | undefined;
+  const timeout = new Promise<never>((_, reject) => {
+    timer = setTimeout(() => reject(new Error(`did not settle within ${ms} ms`)), ms);
+  });
+  return Promise.race([work, timeout]).finally(() => clearTimeout(timer));
+}
+
+/** The certificate files that the docker profile of PLAIN_ID points at. */
+function savedTlsFiles(harness: Harness): { caFile: string; certFile: string } {
+  const tls = harness.repos.connections
+    .list()
+    .find((profile) => profile.dockerContainerId === PLAIN_ID)?.tls;
+  if (tls?.caFile === undefined || tls.certFile === undefined) {
+    throw new Error('the docker profile has no certificate files');
+  }
+  return { caFile: tls.caFile, certFile: tls.certFile };
+}
+
+/** Holds each forwarder start until `open` is called. `reached` counts the starts that began. */
+function holdForwarderStart(forwarders: FakeForwarders): { open(): void; reached(): number } {
+  const start = forwarders.ensure;
+  let starts = 0;
+  let release: () => void = () => undefined;
+  const gate = new Promise<void>((resolve) => {
+    release = resolve;
+  });
+  forwarders.ensure = async (target) => {
+    starts += 1;
+    await gate;
+    return start(target);
+  };
+  return { open: () => release(), reached: () => starts };
+}
+
 describe('createDockerRuntime suspend and resume', () => {
   it('pushes no events while suspended and resumes when asked', async () => {
     const harness = buildHarness({}, 20);
@@ -642,6 +1015,7 @@ describe('createDockerRuntime disconnect, status and list', () => {
       500,
     );
     const runtime = createDockerRuntime({
+      tlsRoot: join(harness.dir, 'forwarder-tls'),
       engine: {
         ...harness.engine.client,
         listContainers: async () => {
@@ -719,6 +1093,7 @@ describe('createDockerRuntime releaseProfile and cleanup', () => {
   it('removes forwarders at cleanup and tolerates a failure', async () => {
     const harness = buildHarness({});
     const failing = createDockerRuntime({
+      tlsRoot: join(harness.dir, 'forwarder-tls'),
       engine: harness.engine.client,
       socketPath: SOCKET,
       forwarders: {
@@ -783,6 +1158,49 @@ describe('createDockerRuntime watch', () => {
   });
 });
 
+describe('sweepStaleForwarderDirs', () => {
+  it('removes forwarder folders left by an earlier run, and nothing else', () => {
+    const tmp = mkdtempSync(join(tmpdir(), 'forwarder-sweep-'));
+    try {
+      mkdirSync(join(tmp, 'mongo-gui-forwarder-stale1'));
+      writeFileSync(join(tmp, 'mongo-gui-forwarder-stale1', 'client.pem'), 'key');
+      mkdirSync(join(tmp, 'mongo-gui-forwarder-stale2'));
+      mkdirSync(join(tmp, 'other-app-folder'));
+      mkdirSync(join(tmp, 'x-mongo-gui-forwarder-kept'));
+      writeFileSync(join(tmp, 'mongo-gui-forwarder-file'), 'a file, not a folder');
+
+      expect(sweepStaleForwarderDirs(tmp)).toBe(2);
+      expect(readdirSync(tmp).sort()).toEqual([
+        'mongo-gui-forwarder-file',
+        'other-app-folder',
+        'x-mongo-gui-forwarder-kept',
+      ]);
+    } finally {
+      rmSync(tmp, { recursive: true, force: true });
+    }
+  });
+
+  it('sweeps only the folder it is given', () => {
+    const base = mkdtempSync(join(tmpdir(), 'forwarder-sweep-scope-'));
+    try {
+      const mine = join(base, 'this-profile');
+      const other = join(base, 'other-profile');
+      mkdirSync(join(mine, 'mongo-gui-forwarder-stale'), { recursive: true });
+      mkdirSync(join(other, 'mongo-gui-forwarder-live'), { recursive: true });
+
+      expect(sweepStaleForwarderDirs(mine)).toBe(1);
+      expect(readdirSync(mine)).toEqual([]);
+      expect(readdirSync(other)).toEqual(['mongo-gui-forwarder-live']);
+    } finally {
+      rmSync(base, { recursive: true, force: true });
+    }
+  });
+
+  it('returns zero when the folder cannot be read', () => {
+    expect(sweepStaleForwarderDirs(join(tmpdir(), 'no-such-folder-for-forwarder-sweep'))).toBe(0);
+  });
+});
+
 describe('createDockerRuntime forwarder certificates', () => {
   it('writes private certificate files into the profile and removes them on disconnect', async () => {
     const harness = buildHarness({
@@ -796,9 +1214,13 @@ describe('createDockerRuntime forwarder certificates', () => {
     const { caFile, certFile } = tls ?? {};
     expect(readFileSync(caFile ?? '', 'utf8')).toBe('CA-PEM');
     expect(readFileSync(certFile ?? '', 'utf8')).toBe('CLIENT-PEM');
+    // The folders sit under the profile's TLS root, never in the system temp folder.
+    const tlsRoot = join(harness.dir, 'forwarder-tls');
+    expect(dirname(dirname(certFile ?? ''))).toBe(tlsRoot);
     if (process.platform !== 'win32') {
       expect(statSync(certFile ?? '').mode & 0o077).toBe(0);
       expect(statSync(dirname(certFile ?? '')).mode & 0o077).toBe(0);
+      expect(statSync(tlsRoot).mode & 0o077).toBe(0);
     }
 
     await harness.runtime.disconnect(PLAIN_ID);

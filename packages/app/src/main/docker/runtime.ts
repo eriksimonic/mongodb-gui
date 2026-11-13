@@ -1,5 +1,4 @@
-import { mkdtempSync, rmSync, writeFileSync } from 'node:fs';
-import { tmpdir } from 'node:os';
+import { mkdirSync, mkdtempSync, readdirSync, rmSync, writeFileSync, type Dirent } from 'node:fs';
 import { join } from 'node:path';
 import {
   AppErrorException,
@@ -47,10 +46,14 @@ export interface DockerConnections {
   disconnect(connectionId: string): Promise<void>;
   /** Opens a client without saving anything. Used to check credentials before a profile is written. */
   test(profile: ConnectionProfileInput): Promise<ConnectionTestResult>;
+  /** The current state of a connection. An unknown id reads as disconnected. */
+  status(connectionId: string): ConnectionStatus;
 }
 
 export interface DockerRuntimeDeps {
   readonly engine: DockerEngineClient;
+  /** The folder for forwarder certificate folders. The app passes one under the profile's user data folder. */
+  readonly tlsRoot: string;
   /** The socket the engine client talks to. Named in the status reason. */
   readonly socketPath: string;
   readonly forwarders: ForwarderManager;
@@ -115,9 +118,79 @@ interface TlsFiles {
   readonly certFile: string;
 }
 
+/** The directory of a forwarder's certificate files, and the PEMs written into it. */
+interface TlsDir {
+  readonly dir: string;
+  readonly caPem: string;
+  readonly clientPem: string;
+}
+
+function tlsFilesIn(dir: string): TlsFiles {
+  return { caFile: join(dir, 'ca.pem'), certFile: join(dir, 'client.pem') };
+}
+
+const DISCONNECTED: ConnectionStatus = { state: 'disconnected' };
+
+/** A disconnect request for one container. A connect takes the signal when it is requested. */
+interface DisconnectSignal {
+  /** True once a disconnect fired this signal. */
+  fired: boolean;
+  readonly settled: Promise<void>;
+  fire(): void;
+}
+
+function newDisconnectSignal(): DisconnectSignal {
+  let settle: () => void = () => undefined;
+  const settled = new Promise<void>((resolve) => {
+    settle = resolve;
+  });
+  const signal: DisconnectSignal = {
+    fired: false,
+    settled,
+    fire: () => {
+      signal.fired = true;
+      settle();
+    },
+  };
+  return signal;
+}
+
 interface Snapshot {
   readonly available: boolean;
   readonly containers: readonly DockerMongoContainerSummary[];
+}
+
+const FORWARDER_DIR_PREFIX = 'mongo-gui-forwarder-';
+
+/** The folder under a profile's user data folder that holds the forwarder certificate folders. */
+export function forwarderTlsRoot(userDataDir: string): string {
+  return join(userDataDir, 'forwarder-tls');
+}
+
+/**
+ * Removes the forwarder certificate folders that an earlier run left in one TLS root, for example
+ * after a crash. The app calls it at startup under the profile lock, so no folder of a live forwarder
+ * in that profile is removed. Other folders, and other profiles, are not touched. Returns the number of
+ * folders removed.
+ */
+export function sweepStaleForwarderDirs(tmp: string): number {
+  let entries: Dirent[];
+  try {
+    entries = readdirSync(tmp, { withFileTypes: true });
+  } catch {
+    return 0;
+  }
+  let removed = 0;
+  for (const entry of entries) {
+    if (!entry.isDirectory() || !entry.name.startsWith(FORWARDER_DIR_PREFIX)) continue;
+    try {
+      rmSync(join(tmp, entry.name), { recursive: true, force: true });
+      removed += 1;
+    } catch {
+      // A folder that cannot be removed now is tried again on the next start.
+    }
+  }
+  return removed;
 }
 
 export function createDockerRuntime(deps: DockerRuntimeDeps): DockerRuntime {
@@ -130,24 +203,33 @@ export function createDockerRuntime(deps: DockerRuntimeDeps): DockerRuntime {
   let lastKey: string | undefined;
   let polling = false;
   // Private directories that hold the certificate files of the live forwarders, by container id.
-  const tlsDirs = new Map<string, string>();
+  const tlsDirs = new Map<string, TlsDir>();
 
   function writeTlsFiles(containerId: string, tls: ForwarderTls): TlsFiles {
+    const current = tlsDirs.get(containerId);
+    // A connected profile reads these files when it reconnects. Same certificates keep the same files.
+    if (
+      current !== undefined &&
+      current.caPem === tls.caPem &&
+      current.clientPem === tls.clientPem
+    ) {
+      return tlsFilesIn(current.dir);
+    }
     removeTlsDir(containerId);
     // mkdtemp creates the directory with mode 0700. The files are owner-only too.
-    const dir = mkdtempSync(join(tmpdir(), 'mongo-gui-forwarder-'));
-    tlsDirs.set(containerId, dir);
-    const caFile = join(dir, 'ca.pem');
-    const certFile = join(dir, 'client.pem');
-    writeFileSync(caFile, tls.caPem, { mode: 0o600 });
-    writeFileSync(certFile, tls.clientPem, { mode: 0o600 });
-    return { caFile, certFile };
+    mkdirSync(deps.tlsRoot, { recursive: true, mode: 0o700 });
+    const dir = mkdtempSync(join(deps.tlsRoot, FORWARDER_DIR_PREFIX));
+    tlsDirs.set(containerId, { dir, caPem: tls.caPem, clientPem: tls.clientPem });
+    const files = tlsFilesIn(dir);
+    writeFileSync(files.caFile, tls.caPem, { mode: 0o600 });
+    writeFileSync(files.certFile, tls.clientPem, { mode: 0o600 });
+    return files;
   }
 
   function removeTlsDir(containerId: string): void {
-    const dir = tlsDirs.get(containerId);
-    if (dir !== undefined) {
-      rmSync(dir, { recursive: true, force: true });
+    const current = tlsDirs.get(containerId);
+    if (current !== undefined) {
+      rmSync(current.dir, { recursive: true, force: true });
       tlsDirs.delete(containerId);
     }
   }
@@ -237,6 +319,15 @@ export function createDockerRuntime(deps: DockerRuntimeDeps): DockerRuntime {
     return found;
   }
 
+  /** Resolves a container that must be running. Called inside the queue, so the state is read at the start of the task. */
+  async function runningContainer(containerId: string): Promise<DockerMongoContainer> {
+    const container = await resolveContainer(containerId);
+    if (container.state !== 'running') {
+      throw new AppErrorException(appError('COMMAND_FAILED', 'The container is not running.'));
+    }
+    return container;
+  }
+
   async function endpointFor(container: DockerMongoContainer): Promise<Endpoint> {
     if (container.publishedPort !== undefined) {
       return {
@@ -277,16 +368,72 @@ export function createDockerRuntime(deps: DockerRuntimeDeps): DockerRuntime {
     });
   }
 
-  async function connect(containerId: string): Promise<DockerConnectResult> {
-    const container = await resolveContainer(containerId);
-    if (container.state !== 'running') {
-      throw new AppErrorException(appError('COMMAND_FAILED', 'The container is not running.'));
+  // The last queued task for each container. connect, connectWithCredentials and disconnect wait for it.
+  const inFlight = new Map<string, Promise<unknown>>();
+
+  /** Runs `task` after the queued task for the same container settles, so attempts never overlap. */
+  function afterInFlight<T>(containerId: string, task: () => Promise<T>): Promise<T> {
+    const previous = inFlight.get(containerId) ?? Promise.resolve();
+    const run = previous.catch(() => undefined).then(task);
+    inFlight.set(containerId, run);
+    return run.finally(() => {
+      if (inFlight.get(containerId) === run) {
+        inFlight.delete(containerId);
+      }
+    });
+  }
+
+  /** True when the container's profile is connected, so its forwarder is still in use. */
+  function profileConnected(containerId: string): boolean {
+    const profile = findProfile(containerId);
+    return profile !== undefined && deps.connections.status(profile.id).state === 'connected';
+  }
+
+  // The signal each container's connects wait on. A disconnect fires and removes it, so later connects get a new one.
+  const disconnectSignals = new Map<string, DisconnectSignal>();
+
+  function disconnectSignalFor(containerId: string): DisconnectSignal {
+    let signal = disconnectSignals.get(containerId);
+    if (signal === undefined) {
+      signal = newDisconnectSignal();
+      disconnectSignals.set(containerId, signal);
     }
+    return signal;
+  }
+
+  /**
+   * Starts the connection unless a disconnect was requested first. The disconnect ends the wait at
+   * once. A stuck attempt in the connection manager does not end by itself.
+   */
+  function connectUnlessDisconnected(
+    profile: ConnectionProfile,
+    signal: DisconnectSignal,
+  ): Promise<ConnectionStatus> {
+    if (signal.fired) {
+      return Promise.resolve(DISCONNECTED);
+    }
+    return Promise.race([
+      deps.connections.connect(profile),
+      signal.settled.then(() => DISCONNECTED),
+    ]);
+  }
+
+  async function connect(containerId: string): Promise<DockerConnectResult> {
+    const signal = disconnectSignalFor(containerId);
+    return afterInFlight(containerId, async () =>
+      connectResolved(await runningContainer(containerId), signal),
+    );
+  }
+
+  async function connectResolved(
+    container: DockerMongoContainer,
+    signal: DisconnectSignal,
+  ): Promise<DockerConnectResult> {
     const endpoint = await endpointFor(container);
     try {
       const profile = saveProfile(container, buildUri(container, endpoint), endpoint.tls);
-      const status = await deps.connections.connect(profile);
-      if (status.state !== 'connected' && endpoint.forwarded) {
+      const status = await connectUnlessDisconnected(profile, signal);
+      if (status.state === 'error' && endpoint.forwarded) {
         await releaseForwarder(container.id);
       }
       const hasEnvCredentials = envHasCredentials(container);
@@ -301,8 +448,8 @@ export function createDockerRuntime(deps: DockerRuntimeDeps): DockerRuntime {
       }
       return { connectionId: profile.id, status };
     } catch (error) {
-      // A failure after the forwarder started would leave it running with no owner.
-      if (endpoint.forwarded) {
+      // A failure after the forwarder started would leave it running with no owner. A connected profile still owns it.
+      if (endpoint.forwarded && !profileConnected(container.id)) {
         await releaseForwarder(container.id).catch(() => undefined);
       }
       throw error;
@@ -312,10 +459,17 @@ export function createDockerRuntime(deps: DockerRuntimeDeps): DockerRuntime {
   async function connectWithCredentials(
     input: DockerConnectWithCredentialsInput,
   ): Promise<DockerConnectedResult> {
-    const container = await resolveContainer(input.containerId);
-    if (container.state !== 'running') {
-      throw new AppErrorException(appError('COMMAND_FAILED', 'The container is not running.'));
-    }
+    const signal = disconnectSignalFor(input.containerId);
+    return afterInFlight(input.containerId, async () =>
+      connectWithCredentialsResolved(await runningContainer(input.containerId), input, signal),
+    );
+  }
+
+  async function connectWithCredentialsResolved(
+    container: DockerMongoContainer,
+    input: DockerConnectWithCredentialsInput,
+    signal: DisconnectSignal,
+  ): Promise<DockerConnectedResult> {
     const endpoint = await endpointFor(container);
     try {
       const uri = buildCredentialsUri(endpoint, input);
@@ -330,13 +484,13 @@ export function createDockerRuntime(deps: DockerRuntimeDeps): DockerRuntime {
         throw new AppErrorException(tested.error);
       }
       const profile = saveProfile(container, uri, endpoint.tls);
-      const status = await deps.connections.connect(profile);
-      if (status.state !== 'connected' && endpoint.forwarded) {
+      const status = await connectUnlessDisconnected(profile, signal);
+      if (status.state === 'error' && endpoint.forwarded) {
         await releaseForwarder(container.id);
       }
       return { connectionId: profile.id, status };
     } catch (error) {
-      if (endpoint.forwarded) {
+      if (endpoint.forwarded && !profileConnected(container.id)) {
         await releaseForwarder(container.id).catch(() => undefined);
       }
       throw error;
@@ -419,11 +573,16 @@ export function createDockerRuntime(deps: DockerRuntimeDeps): DockerRuntime {
     connectWithCredentials,
 
     async disconnect(containerId) {
+      // The signal fires before the queue, so a connect that is stuck or waiting for its forwarder cannot hold this up.
+      disconnectSignals.get(containerId)?.fire();
+      disconnectSignals.delete(containerId);
+      // Queued before the first await. A connect that arrives while the close runs then waits for the release.
+      const released = afterInFlight(containerId, () => releaseForwarder(containerId));
       const profile = findProfile(containerId);
       if (profile !== undefined) {
         await deps.connections.disconnect(profile.id);
       }
-      await releaseForwarder(containerId);
+      await released;
     },
 
     setAutoConnect(enabled) {

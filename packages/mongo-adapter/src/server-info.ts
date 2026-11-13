@@ -1,14 +1,18 @@
 import { MongoServerError, type MongoClient } from 'mongodb';
 import type { ClusterTopology, ConnectionStatus } from '@mongo-gui/core';
 import { definedEntry, readBoolean, readString, readStringArray } from './documents';
+import { commandTimeoutMs } from './client-options';
 
 export type ServerInfo = Omit<Extract<ConnectionStatus, { state: 'connected' }>, 'state'>;
 
 const COMMAND_NOT_FOUND_CODE = 59;
 
 export async function readServerInfo(client: MongoClient): Promise<ServerInfo> {
-  const hello = await runHello(client);
-  const build: unknown = await client.db('admin').command({ buildInfo: 1 });
+  // A server that accepts the socket but never answers would hold these calls forever, so only these
+  // two calls get a bound. See commandTimeoutMs.
+  const bound = { timeoutMS: commandTimeoutMs(client) };
+  const hello = await runHello(client, bound);
+  const build: unknown = await client.db('admin').command({ buildInfo: 1 }, bound);
   const serverVersion = readString(build, 'version');
   if (serverVersion === undefined) {
     throw new Error('buildInfo reply has no version');
@@ -36,17 +40,18 @@ export function detectTopology(hello: unknown, loadBalanced: boolean): ClusterTo
   return 'unknown';
 }
 
-export async function runHello(client: MongoClient): Promise<unknown> {
+export async function runHello(
+  client: MongoClient,
+  options: { timeoutMS?: number } = {},
+): Promise<unknown> {
   const admin = client.db('admin');
   try {
-    const reply: unknown = await admin.command({ hello: 1 });
-    return reply;
+    return await admin.command({ hello: 1 }, options);
   } catch (error) {
     if (!isCommandNotFound(error)) {
       throw error;
     }
-    const reply: unknown = await admin.command({ ismaster: 1 });
-    return reply;
+    return admin.command({ ismaster: 1 }, options);
   }
 }
 
