@@ -194,4 +194,13 @@ describe('ResultsPane previews', () => {
     );
     expect(screen.queryByTestId('result-capped')).toBeNull();
   });
+
+  it('shows one Load all button for a cursor with more documents', async () => {
+    await renderPane({
+      view: 'table',
+      result: { ...resultOf([{ n: 1 }]), hasMore: true, cursorRequestId: 'c' },
+    });
+
+    expect(screen.getAllByRole('button', { name: /^Load all up to / })).toHaveLength(1);
+  });
 });

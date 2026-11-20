@@ -328,32 +328,6 @@ export function ResultsPane({
                 <Button
                   size="xs"
                   variant="default"
-                  disabled={
-                    !result.hasMore ||
-                    result.capped ||
-                    result.loadingMore ||
-                    result.cursorRequestId === undefined
-                  }
-                  onClick={() =>
-                    modals.openConfirmModal({
-                      title: 'Load documents',
-                      centered: true,
-                      children: (
-                        <Text size="sm">
-                          Load up to {LOAD_ALL_LIMIT.toLocaleString('en-US')} documents into memory?
-                          Large results take a while and use memory.
-                        </Text>
-                      ),
-                      labels: { confirm: 'Load', cancel: 'Cancel' },
-                      onConfirm: onLoadAll,
-                    })
-                  }
-                >
-                  Load all up to {LOAD_ALL_LIMIT.toLocaleString('en-US')}
-                </Button>
-                <Button
-                  size="xs"
-                  variant="default"
                   leftSection={<IconCopy size={13} />}
                   disabled={count === 0}
                   onClick={() => void copyJson()}
