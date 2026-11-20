@@ -2,6 +2,12 @@
 
 All notable changes to Mongo GUI are listed here, newest first.
 
+## 0.6.4 - 2026-11-20
+
+### Fixed
+
+- The results toolbar showed the "Load all up to 5,000" button twice. It now shows it once.
+
 ## 0.6.3 - 2026-11-13
 
 ### Fixed
